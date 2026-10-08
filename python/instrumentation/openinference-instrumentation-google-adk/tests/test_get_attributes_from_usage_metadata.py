@@ -34,6 +34,111 @@ from openinference.instrumentation.google_adk._wrappers import _get_attributes_f
             },
             id="all_fields",
         ),
+        pytest.param(
+            # Schema accounting guard: candidates may already include thoughts while
+            # tool-use prompt tokens still contribute to the response total.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=116,
+                prompt_token_count=6,
+                tool_use_prompt_token_count=10,
+                candidates_token_count=100,
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.total": 116,
+                "llm.token_count.prompt": 16,
+                "llm.token_count.completion": 100,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="tool_use_prompt_tokens_participate_in_inclusive_total",
+        ),
+        pytest.param(
+            # For non-reasoning model, thoughts are absent entirely so no reasoning attribute.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=90,
+                prompt_token_count=10,
+                candidates_token_count=80,
+            ),
+            {
+                "llm.token_count.total": 90,
+                "llm.token_count.prompt": 10,
+                "llm.token_count.completion": 80,
+            },
+            id="no_thoughts_token_count",
+        ),
+        pytest.param(
+            # Do not under-report completion tokens when prompt tokens are missing.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=110,
+                candidates_token_count=80,
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.total": 110,
+                "llm.token_count.completion": 100,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="missing_prompt_token_count_defaults_to_additive",
+        ),
+        pytest.param(
+            # Do not under-report completion tokens when total tokens are missing.
+            types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=10,
+                candidates_token_count=80,
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.prompt": 10,
+                "llm.token_count.completion": 100,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="missing_total_token_count_defaults_to_additive",
+        ),
+        pytest.param(
+            # Do not under-report completion tokens when candidates tokens are missing.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=20,
+                prompt_token_count=0,
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.total": 20,
+                "llm.token_count.completion": 20,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="missing_candidates_token_count_prompt_zero_inclusive",
+        ),
+        pytest.param(
+            # When candidates are explicitly 0 with a nonzero prompt then thoughts get added.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=25,
+                prompt_token_count=5,
+                candidates_token_count=0,
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.total": 25,
+                "llm.token_count.prompt": 5,
+                "llm.token_count.completion": 20,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="candidates_token_count_explicit_zero_not_inclusive",
+        ),
+        pytest.param(
+            # When thoughts are explicitly 0 then no reasoning attribute should be emitted.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=90,
+                prompt_token_count=10,
+                candidates_token_count=80,
+                thoughts_token_count=0,
+            ),
+            {
+                "llm.token_count.total": 90,
+                "llm.token_count.prompt": 10,
+                "llm.token_count.completion": 80,
+            },
+            id="thoughts_token_count_explicit_zero_no_reasoning_detail",
+        ),
     ],
 )
 def test_get_attributes_from_usage_metadata(

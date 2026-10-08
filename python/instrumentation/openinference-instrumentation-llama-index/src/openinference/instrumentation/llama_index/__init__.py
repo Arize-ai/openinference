@@ -64,7 +64,7 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             )
 
             self._original_global_handler = llama_index.core.global_handler
-            llama_index.core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
+            llama_index.core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)  # type: ignore[arg-type]
         else:
             from llama_index.core.instrumentation import (  # type: ignore[attr-defined]
                 get_dispatcher,
@@ -73,7 +73,7 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             from ._handler import EventHandler, _SpanHandler
 
             self._span_handler = _SpanHandler(
-                tracer=tracer,
+                tracer=tracer,  # type: ignore[arg-type]
                 separate_trace_from_runtime_context=bool(
                     kwargs.get("separate_trace_from_runtime_context")
                 ),

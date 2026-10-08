@@ -37,7 +37,7 @@ def claude3_invoke_model():
     }
 
     response = client.invoke_model(
-        modelId="anthropic.claude-3-haiku-20240307-v1:0", body=json.dumps(prompt)
+        modelId="us.anthropic.claude-sonnet-4-6", body=json.dumps(prompt)
     )
 
     response_body = json.loads(response.get("body").read())

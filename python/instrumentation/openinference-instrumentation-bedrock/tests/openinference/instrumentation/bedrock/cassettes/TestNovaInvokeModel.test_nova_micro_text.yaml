@@ -1,0 +1,36 @@
+interactions:
+- request:
+    body: '{"schemaVersion": "messages-v1", "messages": [{"role": "user", "content":
+      [{"text": "What is 2+2? Reply with just the number."}]}], "inferenceConfig":
+      {"maxTokens": 64, "temperature": 0.1}}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.nova-micro-v1%3A0/invoke
+  response:
+    body:
+      string: '{"output":{"message":{"content":[{"text":"4"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":13,"outputTokens":3,"totalTokens":16,"cacheReadInputTokenCount":0,"cacheWriteInputTokenCount":0}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '212'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 28 Apr 2026 16:42:31 GMT
+      X-Amzn-Bedrock-Cache-Read-Input-Token-Count:
+      - '0'
+      X-Amzn-Bedrock-Cache-Write-Input-Token-Count:
+      - '0'
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '13'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '265'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '3'
+      x-amzn-RequestId:
+      - a5bf5c28-d0e5-44f8-b89d-52059af0c60c
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -6,12 +6,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from wrapt import wrap_function_wrapper
 
-from groq.resources.chat.completions import AsyncCompletions, Completions
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.groq._wrappers import (
-    _AsyncCompletionsWrapper,
-    _CompletionsWrapper,
-)
 from openinference.instrumentation.groq.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -29,6 +24,12 @@ class GroqInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        from groq.resources.chat.completions import AsyncCompletions, Completions
+        from openinference.instrumentation.groq._wrappers import (
+            _AsyncCompletionsWrapper,
+            _CompletionsWrapper,
+        )
+
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
@@ -42,16 +43,16 @@ class GroqInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_completions_create = Completions.create
         wrap_function_wrapper(
-            module="groq.resources.chat.completions",
-            name="Completions.create",
-            wrapper=_CompletionsWrapper(tracer=self._tracer),
+            "groq.resources.chat.completions",
+            "Completions.create",
+            _CompletionsWrapper(tracer=self._tracer),
         )
 
         self._original_async_completions_create = AsyncCompletions.create
         wrap_function_wrapper(
-            module="groq.resources.chat.completions",
-            name="AsyncCompletions.create",
-            wrapper=_AsyncCompletionsWrapper(tracer=self._tracer),
+            "groq.resources.chat.completions",
+            "AsyncCompletions.create",
+            _AsyncCompletionsWrapper(tracer=self._tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

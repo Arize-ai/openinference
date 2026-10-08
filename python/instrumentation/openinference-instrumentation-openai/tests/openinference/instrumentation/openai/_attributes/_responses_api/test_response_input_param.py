@@ -17,11 +17,11 @@ from openai.types.responses.response_input_param import (
 )
 from openai.types.responses.response_input_text_param import ResponseInputTextParam
 from openai.types.responses.response_reasoning_item_param import Summary
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openai._attributes._responses_api import (
     _ResponsesApiAttributes,
 )
+from openinference.instrumentation.openai._types import AttributeValue
 
 
 class TestResponseInputItemParam:
@@ -350,7 +350,7 @@ class TestResponseInputItemParam:
                 ),
                 {
                     "message.role": "assistant",
-                    "message.contents.0.message_content.type": "text",
+                    "message.contents.0.message_content.type": "reasoning",
                     "message.contents.0.message_content.text": "This is a reasoning step",
                 },
                 id="basic_reasoning_item",
@@ -372,10 +372,9 @@ class TestResponseInputItemParam:
                 ),
                 {
                     "message.role": "assistant",
-                    "message.contents.0.message_content.type": "text",
-                    "message.contents.0.message_content.text": "First reasoning step",
-                    "message.contents.1.message_content.type": "text",
-                    "message.contents.1.message_content.text": "Second reasoning step",
+                    "message.contents.0.message_content.type": "reasoning",
+                    "message.contents.0.message_content.text": "First reasoning step\nSecond"
+                    " reasoning step",
                 },
                 id="reasoning_item_with_multiple_steps",
             ),

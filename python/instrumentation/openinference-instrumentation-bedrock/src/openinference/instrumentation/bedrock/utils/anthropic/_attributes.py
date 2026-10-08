@@ -271,12 +271,15 @@ def get_llm_output_attributes(response_body: Dict[str, Any]) -> Dict[str, Any]:
         - General output attributes
     """
     output_messages = _get_output_messages(response_body)
-    return {
+    attributes = {
         **get_llm_output_message_attributes(output_messages),
         **get_output_attributes(response_body),
         **get_llm_model_name_attributes(response_body.get("model")),
         **dict(_get_llm_token_counts(response_body.get("usage") or {})),
     }
+    if isinstance(stop_reason := response_body.get("stop_reason"), str) and stop_reason:
+        attributes[SpanAttributes.LLM_FINISH_REASON] = stop_reason
+    return attributes
 
 
 def set_input_attributes(span: Span, request_body: Dict[str, Any], model_id: str) -> None:

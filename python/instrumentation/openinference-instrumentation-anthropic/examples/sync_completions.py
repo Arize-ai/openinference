@@ -1,4 +1,3 @@
-import anthropic
 from anthropic import Anthropic
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -6,25 +5,26 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 from openinference.instrumentation.anthropic import AnthropicInstrumentor
 
-# Configure HaystackInstrumentor with Phoenix endpoint
+# Configure AnthropicInstrumentor with Phoenix endpoint
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
 AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
 
+# The legacy Text Completions API (client.completions) was removed in anthropic v1;
+# use the Messages API instead.
 client = Anthropic()
 
-prompt = (
-    f"{anthropic.HUMAN_PROMPT}"
-    f" how does a court case get to the Supreme Court?"
-    f" {anthropic.AI_PROMPT}"
-)
-
-resp = client.completions.create(
-    model="claude-2.1",
-    prompt=prompt,
-    max_tokens_to_sample=1000,
+resp = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=1000,
+    messages=[
+        {
+            "role": "user",
+            "content": "how does a court case get to the Supreme Court?",
+        }
+    ],
 )
 
 print(resp)

@@ -1,0 +1,156 @@
+# @arizeai/openinference-instrumentation-openai-agents
+
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+  - @arizeai/openinference-core@2.7.3
+
+## 0.3.0
+
+### Minor Changes
+
+- 7feb0c4: Capture `llm.token_count.prompt_details.cache_write` from OpenAI prompt cache usage (`cache_write_tokens`) on both the Chat Completions and Responses APIs. Chat Completions streams now record token usage from the final `stream_options.include_usage` chunk.
+
+### Patch Changes
+
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+
+## 0.2.15
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
+## 0.2.14
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+  - @arizeai/openinference-core@2.7.0
+
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies [6d9f813]
+  - @arizeai/openinference-semantic-conventions@2.10.0
+  - @arizeai/openinference-core@2.6.3
+
+## 0.2.12
+
+### Patch Changes
+
+- Updated dependencies [fd01216]
+  - @arizeai/openinference-semantic-conventions@2.9.0
+  - @arizeai/openinference-core@2.6.2
+
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies [4d72f42]
+  - @arizeai/openinference-core@2.6.1
+
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies [99f6e71]
+  - @arizeai/openinference-core@2.6.0
+
+## 0.2.9
+
+### Patch Changes
+
+- 0071b37: Split over-complex functions into focused helpers and make implicit returns explicit (enforce `eslint/complexity`). Also hardens bedrock-agent-runtime tool-call extraction against a `function: null` payload that previously threw. No other behavior changes.
+- Updated dependencies [0071b37]
+  - @arizeai/openinference-core@2.5.4
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+
+## 0.2.7
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+- Updated dependencies [74ae809]
+  - @arizeai/openinference-core@2.5.2
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
+## 0.2.3
+
+### Patch Changes
+
+- 622d20f: Bump @opentelemetry/core to ^2.8.0 for OpenAI Agents instrumentation to address the W3C Baggage denial-of-service security advisory.
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [d0f5a88]
+  - @arizeai/openinference-core@2.4.0
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [1fe7927]
+  - @arizeai/openinference-core@2.3.0
+
+## 0.2.0
+
+### Minor Changes
+
+- ad1bbf4: Initial release of OpenInference instrumentation for the OpenAI Agents SDK (`@openai/agents`).
+
+  - Bridges the SDK's native `TracingProcessor` interface to OpenTelemetry without monkey-patching.
+  - Emits OpenInference-compliant spans for every SDK span type: agent, generation, response, function (tool), handoff, mcp_tools, guardrail, and custom.
+  - Captures full LLM telemetry — model name, invocation parameters, input/output messages, tool calls, and token counts (including `cache_read` and `reasoning` details) — for both the `chat_completions` and `responses` transports.
+  - Records multi-agent handoff relationships via `graph.node.id` / `graph.node.parent_id` so flows can be visualised as a graph.
+  - Supports OpenInference `TraceConfig` for masking sensitive inputs/outputs.
+  - Provides exclusive (default) and additive registration via `instrument({ exclusiveProcessor })`, mirroring the Python instrumentor's `exclusive_processor` argument, plus an `uninstrument` teardown.

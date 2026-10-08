@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { SpanStatusCode, TimeInput } from "@opentelemetry/api";
-
-import { FrameworkSpan } from "../types";
-
+import type { TimeInput } from "@opentelemetry/api";
+import { SpanStatusCode } from "@opentelemetry/api";
 import { isEmpty } from "remeda";
+
+import type { FrameworkSpan } from "../types";
 
 interface CreateSpanProps {
   id: string;

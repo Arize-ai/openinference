@@ -8,18 +8,22 @@ Tools available to the LLM are represented using the `llm.tools` prefix with fla
 
 ### Attribute Pattern
 
-`llm.tools.<index>.tool.json_schema`
+- `llm.tools.<index>.tool.json_schema`
+- `llm.tools.<index>.tool.name`
+- `llm.tools.<index>.tool.description`
 
-The `json_schema` contains the complete tool definition as a JSON string, including:
-- Tool type (usually "function")
-- Function name
-- Function description
-- Parameter schema
+The `json_schema` contains the provider-native tool definition as a JSON string. Depending on the provider, it can contain the complete definition or only the parameter schema, and the name and description can appear at different nesting levels.
+
+`tool.name` is the name of the tool, i.e. the identifier the model uses to call it, and `tool.description` is the text the model uses to decide whether to call it. Instrumentations SHOULD set `tool.name`, and SHOULD set `tool.description` when the definition has one.
+
+Consumers SHOULD prefer the explicit `tool.name` and `tool.description` attributes and fall back to extracting them from `tool.json_schema` for telemetry produced before these attributes were introduced. The `tool.json_schema` attribute remains unchanged for backwards compatibility and lossless capture of the provider-native definition.
 
 ### Example Tool Definition
 
 ```json
 {
+  "llm.tools.0.tool.name": "get_weather",
+  "llm.tools.0.tool.description": "Get current weather for a location",
   "llm.tools.0.tool.json_schema": "{\"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"description\": \"Get current weather for a location\", \"parameters\": {\"type\": \"object\", \"properties\": {\"location\": {\"type\": \"string\", \"description\": \"City and state\"}}, \"required\": [\"location\"]}}}"
 }
 ```
@@ -42,6 +46,7 @@ Where:
 - `tool_call.id`: Unique identifier for the tool call
 - `tool_call.function.name`: Name of the function being called
 - `tool_call.function.arguments`: JSON string containing the function arguments
+- `tool_call.reasoning_signature`: Opaque provider-issued reasoning echo token attached to this tool call. Use this when a provider attaches reasoning continuity state to the tool-call part itself, such as Gemini `thoughtSignature` on a `functionCall` part.
 
 ### Example Tool Call
 
@@ -50,9 +55,28 @@ Where:
   "llm.output_messages.0.message.role": "assistant",
   "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc123",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"location\": \"San Francisco, CA\"}"
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"location\": \"San Francisco, CA\"}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.reasoning_signature": "CiQB..."
 }
 ```
+
+### Ordered Tool-Use Content Items
+
+Some providers return tool calls as ordered content parts interleaved with reasoning or text. When preserving that order is necessary for replay, also represent the part in `message.contents` with `message_content.type = "tool_use"` and the same `tool_call.*` suffixes:
+
+```json
+{
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+  "llm.output_messages.0.message.contents.0.message_content.text": "I need the current weather before answering.",
+  "llm.output_messages.0.message.contents.1.message_content.type": "tool_use",
+  "llm.output_messages.0.message.contents.1.tool_call.id": "call_abc123",
+  "llm.output_messages.0.message.contents.1.tool_call.function.name": "get_weather",
+  "llm.output_messages.0.message.contents.1.tool_call.function.arguments": "{\"location\": \"San Francisco, CA\"}"
+}
+```
+
+The `message.tool_calls` array remains the conventional location for generated tool calls. The ordered `message.contents` representation is additive and is used when consumers need to reconstruct the provider's original part sequence.
 
 ## Multiple Tool Calls
 
@@ -78,11 +102,12 @@ Tool results are typically represented as input messages with role "tool":
 {
   "llm.input_messages.3.message.role": "tool",
   "llm.input_messages.3.message.content": "{\"temperature\": 72, \"condition\": \"sunny\"}",
-  "llm.input_messages.3.message.tool_call_id": "call_abc123"
+  "llm.input_messages.3.message.tool_call_id": "call_abc123",
+  "llm.input_messages.3.message.name": "get_weather"
 }
 ```
 
-The `message.tool_call_id` links the result back to the original tool call.
+The `message.tool_call_id` links the result back to the original tool call. The `message.name` attribute MAY be set to identify which function produced the result — it typically matches `tool_call.function.name` from the corresponding tool call.
 
 ## Complete Tool Call Flow Example
 
@@ -97,6 +122,8 @@ The `message.tool_call_id` links the result back to the original tool call.
 2. **Available Tools**:
 ```json
 {
+  "llm.tools.0.tool.name": "get_weather",
+  "llm.tools.0.tool.description": "Get current weather",
   "llm.tools.0.tool.json_schema": "{\"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"description\": \"Get current weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"location\": {\"type\": \"string\"}}}}}"
 }
 ```

@@ -1,4 +1,4 @@
-import { GenericFunction, SafeFunction } from "./types";
+import type { GenericFunction, SafeFunction } from "./types";
 export * from "./typeUtils";
 
 /**

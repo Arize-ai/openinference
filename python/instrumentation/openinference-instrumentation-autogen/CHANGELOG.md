@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.14...python-openinference-instrumentation-autogen-v0.1.15) (2026-08-07)
+
+
+### Features
+
+* **ag2:** add first-class instrumentation ([#3379](https://github.com/Arize-ai/openinference/issues/3379)) ([2b2d78f](https://github.com/Arize-ai/openinference/commit/2b2d78f6814b9416de95eb720aa71bd6d8cb895c))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.13...python-openinference-instrumentation-autogen-v0.1.14) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.12...python-openinference-instrumentation-autogen-v0.1.13) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.11...python-openinference-instrumentation-autogen-v0.1.12) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.10...python-openinference-instrumentation-autogen-v0.1.11) (2026-04-29)
+
+
+### Bug Fixes
+
+* **instructor:** make UserInfo fields optional for streaming partial responses ([#2295](https://github.com/Arize-ai/openinference/issues/2295)) ([5bb52cf](https://github.com/Arize-ai/openinference/commit/5bb52cfe25d0ec9693d562110c0af1097b7518b5))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.9...python-openinference-instrumentation-autogen-v0.1.10) (2025-10-10)
 
 

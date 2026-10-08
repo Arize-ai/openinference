@@ -1,5 +1,5 @@
 import { SpanKind } from "@opentelemetry/api";
-import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
+import type { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 
 // Interface for API response structure verification
 interface ApiResponse {
@@ -34,10 +34,7 @@ export const consumeStreamResponse = async (result: {
 };
 
 // Helper function to verify basic span structure and return the span
-export const verifySpanBasics = (
-  spanExporter: InMemorySpanExporter,
-  expectedSpanName?: string,
-) => {
+export const verifySpanBasics = (spanExporter: InMemorySpanExporter, expectedSpanName?: string) => {
   const spans = spanExporter.getFinishedSpans();
   expect(spans).toHaveLength(1);
 

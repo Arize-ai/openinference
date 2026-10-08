@@ -92,7 +92,7 @@ def test_handler_basic_retrieval(
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
     callback_manager = CallbackManager()
     Settings.callback_manager = callback_manager
-    Settings.llm = OpenAI(max_retries=0, timeout=0.01)
+    Settings.llm = OpenAI(max_retries=0, reuse_client=False)
     query_engine = ListIndex(nodes).as_query_engine(use_async=is_async, streaming=is_stream)
     respx_kwargs: Dict[str, Any] = (
         {
@@ -125,7 +125,12 @@ def test_handler_basic_retrieval(
             await response.get_response()
 
     async def task() -> None:
-        await asyncio.gather(*(aquery(question) for question in questions), return_exceptions=True)
+        results = await asyncio.gather(
+            *(aquery(question) for question in questions), return_exceptions=True
+        )
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
 
     def query(question: str) -> None:
         response = query_engine.query(question)
@@ -138,8 +143,12 @@ def test_handler_basic_retrieval(
             asyncio.run(task())
             return
         with ThreadPoolExecutor() as executor:
-            for question in questions:
+            futures = [
                 executor.submit(copy_context().run, partial(query, question))
+                for question in questions
+            ]
+            for future in futures:
+                future.result()
 
     with suppress(openai.BadRequestError):
         if use_context_attributes:
@@ -188,11 +197,17 @@ def test_handler_basic_retrieval(
             if not is_stream:
                 assert query_attributes.pop(OUTPUT_VALUE, None) == answer
             else:
-                assert query_attributes.pop(OUTPUT_VALUE, None) is not None
-                assert query_attributes.pop(OUTPUT_MIME_TYPE, None)
+                query_output_value = query_attributes.pop(OUTPUT_VALUE)
+                assert isinstance(query_output_value, str)
+                assert query_attributes.pop(OUTPUT_MIME_TYPE) == JSON
         elif is_stream:
-            assert query_attributes.pop(OUTPUT_VALUE, None) is not None
-            assert query_attributes.pop(OUTPUT_MIME_TYPE, None)
+            query_output_value = query_attributes.pop(OUTPUT_VALUE)
+            assert isinstance(query_output_value, str)
+            response_metadata = json.loads(query_output_value)
+            assert response_metadata["response_txt"] is None
+            assert len(response_metadata["source_nodes"]) == len(nodes)
+            assert query_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+            assert query_span.status.status_code == trace_api.StatusCode.ERROR
 
         if is_async:
             assert (
@@ -259,11 +274,17 @@ def test_handler_basic_retrieval(
             if not is_stream:
                 assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
             else:
-                assert synthesize_attributes.pop(OUTPUT_VALUE, None) is not None
-                assert synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
+                synthesize_output_value = synthesize_attributes.pop(OUTPUT_VALUE)
+                assert isinstance(synthesize_output_value, str)
+                assert synthesize_attributes.pop(OUTPUT_MIME_TYPE) == JSON
         elif is_stream:
-            assert synthesize_attributes.pop(OUTPUT_VALUE, None) is not None
-            assert synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
+            synthesize_output_value = synthesize_attributes.pop(OUTPUT_VALUE)
+            assert isinstance(synthesize_output_value, str)
+            response_metadata = json.loads(synthesize_output_value)
+            assert response_metadata["response_txt"] is None
+            assert len(response_metadata["source_nodes"]) == len(nodes)
+            assert synthesize_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+            assert synthesize_span.status.status_code == trace_api.StatusCode.ERROR
 
         if use_context_attributes:
             _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
@@ -292,6 +313,15 @@ def test_handler_basic_retrieval(
             else:
                 assert (llm_span := _pop_span(spans_by_name, "OpenAI.predict")) is not None
         assert _is_descendant(llm_span, refine_span, spans_by_id)
+        for parent_span in (query_span, synthesize_span, refine_span):
+            assert parent_span.start_time is not None and parent_span.end_time is not None
+            assert llm_span.start_time is not None and llm_span.end_time is not None
+            assert (
+                parent_span.start_time
+                <= llm_span.start_time
+                <= llm_span.end_time
+                <= parent_span.end_time
+            )
         llm_attributes = dict(llm_span.attributes or {})
         assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert llm_attributes.pop(LLM_MODEL_NAME, None) is not None

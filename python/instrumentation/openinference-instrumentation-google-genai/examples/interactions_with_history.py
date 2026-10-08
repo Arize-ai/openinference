@@ -18,21 +18,38 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 if __name__ == "__main__":
     client = genai.Client()
+    model_id = "gemini-3-flash-preview"
+    store_enabled = False
     conversation_history = [
-        {"role": "user", "content": "What are the three largest cities in Spain?"}
+        {
+            "type": "user_input",
+            "content": [{"type": "text", "text": "What are the three largest cities in Spain?"}],
+        }
     ]
 
     interaction1 = client.interactions.create(
-        model="gemini-3-flash-preview", input=conversation_history
+        model=model_id,
+        store=store_enabled,
+        input=conversation_history,
     )
-    print(f"Model: {interaction1.outputs[-1].text}")
-    conversation_history.append({"role": "model", "content": interaction1.outputs})
+    print(f"Response 1: {interaction1.steps[-1].content[0].text}")
+
+    # Append the response steps from model to conversation history
+    for step in interaction1.steps:
+        conversation_history.append(step.model_dump())
+
     conversation_history.append(
-        {"role": "user", "content": "What is the most famous landmark in the second one?"}
+        {
+            "type": "user_input",
+            "content": [
+                {"type": "text", "text": "What is the most famous landmark in the second one?"}
+            ],
+        }
     )
 
     interaction2 = client.interactions.create(
-        model="gemini-3-flash-preview", input=conversation_history
+        model=model_id,
+        store=store_enabled,
+        input=conversation_history,
     )
-
-    print(f"Model: {interaction2.outputs[-1].text}")
+    print(f"Response 2: {interaction2.steps[-1].content[0].text}")

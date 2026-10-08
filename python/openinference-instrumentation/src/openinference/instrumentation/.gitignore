@@ -1,3 +1,5 @@
+/agent_framework
+/agentspec
 /agno
 /anthropic
 /autogen
@@ -5,6 +7,7 @@
 /bedrock
 /beeai
 /crewai
+/claude_agent_sdk
 /dspy
 /google_adk
 /google_genai
@@ -19,8 +22,11 @@
 /mistralai
 /openai
 /openai_agents
+/openlit
 /openllmetry
+/pipecat
 /portkey
 /pydantic_ai
 /smolagents
+/strands_agents
 /vertexai

@@ -1,0 +1,33 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Tell me a short story about a cat within
+      20 words."}], "role": "user"}]}'
+    headers: {}
+    method: post
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse
+  response:
+    body:
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Wh\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 15,\"totalTokenCount\":
+        15,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 15}],\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\": \"kdcEatqVKunY1LsP272MiAo\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"iskers tw\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 15,\"totalTokenCount\":
+        15,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 15}],\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\": \"kdcEatqVKunY1LsP272MiAo\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"itched. Midnight
+        prowled, emerald eyes gleaming. A sudden pounce, a triumphant\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 15,\"totalTokenCount\":
+        15,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 15}],\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\": \"kdcEatqVKunY1LsP272MiAo\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" squeak. Curled
+        up, asleep before sunrise.\\n\"}],\"role\": \"model\"},\"finishReason\": \"STOP\"}],\"usageMetadata\":
+        {\"promptTokenCount\": 14,\"candidatesTokenCount\": 33,\"totalTokenCount\":
+        47,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 14}],\"candidatesTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 33}],\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-2.0-flash\",\"responseId\": \"kdcEatqVKunY1LsP272MiAo\"}\r\n\r\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

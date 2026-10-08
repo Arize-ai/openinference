@@ -51,8 +51,6 @@ def instrument(tracer_provider: "TracerProvider") -> Iterator[None]:
 
 
 @pytest.mark.vcr(
-    before_record_request=lambda request: (request.headers.clear() or request),
-    before_record_response=lambda response: ({**response, "headers": {}}),
     cassette_library_dir="tests/cassettes/test_raw_dict_message",
 )
 @pytest.mark.skipif(

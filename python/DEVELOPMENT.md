@@ -1,6 +1,7 @@
 # OpenInference Development Guide <!-- omit in toc -->
 
 - [Development](#development)
+  - [Bazel and rules_python](#bazel-and-rules_python)
   - [Testing](#testing)
     - [Introduction to `tox`](#introduction-to-tox)
     - [`tox` Example Commands](#tox-example-commands)
@@ -42,6 +43,24 @@ From the root of the repository install `openinference-instrumentation` package 
 ```sh
 pip install -e ./python/openinference-instrumentation
 ```
+
+### Bazel and `rules_python`
+
+OpenInference's Python instrumentation packages share the
+`openinference.instrumentation` namespace. When consuming these packages from
+Bazel through `rules_python`, enable implicit namespace package support in the
+generated wheel repositories so sibling instrumentation packages are importable
+from the same namespace:
+
+```starlark
+pip.parse(
+    ...
+    enable_implicit_namespace_pkgs = True,
+)
+```
+
+This setting complements the namespace path extension in
+`python/openinference-instrumentation/src/openinference/instrumentation/__init__.py`.
 
 ### Testing
 
@@ -162,9 +181,9 @@ Check our current instrumentors for more examples and details.
 
 ##### Tracing Configuration
 
-Every instrumentor must be reactive to the `TraceConfig` class, which lets you specify a tracing configuration that allows you control settings like data privacy and payload sizes. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.
+Every instrumentor must be reactive to the `TraceConfig` class, which lets you specify a tracing configuration that allows you to control settings like data privacy and payload sizes. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduce payload size.
 
-In addition, you an also use environment variables, read more [here](../../spec/configuration.md). You can check the implementation of the `TraceConfig` class [here](https://github.com/Arize-ai/openinference/blob/main/python/openinference-instrumentation/src/openinference/instrumentation/config.py).
+In addition, you can also use environment variables, read more [here](../spec/configuration.md). You can check the implementation of the `TraceConfig` class [here](https://github.com/Arize-ai/openinference/blob/main/python/openinference-instrumentation/src/openinference/instrumentation/config.py).
 
 To make your instrumentor sensitive to this configuration, our core `openinference-package` offers a `OITracer` wrapper to the OTEL `Tracer`. Hence, it suffices to do the following on your `_instrument()` method:
 
@@ -195,6 +214,10 @@ You can copy and modify any of the `pyproject.toml` files that we have in any ot
 ##### Setup `tox.ini`
 
 For your tests to be run in CI (and we also recommend running `tox` locally for uniform environments), you need to add to the `tox.ini` [file](https://github.com/Arize-ai/openinference/blob/main/python/tox.ini). Specifically, you need to add to the `changedir` and `commands_pre` sections.
+
+##### Update the root README
+
+Add rows for your package to the root `README.md`: one in the Python "Libraries" table (with the PyPI badge) and, if your package ships an `examples/` directory, one in the "Examples" table.
 
 ## Publishing
 

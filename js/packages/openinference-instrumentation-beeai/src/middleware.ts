@@ -14,30 +14,7 @@
  * limitations under the License.
  */
 
-import { OITracer } from "@arizeai/openinference-core";
-import {
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
-
 import { diag } from "@opentelemetry/api";
-
-import { buildTraceTree } from "./helpers/buildTraceTree";
-import { createSpan } from "./helpers/create-span";
-import { getErrorSafe } from "./helpers/getErrorSafe";
-import { getSerializedObjectSafe } from "./helpers/getSerializedObjectSafe";
-import { IdNameManager } from "./helpers/idNameManager";
-import { traceSerializer } from "./helpers/traceSerializer";
-import {
-  errorLLMEventName,
-  finishLLMEventName,
-  INSTRUMENTATION_IGNORED_KEYS,
-  newTokenLLMEventName,
-  partialUpdateEventName,
-  successLLMEventName,
-} from "./config";
-import { FrameworkSpan, GeneratedResponse } from "./types";
-
 import { BaseAgent } from "beeai-framework/agents/base";
 import { ReActAgent } from "beeai-framework/agents/react/agent";
 import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
@@ -51,6 +28,27 @@ import { FrameworkError } from "beeai-framework/errors";
 import { Version } from "beeai-framework/version";
 import { findLast, isEmpty } from "remeda";
 
+import { isObjectWithStringKeys } from "@arizeai/openinference-core";
+import type { OITracer } from "@arizeai/openinference-core";
+import type { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
+import {
+  errorLLMEventName,
+  finishLLMEventName,
+  INSTRUMENTATION_IGNORED_KEYS,
+  newTokenLLMEventName,
+  partialUpdateEventName,
+  successLLMEventName,
+} from "./config";
+import { buildTraceTree } from "./helpers/buildTraceTree";
+import { createSpan } from "./helpers/create-span";
+import { getErrorSafe } from "./helpers/getErrorSafe";
+import { getSerializedObjectSafe } from "./helpers/getSerializedObjectSafe";
+import { IdNameManager } from "./helpers/idNameManager";
+import { traceSerializer } from "./helpers/traceSerializer";
+import type { FrameworkSpan, GeneratedResponse } from "./types";
+
 export const activeTracesMap = new Map<string, string>();
 
 /**
@@ -60,10 +58,7 @@ export const activeTracesMap = new Map<string, string>();
  * Then we create the open telemetry spans when all data are collected. We are retroactively deleting some unnecessary internal spans
  * see "emitter.match((event) => event.path === `${basePath}.run.${finishEventName}`" section
  */
-export function createTelemetryMiddleware(
-  tracer: OITracer,
-  mainSpanKind: OpenInferenceSpanKind,
-) {
+export function createTelemetryMiddleware(tracer: OITracer, mainSpanKind: OpenInferenceSpanKind) {
   return (context: GetRunContext<RunInstance, unknown>) => {
     if (!context.emitter?.trace?.id) {
       throw new FrameworkError(`Fatal error. Missing traceId`, [], { context });
@@ -84,7 +79,10 @@ export function createTelemetryMiddleware(
 
     let prompt: string | undefined | null = null;
     if (instance instanceof BaseAgent) {
-      prompt = (runParams as Parameters<ReActAgent["run"]>)[0].prompt;
+      const firstParam = Array.isArray(runParams) ? runParams[0] : undefined;
+      if (isObjectWithStringKeys(firstParam) && typeof firstParam.prompt === "string") {
+        prompt = firstParam.prompt;
+      }
     }
 
     const spansMap = new Map<string, FrameworkSpan>();
@@ -149,13 +147,9 @@ export function createTelemetryMiddleware(
             )?.text;
 
             if (!prompt) {
-              throw new FrameworkError(
-                "The prompt must be defined for the Agent's run",
-                [],
-                {
-                  context,
-                },
-              );
+              throw new FrameworkError("The prompt must be defined for the Agent's run", [], {
+                context,
+              });
             }
           }
 
@@ -185,6 +179,90 @@ export function createTelemetryMiddleware(
     );
 
     /**
+     * Creates the artificial "iteration" tree level for a top-level groupId the
+     * first time it is seen. Nested groups (like tokens) are skipped because
+     * they would introduce unuseful complexity.
+     */
+    function createGroupSpanIfNeeded({
+      groupId,
+      parentRunId,
+      createdAt,
+    }: {
+      groupId: string | undefined;
+      parentRunId: string | undefined;
+      createdAt: Date;
+    }) {
+      if (!groupId || parentRunId || groupIterations.includes(groupId)) {
+        return;
+      }
+      spansMap.set(
+        groupId,
+        createSpan({
+          id: groupId,
+          name: groupId,
+          target: "groupId",
+          data: {
+            [SemanticConventions.OPENINFERENCE_SPAN_KIND]: "Chain",
+          },
+          startedAt: convertDateToPerformance(createdAt),
+        }),
+      );
+      groupIterations.push(groupId);
+    }
+
+    /**
+     * Drops the previous `partialUpdate` span for this iteration once a newer one
+     * arrives, unless it has nested spans, in which case it is only marked for
+     * deletion.
+     */
+    function dropSupersededPartialUpdateSpan({
+      eventName,
+      lastIteration,
+    }: {
+      eventName: string;
+      lastIteration: string | undefined;
+    }) {
+      if (lastIteration == null || partialUpdateEventName !== eventName) {
+        return;
+      }
+      const lastIterationEventSpanId = eventsIterationsMap.get(lastIteration)?.get(eventName);
+      if (!lastIterationEventSpanId || !spansMap.has(lastIterationEventSpanId)) {
+        return;
+      }
+      const { context: spanContext } = spansMap.get(lastIterationEventSpanId)!;
+      if (parentIdsMap.has(spanContext.span_id)) {
+        spansToDeleteMap.set(lastIterationEventSpanId, undefined);
+        return;
+      }
+      // delete span
+      cleanSpanSources({ spanId: lastIterationEventSpanId });
+      spansMap.delete(lastIterationEventSpanId);
+    }
+
+    /**
+     * Saves the last event span for each iteration.
+     */
+    function recordIterationEventSpan({
+      eventName,
+      lastIteration,
+      spanId,
+    }: {
+      eventName: string;
+      lastIteration: string | undefined;
+      spanId: string;
+    }) {
+      if (lastIteration == null) {
+        return;
+      }
+      const iterationEvents = eventsIterationsMap.get(lastIteration);
+      if (iterationEvents) {
+        iterationEvents.set(eventName, spanId);
+      } else {
+        eventsIterationsMap.set(lastIteration, new Map<string, string>([[eventName, spanId]]));
+      }
+    }
+
+    /**
      * This block collects all "not run category" events with their data and prepares spans for the OpenTelemetry.
      * The huge number of `newToken` events are skipped and only the last one for each parent event is saved because of `generated_token_count` information
      * The framework event tree structure is different from the open-telemetry tree structure and must be transformed from groupId and parentGroupId pattern via idNameManager
@@ -192,10 +270,7 @@ export function createTelemetryMiddleware(
      */
     emitter.match("*.*", (data, meta) => {
       // allow `run.error` event due to the runtime error information
-      if (
-        meta.path.includes(".run.") &&
-        meta.path !== `${basePath}.run.${errorLLMEventName}`
-      ) {
+      if (meta.path.includes(".run.") && meta.path !== `${basePath}.run.${errorLLMEventName}`) {
         return;
       }
       // skip all new token events
@@ -203,13 +278,9 @@ export function createTelemetryMiddleware(
         return;
       }
       if (!meta.trace?.runId) {
-        throw new FrameworkError(
-          `Fatal error. Missing runId for event: ${meta.path}`,
-          [],
-          {
-            context,
-          },
-        );
+        throw new FrameworkError(`Fatal error. Missing runId for event: ${meta.path}`, [], {
+          context,
+        });
       }
 
       try {
@@ -217,25 +288,11 @@ export function createTelemetryMiddleware(
          * create groupId span level (id does not exist)
          * I use only the top-level groups like iterations other nested groups like tokens would introduce unuseful complexity
          */
-        if (
-          meta.groupId &&
-          !meta.trace.parentRunId &&
-          !groupIterations.includes(meta.groupId)
-        ) {
-          spansMap.set(
-            meta.groupId,
-            createSpan({
-              id: meta.groupId,
-              name: meta.groupId,
-              target: "groupId",
-              data: {
-                [SemanticConventions.OPENINFERENCE_SPAN_KIND]: "Chain",
-              },
-              startedAt: convertDateToPerformance(meta.createdAt),
-            }),
-          );
-          groupIterations.push(meta.groupId);
-        }
+        createGroupSpanIfNeeded({
+          groupId: meta.groupId,
+          parentRunId: meta.trace.parentRunId,
+          createdAt: meta.createdAt,
+        });
 
         const { spanId, parentSpanId } = idNameManager.getIds({
           path: meta.path,
@@ -248,7 +305,10 @@ export function createTelemetryMiddleware(
         const serializedData = getSerializedObjectSafe(data, meta);
 
         // skip partialUpdate events with no data
-        if (meta.name === partialUpdateEventName && isEmpty(serializedData)) {
+        if (
+          meta.name === partialUpdateEventName &&
+          (serializedData == null || isEmpty(serializedData))
+        ) {
           return;
         }
 
@@ -266,47 +326,21 @@ export function createTelemetryMiddleware(
         const lastIteration = groupIterations[groupIterations.length - 1];
 
         // delete the `partialUpdate` event if does not have nested spans
-        const lastIterationEventSpanId = eventsIterationsMap
-          .get(lastIteration)
-          ?.get(meta.name);
-        if (
-          lastIterationEventSpanId &&
-          partialUpdateEventName === meta.name &&
-          spansMap.has(lastIterationEventSpanId)
-        ) {
-          const { context } = spansMap.get(lastIterationEventSpanId)!;
-          if (parentIdsMap.has(context.span_id)) {
-            spansToDeleteMap.set(lastIterationEventSpanId, undefined);
-          } else {
-            // delete span
-            cleanSpanSources({ spanId: lastIterationEventSpanId });
-            spansMap.delete(lastIterationEventSpanId);
-          }
-        }
+        dropSupersededPartialUpdateSpan({ eventName: meta.name, lastIteration });
 
         // create new span
         spansMap.set(span.context.span_id, span);
         // update number of nested spans for parent_id if exists
         if (span.parent_id) {
-          parentIdsMap.set(
-            span.parent_id,
-            (parentIdsMap.get(span.parent_id) || 0) + 1,
-          );
+          parentIdsMap.set(span.parent_id, (parentIdsMap.get(span.parent_id) || 0) + 1);
         }
 
         // save the last event for each iteration
-        if (groupIterations.length > 0) {
-          if (eventsIterationsMap.has(lastIteration)) {
-            eventsIterationsMap
-              .get(lastIteration)!
-              .set(meta.name, span.context.span_id);
-          } else {
-            eventsIterationsMap.set(
-              lastIteration,
-              new Map().set(meta.name, span.context.span_id),
-            );
-          }
-        }
+        recordIterationEventSpan({
+          eventName: meta.name,
+          lastIteration,
+          spanId: span.context.span_id,
+        });
       } catch (e) {
         diag.warn("Instrumentation error", e);
       }
@@ -314,9 +348,7 @@ export function createTelemetryMiddleware(
 
     // The generated response and message history are collected from the `success` event generated by ReActAgent
     emitter.match(
-      (event) =>
-        event.name === successLLMEventName &&
-        event.creator instanceof ReActAgent,
+      (event) => event.name === successLLMEventName && event.creator instanceof ReActAgent,
       (data: InferCallbackValue<ReActAgentCallbacks["success"]>) => {
         try {
           const { data: dataObject, memory } = data;
@@ -330,19 +362,14 @@ export function createTelemetryMiddleware(
             role: msg.role,
           }));
         } catch (e) {
-          diag.warn(
-            "Instrumentation error. Unable to map messages to history for ReActAgent",
-            e,
-          );
+          diag.warn("Instrumentation error. Unable to map messages to history for ReActAgent", e);
         }
       },
     );
 
     // The generated response and message history are collected from the `success` event generated by ToolCallingAgentCallbacks
     emitter.match(
-      (event) =>
-        event.name === successLLMEventName &&
-        event.creator instanceof ToolCallingAgent,
+      (event) => event.name === successLLMEventName && event.creator instanceof ToolCallingAgent,
       (data: InferCallbackValue<ToolCallingAgentCallbacks["success"]>) => {
         try {
           const { state } = data;

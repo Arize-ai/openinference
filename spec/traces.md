@@ -1,6 +1,6 @@
 # Traces
 
-Traces give us the big picture of what happens when a request is made to an LLM application. Whether your application is an agent or a chatbot a, traces are essential to understanding the full "path" a request takes in your application.
+Traces give us the big picture of what happens when a request is made to an LLM application. Whether your application is an agent or a chatbot, traces are essential to understanding the full "path" a request takes in your application.
 
 Let's explore this with three units of work, represented as Spans:
 
@@ -13,13 +13,14 @@ query span:
         "trace_id": "ed7b336d-e71a-46f0-a334-5f2e87cb6cfc",
         "span_id": "f89ebb7c-10f6-4bf8-8a74-57324d2556ef"
     },
-    "span_kind": "CHAIN",
+    "span_kind": "SPAN_KIND_INTERNAL",
     "parent_id": null,
     "start_time": "2023-09-07T12:54:47.293922-06:00",
     "end_time": "2023-09-07T12:54:49.322066-06:00",
     "status_code": "OK",
     "status_message": "",
     "attributes": {
+        "openinference.span.kind": "CHAIN",
         "input.value": "Is anybody there?",
         "input.mime_type": "text/plain",
         "output.value": "Yes, I am here.",
@@ -40,13 +41,14 @@ LLM span:
         "trace_id": "ed7b336d-e71a-46f0-a334-5f2e87cb6cfc",
         "span_id": "ad67332a-38bd-428e-9f62-538ba2fa90d4"
     },
-    "span_kind": "LLM",
+    "span_kind": "SPAN_KIND_INTERNAL",
     "parent_id": "f89ebb7c-10f6-4bf8-8a74-57324d2556ef",
     "start_time": "2023-09-07T12:54:47.597121-06:00",
     "end_time": "2023-09-07T12:54:49.321811-06:00",
     "status_code": "OK",
     "status_message": "",
     "attributes": {
+        "openinference.span.kind": "LLM",
         "llm.input_messages": [
             {
                 "message.role": "system",
@@ -72,11 +74,13 @@ Another thing you'll note is that each Span looks like a structured log. That's 
 
 To understand how tracing in OpenInference works, let's look at a list of components that will play a part in instrumenting our code.
 
-Tracer
+### Tracer
+
 A Tracer creates spans containing more information about what is happening for a given operation, such as a request in a service.
 
-Trace Exporters
-Trace Exporters send traces to a consumer. This consumer can be standard output for debugging and development-time or a OpenInference Collector.
+### Trace Exporters
+
+Trace Exporters send traces to a consumer. This consumer can be standard output for debugging and development-time or an OpenInference Collector.
 
 ## Spans
 
@@ -98,13 +102,14 @@ A span represents a unit of work or operation. Spans are the building blocks of 
         "trace_id": "ed7b336d-e71a-46f0-a334-5f2e87cb6cfc",
         "span_id": "f89ebb7c-10f6-4bf8-8a74-57324d2556ef"
     },
-    "span_kind": "CHAIN",
+    "span_kind": "SPAN_KIND_INTERNAL",
     "parent_id": null,
     "start_time": "2023-09-07T12:54:47.293922-06:00",
     "end_time": "2023-09-07T12:54:49.322066-06:00",
     "status_code": "OK",
     "status_message": "",
     "attributes": {
+        "openinference.span.kind": "CHAIN",
         "input.value": "Hello?",
         "input.mime_type": "text/plain",
         "output.value": "I am here.",
@@ -161,7 +166,7 @@ A status will be attached to a span. Typically, you will set a span status when 
 
 ### Span Kind
 
-When a span is created, it is one of Chain, Retriever, Reranker, LLM, Embedding, Agent, Tool, or Guardrail. This span kind provides a hint to the tracing backend as to how the trace should be assembled.
+When a span is created, it is one of Chain, Retriever, Reranker, LLM, Embedding, Agent, Tool, Guardrail, Evaluator, or Prompt. This span kind provides a hint to the tracing backend as to how the trace should be assembled.
 
 Note that `span_kind` is a OpenTelemetry concept and thus conflicts with the OpenInference concept of `span_kind`. When OTLP is used as the transport, the OpenInference `span_kind` is stored in the `openinference.span.kind` attribute.
 
@@ -199,4 +204,8 @@ A span that represents calls to a component to protect against jailbreak user in
 
 #### Evaluator
 
-A span that represents a call to a function/proccess performing an evaluation of the language model's outputs. Examples include assessing the relevance, correctness, or helpfulness of the language model's answers.
+A span that represents a call to a function or process performing an evaluation of the language model's outputs. Examples include assessing the relevance, correctness, or helpfulness of the language model's answers.
+
+#### Prompt
+
+A span that represents the rendering of a prompt template. For example, a Prompt span could be used to represent the rendering of a template with variables substituted to produce the final prompt sent to an LLM.

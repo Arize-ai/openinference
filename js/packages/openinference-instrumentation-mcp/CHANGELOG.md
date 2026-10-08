@@ -1,5 +1,190 @@
 # @arizeai/openinference-instrumentation-mcp
 
+## 0.2.36
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
+## 0.2.35
+
+### Patch Changes
+
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+  - @arizeai/openinference-core@2.7.3
+
+## 0.2.34
+
+### Patch Changes
+
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+
+## 0.2.33
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
+## 0.2.32
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+  - @arizeai/openinference-core@2.7.0
+
+## 0.2.31
+
+### Patch Changes
+
+- Updated dependencies [6d9f813]
+  - @arizeai/openinference-semantic-conventions@2.10.0
+  - @arizeai/openinference-core@2.6.3
+
+## 0.2.30
+
+### Patch Changes
+
+- Updated dependencies [fd01216]
+  - @arizeai/openinference-semantic-conventions@2.9.0
+  - @arizeai/openinference-core@2.6.2
+
+## 0.2.29
+
+### Patch Changes
+
+- Updated dependencies [4d72f42]
+  - @arizeai/openinference-core@2.6.1
+
+## 0.2.28
+
+### Patch Changes
+
+- Updated dependencies [99f6e71]
+  - @arizeai/openinference-core@2.6.0
+
+## 0.2.27
+
+### Patch Changes
+
+- Updated dependencies [0071b37]
+  - @arizeai/openinference-core@2.5.4
+
+## 0.2.26
+
+### Patch Changes
+
+- 3e25f67: Bump @opentelemetry/core to ^2.8.0 to address the W3C Baggage denial-of-service security advisory.
+
+## 0.2.25
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+
+## 0.2.24
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+- Updated dependencies [74ae809]
+  - @arizeai/openinference-core@2.5.2
+
+## 0.2.23
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
+## 0.2.22
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 0.2.21
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
+## 0.2.20
+
+### Patch Changes
+
+- Updated dependencies [d0f5a88]
+  - @arizeai/openinference-core@2.4.0
+
+## 0.2.19
+
+### Patch Changes
+
+- Updated dependencies [1fe7927]
+  - @arizeai/openinference-core@2.3.0
+
+## 0.2.18
+
+### Patch Changes
+
+- Updated dependencies [0f0242c]
+- Updated dependencies [26733d8]
+  - @arizeai/openinference-semantic-conventions@2.5.0
+  - @arizeai/openinference-core@2.2.0
+
+## 0.2.17
+
+### Patch Changes
+
+- Updated dependencies [81b8bdb]
+  - @arizeai/openinference-semantic-conventions@2.4.0
+  - @arizeai/openinference-core@2.1.1
+
+## 0.2.16
+
+### Patch Changes
+
+- Updated dependencies [cfb128c]
+  - @arizeai/openinference-core@2.1.0
+
+## 0.2.15
+
+### Patch Changes
+
+- Updated dependencies [e09ce3f]
+  - @arizeai/openinference-semantic-conventions@2.3.0
+  - @arizeai/openinference-core@2.0.8
+
+## 0.2.14
+
+### Patch Changes
+
+- Updated dependencies [4eebba3]
+  - @arizeai/openinference-core@2.0.7
+
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies [7eb1c88]
+- Updated dependencies [3944459]
+  - @arizeai/openinference-semantic-conventions@2.2.0
+  - @arizeai/openinference-core@2.0.6
+
 ## 0.2.12
 
 ### Patch Changes

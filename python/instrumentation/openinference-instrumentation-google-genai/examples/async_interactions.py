@@ -30,7 +30,7 @@ async def run():
             "thinking_level": "low",
         },
     )
-    print(interaction.outputs[-1].text)
+    print(interaction.steps[-1].content[0].text)
 
 
 if __name__ == "__main__":

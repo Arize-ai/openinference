@@ -30,7 +30,6 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, use_span
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -41,6 +40,7 @@ from openinference.instrumentation.vertexai._accumulator import (
     _PartsAccumulator,
 )
 from openinference.instrumentation.vertexai._proxy import _proxy
+from openinference.instrumentation.vertexai._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -111,7 +111,7 @@ class _Wrapper:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
 
-    @wrapt.decorator  # type: ignore[misc]
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -338,10 +338,33 @@ def _(req: GenerateContentRequest, span: Span) -> None:
         for k, v in _parse_content(cast(Content, system_instruction), prefix, "system"):
             span.set_attribute(k, v)
     for content in cast(Iterable[Content], req.contents):
-        msg_idx += 1
-        prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
-        for k, v in _parse_content(content, prefix):
-            span.set_attribute(k, v)
+        # A content can carry several function_response parts (parallel function
+        # calls), but a span message has one message.name and one message.content.
+        # Each part becomes its own tool message right after this one, per the
+        # OpenInference spec.
+        function_response_parts = [
+            part for part in cast(Iterable[Part], content.parts) if part.function_response.name
+        ]
+        pure_function_responses = len(function_response_parts) > 0 and len(
+            function_response_parts
+        ) == len(content.parts)
+        if not pure_function_responses:
+            msg_idx += 1
+            prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
+            for k, v in _parse_content(content, prefix):
+                span.set_attribute(k, v)
+        for part in function_response_parts:
+            msg_idx += 1
+            prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
+            span.set_attribute(f"{prefix}{MESSAGE_ROLE}", "tool")
+            span.set_attribute(f"{prefix}{MESSAGE_NAME}", part.function_response.name)
+            cls = part.function_response.__class__
+            # Maybe there's an easier way to do this.
+            function_response = cls.to_dict(part.function_response)
+            span.set_attribute(
+                f"{prefix}{MESSAGE_CONTENT}",
+                safe_json_dumps(function_response.get("response") or {}),
+            )
 
 
 @_update_span.register(v1.GenerateContentResponse)
@@ -353,6 +376,23 @@ def _(resp: GenerateContentResponse, span: Span) -> None:
         prefix = f"{LLM_OUTPUT_MESSAGES}.{candidate.index}."
         for k, v in _parse_content(cast(Content, candidate.content), prefix):
             span.set_attribute(k, v)
+        # Only capture finish_reason for the first candidate.
+        if candidate.index == 0:
+            finish_reason = candidate.finish_reason
+            # Skip both "unset" and the explicit UNSPECIFIED value, as proto3 enums default
+            # to 0 (FINISH_REASON_UNSPECIFIED) when the field is unset.
+            if finish_reason:
+                try:
+                    value = finish_reason.name
+                except AttributeError:
+                    # Use the concrete type of the actual candidate instance.
+                    try:
+                        value = type(candidate).FinishReason(finish_reason).name
+                    except ValueError:
+                        # For truly unrecognized value, fallback to the raw integer as a string
+                        # rather than dropping the attribute entirely.
+                        value = str(finish_reason)
+                span.set_attribute(LLM_FINISH_REASON, value)
 
 
 def stop_on_exception(it: Callable[..., Iterator[_AnyT]]) -> Callable[..., Iterator[_AnyT]]:
@@ -398,19 +438,6 @@ def _parse_content(
     """
     yield f"{prefix}{MESSAGE_ROLE}", role_override or _role(content.role)
     parts = cast(Iterable[Part], content.parts)
-    for part in parts:
-        if part.function_response.name:
-            # FIXME: It's unclear whether multiple `function_response` can
-            # coexist, but currently we can retain only one.
-            yield f"{prefix}{MESSAGE_ROLE}", "tool"
-            yield f"{prefix}{MESSAGE_NAME}", part.function_response.name
-            cls = part.function_response.__class__
-            # Maybe there's an easier way to do this.
-            function_response = cls.to_dict(part.function_response)
-            yield (
-                f"{prefix}{MESSAGE_CONTENT}",
-                safe_json_dumps(function_response.get("response") or {}),
-            )
     yield from _parse_parts(parts, prefix)
     yield from _parse_tool_calls(parts, prefix)
 
@@ -510,6 +537,7 @@ LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES

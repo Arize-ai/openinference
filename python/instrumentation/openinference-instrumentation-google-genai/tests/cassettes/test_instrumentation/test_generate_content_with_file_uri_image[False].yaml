@@ -1,0 +1,24 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Describe this image in one sentence."},
+      {"fileData": {"fileUri": "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U",
+      "mimeType": "image/jpeg"}}], "role": "user"}], "systemInstruction": {"parts":
+      [{"text": "You are a helpful assistant that can describe images."}], "role":
+      "user"}, "generationConfig": {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"A cute black Labrador puppy with glistening
+        eyes looks up at the camera from a wooden surface.\"\n          }\n        ],\n
+        \       \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n
+        \     \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"candidatesTokenCount\":
+        18,\n    \"thoughtsTokenCount\": 58\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n
+        \ \"responseId\": \"BTXZacmsFouhjuMPhoHg6As\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

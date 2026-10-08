@@ -77,7 +77,7 @@ def setup_guardrails_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call,unused-ignore]
             group="opentelemetry_instrumentor", name="guardrails"
         )
         instrumentor = instrumentor_entrypoint.load()()
@@ -146,6 +146,10 @@ def test_guardrails_uninstrumentation(tracer_provider: TracerProvider) -> None:
     original_validator_service_base_after_run_validator = (
         guardrails.validator_service.ValidatorServiceBase.after_run_validator
     )
+    original_guard_from_constructors = {
+        name: guardrails.guard.Guard.__dict__[f"from_{name}"]
+        for name in ("pydantic", "string", "rail_string", "rail")
+    }
 
     # Instrument the Guardrails to wrap methods
     GuardrailsInstrumentor().instrument(tracer_provider=tracer_provider)
@@ -173,3 +177,17 @@ def test_guardrails_uninstrumentation(tracer_provider: TracerProvider) -> None:
         guardrails.validator_service.ValidatorServiceBase.after_run_validator
         is original_validator_service_base_after_run_validator
     ), "Expected ValidatorServiceBase.after_run_validator to be unwrapped"
+    assert (
+        guardrails.guard.Guard.__dict__["from_pydantic"]
+        is original_guard_from_constructors["pydantic"]
+    ), "Expected Guard.from_pydantic to be unwrapped"
+    assert (
+        guardrails.guard.Guard.__dict__["from_string"] is original_guard_from_constructors["string"]
+    ), "Expected Guard.from_string to be unwrapped"
+    assert (
+        guardrails.guard.Guard.__dict__["from_rail_string"]
+        is original_guard_from_constructors["rail_string"]
+    ), "Expected Guard.from_rail_string to be unwrapped"
+    assert (
+        guardrails.guard.Guard.__dict__["from_rail"] is original_guard_from_constructors["rail"]
+    ), "Expected Guard.from_rail to be unwrapped"

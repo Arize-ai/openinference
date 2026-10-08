@@ -12,7 +12,6 @@ Core utilities for automatically tracing function execution. See [withSpan](with
 
 ```typescript
 import { withSpan } from "@arizeai/openinference-core";
-import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
 const fetchData = async (url: string) => {
   const response = await fetch(url);
@@ -21,9 +20,20 @@ const fetchData = async (url: string) => {
 
 const tracedFetch = withSpan(fetchData, {
   name: "api-request",
-  kind: OpenInferenceSpanKind.LLM,
+  kind: "LLM",
 });
 ```
+
+Agent notes for `withSpan`:
+
+- Prefer uppercase string literals like `"LLM"` for `kind`; enum members are
+  equivalent
+- Wrapped methods preserve the `this` they are called with; detached method
+  references still need `.bind(instance)` before calling them standalone
+- Synchronous throws and rejected promises are both recorded on the span, which
+  is marked `ERROR`, ended, and then re-thrown
+- If you omit `tracer`, the wrapper resolves the current global tracer provider
+  each time it is invoked
 
 **`traceChain`** - Convenience wrapper for tracing workflow sequences (CHAIN span kind):
 
@@ -63,6 +73,31 @@ const fetchWeather = async (city: string) => {
 const tracedWeatherTool = traceTool(fetchWeather, { name: "weather-api" });
 ```
 
+Convenience wrappers are available for every OpenInference span kind. Each one pre-configures `withSpan` with the corresponding `kind` and otherwise accepts the same options:
+
+| Wrapper          | Span kind   | Typical use                                  |
+| ---------------- | ----------- | -------------------------------------------- |
+| `traceChain`     | `CHAIN`     | Workflow sequences and pipelines             |
+| `traceAgent`     | `AGENT`     | Autonomous decision-making entities          |
+| `traceTool`      | `TOOL`      | External tools, APIs, and utilities          |
+| `traceLLM`       | `LLM`       | Language model inference calls               |
+| `traceRetriever` | `RETRIEVER` | Document/context retrieval (RAG)             |
+| `traceReranker`  | `RERANKER`  | Reordering candidate documents by relevance  |
+| `traceEmbedding` | `EMBEDDING` | Generating vector representations            |
+| `traceGuardrail` | `GUARDRAIL` | Safety, validation, and policy checks        |
+| `traceEvaluator` | `EVALUATOR` | Scoring/assessing output quality             |
+| `tracePrompt`    | `PROMPT`    | Constructing or templating prompts           |
+| `traceDecision`  | `DECISION`  | Scoring or selecting among candidate options |
+
+```typescript
+import { traceLLM, traceRetriever } from "@arizeai/openinference-core";
+
+const tracedCompletion = traceLLM(chatCompletion, { name: "chat-completion" });
+const tracedRetriever = traceRetriever(similaritySearch, {
+  name: "vector-search",
+});
+```
+
 ### Decorators
 
 Class method decoration for automatic tracing. See [decorators](decorators.ts) for implementation details.
@@ -73,7 +108,7 @@ Class method decoration for automatic tracing. See [decorators](decorators.ts) f
 import { observe } from "@arizeai/openinference-core";
 
 class MyService {
-  @observe({ kind: "chain" })
+  @observe({ kind: "CHAIN" })
   async processData(input: string) {
     // Method implementation
     return `processed: ${input}`;
@@ -88,10 +123,7 @@ Utilities for converting data structures into OpenTelemetry attributes. See [att
 **Input/Output Processing** - Convert function arguments and return values to standardized span attributes:
 
 ```typescript
-import {
-  defaultProcessInput,
-  defaultProcessOutput,
-} from "@arizeai/openinference-core";
+import { defaultProcessInput, defaultProcessOutput } from "@arizeai/openinference-core";
 
 // Process input arguments
 const inputAttrs = defaultProcessInput("hello", { key: "value" });
@@ -111,6 +143,20 @@ const attrs = getLLMAttributes({
   inputMessages: [{ role: "user", content: "Hello" }],
   outputMessages: [{ role: "assistant", content: "Hi there!" }],
   tokenCount: { prompt: 10, completion: 5, total: 15 },
+});
+```
+
+**Decision Attributes** - Generate attributes for decision model calls (route selection, rubric scoring):
+
+```typescript
+import { getDecisionAttributes } from "@arizeai/openinference-core";
+
+const attrs = getDecisionAttributes({
+  system: "typesafe",
+  provider: "typesafe",
+  requestModelName: "jev-latest",
+  responseModelName: "jev-1.13.0",
+  tokenCount: { input: 412, output: 2 },
 });
 ```
 

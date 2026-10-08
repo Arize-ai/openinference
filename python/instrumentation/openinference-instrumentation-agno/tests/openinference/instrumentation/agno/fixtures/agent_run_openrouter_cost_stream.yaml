@@ -1,0 +1,95 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Reply with a single word: ping."}],"model":"openai/gpt-4o-mini","max_tokens":1024,"stream":true,"stream_options":{"include_usage":true}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '175'
+      content-type:
+      - application/json
+      host:
+      - openrouter.ai
+      user-agent:
+      - OpenAI/Python 3.8.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 3.8.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.6
+    method: POST
+    uri: https://openrouter.ai/api/v1/chat/completions
+  response:
+    body:
+      string: ': OPENROUTER PROCESSING
+
+
+        data: {"id":"gen-1788799043-tMKoIZLqNgmIeZRT4hKN","object":"chat.completion.chunk","created":1788799043,"model":"openai/gpt-4o-mini","provider":"OpenAI","system_fingerprint":"fp_54940053b1","choices":[{"index":0,"delta":{"content":"pong","role":"assistant"},"finish_reason":null,"native_finish_reason":null}]}
+
+
+        data: {"id":"gen-1788799043-tMKoIZLqNgmIeZRT4hKN","object":"chat.completion.chunk","created":1788799043,"model":"openai/gpt-4o-mini","provider":"OpenAI","system_fingerprint":"fp_54940053b1","choices":[{"index":0,"delta":{"content":".","role":"assistant"},"finish_reason":null,"native_finish_reason":null}]}
+
+
+        data: {"id":"gen-1788799043-tMKoIZLqNgmIeZRT4hKN","object":"chat.completion.chunk","created":1788799043,"model":"openai/gpt-4o-mini","provider":"OpenAI","system_fingerprint":"fp_54940053b1","choices":[{"index":0,"delta":{"content":"","role":"assistant"},"finish_reason":"stop","native_finish_reason":"stop"}]}
+
+
+        data: {"id":"gen-1788799043-tMKoIZLqNgmIeZRT4hKN","object":"chat.completion.chunk","created":1788799043,"model":"openai/gpt-4o-mini","provider":"OpenAI","system_fingerprint":"fp_54940053b1","service_tier":null,"choices":[{"index":0,"delta":{"content":"","role":"assistant"},"finish_reason":"stop","native_finish_reason":"stop"}],"usage":{"prompt_tokens":15,"completion_tokens":2,"total_tokens":17,"cost":0.00000345,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0.00000345,"upstream_inference_prompt_cost":0.00000225,"upstream_inference_completions_cost":0.0000012},"completion_tokens_details":{"reasoning_tokens":0,"image_tokens":0,"audio_tokens":0}}}
+
+
+        data: [DONE]
+
+
+        '
+    headers:
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - X-Generation-Id,X-Provider-Name,request-id,cf-ray
+      cache-control:
+      - no-cache
+      cf-ray:
+      - a3772341ef4b5cb8-HYD
+      connection:
+      - keep-alive
+      content-type:
+      - text/event-stream
+      date:
+      - Mon, 07 Sep 2026 16:37:23 GMT
+      permissions-policy:
+      - payment=(self "https://checkout.stripe.com" "https://connect-js.stripe.com"
+        "https://js.stripe.com" "https://*.js.stripe.com" "https://hooks.stripe.com")
+      referrer-policy:
+      - no-referrer, strict-origin-when-cross-origin
+      server:
+      - cloudflare
+      set-cookie:
+      - __cf_bm=p0auaIkVItCAyhu6tRDG2W0IggmnsOZV9OoIkoXN6HU-1788799042.870586-1.0.1.1-mvKJSnxKMA5ElE_7l_JBiW8MmBfvEI8WBFPoEHht5ErHKr08BWpX17ukZQhhkunjyLUF.kcCi4HJCPk6HsEq4Sn48oe1nhW88eKE9jThAaeTP2Q4X.v6PcXH.NKNE9UB;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=openrouter.ai; Expires=Mon,
+        07 Sep 2026 17:07:23 GMT
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+      x-generation-id:
+      - gen-1788799043-tMKoIZLqNgmIeZRT4hKN
+    status:
+      code: 200
+      message: OK
+version: 1

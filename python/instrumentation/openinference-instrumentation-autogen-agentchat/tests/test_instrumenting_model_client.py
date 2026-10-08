@@ -9,11 +9,7 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+@pytest.mark.vcr
 async def test_instrumenting_model_client(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,

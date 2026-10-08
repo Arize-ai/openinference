@@ -46,7 +46,7 @@ def _get_tool_use_id(message: Message) -> Optional[str]:
 client = anthropic.Anthropic()
 messages = [{"role": "user", "content": "What is the weather like in San Francisco in Fahrenheit?"}]
 response = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-sonnet-4-6",
     max_tokens=1024,
     tools=[
         {
@@ -88,7 +88,7 @@ messages.append(
     )
 )
 response = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-sonnet-4-6",
     max_tokens=1024,
     tools=[
         {

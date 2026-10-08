@@ -98,7 +98,7 @@ public class SpringAI {
                 .maxTokens(200)
                 .toolCallbacks(weatherToolCallBack, musicToolCallBack)
                 .parallelToolCalls(true)
-//                .toolChoice("required")
+                //                .toolChoice("required")
                 .build();
 
         // Create OITracer using the initialized tracer provider

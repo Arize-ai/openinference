@@ -5,7 +5,6 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 from semantic_kernel.functions import KernelArguments
@@ -25,26 +24,6 @@ from openinference.semconv.trace import (
 )
 
 
-@pytest.fixture
-def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-0123456789")
-
-
-@pytest.fixture
-def openai_global_llm_service(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GLOBAL_LLM_SERVICE", "OpenAI")
-
-
-@pytest.fixture
-def openai_chat_model_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_CHAT_MODEL_ID", "gpt-4o-mini")
-
-
-@pytest.fixture
-def openai_text_model_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_TEXT_MODEL_ID", "gpt-4o-mini")
-
-
 def is_openinference_span(span: ReadableSpan) -> bool:
     """Check if a span is an OpenInference span."""
     if span.attributes is None:
@@ -52,45 +31,8 @@ def is_openinference_span(span: ReadableSpan) -> bool:
     return SpanAttributes.OPENINFERENCE_SPAN_KIND in span.attributes
 
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
-
-
-def remove_all_vcr_response_headers(response: dict[str, Any]) -> dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
-
-
 class TestOpenLitInstrumentor:
-    @pytest.mark.vcr(
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-        decode_compressed_response=True,
-        filter_headers=["authorization"],
-    )
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.skip(
         reason="OpenLIT v1.36.8 has async generator bug preventing initialization. "
@@ -156,7 +98,7 @@ class TestOpenLitInstrumentor:
 
         for span in spans:
             # Get attributes
-            attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+            attributes = dict(cast(Mapping[str, Any], span.attributes))
 
             # OpenInference span kind
             assert is_openinference_span(span)
@@ -178,6 +120,7 @@ class TestOpenLitInstrumentor:
 
             # LLM identity
             assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4o-mini"
+            assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
             assert (
                 attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
             )

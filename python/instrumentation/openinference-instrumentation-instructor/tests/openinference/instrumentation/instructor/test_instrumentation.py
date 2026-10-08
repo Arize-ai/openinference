@@ -1,7 +1,11 @@
 import asyncio
 import json
+import logging
 import os
+import types
+from importlib import import_module
 from typing import Any, Generator, Optional
+from unittest import mock
 
 import instructor
 import openai
@@ -17,6 +21,10 @@ from pydantic import BaseModel
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.instructor import InstructorInstrumentor
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+)
 
 
 @pytest.fixture()
@@ -44,9 +52,35 @@ def setup_instructor_instrumentation(
 test_vcr = vcr.VCR(
     serializer="yaml",
     cassette_library_dir="tests/openinference/instrumentation/instructor/fixtures/",
-    record_mode="never",
+    record_mode="none",
     match_on=["uri", "method"],
 )
+
+try:
+    import_module("instructor.v2.core.patch")
+except ModuleNotFoundError:
+    _USES_V2_CREATE = False
+else:
+    _USES_V2_CREATE = True
+
+# The span that carries the request attributes is named after the call path instructor took.
+_REQUEST_SPAN_NAMES = (
+    {"instructor.create", "instructor.async_create"}
+    if _USES_V2_CREATE
+    else {"instructor.patch", "instructor.async_patch"}
+)
+_EXPECTED_SPAN_KIND = "CHAIN" if _USES_V2_CREATE else "TOOL"
+
+
+def _assert_request_attributes(spans: Any, model_name: str) -> None:
+    """Every version must report the model, provider, and system on its request span."""
+    request_spans = [span for span in spans if span.name in _REQUEST_SPAN_NAMES]
+    assert request_spans, f"no span named one of {_REQUEST_SPAN_NAMES} in {[s.name for s in spans]}"
+    for span in request_spans:
+        attributes = dict(span.attributes or dict())
+        assert attributes.get("llm.model_name") == model_name
+        assert attributes.get("llm.provider") == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes.get("llm.system") == OpenInferenceLLMSystemValues.OPENAI.value
 
 
 class UserInfo(BaseModel):
@@ -68,7 +102,7 @@ async def extract() -> UserInfo:
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor", name="instructor"
         )
         instrumentor = instrumentor_entrypoint.load()()
@@ -77,6 +111,50 @@ class TestInstrumentor:
     # Ensure we're using the common OITracer from common openinference-instrumentation pkg
     def test_oitracer(self, setup_instructor_instrumentation: Any) -> None:
         assert isinstance(InstructorInstrumentor()._tracer, OITracer)
+
+    def test_instrument_does_not_raise_across_instructor_versions(
+        self, tracer_provider: TracerProvider
+    ) -> None:
+        instrumentor = InstructorInstrumentor()
+        try:
+            instrumentor.instrument(tracer_provider=tracer_provider)
+            if instrumentor._patch_module is not None:
+                module = import_module(instrumentor._patch_module)
+                assert hasattr(module, "handle_response_model")
+        finally:
+            instrumentor.uninstrument()
+
+    def test_instrument_degrades_gracefully_when_symbol_missing(
+        self,
+        tracer_provider: TracerProvider,
+        caplog: Any,
+    ) -> None:
+        candidates = {
+            "instructor.core.patch",
+            "instructor.patch",
+            "instructor.processing.response",
+            "instructor.processing",
+        }
+
+        def fake_import_module(name: str) -> Any:
+            if name in candidates:
+                return types.ModuleType(name)
+            return import_module(name)
+
+        instrumentor = InstructorInstrumentor()
+        instrumentor.uninstrument()
+        with mock.patch(
+            "openinference.instrumentation.instructor.import_module",
+            side_effect=fake_import_module,
+        ):
+            try:
+                with caplog.at_level(logging.WARNING):
+                    instrumentor.instrument(tracer_provider=tracer_provider)
+                assert instrumentor._patch_module is None
+                assert instrumentor._original_handle_response_model is None
+                assert "Could not locate `handle_response_model`" in caplog.text
+            finally:
+                instrumentor.uninstrument()
 
 
 @pytest.mark.asyncio
@@ -95,15 +173,11 @@ async def test_async_instrumentation(
 
         spans = in_memory_span_exporter.get_finished_spans()
 
-        # We should have 2 spans for what we consider "TOOL" calling
-        assert len(spans) == 2
+        assert len(spans) == (1 if _USES_V2_CREATE else 2)
+        _assert_request_attributes(spans, "gpt-4-turbo-preview")
         for span in spans:
             attributes = dict(span.attributes or dict())
-            if span.name in {"instructor.patch", "instructor.async_patch"}:
-                assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
-                assert attributes.get("llm.provider") == "openai"
-                assert attributes.get("llm.system") == "openai"
-            assert attributes.get("openinference.span.kind") in ["TOOL"]
+            assert attributes.get("openinference.span.kind") == _EXPECTED_SPAN_KIND
             assert span.status.status_code == trace_api.StatusCode.OK
 
 
@@ -138,15 +212,11 @@ async def test_streaming_instrumentation(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    # We should have 2 spans for what we consider "TOOL" calling
-    assert len(spans) == 2
+    assert len(spans) == (1 if _USES_V2_CREATE else 2)
+    _assert_request_attributes(spans, "gpt-4-turbo-preview")
     for span in spans:
         attributes = dict(span.attributes or dict())
-        if span.name in {"instructor.patch", "instructor.async_patch"}:
-            assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
-            assert attributes.get("llm.provider") == "openai"
-            assert attributes.get("llm.system") == "openai"
-        assert attributes.get("openinference.span.kind") in ["TOOL"]
+        assert attributes.get("openinference.span.kind") == _EXPECTED_SPAN_KIND
         assert span.status.status_code == trace_api.StatusCode.OK
 
 
@@ -169,15 +239,11 @@ def test_instructor_instrumentation(
 
         spans = in_memory_span_exporter.get_finished_spans()
 
-        # We should have 2 spans for what we consider "TOOL" calling
-        assert len(spans) == 2
+        assert len(spans) == (1 if _USES_V2_CREATE else 2)
+        _assert_request_attributes(spans, "gpt-3.5-turbo")
         for span in spans:
             attributes = dict(span.attributes or dict())
-            if span.name in {"instructor.patch", "instructor.async_patch"}:
-                assert attributes.get("llm.model_name") == "gpt-3.5-turbo"
-                assert attributes.get("llm.provider") == "openai"
-                assert attributes.get("llm.system") == "openai"
-            assert attributes.get("openinference.span.kind") in ["TOOL"]
+            assert attributes.get("openinference.span.kind") == _EXPECTED_SPAN_KIND
             assert span.status.status_code == trace_api.StatusCode.OK
 
             # Validate invocation parameters handling
@@ -187,3 +253,22 @@ def test_instructor_instrumentation(
                 assert "max_retries" in invocation_params
                 # Ensure max_retries is JSON-serializable
                 json.dumps(invocation_params)
+
+
+def test_patch_with_positional_create(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_instructor_instrumentation: Any,
+) -> None:
+    def create(**kwargs: Any) -> str:
+        return "raw response"
+
+    patched_create = instructor.patch(None, create)  # type: ignore[call-overload,unused-ignore]
+    response = patched_create(
+        response_model=None,
+        messages=[{"role": "user", "content": "Create a user"}],
+    )
+
+    assert response == "raw response"
+    span_names = [span.name for span in in_memory_span_exporter.get_finished_spans()]
+    assert ("instructor.create" if _USES_V2_CREATE else "instructor.patch") in span_names

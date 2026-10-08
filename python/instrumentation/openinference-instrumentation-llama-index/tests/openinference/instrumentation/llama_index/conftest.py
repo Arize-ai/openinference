@@ -1,4 +1,5 @@
-from typing import Iterator
+from inspect import signature
+from typing import Any, Iterator
 from unittest.mock import Mock, patch
 
 import google.auth.credentials
@@ -8,6 +9,25 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+
+
+def _strip_request_headers(request: Any) -> Any:
+    request.headers.clear()
+    return request
+
+
+def _strip_response_headers(response: Any) -> Any:
+    return {**response, "headers": {}}
+
+
+@pytest.fixture(scope="session")
+def vcr_config() -> dict[str, Any]:
+    return {
+        "before_record_request": _strip_request_headers,
+        "before_record_response": _strip_response_headers,
+        "decode_compressed_response": True,
+        "record_mode": "once",
+    }
 
 
 @pytest.fixture
@@ -38,6 +58,15 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-")
+
+
+@pytest.fixture
+def anthropic_model() -> str:
+    from anthropic.resources.messages import Messages
+
+    if "temperature" in signature(Messages.create).parameters:
+        return "claude-3-5-haiku-20241022"
+    return "claude-opus-4-7"
 
 
 @pytest.fixture(autouse=True)

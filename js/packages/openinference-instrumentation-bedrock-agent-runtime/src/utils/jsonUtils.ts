@@ -4,8 +4,7 @@
 
 import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 
-import { StringKeyedObject } from "../types";
-
+import type { StringKeyedObject } from "../types";
 import { isArrayOfObjectWithStringKeys } from "./typeUtils";
 
 /**
@@ -90,9 +89,7 @@ function sanitizeJsonInput(badJsonStr: string): string {
  * Note: This upon review with @Parker-Stafford and @mikeldking does seem to fail
  * in places, notably when there are commas in the string.
  */
-export function fixLooseJsonString(
-  content: string,
-): StringKeyedObject[] | [string] {
+export function fixLooseJsonString(content: string): StringKeyedObject[] | [string] {
   if (!content) return [];
   const trimmed = content.trim();
 

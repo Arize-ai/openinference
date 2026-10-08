@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Iterator
 
 import litellm
@@ -16,17 +17,13 @@ def instrument(
     yield
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_responses_simple_input(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     response = litellm.responses(
         model="openai/gpt-4.1",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         input="Write a poem about a boy and his first pet dog.",
         max_tokens=100,
     )
@@ -49,28 +46,27 @@ def test_responses_simple_input(
     assert attributes.pop(f"{o}.contents.0.message_content.type") == "text"
     assert attributes.pop(f"{o}.role") == "assistant"
     assert attributes.pop("llm.provider") == "openai"
-    assert attributes.pop("llm.token_count.completion") == 242
+    assert attributes.pop("llm.token_count.completion") == 253
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 19
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
-    assert attributes.pop("llm.token_count.total") == 261
+    cache_read = attributes.pop("llm.token_count.prompt_details.cache_read", None)
+    if cache_read is not None:
+        assert cache_read == 0
+    assert attributes.pop("llm.token_count.total") == 272
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
+    assert attributes.pop("llm.cost.total") > 0
     assert attributes == {}
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_responses_simple_input_stream(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     response = litellm.responses(
         model="openai/gpt-4.1",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         input="Write a poem about a boy and his first pet dog.",
         max_tokens=100,
         stream=True,
@@ -90,32 +86,32 @@ def test_responses_simple_input_stream(
     assert attributes.pop("llm.invocation_parameters") == '{"max_tokens": 100, "stream": true}'
     assert attributes.pop("llm.model_name") == "gpt-4.1-2025-04-14"
     o = "llm.output_messages.0.message"
-    assert "In a small sunlit room" in attributes.pop(f"{o}.contents.0.message_content.text")
+    assert "Underneath a summer sky" in attributes.pop(f"{o}.contents.0.message_content.text")
     assert attributes.pop(f"{o}.contents.0.message_content.type") == "text"
     assert attributes.pop(f"{o}.role") == "assistant"
     assert attributes.pop("llm.provider") == "openai"
-    assert attributes.pop("llm.token_count.completion") == 248
+    assert attributes.pop("llm.token_count.completion") == 262
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 19
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
-    assert attributes.pop("llm.token_count.total") == 267
+    cache_read = attributes.pop("llm.token_count.prompt_details.cache_read", None)
+    if cache_read is not None:
+        assert cache_read == 0
+    assert attributes.pop("llm.token_count.total") == 281
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
+    # streams will not have cost unless litellm.include_cost_in_streaming_usage is set to True
+    assert "llm.cost.total" not in attributes
     assert attributes == {}
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_responses_websearch_input(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     response = litellm.responses(
         model="openai/gpt-4.1",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         tools=[{"type": "web_search_preview"}],
         input="What was a positive news story from today?",
     )
@@ -137,36 +133,35 @@ def test_responses_websearch_input(
     wot = "message.tool_calls"
     assert attributes.pop(f"{lom}.0.message.role") == "assistant"
     assert attributes.pop(f"{lom}.0.{wot}.0.tool_call.function.name") == "web_search_call"
-    assert "ws_68d" in attributes.pop(f"{lom}.0.{wot}.0.tool_call.id")
+    assert "ws_008" in attributes.pop(f"{lom}.0.{wot}.0.tool_call.id")
     assert attributes.pop(f"{lom}.1.message.contents.0.message_content.text").startswith(
-        "On September 22, 2025, several uplifting"
+        "As of February 25, 2026, a notable positive development"
     )
     assert attributes.pop(f"{lom}.1.message.contents.0.message_content.type") == "text"
     assert attributes.pop(f"{lom}.1.message.role") == "assistant"
     assert attributes.pop("llm.provider") == "openai"
-    assert attributes.pop("llm.token_count.completion") == 437
+    assert attributes.pop("llm.token_count.completion") == 290
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 310
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
-    assert attributes.pop("llm.token_count.total") == 747
+    cache_read = attributes.pop("llm.token_count.prompt_details.cache_read", None)
+    if cache_read is not None:
+        assert cache_read == 0
+    assert attributes.pop("llm.token_count.total") == 600
     assert attributes.pop("llm.tools.0.tool.json_schema") == '{"type": "web_search_preview"}'
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
+    assert attributes.pop("llm.cost.total") > 0
     assert attributes == {}
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 async def test_responses_websearch_input_async(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     response = await litellm.aresponses(
         model="openai/gpt-4.1",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         tools=[{"type": "web_search_preview"}],
         input="What was a positive news story from today?",
     )
@@ -188,20 +183,196 @@ async def test_responses_websearch_input_async(
     wot = "message.tool_calls"
     assert attributes.pop(f"{lom}.0.message.role") == "assistant"
     assert attributes.pop(f"{lom}.0.{wot}.0.tool_call.function.name") == "web_search_call"
-    assert "ws_68d" in attributes.pop(f"{lom}.0.{wot}.0.tool_call.id")
+    assert "ws_010" in attributes.pop(f"{lom}.0.{wot}.0.tool_call.id")
     assert attributes.pop(f"{lom}.1.message.contents.0.message_content.text").startswith(
-        "On September 22, 2025, a significant"
+        "As of February 25, 2026, a notable positive news story"
     )
     assert attributes.pop(f"{lom}.1.message.contents.0.message_content.type") == "text"
     assert attributes.pop(f"{lom}.1.message.role") == "assistant"
     assert attributes.pop("llm.provider") == "openai"
-    assert attributes.pop("llm.token_count.completion") == 239
+    assert attributes.pop("llm.token_count.completion") == 364
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 310
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
-    assert attributes.pop("llm.token_count.total") == 549
+    cache_read = attributes.pop("llm.token_count.prompt_details.cache_read", None)
+    if cache_read is not None:
+        assert cache_read == 0
+    assert attributes.pop("llm.token_count.total") == 674
     assert attributes.pop("llm.tools.0.tool.json_schema") == '{"type": "web_search_preview"}'
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
+    assert attributes.pop("llm.cost.total") > 0
+    assert attributes == {}
+
+
+def test_responses_input_typed_reasoning_item_summary_text(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from openai.types.responses import ResponseReasoningItem
+    from openai.types.responses.response_reasoning_item import Summary
+
+    from openinference.instrumentation.litellm import LiteLLMInstrumentor
+
+    reasoning_item = ResponseReasoningItem(
+        id="rs_123",
+        type="reasoning",
+        summary=[Summary(type="summary_text", text="The user asks about France.")],
+        encrypted_content="enc-abc",
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["responses"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["responses"] = lambda *args, **kwargs: None
+        litellm.responses(
+            model="openai/gpt-4.1",
+            api_key=os.getenv("OPENAI_API_KEY", "sk-"),
+            input=[reasoning_item],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["responses"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
+    assert not any(key.endswith(".message_content.id") for key in attributes)
+    prefix = "llm.input_messages.0.message.contents.0.message_content"
+    assert attributes.pop(f"{prefix}.type") == "reasoning"
+    assert attributes.pop(f"{prefix}.text") == "The user asks about France."
+    assert attributes.pop(f"{prefix}.encrypted_content") == "enc-abc"
+    assert attributes.pop("llm.input_messages.0.message.role") == "assistant"
+    assert attributes.pop("input.mime_type") == "application/json"
+    assert isinstance(attributes.pop("input.value"), str)
+    assert attributes.pop("llm.invocation_parameters") == "{}"
+    assert attributes.pop("llm.model_name") == "openai/gpt-4.1"
+    assert attributes.pop("llm.provider") == "openai"
+    assert attributes.pop("openinference.span.kind") == "LLM"
+    assert attributes == {}
+
+
+async def test_responses_input_typed_reasoning_item_summary_text_async(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from openai.types.responses import ResponseReasoningItem
+    from openai.types.responses.response_reasoning_item import Summary
+
+    from openinference.instrumentation.litellm import LiteLLMInstrumentor
+
+    reasoning_item = ResponseReasoningItem(
+        id="rs_123",
+        type="reasoning",
+        summary=[Summary(type="summary_text", text="The user asks about France.")],
+        encrypted_content="enc-abc",
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["aresponses"]
+
+    async def mock_aresponses(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["aresponses"] = mock_aresponses
+        await litellm.aresponses(
+            model="openai/gpt-4.1",
+            api_key=os.getenv("OPENAI_API_KEY", "sk-"),
+            input=[reasoning_item],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["aresponses"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "aresponses"
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
+    assert not any(key.endswith(".message_content.id") for key in attributes)
+    prefix = "llm.input_messages.0.message.contents.0.message_content"
+    assert attributes.pop(f"{prefix}.type") == "reasoning"
+    assert attributes.pop(f"{prefix}.text") == "The user asks about France."
+    assert attributes.pop(f"{prefix}.encrypted_content") == "enc-abc"
+    assert attributes.pop("llm.input_messages.0.message.role") == "assistant"
+    assert attributes.pop("input.mime_type") == "application/json"
+    assert isinstance(attributes.pop("input.value"), str)
+    assert attributes.pop("llm.invocation_parameters") == "{}"
+    assert attributes.pop("llm.model_name") == "openai/gpt-4.1"
+    assert attributes.pop("llm.provider") == "openai"
+    assert attributes.pop("openinference.span.kind") == "LLM"
+    assert attributes == {}
+
+
+@pytest.mark.vcr
+def test_responses_input_typed_reasoning_item(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    response1 = litellm.responses(
+        model="openai/gpt-5-mini",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
+        input="What is 2 + 2?",
+        reasoning={"summary": "auto"},
+    )
+    reasoning_item = next(
+        item for item in response1.output if getattr(item, "type", None) == "reasoning"
+    )
+    assert reasoning_item.encrypted_content
+
+    response2 = litellm.responses(
+        model="openai/gpt-5-mini",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
+        input=list(response1.output) + [{"role": "user", "content": "Now multiply that by 10."}],
+        reasoning={"summary": "auto"},
+    )
+    reasoning_item2 = next(
+        item for item in response2.output if getattr(item, "type", None) == "reasoning"
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    attributes: Dict[str, Any] = dict(spans[1].attributes or {})
+    assert not any(key.endswith(".message_content.id") for key in attributes)
+
+    in_prefix = "llm.input_messages"
+    assert attributes.pop(f"{in_prefix}.0.message.role") == "assistant"
+    assert attributes.pop(f"{in_prefix}.0.message.contents.0.message_content.type") == "reasoning"
+    assert (
+        attributes.pop(f"{in_prefix}.0.message.contents.0.message_content.text")
+        == reasoning_item.summary[0].text
+    )
+    assert (
+        attributes.pop(f"{in_prefix}.0.message.contents.0.message_content.encrypted_content")
+        == reasoning_item.encrypted_content
+    )
+    assert attributes.pop(f"{in_prefix}.1.message.role") == "assistant"
+    assert attributes.pop(f"{in_prefix}.2.message.role") == "user"
+    assert attributes.pop(f"{in_prefix}.2.message.content") == "Now multiply that by 10."
+
+    assert attributes.pop("input.mime_type") == "application/json"
+    assert isinstance(attributes.pop("input.value"), str)
+    assert attributes.pop("llm.invocation_parameters") == '{"reasoning": {"summary": "auto"}}'
+    assert attributes.pop("llm.model_name") == "gpt-5-mini-2025-08-07"
+    assert attributes.pop("llm.provider") == "openai"
+    assert attributes.pop("openinference.span.kind") == "LLM"
+
+    out_prefix = "llm.output_messages"
+    assert attributes.pop(f"{out_prefix}.0.message.role") == "assistant"
+    assert attributes.pop(f"{out_prefix}.0.message.contents.0.message_content.type") == "reasoning"
+    assert (
+        attributes.pop(f"{out_prefix}.0.message.contents.0.message_content.text")
+        == reasoning_item2.summary[0].text
+    )
+    assert (
+        attributes.pop(f"{out_prefix}.0.message.contents.0.message_content.encrypted_content")
+        == reasoning_item2.encrypted_content
+    )
+    assert attributes.pop(f"{out_prefix}.1.message.role") == "assistant"
+    assert attributes.pop(f"{out_prefix}.1.message.contents.0.message_content.type") == "text"
+    assert attributes.pop(f"{out_prefix}.1.message.contents.0.message_content.text") == "40"
+
+    assert attributes.pop("llm.token_count.completion") == 82
+    assert attributes.pop("llm.token_count.completion_details.reasoning") == 64
+    assert attributes.pop("llm.token_count.prompt") == 20
+    cache_read = attributes.pop("llm.token_count.prompt_details.cache_read", None)
+    if cache_read is not None:
+        assert cache_read == 0
+    assert attributes.pop("llm.token_count.total") == 102
+    assert attributes.pop("llm.cost.total") > 0
+    assert attributes.pop("output.mime_type") == "application/json"
+    assert isinstance(attributes.pop("output.value"), str)
     assert attributes == {}

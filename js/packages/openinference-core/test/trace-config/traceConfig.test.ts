@@ -1,10 +1,10 @@
+import { describe, expect, it } from "vitest";
+
 import {
   DefaultTraceConfig,
   OPENINFERENCE_HIDE_INPUT_TEXT,
 } from "../../src/trace/trace-config/constants";
 import { generateTraceConfig } from "../../src/trace/trace-config/traceConfig";
-
-import { describe, expect, it } from "vitest";
 
 describe("generateTraceConfig", () => {
   it("should return the default trace config when no options are provided", () => {

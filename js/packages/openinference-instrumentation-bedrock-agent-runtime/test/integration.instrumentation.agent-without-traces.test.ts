@@ -1,20 +1,16 @@
 import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-
-import { BedrockAgentInstrumentation } from "../src";
-
-import { createPolly } from "./utils/polly.config";
-import { setModuleExportsForInstrumentation } from "./utils/test-utils";
-
-import {
   BedrockAgentRuntimeClient,
   InvokeAgentCommand,
 } from "@aws-sdk/client-bedrock-agent-runtime";
 import * as bedrockAgentRuntime from "@aws-sdk/client-bedrock-agent-runtime";
-import { Polly } from "@pollyjs/core";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import type { Polly } from "@pollyjs/core";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
+
+import { BedrockAgentInstrumentation } from "../src";
+import { createPolly } from "./utils/polly.config";
+import { setModuleExportsForInstrumentation } from "./utils/test-utils";
 
 describe("BedrockAgentInstrumentation Integration - agent attributes and API recording", () => {
   let instrumentation: BedrockAgentInstrumentation;
@@ -66,6 +62,7 @@ describe("BedrockAgentInstrumentation Integration - agent attributes and API rec
         secretAccessKey: "test",
         sessionToken: "test",
       },
+      requestHandler: new NodeHttpHandler(),
     });
     const params = {
       inputText: "What is the current price of Microsoft?",

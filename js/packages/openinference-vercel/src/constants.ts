@@ -24,3 +24,38 @@ export const VercelSDKFunctionNameToSpanKindMap = new Map([
   ["ai.embedMany.doEmbed", OpenInferenceSpanKind.EMBEDDING],
   ["ai.toolCall", OpenInferenceSpanKind.TOOL],
 ]);
+
+/**
+ * A map of Vercel eve operation names to OpenInference span kinds.
+ * eve sets these on its control-flow spans under the operation.name attribute. They carry
+ * gen_ai.* context attributes (e.g. gen_ai.conversation.id) but no gen_ai.operation.name, so
+ * without an explicit mapping they fall through to the GenAI converter's LLM default.
+ * The model call and tool execution beneath them are the chat (LLM) and execute_tool (TOOL) spans.
+ * Not applied to spans carrying an agent identity (see {@link GenAIAgentIdentityAttributes}):
+ * an agent.action span for a subagent or remote-agent call is an AGENT span.
+ * @see https://eve.dev/docs/observability/otel#trace-topology
+ */
+export const EveOperationNameToSpanKindMap = new Map([
+  ["agent.step", OpenInferenceSpanKind.CHAIN],
+  ["agent.action", OpenInferenceSpanKind.CHAIN],
+  ["agent.approval", OpenInferenceSpanKind.CHAIN],
+]);
+
+/**
+ * gen_ai.agent.* attributes that identify a span as an agent invocation. The GenAI converter
+ * classifies a span carrying any of them as AGENT.
+ */
+export const GenAIAgentIdentityAttributes = [
+  "gen_ai.agent.id",
+  "gen_ai.agent.name",
+  "gen_ai.agent.description",
+] as const;
+
+export const GenAIOperationNameToSpanKindMap = new Map([
+  ["invoke_agent", OpenInferenceSpanKind.AGENT],
+  ["agent_step", OpenInferenceSpanKind.CHAIN],
+  ["chat", OpenInferenceSpanKind.LLM],
+  ["execute_tool", OpenInferenceSpanKind.TOOL],
+  ["embeddings", OpenInferenceSpanKind.EMBEDDING],
+  ["rerank", OpenInferenceSpanKind.RERANKER],
+]);

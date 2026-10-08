@@ -1,16 +1,14 @@
 # type: ignore
 # ruff: noqa: E501
-from typing import Any, Dict, Iterator
+import os
+from typing import Any, Dict
 
 import pytest
 from google import genai
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -18,33 +16,12 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
-
-@pytest.fixture
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    exporter = InMemorySpanExporter()
-    return exporter
-
-
-@pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
-
-
-@pytest.fixture
-def setup_google_genai_instrumentation(tracer_provider: TracerProvider) -> Iterator[None]:
-    instrumentor = GoogleGenAIInstrumentor()
-    instrumentor.instrument(tracer_provider=tracer_provider)
-    yield
-    instrumentor.uninstrument()
+TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII="
 
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
 )
 @pytest.mark.parametrize("use_stream", [False, True])
 def test_generate_interactions_simple_message(
@@ -54,11 +31,11 @@ def test_generate_interactions_simple_message(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
     # Initialize the client
     client = genai.Client(api_key=api_key)
     input_message = "Tell me a short joke about programming."
-    model_name = "gemini-3-flash-preview"
+    model_name = "gemini-2.5-flash"
     interaction = client.interactions.create(
         model=model_name,
         input=input_message,
@@ -72,8 +49,10 @@ def test_generate_interactions_simple_message(
     usage_metadata = None
     if use_stream:
         for chunk in interaction:
-            if hasattr(chunk, "interaction") and chunk.interaction.usage:
-                usage_metadata = chunk.interaction.usage
+            if (stream_interaction := getattr(chunk, "interaction", None)) and (
+                usage := stream_interaction.usage
+            ):
+                usage_metadata = usage
     else:
         usage_metadata = interaction.usage
         assert interaction is not None
@@ -93,8 +72,8 @@ def test_generate_interactions_simple_message(
         LLM_MODEL_NAME: model_name,
         OUTPUT_MIME_TYPE: "text/plain",
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "model",
-        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "text",
-        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}": "Because light attracts bugs.",
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "reasoning",
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}": "text",
         OPENINFERENCE_SPAN_KIND: "LLM",
         LLM_TOKEN_COUNT_TOTAL: usage_metadata.total_tokens,
         LLM_TOKEN_COUNT_PROMPT: usage_metadata.total_input_tokens,
@@ -105,6 +84,13 @@ def test_generate_interactions_simple_message(
         assert attributes.pop(key) == expected_value, (
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"
         )
+    assert attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}"
+    )
+    output_text = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"
+    )
+    assert isinstance(output_text, str) and output_text
     assert attributes.pop(OUTPUT_VALUE) is not None
     assert attributes.pop(METADATA) is not None
     assert not attributes, f"Unexpected attributes found: {attributes}"
@@ -113,7 +99,6 @@ def test_generate_interactions_simple_message(
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
 )
 @pytest.mark.parametrize("use_stream", [False, True])
 def test_generate_interactions_multi_model_messages(
@@ -123,33 +108,37 @@ def test_generate_interactions_multi_model_messages(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
     # Initialize the client
     client = genai.Client(api_key=api_key)
     input_messages = [
-        {"type": "text", "text": "Describe the image."},
+        {"type": "text", "text": "Describe the image in one sentence."},
         {
             "type": "image",
-            "uri": "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U",
-            "mime_type": "image/jpg",
+            "data": TINY_PNG_BASE64,
+            "mime_type": "image/png",
+            "resolution": "low",
         },
     ]
-    model_name = "gemini-3-flash-preview"
+    model_name = "gemini-2.5-flash-lite"
+    generation_config = {
+        "temperature": 0.7,
+        "max_output_tokens": 64,
+        "thinking_level": "high",
+    }
     interaction = client.interactions.create(
         model=model_name,
         input=input_messages,
-        generation_config={
-            "temperature": 0.7,
-            "max_output_tokens": 500,
-            "thinking_level": "low",
-        },
+        generation_config=generation_config,
         stream=use_stream,
     )
     usage_metadata = None
     if use_stream:
         for chunk in interaction:
-            if hasattr(chunk, "interaction") and chunk.interaction.usage:
-                usage_metadata = chunk.interaction.usage
+            if (stream_interaction := getattr(chunk, "interaction", None)) and (
+                usage := stream_interaction.usage
+            ):
+                usage_metadata = usage
     else:
         usage_metadata = interaction.usage
         assert interaction is not None
@@ -165,13 +154,14 @@ def test_generate_interactions_multi_model_messages(
         INPUT_VALUE: safe_json_dumps(input_messages),
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}": "user",
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "text",
-        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}": "Describe the image.",
+        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}": "Describe the image in one sentence.",
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}": "image",
-        LLM_INVOCATION_PARAMETERS: '{"temperature": 0.7, "max_output_tokens": 500, "thinking_level": "low"}',
+        LLM_INVOCATION_PARAMETERS: safe_json_dumps(generation_config),
         LLM_MODEL_NAME: model_name,
         OUTPUT_MIME_TYPE: "text/plain",
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "model",
-        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "text",
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "reasoning",
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}": "text",
         OPENINFERENCE_SPAN_KIND: "LLM",
         LLM_TOKEN_COUNT_TOTAL: usage_metadata.total_tokens,
         LLM_TOKEN_COUNT_PROMPT: usage_metadata.total_input_tokens,
@@ -183,10 +173,13 @@ def test_generate_interactions_multi_model_messages(
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"
         )
     assert attributes.pop(OUTPUT_VALUE) is not None
-    output_message = attributes.pop(
-        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+    assert attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}"
     )
-    assert "black Labrador puppy" in output_message
+    output_message = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"
+    )
+    assert isinstance(output_message, str) and output_message
     assert attributes.pop(METADATA) is not None
     assert (
         attributes.pop(
@@ -200,7 +193,6 @@ def test_generate_interactions_multi_model_messages(
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
 )
 @pytest.mark.parametrize("use_stream", [False, True])
 @pytest.mark.asyncio
@@ -211,12 +203,12 @@ async def test_generate_interactions_async(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key).aio
     input_message = "Tell me a short joke about programming."
-    model_name = "gemini-3-flash-preview"
+    model_name = "gemini-2.5-flash"
     interaction = await client.interactions.create(
         model=model_name,
         input=input_message,
@@ -230,8 +222,10 @@ async def test_generate_interactions_async(
     usage_metadata = None
     if use_stream:
         async for chunk in interaction:
-            if hasattr(chunk, "interaction") and chunk.interaction.usage:
-                usage_metadata = chunk.interaction.usage
+            if (stream_interaction := getattr(chunk, "interaction", None)) and (
+                usage := stream_interaction.usage
+            ):
+                usage_metadata = usage
     else:
         usage_metadata = interaction.usage
         assert interaction is not None
@@ -251,8 +245,8 @@ async def test_generate_interactions_async(
         LLM_MODEL_NAME: model_name,
         OUTPUT_MIME_TYPE: "text/plain",
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "model",
-        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "text",
-        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}": "Because light attracts bugs.",
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "reasoning",
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}": "text",
         OPENINFERENCE_SPAN_KIND: "LLM",
         LLM_TOKEN_COUNT_TOTAL: usage_metadata.total_tokens,
         LLM_TOKEN_COUNT_PROMPT: usage_metadata.total_input_tokens,
@@ -263,6 +257,13 @@ async def test_generate_interactions_async(
         assert attributes.pop(key) == expected_value, (
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"
         )
+    assert attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}"
+    )
+    output_text = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"
+    )
+    assert isinstance(output_text, str) and output_text
     assert attributes.pop(OUTPUT_VALUE) is not None
     assert attributes.pop(METADATA) is not None
     assert not attributes, f"Unexpected attributes found: {attributes}"
@@ -271,7 +272,91 @@ async def test_generate_interactions_async(
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_interactions_with_thinking_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+    client = genai.Client(api_key=api_key)
+    input_message = "Explain why the sky is blue in two sentences."
+    model_name = "gemini-2.5-flash"
+    generation_config = {
+        "temperature": 0.7,
+        "max_output_tokens": 1024,
+        "thinking_level": "low",
+        "thinking_summaries": "auto",
+    }
+
+    usage_metadata = None
+    for chunk in client.interactions.create(
+        model=model_name,
+        input=input_message,
+        generation_config=generation_config,
+        stream=True,
+    ):
+        if (stream_interaction := getattr(chunk, "interaction", None)) and (
+            usage := stream_interaction.usage
+        ):
+            usage_metadata = usage
+
+    assert usage_metadata is not None
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    # Reasoning content at index 0
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    )
+    reasoning_text = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}", None
+    )
+    assert isinstance(reasoning_text, str) and reasoning_text, (
+        "reasoning summary text should be non-empty"
+    )
+    assert attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}"
+    ), "reasoning signature should be present"
+
+    # Answer text at index 1
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    output_text = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"
+    )
+    assert isinstance(output_text, str) and output_text
+
+    # Token counts
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == usage_metadata.total_tokens
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == usage_metadata.total_input_tokens
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == (
+        usage_metadata.total_thought_tokens + usage_metadata.total_output_tokens
+    )
+
+    # Standard attributes
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "model"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(LLM_MODEL_NAME) == model_name
+    assert attributes.pop(LLM_INVOCATION_PARAMETERS) == safe_json_dumps(generation_config)
+    assert attributes.pop(LLM_PROVIDER) == "google"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(INPUT_VALUE) == input_message
+    assert attributes.pop(INPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop(OUTPUT_VALUE) is not None
+    assert attributes.pop(METADATA) is not None
+    assert not attributes, f"Unexpected attributes: {attributes}"
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
 )
 def test_agent_stream(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -279,8 +364,7 @@ def test_agent_stream(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
-    # api_key = os.environ["GEMINI_API_KEY"]
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     input_message = "Research the history of the Google TPUs with a focus on 2025 and 2026."
@@ -314,6 +398,7 @@ LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 IMAGE_URL = ImageAttributes.IMAGE_URL
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL

@@ -2,11 +2,11 @@ export {
   VercelAISemanticConvention,
   VercelAISemanticConventions,
   VercelAISemanticConventionsList,
-} from "./AISemanticConventions";
+} from "./AISemanticConventions.js";
 
 // Back-compat exports
 export {
   AISemanticConvention,
   AISemanticConventions,
   AISemanticConventionsList,
-} from "./AISemanticConventions";
+} from "./AISemanticConventions.js";

@@ -11,17 +11,36 @@ The module supports multiple model providers including:
 - Anthropic (Claude V1, V2 models)
 - Cohere
 - Meta (Llama models)
+- Amazon (Titan, Nova)
 - And other Bedrock-supported models
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import Span
-from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import safe_json_dumps
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.instrumentation import (
+    Image,
+    ImageMessageContent,
+    Message,
+    TextMessageContent,
+    Tool,
+    ToolCall,
+    ToolCallFunction,
+    get_llm_attributes,
+    get_llm_output_message_attributes,
+    get_llm_tool_attributes,
+    get_output_attributes,
+    safe_json_dumps,
+)
+from openinference.instrumentation.bedrock._types import AttributeValue
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
@@ -59,14 +78,41 @@ def _set_model_name_attributes(
         - Anthropic: Uses "completion" field
         - Cohere: Uses "generations" field
         - Meta: Uses "generation" field
+        - Amazon Nova: Uses "output.message.content" field
+        - OpenAI: Uses "choices[].message" field
     """
-    if model_id := kwargs.get("modelId"):
+    content = ""
+    model_id = kwargs.get("modelId")
+    if model_id:
         _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
-        vendor = None
-        if isinstance(model_id, str):
+    if "amazon.nova" in str(model_id):
+        message = response_body.get("output", {}).get("message")
+        if message:
+            span.set_attributes(get_output_attributes(message))
+        output_messages = _build_nova_output_messages(response_body)
+        if output_messages:
+            span.set_attributes(get_llm_output_message_attributes(output_messages))
+    elif "openai." in str(model_id):
+        # OpenAI models (gpt-oss, GPT-5.x, GPT-6) return a Chat Completions body.
+        choices = response_body.get("choices")
+        if isinstance(choices, list):
+            valid_choices = [c for c in choices if isinstance(c, dict)]
+            valid_choices.sort(key=_choice_index)
+            messages = [
+                message
+                for choice in valid_choices
+                if isinstance(message := choice.get("message"), dict) and message
+            ]
+            span.set_attributes(get_openai_output_attributes(messages))
+    else:
+        vendor = ""
+        if model_id and isinstance(model_id, str):
             (vendor, *_) = model_id.split(".")
-
-        if vendor == "ai21":
+        if vendor == "amazon":
+            # Titan format: {results: [{outputText: "..."}]}
+            results = response_body.get("results", [])
+            content = results[0].get("outputText", "") if results else ""
+        elif vendor == "ai21":
             content = str(response_body.get("completions"))
         elif vendor == "anthropic":
             content = str(response_body.get("completion"))
@@ -74,11 +120,8 @@ def _set_model_name_attributes(
             content = str(response_body.get("generations"))
         elif vendor == "meta":
             content = str(response_body.get("generation"))
-        else:
-            content = ""
-
-        if content:
-            _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
+    if content:
+        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
 
 
 def _set_token_count_attributes(span: Span, metadata: Dict[str, Any]) -> None:
@@ -116,7 +159,54 @@ def _set_token_count_attributes(span: Span, metadata: Dict[str, Any]) -> None:
             _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count)
 
 
-def set_input_attributes(span: Span, request_body: Dict[str, Any]) -> None:
+def _extract_finish_reason(response_body: Dict[str, Any]) -> str | None:
+    """Extract a provider-native finish reason from an InvokeModel response body.
+
+    Unlike Converse, InvokeModel returns an opaque provider-defined JSON payload.
+    Bedrock's supported text model families expose their finish reason either at
+    the top level or on the first result/generation/output/completion object.
+    """
+    for key in (
+        "stopReason",
+        "stop_reason",
+        "finishReason",
+        "finish_reason",
+        "completionReason",
+    ):
+        if isinstance(value := response_body.get(key), str) and value:
+            return value
+
+    for collection_key, reason_key in (
+        ("results", "completionReason"),
+        ("generations", "finish_reason"),
+        ("outputs", "stop_reason"),
+        ("choices", "finish_reason"),
+    ):
+        collection = response_body.get(collection_key)
+        if (
+            isinstance(collection, list)
+            and collection
+            and isinstance(collection[0], dict)
+            and isinstance(value := collection[0].get(reason_key), str)
+            and value
+        ):
+            return value
+
+    completions = response_body.get("completions")
+    if isinstance(completions, list) and completions and isinstance(completions[0], dict):
+        finish_reason = completions[0].get("finishReason")
+        if isinstance(finish_reason, str) and finish_reason:
+            return finish_reason
+        if (
+            isinstance(finish_reason, dict)
+            and isinstance(reason := finish_reason.get("reason"), str)
+            and reason
+        ):
+            return reason
+    return None
+
+
+def set_input_attributes(span: Span, request_body: Dict[str, Any], kwargs: Dict[str, Any]) -> None:
     """
     Set input-related attributes on the span from the request body.
 
@@ -127,10 +217,43 @@ def set_input_attributes(span: Span, request_body: Dict[str, Any]) -> None:
     Args:
         span: The OpenTelemetry span to set attributes on
         request_body: The request body containing prompt and other parameters
+        kwargs:  request input params
     """
-    prompt = request_body.pop("prompt", None)
-    invocation_parameters = safe_json_dumps(request_body)
-    _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
+    model_id = kwargs.get("modelId")
+    if model_id:
+        _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
+
+    span.set_attribute(SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AWS.value)
+
+    if "amazon.nova" in str(model_id):
+        input_value = safe_json_dumps(request_body.get("messages", []))
+        span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value)
+        invocation_parameters = safe_json_dumps(request_body.get("inferenceConfig", {}))
+        input_messages = _build_nova_input_messages(request_body)
+        if input_messages:
+            span.set_attributes(get_llm_attributes(input_messages=input_messages))
+        tools = _build_nova_tools(request_body)
+        if tools:
+            span.set_attributes(get_llm_tool_attributes(tools))
+    elif "openai." in str(model_id):
+        # OpenAI models (gpt-oss, GPT-5.x, GPT-6) take a Chat Completions body.
+        input_messages = _build_openai_input_messages(request_body)
+        if input_messages:
+            span.set_attributes(get_llm_attributes(input_messages=input_messages))
+        tools = _build_openai_tools(request_body)
+        if tools:
+            span.set_attributes(get_llm_tool_attributes(tools))
+        input_value = safe_json_dumps(request_body.pop("messages", []))
+        span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value)
+        request_body.pop("tools", None)
+        invocation_parameters = safe_json_dumps(request_body)
+    else:
+        # All other models (anthropic completion style, cohere, meta, ai21):
+        # input is the prompt field, remaining body fields are invocation params
+        input_value = request_body.pop("prompt", None)
+        invocation_parameters = safe_json_dumps(request_body)
+
+    _set_span_attribute(span, SpanAttributes.INPUT_VALUE, input_value)
     _set_span_attribute(span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters)
     span.set_attribute(
         SpanAttributes.OPENINFERENCE_SPAN_KIND,
@@ -154,8 +277,12 @@ def set_response_attributes(
         response: The complete response object including metadata
     """
     _set_model_name_attributes(span, response_body, kwargs)
+    if finish_reason := _extract_finish_reason(response_body):
+        _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
     if metadata := response.get("ResponseMetadata"):
         _set_token_count_attributes(span, metadata)
+    if "amazon.nova" in str(kwargs.get("modelId")):
+        _set_nova_body_token_attributes(span, response_body)
 
 
 def is_claude_message_api(model_id: str) -> bool:
@@ -189,3 +316,224 @@ def is_claude_message_api(model_id: str) -> bool:
         and "claude-v2" not in str(model_id)
         and "claude-instant-v1" not in str(model_id)
     )
+
+
+def _build_nova_tools(request_body: Dict[str, Any]) -> List[Tool]:
+    """Extract Nova tool definitions from a request body's toolConfig."""
+    tool_config = request_body.get("toolConfig")
+    if not isinstance(tool_config, dict):
+        return []
+    raw_tools = tool_config.get("tools")
+    if not isinstance(raw_tools, list):
+        return []
+    tools: List[Tool] = []
+    for tool in raw_tools:
+        # Record each tool element verbatim (keeping the Converse tagged-union
+        # envelope) to match the OpenAI/Anthropic instrumentors and the Converse
+        # extractor, and to preserve non-toolSpec members such as systemTool.
+        if isinstance(tool, dict):
+            tools.append(Tool(json_schema=dict(tool)))
+    return tools
+
+
+def _build_nova_input_messages(request_body: Dict[str, Any]) -> List[Message]:
+    messages: List[Message] = []
+    for system_block in request_body.get("system", []):
+        if isinstance(system_block, dict) and (text := system_block.get("text")):
+            messages.append(Message(role="system", content=text))
+    for msg in request_body.get("messages", []):
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role", "user")
+        contents: List[Any] = []
+        tool_calls: List[ToolCall] = []
+        tool_results: List[Message] = []
+        for block in msg.get("content", []):
+            if not isinstance(block, dict):
+                continue
+            if text := block.get("text"):
+                contents.append(TextMessageContent(text=text, type="text"))
+            elif tool_use := block.get("toolUse"):
+                tool_calls.append(
+                    ToolCall(
+                        id=tool_use.get("toolUseId", ""),
+                        function=ToolCallFunction(
+                            name=tool_use.get("name", ""),
+                            arguments=tool_use.get("input"),
+                        ),
+                    )
+                )
+            elif tool_result := block.get("toolResult"):
+                tool_use_id = tool_result.get("toolUseId", "")
+                result_parts: List[str] = []
+                for result_block in tool_result.get("content", []):
+                    if not isinstance(result_block, dict):
+                        continue
+                    if result_text := result_block.get("text"):
+                        result_parts.append(result_text)
+                    elif result_json := result_block.get("json"):
+                        result_parts.append(safe_json_dumps(result_json))
+                result_content = "\n".join(result_parts) if result_parts else ""
+                tr_msg = Message(role=role, tool_call_id=tool_use_id)
+                if result_content:
+                    tr_msg["content"] = result_content
+                tool_results.append(tr_msg)
+        messages.extend(tool_results)
+        if contents or tool_calls:
+            msg_obj = Message(role=role)
+            if contents:
+                msg_obj["contents"] = contents
+            if tool_calls:
+                msg_obj["tool_calls"] = tool_calls
+            messages.append(msg_obj)
+    return messages
+
+
+def _build_nova_output_messages(response_body: Dict[str, Any]) -> List[Message]:
+    message = response_body.get("output", {}).get("message", {})
+    if not message:
+        return []
+    role = message.get("role", "assistant")
+    contents: List[Any] = []
+    tool_calls: List[ToolCall] = []
+    for block in message.get("content", []):
+        if not isinstance(block, dict):
+            continue
+        if text := block.get("text"):
+            contents.append(TextMessageContent(text=text, type="text"))
+        elif tool_use := block.get("toolUse"):
+            tool_calls.append(
+                ToolCall(
+                    id=tool_use.get("toolUseId", ""),
+                    function=ToolCallFunction(
+                        name=tool_use.get("name", ""),
+                        arguments=tool_use.get("input"),
+                    ),
+                )
+            )
+    msg_obj = Message(role=role)
+    if contents:
+        msg_obj["contents"] = contents
+    if tool_calls:
+        msg_obj["tool_calls"] = tool_calls
+    return [msg_obj]
+
+
+def _build_openai_tools(request_body: Dict[str, Any]) -> List[Tool]:
+    """Extract Chat Completions tool definitions from a request body."""
+    raw_tools = request_body.get("tools")
+    if not isinstance(raw_tools, list):
+        return []
+    return [Tool(json_schema=dict(tool)) for tool in raw_tools if isinstance(tool, dict)]
+
+
+def _build_openai_input_messages(request_body: Dict[str, Any]) -> List[Message]:
+    """Convert the messages of a Chat Completions request body."""
+    raw_messages = request_body.get("messages")
+    if not isinstance(raw_messages, list):
+        return []
+    return [_build_openai_message(msg) for msg in raw_messages if isinstance(msg, dict)]
+
+
+def _choice_index(choice: Dict[str, Any]) -> int:
+    index = choice.get("index")
+    return index if isinstance(index, int) else 0
+
+
+def get_openai_output_attributes(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Output attributes for the assistant messages of a Chat Completions response.
+
+    A single reply with text (or a refusal) records that text as the output value.
+    Tool-call-only replies and multiple choices record the messages as JSON.
+    """
+    if not messages:
+        return {}
+    attributes: Dict[str, Any] = dict(
+        get_llm_output_message_attributes([_build_openai_message(m) for m in messages])
+    )
+    if len(messages) == 1 and (text := _openai_message_text(messages[0])):
+        attributes.update(get_output_attributes(text))
+    else:
+        attributes.update(get_output_attributes(messages[0] if len(messages) == 1 else messages))
+    return attributes
+
+
+def _openai_message_text(msg: Dict[str, Any]) -> str | None:
+    """The message text, or its refusal when the model declined to answer."""
+    for key in ("content", "refusal"):
+        if isinstance(value := msg.get(key), str) and value:
+            return value
+    return None
+
+
+def _build_openai_message(msg: Dict[str, Any]) -> Message:
+    """Convert one Chat Completions message, including tool calls and tool results."""
+    message = Message(role=str(msg.get("role") or "assistant"))
+    content = msg.get("content")
+    if isinstance(content, str) and content:
+        message["content"] = content
+    elif isinstance(refusal := msg.get("refusal"), str) and refusal:
+        message["content"] = refusal
+    elif isinstance(content, list):
+        contents: List[Any] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") == "text" and isinstance(text := part.get("text"), str):
+                contents.append(TextMessageContent(type="text", text=text))
+            elif (
+                part.get("type") == "image_url"
+                and isinstance(image_url := part.get("image_url"), dict)
+                and isinstance(url := image_url.get("url"), str)
+            ):
+                contents.append(ImageMessageContent(type="image", image=Image(url=url)))
+        if contents:
+            message["contents"] = contents
+    if isinstance(tool_call_id := msg.get("tool_call_id"), str) and tool_call_id:
+        message["tool_call_id"] = tool_call_id
+    tool_calls: List[ToolCall] = []
+    raw_tool_calls = msg.get("tool_calls")
+    for tool_call in raw_tool_calls if isinstance(raw_tool_calls, list) else []:
+        if not isinstance(tool_call, dict):
+            continue
+        function = tool_call.get("function")
+        if not isinstance(function, dict):
+            function = {}
+        tool_calls.append(
+            ToolCall(
+                id=str(tool_call.get("id") or ""),
+                function=ToolCallFunction(
+                    name=str(function.get("name") or ""),
+                    arguments=function.get("arguments") or "",
+                ),
+            )
+        )
+    if tool_calls:
+        message["tool_calls"] = tool_calls
+    return message
+
+
+def _set_nova_body_token_attributes(span: Span, response_body: Dict[str, Any]) -> None:
+    """Set token count attributes from the Nova invoke_model response body usage field.
+
+    Nova responses include usage in the JSON body in addition to HTTP headers.
+    The body is the authoritative source for usage token fields.
+    """
+    usage = response_body.get("usage", {})
+    if not isinstance(usage, dict):
+        return
+    input_tokens = usage.get("inputTokens")
+    output_tokens = usage.get("outputTokens")
+    if input_tokens is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, int(input_tokens))
+    if output_tokens is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, int(output_tokens))
+    total = usage.get("totalTokens")
+    if total is None and input_tokens is not None and output_tokens is not None:
+        total = int(input_tokens) + int(output_tokens)
+    if total is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, int(total))
+    if (v := usage.get("cacheReadInputTokenCount")) is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(v))
+    if (v := usage.get("cacheWriteInputTokenCount")) is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, int(v))

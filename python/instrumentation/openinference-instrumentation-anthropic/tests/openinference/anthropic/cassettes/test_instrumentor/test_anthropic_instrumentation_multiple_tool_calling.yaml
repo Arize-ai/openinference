@@ -1,25 +1,21 @@
 interactions:
 - request:
-    body: '{"max_tokens": 1024, "messages": [{"role": "user", "content": "What is
-      the weather like right now in New York? Also what time is it there? Use necessary
-      tools simultaneously."}], "model": "claude-3-5-sonnet-20240620", "tools": [{"name":
-      "get_weather", "description": "Get the current weather in a given location",
-      "input_schema": {"type": "object", "properties": {"location": {"type": "string",
-      "description": "The city and state, e.g. San Francisco, CA"}, "unit": {"type":
-      "string", "enum": ["celsius", "fahrenheit"], "description": "The unit of temperature,
-      either ''celsius'' or ''fahrenheit''"}}, "required": ["location"]}}, {"name":
-      "get_time", "description": "Get the current time in a given time zone", "input_schema":
-      {"type": "object", "properties": {"timezone": {"type": "string", "description":
-      "The IANA time zone name, e.g. America/Los_Angeles"}}, "required": ["timezone"]}}]}'
+    body: '{"max_tokens":1024,"messages":[{"role":"user","content":"What is the weather
+      like right now in New York? Also what time is it there? Use necessary tools
+      simultaneously."}],"model":"claude-sonnet-4-6","tools":[{"name":"get_weather","description":"Get
+      the current weather in a given location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The
+      city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"The
+      unit of temperature, either ''celsius'' or ''fahrenheit''"}},"required":["location"]}},{"name":"get_time","description":"Get
+      the current time in a given time zone","input_schema":{"type":"object","properties":{"timezone":{"type":"string","description":"The
+      IANA time zone name, e.g. America/Los_Angeles"}},"required":["timezone"]}}]}'
     headers: {}
     method: POST
     uri: https://api.anthropic.com/v1/messages
   response:
     body:
-      string: '{"id":"msg_01CMa5RpucSF21EeGUgkbucN","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"Certainly!
-        I''ll use the available tools to get the weather in New York and the current
-        time there simultaneously. Let me fetch that information for you."},{"type":"tool_use","id":"toolu_01NDhzJaEt48dbFQgTnNb8uv","name":"get_weather","input":{"location":"New
-        York, NY","unit":"celsius"}},{"type":"tool_use","id":"toolu_015oXjg7raTjag52Qc6h6e3J","name":"get_time","input":{"timezone":"America/New_York"}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":518,"output_tokens":144}}'
+      string: '{"model":"claude-sonnet-4-6","id":"msg_011geMdd2NTwJrvqbfqskQ7r","type":"message","role":"assistant","content":[{"type":"text","text":"Sure!
+        Let me fetch the current weather and time in New York simultaneously!"},{"type":"tool_use","id":"toolu_01VLL6XYAAGrtc7CDpmpKZMB","name":"get_weather","input":{"location":"New
+        York, NY"},"caller":{"type":"direct"}},{"type":"tool_use","id":"toolu_01FZuC4jLWM67hKreLMKCLRe","name":"get_time","input":{"timezone":"America/New_York"},"caller":{"type":"direct"}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":721,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":112,"service_tier":"standard","inference_geo":"global"}}'
     headers: {}
     status:
       code: 200

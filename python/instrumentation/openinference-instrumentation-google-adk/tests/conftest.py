@@ -1,4 +1,5 @@
-from typing import Iterator
+import os
+from typing import Any, Iterator
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -8,6 +9,35 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+
+
+def _strip_request_headers(request: Any) -> Any:
+    request.headers.clear()
+    return request
+
+
+def _strip_response_headers(response: Any) -> Any:
+    return {**response, "headers": {}}
+
+
+def _match_method_case_insensitive(r1: Any, r2: Any) -> bool:
+    return (r1.method or "").upper() == (r2.method or "").upper()
+
+
+@pytest.fixture(scope="session")
+def vcr_config() -> dict[str, Any]:
+    return {
+        "before_record_request": _strip_request_headers,
+        "before_record_response": _strip_response_headers,
+        "decode_compressed_response": True,
+        "record_mode": "once",
+        "match_on": ["method_case_insensitive", "scheme", "host", "port", "path", "query"],
+        "custom_matchers": {"method_case_insensitive": _match_method_case_insensitive},
+    }
+
+
+def pytest_recording_configure(config: Any, vcr: Any) -> None:
+    vcr.register_matcher("method_case_insensitive", _match_method_case_insensitive)
 
 
 @pytest.fixture
@@ -39,4 +69,5 @@ def instrument(
 def api_key(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "xyz")
+    if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+        monkeypatch.setenv("GOOGLE_API_KEY", "xyz")

@@ -1,18 +1,16 @@
+import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
+import type { Attributes } from "@opentelemetry/api";
+
 import { safelyJSONStringify } from "@arizeai/openinference-core";
 
-import { Attributes } from "@opentelemetry/api";
-
 import { getObjectDataFromUnknown } from "../utils/jsonUtils";
-
 import {
   getDocumentAttributes,
   getLLMInvocationParameterAttributes,
   getLLMModelNameAttributes,
   getOutputAttributes,
 } from "./attributeUtils";
-import { DocumentReference } from "./types";
-
-import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
+import type { DocumentReference } from "./types";
 
 /**
  * Extracts invocation parameters from a Bedrock RAG (Retrieve and Generate) command input.
@@ -62,21 +60,15 @@ export function getModelNameAttributes(
       );
     }
   }
-  if (
-    input?.retrieveAndGenerateConfiguration?.externalSourcesConfiguration
-      ?.modelArn
-  ) {
+  if (input?.retrieveAndGenerateConfiguration?.externalSourcesConfiguration?.modelArn) {
     return getLLMModelNameAttributes(
-      input.retrieveAndGenerateConfiguration.externalSourcesConfiguration
-        .modelArn,
+      input.retrieveAndGenerateConfiguration.externalSourcesConfiguration.modelArn,
     );
   }
   return {};
 }
 
-function constructRagDocument(
-  document: bedrockAgentRunTime.RetrievedReference,
-): DocumentReference {
+function constructRagDocument(document: bedrockAgentRunTime.RetrievedReference): DocumentReference {
   const location = getObjectDataFromUnknown({
     data: document,
     key: "location",
@@ -140,9 +132,7 @@ export function extractRetrievedReferencesAttributes(
 export function extractBedrockRagResponseAttributes(
   response: bedrockAgentRunTime.RetrieveAndGenerateCommandOutput,
 ): Attributes {
-  const citations = Array.isArray(response?.citations)
-    ? response.citations
-    : [];
+  const citations = Array.isArray(response?.citations) ? response.citations : [];
   const outputText = response?.output?.text;
   return {
     ...extractRetrievedReferencesAttributes(citations),

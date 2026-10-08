@@ -14,8 +14,9 @@ AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
 client = anthropic.Anthropic()
 
 response = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
-    max_tokens=1024,
+    model="claude-sonnet-4-6",
+    max_tokens=2048,
+    thinking={"type": "enabled", "budget_tokens": 1024},
     tools=[
         {
             "name": "get_weather",

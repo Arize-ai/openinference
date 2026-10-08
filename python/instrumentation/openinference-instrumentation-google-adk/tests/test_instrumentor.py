@@ -1,25 +1,665 @@
 # ruff: noqa: E501
+import base64
+import json
 from collections import defaultdict
+from collections.abc import Mapping
 from secrets import token_hex
-from typing import Any, cast
+from types import SimpleNamespace
+from typing import Any, AsyncGenerator, cast
 
 import pytest
-from google.adk import Agent, __version__
+from google.adk import Agent
+from google.adk.agents import LlmAgent
+from google.adk.apps import App
+from google.adk.code_executors.built_in_code_executor import BuiltInCodeExecutor
+from google.adk.events import Event, EventActions
+from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.adk.planners import BuiltInPlanner
 from google.adk.runners import InMemoryRunner
+from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool as load_artifacts
 from google.adk.tools.tool_context import ToolContext
+from google.adk.workflow import START, Workflow
 from google.genai import types
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-_VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
-
-
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
+from openinference.instrumentation import (
+    REDACTED_VALUE,
+    TraceConfig,
+    safe_json_dumps,
+    suppress_tracing,
+    using_attributes,
 )
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+from openinference.instrumentation.google_adk._wrappers import (
+    _BaseAgentRunAsync,
+    _RunnerRunAsync,
+    _TraceCallLlm,
+    _TraceToolCall,
+)
+from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
+
+_WEATHER_QUESTION = "What is the weather in New York?"
+_CODE_EXECUTION_QUESTION = (
+    "What is the sum of the first 50 prime numbers? "
+    "Generate and run code for the calculation, and make sure you get all 50."
+)
+
+
+def _pop_input_message_tool_call_ids(attributes: dict[str, Any]) -> None:
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}."
+    suffix = f".{MessageAttributes.MESSAGE_TOOL_CALL_ID}"
+    for key in list(attributes):
+        if key.startswith(prefix) and key.endswith(suffix):
+            attributes.pop(key)
+
+
+def _pop_tool_span_id(attributes: dict[str, Any]) -> None:
+    attributes.pop(SpanAttributes.TOOL_ID, None)
+
+
+def _assert_transcript_content(
+    attributes: dict[str, Any], key: str, prefix: str, payload: str
+) -> None:
+    # Quoted agent-transcript payloads sit between marker lines, so match the
+    # prefix and the payload instead of the whole string.
+    text = str(attributes.pop(key, None) or "")
+    assert prefix in text
+    assert payload in text
+
+
+def _get_weather(city: str) -> dict[str, str]:
+    """Retrieves the current weather report for a specified city.
+
+    Args:
+        city (str): The name of the city for which to retrieve the weather report.
+
+    Returns:
+        dict: status and result or error msg.
+    """
+    return {
+        "status": "success",
+        "report": (
+            f"The weather in {city} is sunny with a temperature of 25 degrees"
+            " Celsius (77 degrees Fahrenheit)."
+        ),
+    }
+
+
+def _build_weather_runner() -> tuple[InMemoryRunner, str, str]:
+    """Build a single-tool weather agent runner. Returns (runner, user_id, session_id)."""
+    agent = Agent(
+        name=f"_{token_hex(4)}",
+        model="gemini-2.0-flash",
+        description="Agent to answer questions using tools.",
+        instruction="You must use the available tools to find an answer.",
+        tools=[_get_weather],
+    )
+    runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+    return runner, token_hex(4), token_hex(4)
+
+
+async def _run_weather_query(runner: InMemoryRunner, user_id: str, session_id: str) -> None:
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id=user_id, session_id=session_id
+    )
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(role="user", parts=[types.Part(text=_WEATHER_QUESTION)]),
+    ):
+        ...
+
+
+class _StaticFunctionCallLlm(BaseLlm):
+    """A fake model that always asks to call the named tool, no network needed."""
+
+    function_name: str
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        yield LlmResponse(
+            content=types.Content(
+                role="model",
+                parts=[
+                    types.Part(function_call=types.FunctionCall(name=self.function_name, args={}))
+                ],
+            )
+        )
+
+
+class _StreamFailureLlm(BaseLlm):
+    """A fake model that yields one partial chunk, then fails mid-stream."""
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        yield LlmResponse(
+            content=types.Content(role="model", parts=[types.Part(text="partial answer")]),
+            partial=True,
+        )
+        raise RuntimeError("stream failed")
+
+
+def _failing_tool() -> dict[str, str]:
+    raise RuntimeError("tool boom")
+
+
+def _get_usage_metadata_from_llm_response(attributes: Mapping[str, Any]) -> Mapping[str, Any]:
+    for key in (SpanAttributes.OUTPUT_VALUE, "gcp.vertex.agent.llm_response"):
+        payload = attributes.get(key)
+        if not isinstance(payload, str):
+            continue
+        try:
+            response = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        usage_metadata = response.get("usage_metadata") or response.get("usageMetadata")
+        if isinstance(usage_metadata, Mapping):
+            return usage_metadata
+    raise AssertionError("Expected LLM response usage metadata in span attributes.")
+
+
+def _get_count(metadata: Mapping[str, Any], snake_case: str, camel_case: str) -> int:
+    value = metadata.get(snake_case, metadata.get(camel_case))
+    return int(value or 0)
+
+
+def _content_event(text: str, *, timestamp: float) -> Event:
+    return Event(
+        author="test-agent",
+        invocation_id="test-invocation",
+        actions=EventActions(),
+        timestamp=timestamp,
+        content=types.Content(role="model", parts=[types.Part(text=text)]),
+    )
+
+
+def _state_delta_event(*, timestamp: float) -> Event:
+    return Event(
+        author="test-agent",
+        invocation_id="test-invocation",
+        actions=EventActions(state_delta={"latest_state": "synced"}),
+        timestamp=timestamp,
+    )
+
+
+def _function_response_event(
+    *,
+    timestamp: float,
+    actions: EventActions,
+) -> Event:
+    return Event(
+        author="test-agent",
+        invocation_id="test-invocation",
+        actions=actions,
+        timestamp=timestamp,
+        content=types.Content(
+            role="user",
+            parts=[
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        name="approve_response",
+                        response={"approved": True},
+                    )
+                )
+            ],
+        ),
+    )
+
+
+async def _event_stream(events: list[Event]) -> AsyncGenerator[Event, None]:
+    for event in events:
+        yield event
+
+
+async def test_runner_run_async_keeps_content_output_after_state_delta_final_event(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    content_event = _content_event("final answer", timestamp=1.0)
+    state_delta_event = _state_delta_event(timestamp=2.0)
+
+    async def run_async(
+        *,
+        user_id: str,
+        session_id: str,
+        new_message: types.Content,
+    ) -> AsyncGenerator[Event, None]:
+        async for event in _event_stream([content_event, state_delta_event]):
+            yield event
+
+    wrapped = _RunnerRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(Any, SimpleNamespace(app_name="test-app")),
+        (),
+        {
+            "user_id": "test-user",
+            "session_id": "test-session",
+            "new_message": types.Content(role="user", parts=[types.Part(text="hi")]),
+        },
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [content_event, state_delta_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.attributes
+    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == content_event.model_dump_json(
+        exclude_none=True
+    )
+
+
+def test_trace_tool_call_marks_span_error_on_raised_exception(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_tool_call(*, error: Any = None, error_type: Any = None) -> None:
+        return None
+
+    wrapped = _TraceToolCall(tracer)(fake_trace_tool_call)
+
+    with tracer.start_as_current_span("execute_tool test_tool"):
+        wrapped(error=ValueError("boom"))
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def test_trace_tool_call_marks_span_error_on_structured_error_type(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_tool_call(*, error: Any = None, error_type: Any = None) -> None:
+        return None
+
+    wrapped = _TraceToolCall(tracer)(fake_trace_tool_call)
+
+    with tracer.start_as_current_span("execute_tool test_tool"):
+        wrapped(error_type="HTTP_ERROR")
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def test_trace_tool_call_marks_span_ok_on_success(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_tool_call(*, error: Any = None, error_type: Any = None) -> None:
+        return None
+
+    wrapped = _TraceToolCall(tracer)(fake_trace_tool_call)
+
+    with tracer.start_as_current_span("execute_tool test_tool"):
+        wrapped()
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.OK
+
+
+def test_trace_call_llm_does_not_lock_span_ok_before_later_stream_exception(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_call_llm(llm_response: LlmResponse) -> None:
+        return None
+
+    wrapped = _TraceCallLlm(tracer)(fake_trace_call_llm)
+    partial_response = LlmResponse(partial=True)
+
+    with pytest.raises(RuntimeError):
+        with tracer.start_as_current_span("call_llm"):
+            wrapped(partial_response)
+            raise RuntimeError("stream failed")
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def test_trace_call_llm_marks_span_ok_on_final_response(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_call_llm(llm_response: LlmResponse) -> None:
+        return None
+
+    wrapped = _TraceCallLlm(tracer)(fake_trace_call_llm)
+    final_response = LlmResponse()
+
+    with tracer.start_as_current_span("call_llm"):
+        wrapped(final_response)
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.OK
+
+
+def test_trace_call_llm_leaves_span_unset_for_lone_partial_response(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_call_llm(llm_response: LlmResponse) -> None:
+        return None
+
+    wrapped = _TraceCallLlm(tracer)(fake_trace_call_llm)
+    partial_response = LlmResponse(partial=True)
+
+    with tracer.start_as_current_span("call_llm"):
+        wrapped(partial_response)
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+
+
+async def test_execute_tool_span_ends_error_on_real_adk_tool_exception(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = Agent(
+        name=f"agent{token_hex(4)}",
+        model=_StaticFunctionCallLlm(model="fake-model", function_name="_failing_tool"),
+        tools=[_failing_tool],
+    )
+    runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id=user_id, session_id=session_id
+    )
+
+    with pytest.raises(RuntimeError, match="tool boom"):
+        async for _ in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=types.Content(role="user", parts=[types.Part(text="please fail")]),
+        ):
+            ...
+
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in in_memory_span_exporter.get_finished_spans():
+        spans_by_name[span.name].append(span)
+
+    [tool_span] = spans_by_name["execute_tool _failing_tool"]
+    assert tool_span.status.status_code == trace_api.StatusCode.ERROR
+
+    # agent_run/invocation already correctly ended ERROR before this fix;
+    # asserted here too as a regression guard.
+    [agent_run_span] = spans_by_name[f"agent_run [{agent.name}]"]
+    assert agent_run_span.status.status_code == trace_api.StatusCode.ERROR
+
+    [invocation_span] = spans_by_name[f"invocation [{runner.app_name}]"]
+    assert invocation_span.status.status_code == trace_api.StatusCode.ERROR
+
+
+async def test_call_llm_span_ends_error_on_real_adk_stream_exception(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Reproduces issue #3415's call_llm row: a stream that fails after a
+    partial chunk must not leave the call_llm span locked at OK by the
+    earlier, successful trace_call_llm call for that chunk. Drives ADK's real
+    base_llm_flow streaming path using a fake model so no network is needed.
+    """
+    agent = Agent(
+        name=f"agent{token_hex(4)}",
+        model=_StreamFailureLlm(model="fake-model"),
+    )
+    runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id=user_id, session_id=session_id
+    )
+
+    with pytest.raises(RuntimeError, match="stream failed"):
+        async for _ in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=types.Content(role="user", parts=[types.Part(text="hi")]),
+        ):
+            ...
+
+    [call_llm_span] = [
+        s for s in in_memory_span_exporter.get_finished_spans() if s.name == "call_llm"
+    ]
+    assert call_llm_span.status.status_code == trace_api.StatusCode.ERROR
+
+
+async def test_base_agent_run_async_keeps_content_output_after_state_delta_final_event(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    content_event = _content_event("agent answer", timestamp=1.0)
+    state_delta_event = _state_delta_event(timestamp=2.0)
+
+    async def run_async() -> AsyncGenerator[Event, None]:
+        async for event in _event_stream([content_event, state_delta_event]):
+            yield event
+
+    wrapped = _BaseAgentRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(Any, SimpleNamespace(name="test-agent")),
+        (),
+        {},
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [content_event, state_delta_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.attributes
+    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == content_event.model_dump_json(
+        exclude_none=True
+    )
+
+
+async def test_base_agent_run_async_captures_escalation_output_and_description(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    escalation_event = _function_response_event(
+        timestamp=1.0,
+        actions=EventActions(escalate=True),
+    )
+    assert not escalation_event.is_final_response()
+    state_delta_event = _state_delta_event(timestamp=2.0)
+    assert state_delta_event.is_final_response()
+
+    async def run_async() -> AsyncGenerator[Event, None]:
+        yield escalation_event
+        yield state_delta_event
+
+    wrapped = _BaseAgentRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(
+            Any,
+            SimpleNamespace(
+                name="test-agent",
+                description="Approves a response and ends the loop.",
+            ),
+        ),
+        (),
+        {},
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [escalation_event, state_delta_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.attributes
+    assert span.attributes["gen_ai.agent.description"] == ("Approves a response and ends the loop.")
+    assert span.attributes[SpanAttributes.OUTPUT_MIME_TYPE] == "application/json"
+    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == escalation_event.model_dump_json(
+        exclude_none=True
+    )
+
+
+async def test_base_agent_run_async_does_not_capture_transfer_event_as_output(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    transfer_event = _function_response_event(
+        timestamp=1.0,
+        actions=EventActions(transfer_to_agent="weather-agent"),
+    )
+    assert not transfer_event.is_final_response()
+
+    async def run_async() -> AsyncGenerator[Event, None]:
+        yield transfer_event
+
+    wrapped = _BaseAgentRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(Any, SimpleNamespace(name="test-agent", description="")),
+        (),
+        {},
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [transfer_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    attributes = dict(span.attributes or {})
+    assert "gen_ai.agent.description" not in attributes
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
+    assert SpanAttributes.OUTPUT_VALUE not in attributes
+
+
+@pytest.mark.vcr
+async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    sub_agent_name = "Sub_Agent"
+    sub_agent = Agent(
+        name=sub_agent_name,
+        model="gemini-2.0-flash",
+        description="A sub-agent that retrieves weather information.",
+        instruction="Return the weather for the city the user asks about.",
+    )
+
+    root_agent_name = "Root_Agent"
+    root_agent = Agent(
+        name=root_agent_name,
+        model="gemini-2.0-flash",
+        description="Root agent that delegates to sub-agents.",
+        instruction="Delegate weather questions to the weather sub-agent.",
+        tools=[AgentTool(agent=sub_agent)],
+    )
+
+    app_name = f"app{token_hex(4)}"
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+
+    runner = InMemoryRunner(agent=root_agent, app_name=app_name)
+    session_service = runner.session_service
+    await session_service.create_session(
+        app_name=app_name,
+        user_id=user_id,
+        session_id=session_id,
+    )
+
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user",
+            parts=[types.Part(text="What is the weather in Tokyo?")],
+        ),
+    ):
+        ...
+
+    spans = sorted(
+        in_memory_span_exporter.get_finished_spans(),
+        key=lambda s: s.start_time or 0,
+    )
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    invocation_spans = spans_by_name[f"invocation [{app_name}]"]
+    assert len(invocation_spans) >= 1
+
+    # Root invocation has no parent and carries the correct session/user IDs.
+    root_invocation = next(s for s in invocation_spans if not s.parent)
+    assert root_invocation.status.is_ok
+    root_attrs = dict(root_invocation.attributes or {})
+    assert root_attrs.get(SpanAttributes.SESSION_ID) == session_id
+    assert root_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert root_attrs.get("openinference.span.kind") == "CHAIN"
+
+    # Root agent_run is a direct child of the root invocation.
+    root_agent_run_spans = spans_by_name[f"agent_run [{root_agent_name}]"]
+    assert len(root_agent_run_spans) == 1
+    root_agent_run = root_agent_run_spans[0]
+    assert root_agent_run.status.is_ok
+    assert root_agent_run.parent is root_invocation.get_span_context()
+    root_agent_run_attrs = dict(root_agent_run.attributes or {})
+    assert root_agent_run_attrs.get(SpanAttributes.SESSION_ID) == session_id
+    assert root_agent_run_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert root_agent_run_attrs.get("openinference.span.kind") == "AGENT"
+    assert root_agent_run_attrs.get("agent.name") == root_agent_name
+
+    # execute_tool span is produced when the root agent invokes the AgentTool.
+    tool_spans = spans_by_name[f"execute_tool {sub_agent_name}"]
+    assert len(tool_spans) == 1
+    tool_span = tool_spans[0]
+    assert tool_span.status.is_ok
+    tool_attrs = dict(tool_span.attributes or {})
+    assert tool_attrs.get(SpanAttributes.SESSION_ID) == session_id
+    assert tool_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert tool_attrs.get("openinference.span.kind") == "TOOL"
+
+    # Sub-agent invocation must carry the top-level session_id, not the ADK-internal UUID.
+    sub_invocation_spans = [s for s in invocation_spans if s.parent is not None]
+    assert len(sub_invocation_spans) >= 1
+    for sub_inv in sub_invocation_spans:
+        sub_inv_attrs = dict(sub_inv.attributes or {})
+        assert sub_inv_attrs.get(SpanAttributes.SESSION_ID) == session_id, (
+            "Sub-agent invocation span carries wrong session.id value."
+        )
+
+    # Sub-agent agent_run must carry the top-level session_id, not the ADK-internal UUID.
+    sub_agent_run_spans = spans_by_name[f"agent_run [{sub_agent_name}]"]
+    assert len(sub_agent_run_spans) == 1
+    sub_agent_run = sub_agent_run_spans[0]
+    assert sub_agent_run.status.is_ok
+    sub_agent_run_attrs = dict(sub_agent_run.attributes or {})
+    assert sub_agent_run_attrs.get(SpanAttributes.SESSION_ID) == session_id, (
+        "Sub-agent agent_run span carries wrong session.id value."
+    )
+    assert sub_agent_run_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert sub_agent_run_attrs.get("openinference.span.kind") == "AGENT"
+    assert sub_agent_run_attrs.get("agent.name") == sub_agent_name
+
+    # All call_llm spans from both root and sub-agent must carry the top-level session_id.
+    call_llm_spans = spans_by_name["call_llm"]
+    assert len(call_llm_spans) >= 2, (
+        "Expected at least one call_llm from the root agent and one from the sub-agent"
+    )
+    for llm_span in call_llm_spans:
+        llm_attrs = dict(llm_span.attributes or {})
+        assert llm_attrs.get(SpanAttributes.SESSION_ID) == session_id, (
+            f"call_llm span (parent={llm_span.parent}) carries wrong session.id value."
+        )
+        assert llm_attrs.get("openinference.span.kind") == "LLM"
+
+
+@pytest.mark.vcr
 async def test_google_adk_instrumentor(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -50,7 +690,7 @@ async def test_google_adk_instrumentor(
         tools=[get_weather],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=agent, app_name=app_name)
@@ -87,7 +727,7 @@ async def test_google_adk_instrumentor(
     agent_run_span = spans_by_name[f"agent_run [{agent_name}]"][0]
     assert agent_run_span.status.is_ok
     assert agent_run_span.parent
-    assert agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert agent_run_span.parent is invocation_span.get_span_context()
     agent_run_attributes = dict(agent_run_span.attributes or {})
     assert agent_run_attributes.pop("user.id", None) == user_id
     assert agent_run_attributes.pop("session.id", None) == session_id
@@ -100,12 +740,13 @@ async def test_google_adk_instrumentor(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     call_llm_span0 = spans_by_name["call_llm"][0]
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
-    assert call_llm_span0.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span0.parent is agent_run_span.get_span_context()
     call_llm_attributes0 = dict(call_llm_span0.attributes or {})
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
@@ -145,8 +786,8 @@ async def test_google_adk_instrumentor(
         == "get_weather"
     )
     assert call_llm_attributes0.pop("llm.token_count.completion", None) == 6
-    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 106
-    assert call_llm_attributes0.pop("llm.token_count.total", None) == 112
+    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 107
+    assert call_llm_attributes0.pop("llm.token_count.total", None) == 113
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
@@ -156,16 +797,21 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes0.pop("gcp.vertex.agent.session_id", None)
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
-    if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) is not None
+    assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 107
+    assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 6
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes0.pop("gen_ai.agent.name", None)
+    call_llm_attributes0.pop("gen_ai.conversation.id", None)
+    call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
     assert tool_span.status.is_ok
     assert tool_span.parent
-    assert tool_span.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
+    # _with_caller_context restores the caller context around the model
+    # call, so this tool span's parent is the agent span.
+    assert tool_span.parent is agent_run_span.get_span_context()
     tool_attributes = dict(tool_span.attributes or {})
     assert tool_attributes.pop("user.id", None) == user_id
     assert tool_attributes.pop("session.id", None) == session_id
@@ -188,6 +834,7 @@ async def test_google_adk_instrumentor(
         tool_attributes.pop("gcp.vertex.agent.tool_response", None)
         == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
+    _pop_tool_span_id(tool_attributes)
     # GenAI attributes set by google-adk library
     tool_attributes.pop("gen_ai.operation.name", None)
     tool_attributes.pop("gen_ai.system", None)
@@ -195,12 +842,14 @@ async def test_google_adk_instrumentor(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.name", None)
+    tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
     call_llm_span1 = spans_by_name["call_llm"][1]
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
-    assert call_llm_span1.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span1.parent is agent_run_span.get_span_context()
     call_llm_attributes1 = dict(call_llm_span1.attributes or {})
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
@@ -249,7 +898,7 @@ async def test_google_adk_instrumentor(
         call_llm_attributes1.pop(
             "llm.output_messages.0.message.contents.0.message_content.text", None
         )
-        == "OK. The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\n"
+        == "OK. The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."
     )
     assert (
         call_llm_attributes1.pop(
@@ -258,8 +907,8 @@ async def test_google_adk_instrumentor(
         == "text"
     )
     assert call_llm_attributes1.pop("llm.output_messages.0.message.role", None) == "model"
-    assert call_llm_attributes1.pop("llm.token_count.completion", None) == 25
-    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 140
+    assert call_llm_attributes1.pop("llm.token_count.completion", None) == 24
+    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 141
     assert call_llm_attributes1.pop("llm.token_count.total", None) == 165
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
@@ -270,18 +919,18 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes1.pop("gcp.vertex.agent.session_id", None)
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
-    if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) is not None
+    assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 141
+    assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 24
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes1.pop("gen_ai.agent.name", None)
+    call_llm_attributes1.pop("gen_ai.conversation.id", None)
+    call_llm_attributes1.pop("gen_ai.operation.name", None)
+    call_llm_attributes1.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes1)
     assert not call_llm_attributes1
 
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+@pytest.mark.vcr
 async def test_google_adk_instrumentor_multi_tool_call(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -312,7 +961,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
         tools=[get_weather],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=agent, app_name=app_name)
@@ -349,7 +998,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     agent_run_span = spans_by_name[f"agent_run [{agent_name}]"][0]
     assert agent_run_span.status.is_ok
     assert agent_run_span.parent
-    assert agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert agent_run_span.parent is invocation_span.get_span_context()
     agent_run_attributes = dict(agent_run_span.attributes or {})
     assert agent_run_attributes.pop("user.id", None) == user_id
     assert agent_run_attributes.pop("session.id", None) == session_id
@@ -362,12 +1011,14 @@ async def test_google_adk_instrumentor_multi_tool_call(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
+    # call_llm[0]: first LLM call returns get_weather for New York only (with thoughts)
     call_llm_span0 = spans_by_name["call_llm"][0]
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
-    assert call_llm_span0.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span0.parent is agent_run_span.get_span_context()
     call_llm_attributes0 = dict(call_llm_span0.attributes or {})
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
@@ -406,22 +1057,13 @@ async def test_google_adk_instrumentor_multi_tool_call(
         )
         == "get_weather"
     )
-    assert (
-        call_llm_attributes0.pop(
-            "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments", None
-        )
-        == '{"city": "London"}'
+    assert call_llm_attributes0.pop(
+        "llm.output_messages.0.message.tool_calls.0.tool_call.reasoning_signature", None
     )
-    assert (
-        call_llm_attributes0.pop(
-            "llm.output_messages.0.message.tool_calls.1.tool_call.function.name", None
-        )
-        == "get_weather"
-    )
-    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 90
-    assert call_llm_attributes0.pop("llm.token_count.completion_details.reasoning", None) == 59
-    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 139
-    assert call_llm_attributes0.pop("llm.token_count.total", None) == 229
+    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 92
+    assert call_llm_attributes0.pop("llm.token_count.completion_details.reasoning", None) == 76
+    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 136
+    assert call_llm_attributes0.pop("llm.token_count.total", None) == 228
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
@@ -431,16 +1073,23 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes0.pop("gcp.vertex.agent.session_id", None)
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
-    if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) is not None
+    assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 136
+    # Output tokens include reasoning tokens.
+    assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 92
+    assert call_llm_attributes0.pop("gen_ai.usage.reasoning.output_tokens", None) == 76
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes0.pop("gen_ai.agent.name", None)
+    call_llm_attributes0.pop("gen_ai.conversation.id", None)
+    call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
     assert tool_span.status.is_ok
     assert tool_span.parent
-    assert tool_span.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
+    # _with_caller_context restores the caller context around the model
+    # call, so this tool span's parent is the agent span.
+    assert tool_span.parent is agent_run_span.get_span_context()
     tool_attributes = dict(tool_span.attributes or {})
     assert tool_attributes.pop("user.id", None) == user_id
     assert tool_attributes.pop("session.id", None) == session_id
@@ -463,6 +1112,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
         tool_attributes.pop("gcp.vertex.agent.tool_response", None)
         == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
+    _pop_tool_span_id(tool_attributes)
     # GenAI attributes set by google-adk library
     tool_attributes.pop("gen_ai.operation.name", None)
     tool_attributes.pop("gen_ai.system", None)
@@ -470,47 +1120,15 @@ async def test_google_adk_instrumentor_multi_tool_call(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.name", None)
+    tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
-    tool_span1 = spans_by_name["execute_tool get_weather"][1]
-    assert tool_span1.status.is_ok
-    assert tool_span1.parent
-    assert tool_span1.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
-    tool_attributes1 = dict(tool_span1.attributes or {})
-    assert tool_attributes1.pop("user.id", None) == user_id
-    assert tool_attributes1.pop("session.id", None) == session_id
-    assert tool_attributes1.pop("openinference.span.kind", None) == "TOOL"
-    assert tool_attributes1.pop("input.mime_type", None) == "application/json"
-    assert tool_attributes1.pop("input.value", None) == '{"city": "London"}'
-    assert tool_attributes1.pop("output.mime_type", None) == "application/json"
-    assert tool_attributes1.pop("output.value", None)
-    assert (
-        tool_attributes1.pop("tool.description", None)
-        == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."
-    )
-    assert tool_attributes1.pop("tool.name", None) == "get_weather"
-    assert tool_attributes1.pop("tool.parameters", None) == '{"city": "London"}'
-    assert tool_attributes1.pop("gcp.vertex.agent.event_id", None)
-    assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
-    assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
-    assert tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "London"}'
-    assert (
-        tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
-        == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-    )
-    # GenAI attributes set by google-adk library
-    tool_attributes1.pop("gen_ai.operation.name", None)
-    tool_attributes1.pop("gen_ai.system", None)
-    tool_attributes1.pop("gen_ai.tool.call.id", None)
-    tool_attributes1.pop("gen_ai.tool.description", None)
-    tool_attributes1.pop("gen_ai.tool.name", None)
-    tool_attributes1.pop("gen_ai.tool.type", None)
-    assert not tool_attributes1
-
+    # call_llm[1]: second LLM call returns get_weather for London only (no thoughts)
     call_llm_span1 = spans_by_name["call_llm"][1]
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
-    assert call_llm_span1.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span1.parent is agent_run_span.get_span_context()
     call_llm_attributes1 = dict(call_llm_span1.attributes or {})
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
@@ -547,17 +1165,8 @@ async def test_google_adk_instrumentor_multi_tool_call(
         )
         == "get_weather"
     )
-    assert (
-        call_llm_attributes1.pop(
-            "llm.input_messages.2.message.tool_calls.1.tool_call.function.arguments", None
-        )
-        == '{"city": "London"}'
-    )
-    assert (
-        call_llm_attributes1.pop(
-            "llm.input_messages.2.message.tool_calls.1.tool_call.function.name", None
-        )
-        == "get_weather"
+    assert call_llm_attributes1.pop(
+        "llm.input_messages.2.message.tool_calls.0.tool_call.reasoning_signature", None
     )
     assert (
         call_llm_attributes1.pop("llm.input_messages.3.message.content", None)
@@ -565,31 +1174,24 @@ async def test_google_adk_instrumentor_multi_tool_call(
     )
     assert call_llm_attributes1.pop("llm.input_messages.3.message.name", None) == "get_weather"
     assert call_llm_attributes1.pop("llm.input_messages.3.message.role", None) == "tool"
-    assert (
-        call_llm_attributes1.pop("llm.input_messages.4.message.content", None)
-        == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-    )
-    assert call_llm_attributes1.pop("llm.input_messages.4.message.name", None) == "get_weather"
-    assert call_llm_attributes1.pop("llm.input_messages.4.message.role", None) == "tool"
     assert call_llm_attributes1.pop("llm.invocation_parameters", None)
     assert call_llm_attributes1.pop("llm.model_name", None) == "gemini-2.5-flash"
-    assert (
-        call_llm_attributes1.pop(
-            "llm.output_messages.0.message.contents.0.message_content.text", None
-        )
-        == "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit). The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."
-    )
-    assert (
-        call_llm_attributes1.pop(
-            "llm.output_messages.0.message.contents.0.message_content.type", None
-        )
-        == "text"
-    )
     assert call_llm_attributes1.pop("llm.output_messages.0.message.role", None) == "model"
-    assert call_llm_attributes1.pop("llm.token_count.completion", None) == 80
-    assert call_llm_attributes1.pop("llm.token_count.completion_details.reasoning", None) == 37
-    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 251
-    assert call_llm_attributes1.pop("llm.token_count.total", None) == 331
+    assert (
+        call_llm_attributes1.pop(
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments", None
+        )
+        == '{"city": "London"}'
+    )
+    assert (
+        call_llm_attributes1.pop(
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.name", None
+        )
+        == "get_weather"
+    )
+    assert call_llm_attributes1.pop("llm.token_count.completion", None) == 15
+    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 194
+    assert call_llm_attributes1.pop("llm.token_count.total", None) == 209
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
     assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
@@ -599,18 +1201,238 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes1.pop("gcp.vertex.agent.session_id", None)
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
     assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
-    if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) is not None
+    assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 194
+    assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 15
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes1.pop("gen_ai.agent.name", None)
+    call_llm_attributes1.pop("gen_ai.conversation.id", None)
+    call_llm_attributes1.pop("gen_ai.operation.name", None)
+    call_llm_attributes1.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes1)
     assert not call_llm_attributes1
 
+    tool_span1 = spans_by_name["execute_tool get_weather"][1]
+    assert tool_span1.status.is_ok
+    assert tool_span1.parent
+    # _with_caller_context restores the caller context around the model
+    # call, so this tool span's parent is the agent span.
+    assert tool_span1.parent is agent_run_span.get_span_context()
+    tool_attributes1 = dict(tool_span1.attributes or {})
+    assert tool_attributes1.pop("user.id", None) == user_id
+    assert tool_attributes1.pop("session.id", None) == session_id
+    assert tool_attributes1.pop("openinference.span.kind", None) == "TOOL"
+    assert tool_attributes1.pop("input.mime_type", None) == "application/json"
+    assert tool_attributes1.pop("input.value", None) == '{"city": "London"}'
+    assert tool_attributes1.pop("output.mime_type", None) == "application/json"
+    assert tool_attributes1.pop("output.value", None)
+    assert (
+        tool_attributes1.pop("tool.description", None)
+        == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."
+    )
+    assert tool_attributes1.pop("tool.name", None) == "get_weather"
+    assert tool_attributes1.pop("tool.parameters", None) == '{"city": "London"}'
+    assert tool_attributes1.pop("gcp.vertex.agent.event_id", None)
+    assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
+    assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
+    assert tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "London"}'
+    assert (
+        tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
+        == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
+    )
+    _pop_tool_span_id(tool_attributes1)
+    # GenAI attributes set by google-adk library
+    tool_attributes1.pop("gen_ai.operation.name", None)
+    tool_attributes1.pop("gen_ai.system", None)
+    tool_attributes1.pop("gen_ai.tool.call.id", None)
+    tool_attributes1.pop("gen_ai.tool.description", None)
+    tool_attributes1.pop("gen_ai.tool.name", None)
+    tool_attributes1.pop("gen_ai.tool.type", None)
+    tool_attributes1.pop("gen_ai.agent.name", None)
+    tool_attributes1.pop("gen_ai.agent.version", None)
+    assert not tool_attributes1
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+    # call_llm[2]: final LLM call returns text response
+    call_llm_span2 = spans_by_name["call_llm"][2]
+    assert call_llm_span2.status.is_ok
+    assert call_llm_span2.parent
+    assert call_llm_span2.parent is agent_run_span.get_span_context()
+    call_llm_attributes2 = dict(call_llm_span2.attributes or {})
+    assert call_llm_attributes2.pop("user.id", None) == user_id
+    assert call_llm_attributes2.pop("session.id", None) == session_id
+    assert call_llm_attributes2.pop("openinference.span.kind", None) == "LLM"
+    assert call_llm_attributes2.pop("output.mime_type", None) == "application/json"
+    assert call_llm_attributes2.pop("output.value", None)
+    assert call_llm_attributes2.pop("input.mime_type", None) == "application/json"
+    assert call_llm_attributes2.pop("input.value", None)
+    assert call_llm_attributes2.pop("llm.input_messages.0.message.content", None)
+    assert call_llm_attributes2.pop("llm.input_messages.0.message.role", None) == "system"
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.1.message.contents.0.message_content.text", None
+        )
+        == "What is the weather in New York and London?"
+    )
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.1.message.contents.0.message_content.type", None
+        )
+        == "text"
+    )
+    assert call_llm_attributes2.pop("llm.input_messages.1.message.role", None) == "user"
+    assert call_llm_attributes2.pop("llm.input_messages.2.message.role", None) == "model"
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.2.message.tool_calls.0.tool_call.function.arguments", None
+        )
+        == '{"city": "New York"}'
+    )
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.2.message.tool_calls.0.tool_call.function.name", None
+        )
+        == "get_weather"
+    )
+    assert call_llm_attributes2.pop(
+        "llm.input_messages.2.message.tool_calls.0.tool_call.reasoning_signature", None
+    )
+    assert (
+        call_llm_attributes2.pop("llm.input_messages.3.message.content", None)
+        == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
+    )
+    assert call_llm_attributes2.pop("llm.input_messages.3.message.name", None) == "get_weather"
+    assert call_llm_attributes2.pop("llm.input_messages.3.message.role", None) == "tool"
+    assert call_llm_attributes2.pop("llm.input_messages.4.message.role", None) == "model"
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.4.message.tool_calls.0.tool_call.function.arguments", None
+        )
+        == '{"city": "London"}'
+    )
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.4.message.tool_calls.0.tool_call.function.name", None
+        )
+        == "get_weather"
+    )
+    assert (
+        call_llm_attributes2.pop("llm.input_messages.5.message.content", None)
+        == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
+    )
+    assert call_llm_attributes2.pop("llm.input_messages.5.message.name", None) == "get_weather"
+    assert call_llm_attributes2.pop("llm.input_messages.5.message.role", None) == "tool"
+    assert call_llm_attributes2.pop("llm.invocation_parameters", None)
+    assert call_llm_attributes2.pop("llm.model_name", None) == "gemini-2.5-flash"
+    assert (
+        call_llm_attributes2.pop(
+            "llm.output_messages.0.message.contents.0.message_content.text", None
+        )
+        == "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit). The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."
+    )
+    assert (
+        call_llm_attributes2.pop(
+            "llm.output_messages.0.message.contents.0.message_content.type", None
+        )
+        == "text"
+    )
+    assert call_llm_attributes2.pop("llm.output_messages.0.message.role", None) == "model"
+    assert call_llm_attributes2.pop("llm.token_count.completion", None) == 43
+    assert call_llm_attributes2.pop("llm.token_count.prompt", None) == 250
+    assert call_llm_attributes2.pop("llm.token_count.total", None) == 293
+    assert call_llm_attributes2.pop("llm.tools.0.tool.json_schema", None)
+    assert call_llm_attributes2.pop("llm.provider", None) == "google"
+    assert call_llm_attributes2.pop("gcp.vertex.agent.event_id", None)
+    assert call_llm_attributes2.pop("gcp.vertex.agent.invocation_id", None)
+    assert call_llm_attributes2.pop("gcp.vertex.agent.llm_request", None)
+    assert call_llm_attributes2.pop("gcp.vertex.agent.llm_response", None)
+    assert call_llm_attributes2.pop("gcp.vertex.agent.session_id", None)
+    assert call_llm_attributes2.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
+    assert call_llm_attributes2.pop("gen_ai.system", None) == "gcp.vertex.agent"
+    assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) == 250
+    assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) == 43
+    call_llm_attributes2.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes2.pop("gen_ai.agent.name", None)
+    call_llm_attributes2.pop("gen_ai.conversation.id", None)
+    call_llm_attributes2.pop("gen_ai.operation.name", None)
+    call_llm_attributes2.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes2)
+    assert not call_llm_attributes2
+
+
+@pytest.mark.vcr
+async def test_google_adk_instrumentor_code_execution_token_counts(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent_name = f"_{token_hex(4)}"
+    agent = Agent(
+        name=agent_name,
+        model="gemini-2.5-flash",
+        description="Agent that solves arithmetic questions by running code.",
+        instruction="Use code execution for arithmetic questions.",
+        code_executor=BuiltInCodeExecutor(),
+    )
+
+    app_name = f"app{token_hex(4)}"
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+    runner = InMemoryRunner(agent=agent, app_name=app_name)
+    await runner.session_service.create_session(
+        app_name=app_name, user_id=user_id, session_id=session_id
+    )
+
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user",
+            parts=[types.Part(text=_CODE_EXECUTION_QUESTION)],
+        ),
+    ):
+        ...
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    call_llm_spans = [span for span in spans if span.name == "call_llm"]
+    assert len(call_llm_spans) == 1
+    call_llm_attributes = dict(call_llm_spans[0].attributes or {})
+    usage_metadata = _get_usage_metadata_from_llm_response(call_llm_attributes)
+
+    prompt_token_count = _get_count(usage_metadata, "prompt_token_count", "promptTokenCount")
+    tool_use_prompt_token_count = _get_count(
+        usage_metadata,
+        "tool_use_prompt_token_count",
+        "toolUsePromptTokenCount",
+    )
+    candidates_token_count = _get_count(
+        usage_metadata,
+        "candidates_token_count",
+        "candidatesTokenCount",
+    )
+    thoughts_token_count = _get_count(
+        usage_metadata,
+        "thoughts_token_count",
+        "thoughtsTokenCount",
+    )
+    total_token_count = _get_count(usage_metadata, "total_token_count", "totalTokenCount")
+
+    assert tool_use_prompt_token_count > 0
+    expected_prompt_token_count = prompt_token_count + tool_use_prompt_token_count
+    expected_completion_token_count = candidates_token_count
+    if expected_prompt_token_count + candidates_token_count != total_token_count:
+        expected_completion_token_count += thoughts_token_count
+
+    assert call_llm_attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == expected_prompt_token_count
+    assert (
+        call_llm_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION]
+        == expected_completion_token_count
+    )
+    assert (
+        call_llm_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]
+        == thoughts_token_count
+    )
+    assert call_llm_attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == total_token_count
+
+
+@pytest.mark.vcr
 async def test_google_adk_instrumentor_multi_agent(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -671,7 +1493,7 @@ async def test_google_adk_instrumentor_multi_agent(
         sub_agents=[addition_agent, weather_agent],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=root_agent, app_name=app_name)
@@ -710,26 +1532,29 @@ async def test_google_adk_instrumentor_multi_agent(
     root_agent_run_span = spans_by_name[f"agent_run [{root_agent_name}]"][0]
     assert root_agent_run_span.status.is_ok
     assert root_agent_run_span.parent
-    assert root_agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert root_agent_run_span.parent is invocation_span.get_span_context()
     root_agent_run_attributes = dict(root_agent_run_span.attributes or {})
     assert root_agent_run_attributes.pop("user.id", None) == user_id
     assert root_agent_run_attributes.pop("session.id", None) == session_id
     assert root_agent_run_attributes.pop("openinference.span.kind", None) == "AGENT"
     assert root_agent_run_attributes.pop("agent.name", None) == root_agent_name
-    assert root_agent_run_attributes.pop("output.mime_type", None) == "application/json"
-    assert root_agent_run_attributes.pop("output.value", None)
+    # The routing agent does not yield the transferred sub-agent's final
+    # response, so this span has no output of its own.
+    assert "output.mime_type" not in root_agent_run_attributes
+    assert "output.value" not in root_agent_run_attributes
     # GenAI attributes set by google-adk library
     root_agent_run_attributes.pop("gen_ai.agent.description", None)
     root_agent_run_attributes.pop("gen_ai.agent.name", None)
     root_agent_run_attributes.pop("gen_ai.conversation.id", None)
     root_agent_run_attributes.pop("gen_ai.operation.name", None)
+    root_agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not root_agent_run_attributes
 
     # 3. call_llm (root agent - transfer_to_agent)
     call_llm_span0 = spans_by_name["call_llm"][0]
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
-    assert call_llm_span0.parent is root_agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span0.parent is root_agent_run_span.get_span_context()
     call_llm_attributes0 = dict(call_llm_span0.attributes or {})
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
@@ -768,9 +1593,9 @@ async def test_google_adk_instrumentor_multi_agent(
         )
         == "transfer_to_agent"
     )
-    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 20
-    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 273
-    assert call_llm_attributes0.pop("llm.token_count.total", None) == 293
+    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 11
+    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 323
+    assert call_llm_attributes0.pop("llm.token_count.total", None) == 334
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
@@ -780,17 +1605,22 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes0.pop("gcp.vertex.agent.session_id", None)
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
-    if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) is not None
+    assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 323
+    assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 11
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes0.pop("gen_ai.agent.name", None)
+    call_llm_attributes0.pop("gen_ai.conversation.id", None)
+    call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     # 4. execute_tool transfer_to_agent
     transfer_tool_span = spans_by_name["execute_tool transfer_to_agent"][0]
     assert transfer_tool_span.status.is_ok
     assert transfer_tool_span.parent
-    assert transfer_tool_span.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
+    # _with_caller_context restores the caller context around the model
+    # call, so this tool span's parent is the agent span.
+    assert transfer_tool_span.parent is root_agent_run_span.get_span_context()
     transfer_tool_attributes = dict(transfer_tool_span.attributes or {})
     assert transfer_tool_attributes.pop("user.id", None) == user_id
     assert transfer_tool_attributes.pop("session.id", None) == session_id
@@ -814,6 +1644,7 @@ async def test_google_adk_instrumentor_multi_agent(
     assert (
         transfer_tool_attributes.pop("gcp.vertex.agent.tool_response", None) == '{"result": null}'
     )
+    _pop_tool_span_id(transfer_tool_attributes)
     # GenAI attributes set by google-adk library
     transfer_tool_attributes.pop("gen_ai.operation.name", None)
     transfer_tool_attributes.pop("gen_ai.system", None)
@@ -821,13 +1652,15 @@ async def test_google_adk_instrumentor_multi_agent(
     transfer_tool_attributes.pop("gen_ai.tool.description", None)
     transfer_tool_attributes.pop("gen_ai.tool.name", None)
     transfer_tool_attributes.pop("gen_ai.tool.type", None)
+    transfer_tool_attributes.pop("gen_ai.agent.name", None)
     assert not transfer_tool_attributes
 
     # 5. agent_run [weather_agent]
     weather_agent_run_span = spans_by_name[f"agent_run [{weather_agent_name}]"][0]
     assert weather_agent_run_span.status.is_ok
     assert weather_agent_run_span.parent
-    assert weather_agent_run_span.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
+    # The transferred sub-agent runs directly under the invocation.
+    assert weather_agent_run_span.parent is invocation_span.get_span_context()
     weather_agent_run_attributes = dict(weather_agent_run_span.attributes or {})
     assert weather_agent_run_attributes.pop("user.id", None) == user_id
     assert weather_agent_run_attributes.pop("session.id", None) == session_id
@@ -840,13 +1673,14 @@ async def test_google_adk_instrumentor_multi_agent(
     weather_agent_run_attributes.pop("gen_ai.agent.name", None)
     weather_agent_run_attributes.pop("gen_ai.conversation.id", None)
     weather_agent_run_attributes.pop("gen_ai.operation.name", None)
+    weather_agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not weather_agent_run_attributes
 
     # 6. call_llm (weather agent - get_weather)
     call_llm_span1 = spans_by_name["call_llm"][1]
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
-    assert call_llm_span1.parent is weather_agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span1.parent is weather_agent_run_span.get_span_context()
     call_llm_attributes1 = dict(call_llm_span1.attributes or {})
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
@@ -870,23 +1704,23 @@ async def test_google_adk_instrumentor_multi_agent(
         == "text"
     )
     assert call_llm_attributes1.pop("llm.input_messages.1.message.role", None) == "user"
-    assert (
+    assert str(
         call_llm_attributes1.pop(
             "llm.input_messages.2.message.contents.0.message_content.text", None
         )
-        == "For context:"
-    )
+        or ""
+    ).startswith("For context:")
     assert (
         call_llm_attributes1.pop(
             "llm.input_messages.2.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert (
-        call_llm_attributes1.pop(
-            "llm.input_messages.2.message.contents.1.message_content.text", None
-        )
-        == "[root_agent] called tool `transfer_to_agent` with parameters: {'agent_name': 'weather_agent'}"
+    _assert_transcript_content(
+        call_llm_attributes1,
+        "llm.input_messages.2.message.contents.1.message_content.text",
+        "[root_agent] called tool `transfer_to_agent` with parameters:",
+        "{'agent_name': 'weather_agent'}",
     )
     assert (
         call_llm_attributes1.pop(
@@ -895,23 +1729,23 @@ async def test_google_adk_instrumentor_multi_agent(
         == "text"
     )
     assert call_llm_attributes1.pop("llm.input_messages.2.message.role", None) == "user"
-    assert (
+    assert str(
         call_llm_attributes1.pop(
             "llm.input_messages.3.message.contents.0.message_content.text", None
         )
-        == "For context:"
-    )
+        or ""
+    ).startswith("For context:")
     assert (
         call_llm_attributes1.pop(
             "llm.input_messages.3.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert (
-        call_llm_attributes1.pop(
-            "llm.input_messages.3.message.contents.1.message_content.text", None
-        )
-        == "[root_agent] `transfer_to_agent` tool returned result: {'result': None}"
+    _assert_transcript_content(
+        call_llm_attributes1,
+        "llm.input_messages.3.message.contents.1.message_content.text",
+        "[root_agent] `transfer_to_agent` tool returned result:",
+        "{'result': None}",
     )
     assert (
         call_llm_attributes1.pop(
@@ -936,8 +1770,8 @@ async def test_google_adk_instrumentor_multi_agent(
         == "get_weather"
     )
     assert call_llm_attributes1.pop("llm.token_count.completion", None) == 6
-    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 451
-    assert call_llm_attributes1.pop("llm.token_count.total", None) == 457
+    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 453
+    assert call_llm_attributes1.pop("llm.token_count.total", None) == 459
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.tools.1.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
@@ -948,17 +1782,23 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes1.pop("gcp.vertex.agent.session_id", None)
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
-    if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) is not None
+    assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 453
+    assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 6
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes1.pop("gen_ai.agent.name", None)
+    call_llm_attributes1.pop("gen_ai.conversation.id", None)
+    call_llm_attributes1.pop("gen_ai.operation.name", None)
+    call_llm_attributes1.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes1)
     assert not call_llm_attributes1
 
     # 7. execute_tool get_weather
     get_weather_tool_span = spans_by_name["execute_tool get_weather"][0]
     assert get_weather_tool_span.status.is_ok
     assert get_weather_tool_span.parent
-    assert get_weather_tool_span.parent is call_llm_span1.get_span_context()  # type: ignore[no-untyped-call]
+    # _with_caller_context restores the caller context around the model
+    # call, so this tool span's parent is the agent span.
+    assert get_weather_tool_span.parent is weather_agent_run_span.get_span_context()
     get_weather_tool_attributes = dict(get_weather_tool_span.attributes or {})
     assert get_weather_tool_attributes.pop("user.id", None) == user_id
     assert get_weather_tool_attributes.pop("session.id", None) == session_id
@@ -984,6 +1824,7 @@ async def test_google_adk_instrumentor_multi_agent(
         get_weather_tool_attributes.pop("gcp.vertex.agent.tool_response", None)
         == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
+    _pop_tool_span_id(get_weather_tool_attributes)
     # GenAI attributes set by google-adk library
     get_weather_tool_attributes.pop("gen_ai.operation.name", None)
     get_weather_tool_attributes.pop("gen_ai.system", None)
@@ -991,13 +1832,14 @@ async def test_google_adk_instrumentor_multi_agent(
     get_weather_tool_attributes.pop("gen_ai.tool.description", None)
     get_weather_tool_attributes.pop("gen_ai.tool.name", None)
     get_weather_tool_attributes.pop("gen_ai.tool.type", None)
+    get_weather_tool_attributes.pop("gen_ai.agent.name", None)
     assert not get_weather_tool_attributes
 
     # 8. call_llm (weather agent - final response)
     call_llm_span2 = spans_by_name["call_llm"][2]
     assert call_llm_span2.status.is_ok
     assert call_llm_span2.parent
-    assert call_llm_span2.parent is weather_agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span2.parent is weather_agent_run_span.get_span_context()
     call_llm_attributes2 = dict(call_llm_span2.attributes or {})
     assert call_llm_attributes2.pop("user.id", None) == user_id
     assert call_llm_attributes2.pop("session.id", None) == session_id
@@ -1021,23 +1863,23 @@ async def test_google_adk_instrumentor_multi_agent(
         == "text"
     )
     assert call_llm_attributes2.pop("llm.input_messages.1.message.role", None) == "user"
-    assert (
+    assert str(
         call_llm_attributes2.pop(
             "llm.input_messages.2.message.contents.0.message_content.text", None
         )
-        == "For context:"
-    )
+        or ""
+    ).startswith("For context:")
     assert (
         call_llm_attributes2.pop(
             "llm.input_messages.2.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert (
-        call_llm_attributes2.pop(
-            "llm.input_messages.2.message.contents.1.message_content.text", None
-        )
-        == "[root_agent] called tool `transfer_to_agent` with parameters: {'agent_name': 'weather_agent'}"
+    _assert_transcript_content(
+        call_llm_attributes2,
+        "llm.input_messages.2.message.contents.1.message_content.text",
+        "[root_agent] called tool `transfer_to_agent` with parameters:",
+        "{'agent_name': 'weather_agent'}",
     )
     assert (
         call_llm_attributes2.pop(
@@ -1046,23 +1888,23 @@ async def test_google_adk_instrumentor_multi_agent(
         == "text"
     )
     assert call_llm_attributes2.pop("llm.input_messages.2.message.role", None) == "user"
-    assert (
+    assert str(
         call_llm_attributes2.pop(
             "llm.input_messages.3.message.contents.0.message_content.text", None
         )
-        == "For context:"
-    )
+        or ""
+    ).startswith("For context:")
     assert (
         call_llm_attributes2.pop(
             "llm.input_messages.3.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert (
-        call_llm_attributes2.pop(
-            "llm.input_messages.3.message.contents.1.message_content.text", None
-        )
-        == "[root_agent] `transfer_to_agent` tool returned result: {'result': None}"
+    _assert_transcript_content(
+        call_llm_attributes2,
+        "llm.input_messages.3.message.contents.1.message_content.text",
+        "[root_agent] `transfer_to_agent` tool returned result:",
+        "{'result': None}",
     )
     assert (
         call_llm_attributes2.pop(
@@ -1106,8 +1948,8 @@ async def test_google_adk_instrumentor_multi_agent(
     )
     assert call_llm_attributes2.pop("llm.output_messages.0.message.role", None) == "model"
     assert call_llm_attributes2.pop("llm.token_count.completion", None) == 25
-    assert call_llm_attributes2.pop("llm.token_count.prompt", None) == 485
-    assert call_llm_attributes2.pop("llm.token_count.total", None) == 510
+    assert call_llm_attributes2.pop("llm.token_count.prompt", None) == 487
+    assert call_llm_attributes2.pop("llm.token_count.total", None) == 512
     assert call_llm_attributes2.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes2.pop("llm.tools.1.tool.json_schema", None)
     assert call_llm_attributes2.pop("llm.provider", None) == "google"
@@ -1118,18 +1960,18 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes2.pop("gcp.vertex.agent.session_id", None)
     assert call_llm_attributes2.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes2.pop("gen_ai.system", None) == "gcp.vertex.agent"
-    if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) is not None
+    assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) == 487
+    assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) == 25
     call_llm_attributes2.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes2.pop("gen_ai.agent.name", None)
+    call_llm_attributes2.pop("gen_ai.conversation.id", None)
+    call_llm_attributes2.pop("gen_ai.operation.name", None)
+    call_llm_attributes2.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes2)
     assert not call_llm_attributes2
 
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+@pytest.mark.vcr
 async def test_google_adk_instrumentor_image_artifacts(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1141,7 +1983,9 @@ async def test_google_adk_instrumentor_image_artifacts(
             tool_context:
             file_path: Remote location of file.
         """
-        image_bytes = b"iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
+        image_bytes = base64.b64decode(
+            b"iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII="
+        )
         image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
         filename = "sample.png"
         await tool_context.save_artifact(filename=filename, artifact=image_part)
@@ -1161,7 +2005,7 @@ async def test_google_adk_instrumentor_image_artifacts(
         tools=[load_remote_image, load_artifacts],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
 
@@ -1199,7 +2043,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     agent_run_span = spans_by_name[f"agent_run [{agent_name}]"][0]
     assert agent_run_span.status.is_ok
     assert agent_run_span.parent
-    assert agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert agent_run_span.parent is invocation_span.get_span_context()
     agent_run_attributes = dict(agent_run_span.attributes or {})
     assert agent_run_attributes.pop("user.id", None) == user_id
     assert agent_run_attributes.pop("session.id", None) == session_id
@@ -1212,12 +2056,13 @@ async def test_google_adk_instrumentor_image_artifacts(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     call_llm_span = spans_by_name["call_llm"][-1]
     assert call_llm_span.status.is_ok
     assert call_llm_span.parent
-    assert call_llm_span.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span.parent is agent_run_span.get_span_context()
     call_llm_attributes = dict(call_llm_span.attributes or {})
     assert call_llm_attributes.pop("user.id", None) == user_id
     assert call_llm_attributes.pop("session.id", None) == session_id
@@ -1300,18 +2145,30 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert call_llm_attributes.pop("llm.invocation_parameters", None)
     assert call_llm_attributes.pop("llm.model_name", None) == "gemini-2.0-flash"
     assert call_llm_attributes.pop("llm.output_messages.0.message.role", None) == "model"
-    assert str(
-        call_llm_attributes.pop("llm.output_messages.0.message.contents.0.message_content.text", "")
-    ).startswith("The image shows a serene, monochrome landscape")
+    assert call_llm_attributes.pop(
+        "llm.output_messages.0.message.contents.0.message_content.text", None
+    ) == (
+        "\nThe image is a simple, blurred cross shape. Two squares are white, and the other two are a light gray. "
+        "The blurring makes the edges soft and indistinct.\n\n"
+        "Here's a poem inspired by it:\n\n"
+        "A muted cross, a gentle sign,\n"
+        "Where light and shadow intertwine.\n"
+        "Two squares of white, a pristine gleam,\n"
+        "Two shades of gray, a fading dream.\n\n"
+        "No sharp divide, no stark contrast,\n"
+        "But soft transitions, fading fast.\n"
+        "A quiet symbol, undefined,\n"
+        "A peaceful solace for the mind.\n"
+    )
     assert (
         call_llm_attributes.pop(
             "llm.output_messages.0.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert call_llm_attributes.pop("llm.token_count.completion", None) == 211
-    assert call_llm_attributes.pop("llm.token_count.prompt", None) == 611
-    assert call_llm_attributes.pop("llm.token_count.total", None) == 822
+    assert call_llm_attributes.pop("llm.token_count.completion", None) == 115
+    assert call_llm_attributes.pop("llm.token_count.prompt", None) == 608
+    assert call_llm_attributes.pop("llm.token_count.total", None) == 723
     assert call_llm_attributes.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes.pop("llm.provider", None) == "google"
     assert call_llm_attributes.pop("gcp.vertex.agent.event_id", None)
@@ -1321,11 +2178,15 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert call_llm_attributes.pop("gcp.vertex.agent.session_id", None)
     assert call_llm_attributes.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes.pop("gen_ai.system", None) == "gcp.vertex.agent"
-    if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes.pop("gen_ai.usage.output_tokens", None) is not None
+    assert call_llm_attributes.pop("gen_ai.usage.input_tokens", None) == 608
+    assert call_llm_attributes.pop("gen_ai.usage.output_tokens", None) == 115
     call_llm_attributes.pop("gen_ai.response.finish_reasons", None)
     call_llm_attributes.pop("llm.tools.1.tool.json_schema", None)
+    call_llm_attributes.pop("gen_ai.agent.name", None)
+    call_llm_attributes.pop("gen_ai.conversation.id", None)
+    call_llm_attributes.pop("gen_ai.operation.name", None)
+    call_llm_attributes.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes)
     assert not call_llm_attributes
 
     tool_span = spans_by_name["execute_tool load_remote_image"][0]
@@ -1350,6 +2211,7 @@ async def test_google_adk_instrumentor_image_artifacts(
         == '{"file_path": "sample.png"}'
     )
     assert tool_attributes.pop("gcp.vertex.agent.tool_response", None)
+    _pop_tool_span_id(tool_attributes)
     # GenAI attributes set by google-adk library
     tool_attributes.pop("gen_ai.operation.name", None)
     tool_attributes.pop("gen_ai.system", None)
@@ -1357,6 +2219,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.name", None)
     assert not tool_attributes
 
     tool_span1 = spans_by_name["execute_tool load_artifacts"][0]
@@ -1381,6 +2244,7 @@ async def test_google_adk_instrumentor_image_artifacts(
         == '{"artifact_names": ["sample.png"]}'
     )
     assert tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
+    _pop_tool_span_id(tool_attributes1)
     # GenAI attributes set by google-adk library
     tool_attributes1.pop("gen_ai.operation.name", None)
     tool_attributes1.pop("gen_ai.system", None)
@@ -1388,4 +2252,955 @@ async def test_google_adk_instrumentor_image_artifacts(
     tool_attributes1.pop("gen_ai.tool.description", None)
     tool_attributes1.pop("gen_ai.tool.name", None)
     tool_attributes1.pop("gen_ai.tool.type", None)
+    tool_attributes1.pop("gen_ai.agent.name", None)
     assert not tool_attributes1
+
+
+async def test_google_adk_instrumentor_tool_call_id_correlation(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Same ADK-native call id on output tool_call, execute_tool span, and tool message."""
+    from typing import AsyncGenerator
+
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    tool_call_id = "call_ny_abc123"
+
+    def get_weather(city: str) -> dict[str, str]:
+        return {
+            "status": "success",
+            "report": f"The weather in {city} is sunny.",
+        }
+
+    tool_call_response = LlmResponse(
+        content=types.Content(
+            role="model",
+            parts=[
+                types.Part(
+                    function_call=types.FunctionCall(
+                        id=tool_call_id,
+                        name="get_weather",
+                        args={"city": "New York"},
+                    )
+                ),
+            ],
+        )
+    )
+    final_text_response = LlmResponse(
+        content=types.Content(
+            role="model",
+            parts=[types.Part(text="The weather in New York is sunny.")],
+        )
+    )
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+        _index: int = 0
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            responses = [tool_call_response, final_text_response]
+            response = responses[min(self._index, len(responses) - 1)]
+            object.__setattr__(self, "_index", self._index + 1)
+            yield response
+
+    agent_name = f"_{token_hex(4)}"
+    agent = Agent(
+        name=agent_name,
+        model=_StubLlm(),
+        description="Agent to answer questions using tools.",
+        instruction="You must use the available tools to find an answer.",
+        tools=[get_weather],
+    )
+
+    app_name = f"app{token_hex(4)}"
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+    runner = InMemoryRunner(agent=agent, app_name=app_name)
+    await runner.session_service.create_session(
+        app_name=app_name, user_id=user_id, session_id=session_id
+    )
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user",
+            parts=[types.Part(text="What is the weather in New York?")],
+        ),
+    ):
+        ...
+
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in in_memory_span_exporter.get_finished_spans():
+        spans_by_name[span.name].append(span)
+
+    call_llm_spans = sorted(spans_by_name["call_llm"], key=lambda s: s.start_time or 0)
+    assert len(call_llm_spans) == 2
+
+    turn1_attrs = dict(call_llm_spans[0].attributes or {})
+    assert (
+        turn1_attrs.get(
+            f"llm.output_messages.0.message.tool_calls.0.{ToolCallAttributes.TOOL_CALL_ID}"
+        )
+        == tool_call_id
+    )
+
+    tool_span = spans_by_name["execute_tool get_weather"][0]
+    tool_attrs = dict(tool_span.attributes or {})
+    assert tool_attrs.get(SpanAttributes.TOOL_ID) == tool_call_id
+
+    turn2_attrs = dict(call_llm_spans[1].attributes or {})
+    tool_call_id_suffix = f".{MessageAttributes.MESSAGE_TOOL_CALL_ID}"
+    tool_message_tool_call_ids = {
+        k: v
+        for k, v in turn2_attrs.items()
+        if k.startswith(SpanAttributes.LLM_INPUT_MESSAGES) and k.endswith(tool_call_id_suffix)
+    }
+    assert len(tool_message_tool_call_ids) == 1
+    assert next(iter(tool_message_tool_call_ids.values())) == tool_call_id
+
+
+async def test_google_adk_instrumentor_parallel_tool_calls(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Exercise the parallel-call path that emits an `execute_tool (merged)` span.
+
+    This path is gated on `len(function_response_events) > 1` in
+    `google.adk.flows.llm_flows.functions`, which uses the module-local `tracer`
+    binding. We use a stubbed `BaseLlm` to deterministically produce two parallel
+    function calls in a single response and assert the merged span is attributed
+    to our OITracer (not the original ADK tracer).
+    """
+    from typing import AsyncGenerator
+
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    def get_weather(city: str) -> dict[str, str]:
+        return {
+            "status": "success",
+            "report": f"The weather in {city} is sunny.",
+        }
+
+    parallel_calls_response = LlmResponse(
+        content=types.Content(
+            role="model",
+            parts=[
+                types.Part(
+                    function_call=types.FunctionCall(
+                        id="call_1",
+                        name="get_weather",
+                        args={"city": "New York"},
+                    )
+                ),
+                types.Part(
+                    function_call=types.FunctionCall(
+                        id="call_2",
+                        name="get_weather",
+                        args={"city": "London"},
+                    )
+                ),
+            ],
+        )
+    )
+    final_text_response = LlmResponse(
+        content=types.Content(
+            role="model",
+            parts=[types.Part(text="Both cities are sunny.")],
+        )
+    )
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+        _index: int = 0
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            responses = [parallel_calls_response, final_text_response]
+            response = responses[min(self._index, len(responses) - 1)]
+            object.__setattr__(self, "_index", self._index + 1)
+            yield response
+
+    agent_name = f"_{token_hex(4)}"
+    agent = Agent(
+        name=agent_name,
+        model=_StubLlm(),
+        description="Agent that calls tools in parallel.",
+        instruction="Call get_weather for both cities in parallel.",
+        tools=[get_weather],
+    )
+
+    app_name = f"app{token_hex(4)}"
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+    runner = InMemoryRunner(agent=agent, app_name=app_name)
+    session_service = runner.session_service
+    await session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user",
+            parts=[types.Part(text="What is the weather in New York and London?")],
+        ),
+    ):
+        ...
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    # Per-tool spans for both parallel calls
+    assert len(spans_by_name["execute_tool get_weather"]) == 2
+    for tool_span in spans_by_name["execute_tool get_weather"]:
+        assert tool_span.instrumentation_scope is not None
+        assert tool_span.instrumentation_scope.name == "openinference.instrumentation.google_adk"
+        assert (tool_span.attributes or {}).get("openinference.span.kind") == "TOOL"
+
+    # Merged span for the parallel batch — attributed to our OITracer, not ADK's
+    merged_spans = spans_by_name["execute_tool (merged)"]
+    assert len(merged_spans) == 1
+    merged_span = merged_spans[0]
+    assert merged_span.instrumentation_scope is not None
+    assert merged_span.instrumentation_scope.name == "openinference.instrumentation.google_adk"
+
+
+def _build_compaction_app() -> "tuple[Any, str]":
+    from google.adk.apps.app import (  # type: ignore[import-not-found,unused-ignore]
+        App,
+        EventsCompactionConfig,
+    )
+    from google.adk.apps.base_events_summarizer import (  # type: ignore[import-not-found,unused-ignore]
+        BaseEventsSummarizer,
+    )
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    class _NoOpSummarizer(BaseEventsSummarizer):  # type: ignore[misc,unused-ignore]
+        async def maybe_summarize_events(self, *, events: "list[Any]") -> Any:
+            return None
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            yield LlmResponse(
+                content=types.Content(
+                    role="model", parts=[types.Part(text="Paris is the capital of France.")]
+                )
+            )
+
+    agent = Agent(
+        name=f"_{token_hex(4)}",
+        model=_StubLlm(),
+        description="Agent that answers geography questions.",
+        instruction="Answer briefly.",
+    )
+    app_name = f"app{token_hex(4)}"
+    app = App(
+        name=app_name,
+        root_agent=agent,
+        events_compaction_config=EventsCompactionConfig(
+            summarizer=_NoOpSummarizer(),
+            compaction_interval=1,
+            overlap_size=0,
+        ),
+    )
+    return app, app_name
+
+
+def _build_token_threshold_app() -> "tuple[Any, str, str]":
+    from google.adk.apps.app import (  # type: ignore[import-not-found,unused-ignore]
+        App,
+        EventsCompactionConfig,
+    )
+    from google.adk.apps.base_events_summarizer import (  # type: ignore[import-not-found,unused-ignore]
+        BaseEventsSummarizer,
+    )
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    class _NoOpSummarizer(BaseEventsSummarizer):  # type: ignore[misc,unused-ignore]
+        async def maybe_summarize_events(self, *, events: "list[Any]") -> Any:
+            return None
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            yield LlmResponse(
+                content=types.Content(
+                    role="model", parts=[types.Part(text="Paris is the capital of France.")]
+                )
+            )
+
+    agent_name = f"_{token_hex(4)}"
+    agent = Agent(
+        name=agent_name,
+        model=_StubLlm(),
+        description="Agent that answers geography questions.",
+        instruction="Answer briefly.",
+    )
+    app_name = f"app{token_hex(4)}"
+    app = App(
+        name=app_name,
+        root_agent=agent,
+        events_compaction_config=EventsCompactionConfig(
+            summarizer=_NoOpSummarizer(),
+            token_threshold=1,
+            event_retention_size=0,
+            compaction_interval=1_000_000,
+            overlap_size=0,
+        ),
+    )
+    return app, app_name, agent_name
+
+
+async def _run_compaction_query(app: Any, app_name: str) -> "tuple[InMemoryRunner, str, str]":
+    runner = InMemoryRunner(app=app)  # type: ignore[call-arg,unused-ignore]
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=app_name, user_id=user_id, session_id=session_id
+    )
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user", parts=[types.Part(text="What is the capital of France?")]
+        ),
+    ):
+        ...
+    return runner, user_id, session_id
+
+
+async def test_google_adk_instrumentor_compaction_sliding_window_span(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    app, app_name = _build_compaction_app()
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        _, user_id, session_id = await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    compaction_spans = spans_by_name["compact_events sliding_window"]
+    assert len(compaction_spans) == 1
+    compaction_span = compaction_spans[0]
+    assert compaction_span.status.is_ok
+
+    invocation_spans = spans_by_name[f"invocation [{app_name}]"]
+    assert len(invocation_spans) == 1
+    invocation_span = invocation_spans[0]
+
+    # Same trace as the invocation, parented directly under it.
+    assert compaction_span.context is not None and invocation_span.context is not None
+    assert compaction_span.context.trace_id == invocation_span.context.trace_id
+    assert compaction_span.parent is invocation_span.get_span_context()
+
+    assert compaction_span.instrumentation_scope is not None
+    assert compaction_span.instrumentation_scope.name == "openinference.instrumentation.google_adk"
+
+    compaction_attributes = dict(compaction_span.attributes or {})
+    # Context propagation: session/user id land on every span in the trace
+    # via OITracer, compaction included.
+    assert compaction_attributes.pop("session.id", None) == session_id
+    assert compaction_attributes.pop("user.id", None) == user_id
+    assert compaction_attributes.pop("openinference.span.kind", None) == "CHAIN"
+    assert compaction_attributes.pop("gen_ai.operation.name", None) == "compact_events"
+    assert compaction_attributes.pop("gen_ai.compaction.trigger", None) == "sliding_window"
+    assert compaction_attributes.pop("gen_ai.compaction.summarizer_type", None) == "_NoOpSummarizer"
+    event_count = compaction_attributes.pop("gen_ai.compaction.event_count", None)
+    assert event_count
+    assert compaction_attributes.pop("gen_ai.compaction.compaction_interval", None) == 1
+    assert compaction_attributes.pop("gen_ai.compaction.overlap_size", None) == 0
+    compaction_attributes.pop("gen_ai.system", None)
+    compaction_attributes.pop("gen_ai.conversation.id", None)
+
+    # Generic OI input/output: safe non-content JSON summaries built directly
+    # from `_build_compaction_attributes`/`_build_compaction_result_attributes`'s
+    # own return values (patched at the source), not read back from the span.
+    assert compaction_attributes.pop("input.mime_type", None) == "application/json"
+    assert json.loads(cast(str, compaction_attributes.pop("input.value", None))) == {
+        "gen_ai.compaction.trigger": "sliding_window",
+        "gen_ai.compaction.summarizer_type": "_NoOpSummarizer",
+        "gen_ai.compaction.event_count": event_count,
+        "gen_ai.compaction.compaction_interval": 1,
+        "gen_ai.compaction.overlap_size": 0,
+    }
+    assert compaction_attributes.pop("output.mime_type", None) == "application/json"
+    # _NoOpSummarizer always returns None, so no compaction event is produced.
+    assert json.loads(cast(str, compaction_attributes.pop("output.value", None))) == {
+        "compacted": False
+    }
+    assert not compaction_attributes
+
+    # Compaction attributes must never leak onto the parent invocation span.
+    invocation_attributes = dict(invocation_span.attributes or {})
+    assert not any(key.startswith("gen_ai.compaction.") for key in invocation_attributes)
+
+
+async def test_google_adk_instrumentor_compaction_token_threshold_both_paths(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    app, app_name, agent_name = _build_token_threshold_app()
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        _, user_id, session_id = await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    compaction_spans = spans_by_name["compact_events token_threshold"]
+    assert len(compaction_spans) == 2
+    assert all(span.status.is_ok for span in compaction_spans)
+
+    invocation_spans = spans_by_name[f"invocation [{app_name}]"]
+    assert len(invocation_spans) == 1
+    invocation_span = invocation_spans[0]
+
+    agent_run_spans = spans_by_name[f"agent_run [{agent_name}]"]
+    assert len(agent_run_spans) == 1
+    agent_run_span = agent_run_spans[0]
+
+    # Same trace as the invocation for both spans, but different parents.
+    assert invocation_span.context is not None and agent_run_span.context is not None
+    invocation_context = invocation_span.get_span_context()
+    agent_run_context = agent_run_span.get_span_context()
+    assert invocation_context is not None and agent_run_context is not None
+    parent_span_ids = {span.parent.span_id for span in compaction_spans if span.parent}
+    assert parent_span_ids == {invocation_context.span_id, agent_run_context.span_id}
+    for span in compaction_spans:
+        assert span.context is not None
+        assert span.context.trace_id == invocation_span.context.trace_id
+
+    for span in compaction_spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.pop("session.id", None) == session_id
+        assert attributes.pop("user.id", None) == user_id
+        assert attributes.pop("openinference.span.kind", None) == "CHAIN"
+        assert attributes.pop("gen_ai.operation.name", None) == "compact_events"
+        assert attributes.pop("gen_ai.compaction.trigger", None) == "token_threshold"
+        assert attributes.pop("gen_ai.compaction.summarizer_type", None) == "_NoOpSummarizer"
+        event_count = attributes.pop("gen_ai.compaction.event_count", None)
+        assert event_count
+        assert attributes.pop("gen_ai.compaction.token_threshold", None) == 1
+        assert attributes.pop("gen_ai.compaction.event_retention_size", None) == 0
+        assert attributes.pop("gen_ai.compaction.compaction_interval", None) == 1_000_000
+        assert attributes.pop("gen_ai.compaction.overlap_size", None) == 0
+        attributes.pop("gen_ai.system", None)
+        attributes.pop("gen_ai.conversation.id", None)
+
+        assert attributes.pop("input.mime_type", None) == "application/json"
+        assert json.loads(cast(str, attributes.pop("input.value", None))) == {
+            "gen_ai.compaction.trigger": "token_threshold",
+            "gen_ai.compaction.summarizer_type": "_NoOpSummarizer",
+            "gen_ai.compaction.event_count": event_count,
+            "gen_ai.compaction.token_threshold": 1,
+            "gen_ai.compaction.event_retention_size": 0,
+            "gen_ai.compaction.compaction_interval": 1_000_000,
+            "gen_ai.compaction.overlap_size": 0,
+        }
+        assert attributes.pop("output.mime_type", None) == "application/json"
+        # `_NoOpSummarizer` never produces an event, so no result attributes.
+        assert json.loads(cast(str, attributes.pop("output.value", None))) == {"compacted": False}
+        assert not attributes
+
+    for parent_span in (invocation_span, agent_run_span):
+        parent_attributes = dict(parent_span.attributes or {})
+        assert not any(key.startswith("gen_ai.compaction.") for key in parent_attributes)
+
+
+async def test_google_adk_instrumentor_compaction_suppresses_tracing(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Running inside ``suppress_tracing()`` must not emit a compaction span."""
+    app, app_name = _build_compaction_app()
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        with suppress_tracing():
+            await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
+async def test_google_adk_instrumentor_compaction_trace_config_hides_io(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """``TraceConfig(hide_inputs=True, hide_outputs=True)`` masks the
+    compaction span's generic input.value/output.value like any other span."""
+    app, app_name = _build_compaction_app()
+
+    GoogleADKInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_inputs=True, hide_outputs=True),
+    )
+    try:
+        await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    compaction_spans = [s for s in spans if s.name == "compact_events sliding_window"]
+    assert len(compaction_spans) == 1
+    attributes = dict(compaction_spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == REDACTED_VALUE
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == REDACTED_VALUE
+    assert SpanAttributes.INPUT_MIME_TYPE not in attributes
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
+    # Masking only touches input/output -- span kind and gen_ai.* attributes
+    # are unaffected.
+    assert attributes.get("openinference.span.kind") == "CHAIN"
+    assert attributes.get("gen_ai.compaction.trigger") == "sliding_window"
+
+
+async def test_google_adk_instrumentor_compaction_span_error_preserves_input(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from google.adk.apps.app import (  # type: ignore[import-not-found,unused-ignore]
+        App,
+        EventsCompactionConfig,
+    )
+    from google.adk.apps.base_events_summarizer import (  # type: ignore[import-not-found,unused-ignore]
+        BaseEventsSummarizer,
+    )
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    class _RaisingSummarizer(BaseEventsSummarizer):  # type: ignore[misc,unused-ignore]
+        async def maybe_summarize_events(self, *, events: "list[Any]") -> Any:
+            raise RuntimeError("boom")
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            yield LlmResponse(
+                content=types.Content(
+                    role="model", parts=[types.Part(text="Paris is the capital of France.")]
+                )
+            )
+
+    agent = Agent(
+        name=f"_{token_hex(4)}",
+        model=_StubLlm(),
+        description="Agent that answers geography questions.",
+        instruction="Answer briefly.",
+    )
+    app_name = f"app{token_hex(4)}"
+    app = App(
+        name=app_name,
+        root_agent=agent,
+        events_compaction_config=EventsCompactionConfig(
+            summarizer=_RaisingSummarizer(),
+            compaction_interval=1,
+            overlap_size=0,
+        ),
+    )
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        with pytest.raises(RuntimeError, match="boom"):
+            await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    compaction_spans = [s for s in spans if s.name == "compact_events sliding_window"]
+    assert len(compaction_spans) == 1
+    compaction_span = compaction_spans[0]
+    assert not compaction_span.status.is_ok
+
+    attributes = dict(compaction_span.attributes or {})
+    assert attributes.get("openinference.span.kind") == "CHAIN"
+    assert attributes.get("gen_ai.compaction.trigger") == "sliding_window"
+    assert attributes.get("gen_ai.compaction.summarizer_type") == "_RaisingSummarizer"
+    assert attributes.get("input.mime_type") == "application/json"
+    assert attributes.get("input.value")
+    assert "output.value" not in attributes
+    assert "output.mime_type" not in attributes
+
+
+@pytest.mark.vcr
+async def test_google_adk_instrumentor_suppresses_tracing(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Running inside ``suppress_tracing()`` must not emit any spans."""
+    runner, user_id, session_id = _build_weather_runner()
+    with suppress_tracing():
+        await _run_weather_query(runner, user_id, session_id)
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
+@pytest.mark.vcr
+async def test_google_adk_instrumentor_propagates_context_attributes(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Context attributes set via ``using_attributes`` propagate to every span."""
+    runner, user_id, session_id = _build_weather_runner()
+    metadata = {"environment": "test"}
+    tags = ["alpha", "beta"]
+    with using_attributes(metadata=metadata, tags=tags):
+        await _run_weather_query(runner, user_id, session_id)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert spans
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.get(SpanAttributes.METADATA) == safe_json_dumps(metadata)
+        assert attributes.get(SpanAttributes.TAG_TAGS) == tuple(tags)
+
+
+@pytest.mark.vcr
+async def test_google_adk_instrumentor_trace_config_hides_inputs(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """``TraceConfig(hide_inputs=True)`` masks input values and input messages."""
+    GoogleADKInstrumentor().instrument(
+        tracer_provider=tracer_provider, config=TraceConfig(hide_inputs=True)
+    )
+    try:
+        runner, user_id, session_id = _build_weather_runner()
+        await _run_weather_query(runner, user_id, session_id)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert spans
+    saw_redacted_input = False
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        if SpanAttributes.INPUT_VALUE in attributes:
+            assert attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+            saw_redacted_input = True
+        # Input mime type and input messages are dropped entirely when masked.
+        assert SpanAttributes.INPUT_MIME_TYPE not in attributes
+        assert not any(key.startswith(SpanAttributes.LLM_INPUT_MESSAGES) for key in attributes)
+        # Outputs remain visible.
+        if span.name.startswith("call_llm"):
+            assert attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert saw_redacted_input
+
+
+@pytest.mark.vcr
+async def test_google_adk_instrumentor_reasoning_content(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Verify that thought and thought_signature on a reasoning part are captured."""
+    agent_name = f"_{token_hex(4)}"
+    agent = Agent(
+        name=agent_name,
+        model="gemini-2.5-flash",
+        description="Agent that reasons through arithmetic word problems.",
+        instruction="Think step by step before answering.",
+        planner=BuiltInPlanner(
+            thinking_config=types.ThinkingConfig(
+                include_thoughts=True,
+                thinking_budget=1024,
+            ),
+        ),
+    )
+
+    app_name = f"app{token_hex(4)}"
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+    runner = InMemoryRunner(agent=agent, app_name=app_name)
+    session_service = runner.session_service
+    await session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user",
+            parts=[
+                types.Part(
+                    text=(
+                        "A train leaves Boston at 60 mph. Two hours later a second "
+                        "train leaves the same station at 90 mph on the same track. "
+                        "How long after the first train leaves does the second train "
+                        "catch up? Reason through it step by step."
+                    )
+                )
+            ],
+        ),
+    ):
+        ...
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    call_llm_span = spans_by_name["call_llm"][0]
+    assert call_llm_span.status.is_ok
+    call_llm_attributes = dict(call_llm_span.attributes or {})
+
+    contents_prefix = "llm.output_messages.0.message.contents"
+
+    # Verify the reasoning/thought content.
+    reasoning_type = call_llm_attributes.pop(f"{contents_prefix}.0.message_content.type", None)
+    assert reasoning_type == "reasoning"
+    reasoning_text = call_llm_attributes.pop(f"{contents_prefix}.0.message_content.text", None)
+    assert reasoning_text
+
+    # Signature is opaque provider-issued data.
+    call_llm_attributes.pop(f"{contents_prefix}.0.message_content.signature", None)
+
+    # Verify the final answer text.
+    final_answer_type = call_llm_attributes.pop(f"{contents_prefix}.1.message_content.type", None)
+    assert final_answer_type == "text"
+    final_answer_text = call_llm_attributes.pop(f"{contents_prefix}.1.message_content.text", None)
+    assert final_answer_text
+
+    assert call_llm_attributes.pop("llm.output_messages.0.message.role", None) == "model"
+
+    # Span-level reasoning token count should be present.
+    assert call_llm_attributes.pop(
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, None
+    )
+
+    # Everything else on the span is boilerplate covered by other tests.
+    for key in list(call_llm_attributes):
+        if key.startswith("llm.") or key.startswith("gcp.") or key.startswith("gen_ai."):
+            call_llm_attributes.pop(key, None)
+    for key in (
+        "user.id",
+        "session.id",
+        "openinference.span.kind",
+        "output.mime_type",
+        "output.value",
+        "input.mime_type",
+        "input.value",
+    ):
+        call_llm_attributes.pop(key, None)
+    assert not call_llm_attributes
+
+
+class _StaticTextLlm(BaseLlm):
+    """A fake model that always replies with the same text, no network needed."""
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        yield LlmResponse(content=types.Content(role="model", parts=[types.Part(text="haiku")]))
+
+
+def _workflow_step_one() -> str:
+    return "one"
+
+
+def _workflow_step_two(node_input: str) -> str:
+    return node_input + " two"
+
+
+_WORKFLOW_MESSAGE = types.Content(role="user", parts=[types.Part(text="go")])
+_WORKFLOW_MESSAGE_JSON = '{"parts": [{"text": "go"}], "role": "user"}'
+_OI_SCOPE = "openinference.instrumentation.google_adk"
+
+
+async def _run_workflow(*nodes: Any) -> tuple[str, str]:
+    """Runs START -> nodes... as a workflow and returns ``(app_name, session_id)``."""
+    path = [START, *nodes]
+    workflow = Workflow(name="wf", edges=list(zip(path, path[1:])))
+    app_name = f"app{token_hex(4)}"
+    runner = InMemoryRunner(app=App(name=app_name, root_agent=workflow))
+    session = await runner.session_service.create_session(app_name=app_name, user_id="u")
+    async for _ in runner.run_async(
+        user_id="u", session_id=session.id, new_message=_WORKFLOW_MESSAGE
+    ):
+        pass
+    return app_name, session.id
+
+
+def _pop_workflow_span_attributes(
+    span: ReadableSpan,
+    *,
+    operation: str,
+    session_id: str,
+    input_value: str,
+    input_mime_type: str,
+    output_value: str,
+) -> dict[str, Any]:
+    """Pops the attributes every workflow/node span carries and returns the rest."""
+    assert span.instrumentation_scope is not None
+    assert span.instrumentation_scope.name == _OI_SCOPE
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "CHAIN"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == input_value
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == input_mime_type
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == output_value
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop("gen_ai.operation.name") == operation
+    assert attributes.pop("gen_ai.conversation.id") == session_id
+    assert attributes.pop(SpanAttributes.SESSION_ID) == session_id
+    assert attributes.pop(SpanAttributes.USER_ID) == "u"
+    return attributes
+
+
+async def test_google_adk_instrumentor_workflow_spans(
+    instrument: None,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    app_name, session_id = await _run_workflow(_workflow_step_one, _workflow_step_two)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == [
+        "invoke_node _workflow_step_one",
+        "invoke_node _workflow_step_two",
+        "invoke_workflow wf",
+        f"invocation [{app_name}]",
+    ]
+    step_one_span, step_two_span, workflow_span, invocation_span = spans
+    assert invocation_span.instrumentation_scope is not None
+    assert invocation_span.instrumentation_scope.name == _OI_SCOPE
+    assert workflow_span.parent is not None
+    assert workflow_span.parent.span_id == invocation_span.context.span_id
+    for node_span in (step_one_span, step_two_span):
+        assert node_span.parent is not None
+        assert node_span.parent.span_id == workflow_span.context.span_id
+
+    workflow_attributes = _pop_workflow_span_attributes(
+        workflow_span,
+        operation="invoke_workflow",
+        session_id=session_id,
+        input_value=_WORKFLOW_MESSAGE_JSON,
+        input_mime_type="application/json",
+        output_value="one two",
+    )
+    assert workflow_attributes.pop("gen_ai.workflow.name") == "wf"
+    assert not workflow_attributes
+
+    for node_span, input_value, input_mime_type, output_value in (
+        (step_one_span, _WORKFLOW_MESSAGE_JSON, "application/json", "one"),
+        (step_two_span, "one", "text/plain", "one two"),
+    ):
+        node_attributes = _pop_workflow_span_attributes(
+            node_span,
+            operation="invoke_node",
+            session_id=session_id,
+            input_value=input_value,
+            input_mime_type=input_mime_type,
+            output_value=output_value,
+        )
+        assert node_attributes.pop("gcp.vertex.agent.associated_event_ids")
+        assert not node_attributes
+
+
+async def test_google_adk_instrumentor_workflow_agent_node_keeps_workflow_io(
+    instrument: None,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """An agent node runs under the workflow span; its I/O stays on ``agent_run``."""
+    agent = LlmAgent(name="writer", model=_StaticTextLlm(model="fake"), mode="single_turn")
+    app_name, session_id = await _run_workflow(_workflow_step_one, agent, _workflow_step_two)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == [
+        "invoke_node _workflow_step_one",
+        "call_llm",
+        "agent_run [writer]",
+        "invoke_node _workflow_step_two",
+        "invoke_workflow wf",
+        f"invocation [{app_name}]",
+    ]
+    step_one_span, _, agent_span, step_two_span, workflow_span, _ = spans
+    for node_span in (step_one_span, agent_span, step_two_span):
+        assert node_span.parent is not None
+        assert node_span.parent.span_id == workflow_span.context.span_id
+
+    workflow_attributes = _pop_workflow_span_attributes(
+        workflow_span,
+        operation="invoke_workflow",
+        session_id=session_id,
+        input_value=_WORKFLOW_MESSAGE_JSON,
+        input_mime_type="application/json",
+        output_value="haiku two",
+    )
+    assert workflow_attributes.pop("gen_ai.workflow.name") == "wf"
+    assert not workflow_attributes
+    step_two_attributes = _pop_workflow_span_attributes(
+        step_two_span,
+        operation="invoke_node",
+        session_id=session_id,
+        input_value="haiku",
+        input_mime_type="text/plain",
+        output_value="haiku two",
+    )
+    assert step_two_attributes.pop("gcp.vertex.agent.associated_event_ids")
+    assert not step_two_attributes
+
+
+async def test_google_adk_instrumentor_workflow_spans_trace_config_hides_io(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    GoogleADKInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_inputs=True, hide_outputs=True),
+    )
+    try:
+        await _run_workflow(_workflow_step_one, _workflow_step_two)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    workflow_spans = [
+        span
+        for span in in_memory_span_exporter.get_finished_spans()
+        if span.name.startswith(("invoke_workflow", "invoke_node"))
+    ]
+    assert len(workflow_spans) == 3
+    for span in workflow_spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(SpanAttributes.INPUT_VALUE) == REDACTED_VALUE
+        assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == REDACTED_VALUE
+        assert SpanAttributes.INPUT_MIME_TYPE not in attributes
+        assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
+
+
+async def test_google_adk_instrumentor_workflow_spans_suppress_tracing(
+    instrument: None,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with suppress_tracing():
+        await _run_workflow(_workflow_step_one, _workflow_step_two)
+
+    assert not in_memory_span_exporter.get_finished_spans()

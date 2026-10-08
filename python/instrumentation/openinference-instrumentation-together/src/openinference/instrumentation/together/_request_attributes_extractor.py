@@ -1,0 +1,212 @@
+import logging
+from enum import Enum
+from typing import Any, Iterable, Iterator, Mapping, Optional, Sequence, Tuple
+
+from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.together._types import AttributeValue
+from openinference.instrumentation.together._utils import _as_input_attributes, _io_value_and_type
+from openinference.semconv.trace import (
+    AudioAttributes,
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+    VideoAttributes,
+)
+
+__all__ = ("_RequestAttributesExtractor",)
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+
+class _RequestAttributesExtractor:
+    __slots__ = ()
+
+    def get_attributes_from_request(
+        self,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
+        yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.TOGETHER.value
+        try:
+            yield from _as_input_attributes(
+                _io_value_and_type(request_parameters),
+            )
+        except Exception:
+            logger.exception(
+                f"Failed to get input attributes from request parameters of "
+                f"type {type(request_parameters)}"
+            )
+
+    def get_extra_attributes_from_request(
+        self,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if not isinstance(request_parameters, Mapping):
+            return
+        invocation_params = dict(request_parameters)
+        invocation_params.pop("messages", None)  # Remove LLM input messages
+
+        if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
+            for i, tool in enumerate(tools):
+                yield (
+                    f"{SpanAttributes.LLM_TOOLS}.{i}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+                    safe_json_dumps(tool),
+                )
+
+        yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+
+        if (input_messages := request_parameters.get("messages")) and isinstance(
+            input_messages, Iterable
+        ):
+            for index, input_message in reversed(list(enumerate(input_messages))):
+                # Use reversed() to get the last message first. This is because OTEL has a default
+                # limit of 128 attributes per span, and flattening increases the number of
+                # attributes very quickly.
+                for key, value in self._get_attributes_from_message_param(input_message):
+                    yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
+
+    def _get_attributes_from_message_param(
+        self,
+        message: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if role := get_attribute(message, "role"):
+            yield (
+                MessageAttributes.MESSAGE_ROLE,
+                role.value if isinstance(role, Enum) else role,
+            )
+        if content := get_attribute(message, "content"):
+            if isinstance(content, str):
+                yield (
+                    MessageAttributes.MESSAGE_CONTENT,
+                    content,
+                )
+            elif isinstance(content, Sequence) and all(
+                isinstance(part, Mapping) for part in content
+            ):
+                # Multimodal requests send content as typed parts (text, image_url, ...).
+                # Flatten each part into message contents so the attribute value stays a
+                # primitive; a raw list of dicts is rejected by OpenTelemetry and dropped.
+                for part_index, part in enumerate(content):
+                    for key, value in _get_attributes_from_message_content(part):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{key}",
+                            value,
+                        )
+            elif isinstance(content, Sequence):
+                yield (
+                    MessageAttributes.MESSAGE_CONTENT,
+                    safe_json_dumps(content),
+                )
+        if name := get_attribute(message, "name"):
+            yield MessageAttributes.MESSAGE_NAME, name
+
+        if tool_call_id := get_attribute(message, "tool_call_id"):
+            yield MessageAttributes.MESSAGE_TOOL_CALL_ID, tool_call_id
+
+        # Legacy function-call API, superseded by tool calls
+        if function_call := get_attribute(message, "function_call"):
+            if function_name := get_attribute(function_call, "name"):
+                yield MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, function_name
+            if function_arguments := get_attribute(function_call, "arguments"):
+                yield (
+                    MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON,
+                    function_arguments,
+                )
+
+        if (tool_calls := get_attribute(message, "tool_calls")) and isinstance(
+            tool_calls, Iterable
+        ):
+            for index, tool_call in enumerate(tool_calls):
+                if (tool_call_id := get_attribute(tool_call, "id")) is not None:
+                    yield (
+                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                        f"{ToolCallAttributes.TOOL_CALL_ID}",
+                        tool_call_id,
+                    )
+                if function := get_attribute(tool_call, "function"):
+                    if name := get_attribute(function, "name"):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                            name,
+                        )
+                    if arguments := get_attribute(function, "arguments"):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            arguments,
+                        )
+
+
+def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(attr_name, default)
+    return getattr(obj, attr_name, default)
+
+
+def _get_attributes_from_message_content(
+    content: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    type_ = content.get("type")
+    if type_ == "text":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "text"
+        if text := content.get("text"):
+            yield MessageContentAttributes.MESSAGE_CONTENT_TEXT, text
+    elif type_ == "image_url":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "image"
+        if image := content.get("image_url"):
+            if isinstance(image, str):
+                if image:
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+                        f"{ImageAttributes.IMAGE_URL}",
+                        image,
+                    )
+            elif isinstance(image, Mapping):
+                if url := image.get("url"):
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+                        f"{ImageAttributes.IMAGE_URL}",
+                        url,
+                    )
+    elif type_ == "video_url":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "video"
+        if isinstance(video := content.get("video_url"), Mapping):
+            if url := video.get("url"):
+                yield (
+                    f"{MessageContentAttributes.MESSAGE_CONTENT_VIDEO}.{VideoAttributes.VIDEO_URL}",
+                    url,
+                )
+    elif type_ == "audio_url":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "audio"
+        if isinstance(audio := content.get("audio_url"), Mapping):
+            if url := audio.get("url"):
+                yield (
+                    f"{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}.{AudioAttributes.AUDIO_URL}",
+                    url,
+                )
+    elif type_ == "input_audio":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "audio"
+        if isinstance(audio := content.get("input_audio"), Mapping):
+            if url := _audio_data_uri(audio):
+                yield (
+                    f"{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}.{AudioAttributes.AUDIO_URL}",
+                    url,
+                )
+
+
+_AUDIO_MIME_TYPES = {"wav": "audio/wav", "mp3": "audio/mpeg"}
+
+
+def _audio_data_uri(audio: Mapping[str, Any]) -> Optional[str]:
+    data = audio.get("data")
+    mime_type = _AUDIO_MIME_TYPES.get(audio.get("format") or "")
+    if data and isinstance(data, str) and mime_type:
+        return f"data:{mime_type};base64,{data}"
+    return None

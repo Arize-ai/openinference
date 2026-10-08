@@ -14,6 +14,7 @@ tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
+tracer = tracer_provider.get_tracer(__name__)
 
 # Make sure to set the GEMINI_API_KEY environment variable
 
@@ -23,17 +24,21 @@ async def run():
 
     initial_interaction = await client.interactions.create(
         input="Research the history of the Google TPUs with a focus on 2025 and 2026.",
+        agent="deep-research-pro-preview-12-2025",
+        background=True,
     )
-    while True:
-        interaction = await client.interactions.get(initial_interaction.id)
-        print(f"Status: {interaction.status}")
+    with tracer.start_as_current_span("google_genai.interactions.poll") as poll_span:
+        while True:
+            interaction = await client.interactions.get(initial_interaction.id)
+            poll_span.set_attribute("google_genai.interaction.status", interaction.status)
+            print(f"Status: {interaction.status}")
 
-        if interaction.status == "completed":
-            print("\nFinal Report:\n", interaction.outputs[-1].text)
-            break
-        elif interaction.status in ["failed", "cancelled"]:
-            print(f"Failed with status: {interaction.status}")
-            break
+            if interaction.status == "completed":
+                print("\nFinal Report:\n", interaction.steps[-1].content[0].text)
+                break
+            elif interaction.status in ["failed", "cancelled"]:
+                print(f"Failed with status: {interaction.status}")
+                break
 
 
 if __name__ == "__main__":
@@ -44,14 +49,16 @@ if __name__ == "__main__":
         agent="deep-research-pro-preview-12-2025",
         background=True,
     )
-    while True:
-        interaction = client.interactions.get(initial_interaction.id)
-        print(f"Status: {interaction.status}")
+    with tracer.start_as_current_span("google_genai.interactions.poll") as poll_span:
+        while True:
+            interaction = client.interactions.get(initial_interaction.id)
+            poll_span.set_attribute("google_genai.interaction.status", interaction.status)
+            print(f"Status: {interaction.status}")
 
-        if interaction.status == "completed":
-            print("\nFinal Report:\n", interaction.outputs[-1].text)
-            break
-        elif interaction.status in ["failed", "cancelled"]:
-            print(f"Failed with status: {interaction.status}")
-            break
-        time.sleep(10)
+            if interaction.status == "completed":
+                print("\nFinal Report:\n", interaction.steps[-1].content[0].text)
+                break
+            elif interaction.status in ["failed", "cancelled"]:
+                print(f"Failed with status: {interaction.status}")
+                break
+            time.sleep(10)

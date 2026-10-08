@@ -28,17 +28,17 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.17",
-  "openinference-semantic-conventions",
+  "openinference-instrumentation>=0.1.71",
+  "openinference-semantic-conventions>=0.1.41",
   "wrapt",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "google-genai >= 1.57.0",
+  "google-genai >= 2.0.0",
 ]
 test = [
-  "google-genai >= 1.57.0",
+  "google-genai >= 2.0.0",
   "opentelemetry-sdk",
 ]
 
@@ -65,6 +65,7 @@ packages = ["src/openinference"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = [
   "tests",
 ]
@@ -85,6 +86,8 @@ module = [
   "google.*",
   "proto.*",
   "grpc",
+  "vcr",
+  "vcr.*",
 ]
 
 [tool.ruff]

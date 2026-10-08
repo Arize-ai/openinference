@@ -1,5 +1,84 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.14.0
+
+### Minor Changes
+
+- 53b7a0e: Add `decision.model_name`, `decision.request.model_name`, `decision.response.model_name`, `decision.system`, `decision.provider`, `decision.token_count.input`, and `decision.token_count.output` attributes for `DECISION` spans, plus `DecisionSystem` and `DecisionProvider` well-known value enums that alias the matching `LLMSystem` and `LLMProvider` values.
+
+## 2.13.0
+
+### Minor Changes
+
+- a1f276c: Add the `DECISION` span kind to `OpenInferenceSpanKind` for decision model calls that score or select among candidate options.
+- a719562: Add `ORACLE` to the `LLMProvider` enum, giving Oracle Cloud Infrastructure Generative AI (`https://inference.generativeai.<region>.oci.oraclecloud.com`) a well-known `llm.provider` value instead of leaving it to a custom string. Mirrors the same addition in the Python, Java, and Go semantic conventions and in the spec's well-known value table.
+
+## 2.12.0
+
+### Minor Changes
+
+- 5a075b9: Add TypeSafe AI SDK instrumentation with one LLM span per systemOne call, structured JSON input/output payloads, question confidence metadata, token usage, context propagation, and configurable masking. Preserve the SDK's APIPromise interface and support both ESM and CommonJS. Add TypeSafe provider and system values to the semantic conventions and recognize the TypeSafe API hostname in provider inference.
+
+## 2.11.0
+
+### Minor Changes
+
+- 0ff0af2: Add `input.images` and `output.images` semantic conventions, letting any span kind record images without the LLM message structure.
+
+## 2.10.0
+
+### Minor Changes
+
+- 6d9f813: Add `message_content.audio`, `message_content.video`, and `video.url` constants.
+
+## 2.9.0
+
+### Minor Changes
+
+- fd01216: Add `META`, `ZAI`, and `MINIMAX` to the `LLMProvider` enum, giving Meta AI (`https://api.meta.ai/v1`, `muse-spark-*` models), Z.ai (`https://api.z.ai/api/paas/v4`, GLM models), and MiniMax (`https://api.minimax.io/v1`) well-known `llm.provider` values instead of leaving each to a custom string. Mirrors the same additions in the Python, Java, and Go semantic conventions and in the spec's well-known value table.
+
+## 2.8.0
+
+### Minor Changes
+
+- 1fe497f: Add `llm.request.model_name` and `llm.response.model_name` semantic conventions, letting instrumentation record the model requested by the caller separately from the model that actually generated the response (e.g. provider-side classifier/fallback routing). `llm.model_name` keeps its existing meaning.
+
+## 2.7.0
+
+### Minor Changes
+
+- 237ce2b: Add OLLAMA to the LLMProvider enum, map the ollama.com host to it, and anchor host-suffix matching at label boundaries
+
+## 2.6.0
+
+### Minor Changes
+
+- 145e3c6: Add span-, trace-, and session-scoped semantic convention fields for annotations and evaluations.
+
+## 2.5.0
+
+### Minor Changes
+
+- 0f0242c: Add `PROMPT` to the `OpenInferenceSpanKind` enum, aligning the JS package with the OpenInference spec and the Python semantic conventions. LangChain prompt template spans now correctly report `openinference.span.kind = "PROMPT"` instead of falling through to `"CHAIN"`.
+
+## 2.4.0
+
+### Minor Changes
+
+- 81b8bdb: Add semantic convention constants for reasoning message content metadata and tool call signatures.
+
+## 2.3.0
+
+### Minor Changes
+
+- e09ce3f: Add `llm.finish_reason` semantic convention — a string indicating the reason the model stopped generating tokens (e.g. `"stop"`, `"length"`).
+
+## 2.2.0
+
+### Minor Changes
+
+- 7eb1c88: Add groq, fireworks, moonshot, cerebras, perplexity, and together as new well-known values to the LLMProvider enum
+
 ## 2.1.7
 
 ### Patch Changes

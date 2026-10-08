@@ -2,6 +2,10 @@ import json
 import re
 import sys
 
+# Instrumentors that import another instrumentor's package at runtime, keyed by the
+# package they import. Their environments must run when that package changes.
+DEPENDENT_INSTRUMENTORS = {"ag2": ("autogen",)}
+
 
 def main() -> None:
     assert (num_arguments := len(sys.argv)) == 3, (
@@ -29,12 +33,23 @@ def select_tox_environments(
         return instrumentation_environments + instrumentor_environments
 
     selected_environments = []
-    for instrumentor in instrumentors_with_diff:
+    for instrumentor in expand_dependents(instrumentors_with_diff):
+        # Match the instrumentor against whole dash-delimited segments of the
+        # environment name (e.g. "py310-ci-openai", "py310-ci-openai-latest")
+        # so that "openai" does not erroneously match "openai_agents".
         selected_environments.extend(
-            [env for env in instrumentor_environments if instrumentor in env]
+            [env for env in instrumentor_environments if instrumentor in env.split("-")]
         )
     # Remove duplicates while preserving order
     return list(dict.fromkeys(selected_environments))
+
+
+def expand_dependents(instrumentors: set[str]) -> set[str]:
+    """Add instrumentors that import a changed one, so their environments run too."""
+    expanded = set(instrumentors)
+    for instrumentor in instrumentors:
+        expanded.update(DEPENDENT_INSTRUMENTORS.get(instrumentor, ()))
+    return expanded
 
 
 def find_diffs(diff_files: list[str]) -> tuple[bool, bool, set[str]]:

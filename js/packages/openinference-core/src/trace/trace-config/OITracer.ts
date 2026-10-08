@@ -1,20 +1,10 @@
-import {
-  Context,
-  context as apiContext,
-  Span,
-  SpanOptions,
-  Tracer,
-} from "@opentelemetry/api";
+import type { Context, Span, SpanOptions, Tracer } from "@opentelemetry/api";
+import { context as apiContext } from "@opentelemetry/api";
 
 import { getAttributesFromContext } from "../contextAttributes";
-
 import { OISpan } from "./OISpan";
 import { generateTraceConfig } from "./traceConfig";
-import {
-  OpenInferenceActiveSpanCallback,
-  TraceConfig,
-  TraceConfigOptions,
-} from "./types";
+import type { OpenInferenceActiveSpanCallback, TraceConfig, TraceConfigOptions } from "./types";
 
 /**
  * Formats the params for the startActiveSpan method
@@ -29,7 +19,7 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
 ) {
   let opts: SpanOptions | undefined;
   let ctx: Context | undefined;
-  let fn: F;
+  let fn: F | undefined;
 
   if (typeof arg2 === "function") {
     fn = arg2;
@@ -39,8 +29,10 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
   } else {
     opts = arg2;
     ctx = arg3;
-    fn = arg4 as F;
+    fn = arg4;
   }
+
+  if (fn == null) return undefined;
 
   opts = opts ?? {};
   ctx = ctx ?? apiContext.active();
@@ -59,20 +51,11 @@ export class OITracer implements Tracer {
    * @param params.tracer - The OpenTelemetry {@link Tracer} to wrap
    * @param params.traceConfig - The {@link TraceConfigOptions} to set to control the behavior of the tracer
    */
-  constructor({
-    tracer,
-    traceConfig,
-  }: {
-    tracer: Tracer;
-    traceConfig?: TraceConfigOptions;
-  }) {
+  constructor({ tracer, traceConfig }: { tracer: Tracer; traceConfig?: TraceConfigOptions }) {
     this.tracer = tracer;
     this.config = generateTraceConfig(traceConfig);
   }
-  startActiveSpan<F extends (span: OISpan) => unknown>(
-    name: string,
-    fn: F,
-  ): ReturnType<F>;
+  startActiveSpan<F extends (span: OISpan) => unknown>(name: string, fn: F): ReturnType<F>;
   startActiveSpan<F extends (span: OISpan) => unknown>(
     name: string,
     options: SpanOptions,
@@ -92,7 +75,7 @@ export class OITracer implements Tracer {
   ): ReturnType<F> | undefined {
     const formattedArgs = formatStartActiveSpanParams(arg2, arg3, arg4);
     if (formattedArgs == null) {
-      return;
+      return undefined;
     }
     const { opts, ctx, fn } = formattedArgs;
     const { attributes } = opts ?? {};
@@ -119,11 +102,7 @@ export class OITracer implements Tracer {
     const contextAttributes = getAttributesFromContext(ctx);
     const mergedAttributes = { ...contextAttributes, ...attributes };
     const span = new OISpan({
-      span: this.tracer.startSpan(
-        name,
-        { ...options, attributes: undefined },
-        ctx,
-      ),
+      span: this.tracer.startSpan(name, { ...options, attributes: undefined }, ctx),
       config: this.config,
     });
     span.setAttributes(mergedAttributes);

@@ -7,7 +7,7 @@
 - context attribute propagation (`session.id`, `user.id`, metadata, tags, prompt template)
 - span wrappers (`withSpan`, `traceChain`, `traceAgent`, `traceTool`)
 - method decorator tracing (`@observe`)
-- helpers for LLM/retrieval/embedding/tool attributes
+- helpers for LLM/retrieval/embedding/tool and annotation/evaluation attributes
 - optional sensitive-data masking through `OITracer` trace config
 
 ## Installation
@@ -28,7 +28,11 @@ import {
   OpenInferenceSpanKind,
   SEMRESATTRS_PROJECT_NAME,
 } from "@arizeai/openinference-semantic-conventions";
-import { ConsoleSpanExporter, NodeTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import {
+  ConsoleSpanExporter,
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-node";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 
 import { withSpan } from "@arizeai/openinference-core";
@@ -82,29 +86,19 @@ import {
   setUser,
 } from "@arizeai/openinference-core";
 
-const enrichedContext = setAttributes(
-  setPromptTemplate(
-    setTags(
-      setMetadata(
-        setUser(setSession(context.active(), { sessionId: "sess-42" }), {
-          userId: "user-7",
-        }),
-        { tenant: "acme", environment: "prod" },
-      ),
-      ["support", "priority-high"],
-    ),
-    {
-      template: "Answer using docs about {topic}",
-      variables: { topic: "billing" },
-      version: "v3",
-    },
-  ),
-  {
-    "app.request_id": "req-123",
-  },
-);
+let ctx = context.active();
+ctx = setSession(ctx, { sessionId: "sess-42" });
+ctx = setUser(ctx, { userId: "user-7" });
+ctx = setMetadata(ctx, { tenant: "acme", environment: "prod" });
+ctx = setTags(ctx, ["support", "priority-high"]);
+ctx = setPromptTemplate(ctx, {
+  template: "Answer using docs about {topic}",
+  variables: { topic: "billing" },
+  version: "v3",
+});
+ctx = setAttributes(ctx, { "app.request_id": "req-123" });
 
-context.with(enrichedContext, async () => {
+context.with(ctx, async () => {
   // spans started in this context by openinference-core wrappers
   // include these propagated attributes automatically
 });
@@ -141,9 +135,11 @@ const retrieve = withSpan(
 );
 ```
 
-### `traceChain`, `traceAgent`, `traceTool`
+### `traceChain`, `traceAgent`, `traceTool`, and friends
 
-These wrappers call `withSpan` and set `kind` automatically.
+These wrappers call `withSpan` and set `kind` automatically. One exists for every
+OpenInference span kind (`traceLLM`, `traceRetriever`, `traceReranker`,
+`traceEmbedding`, `traceGuardrail`, `traceEvaluator`, `tracePrompt`, `traceDecision`).
 
 ```typescript
 import { traceAgent, traceChain, traceTool } from "@arizeai/openinference-core";
@@ -156,36 +152,32 @@ const tracedTool = traceTool(async (city: string) => ({ temp: 72, city }), {
   name: "weather-tool",
 });
 
-const tracedAgent = traceAgent(async (q: string) => {
-  const toolResult = await tracedTool("seattle");
-  return tracedChain(`${q} (${toolResult.temp}F)`);
-}, { name: "qa-agent" });
+const tracedAgent = traceAgent(
+  async (q: string) => {
+    const toolResult = await tracedTool("seattle");
+    return tracedChain(`${q} (${toolResult.temp}F)`);
+  },
+  { name: "qa-agent" },
+);
 ```
 
 ### Custom input/output processors
 
 ```typescript
-import {
-  getInputAttributes,
-  getRetrieverAttributes,
-  withSpan,
-} from "@arizeai/openinference-core";
+import { getInputAttributes, getRetrieverAttributes, withSpan } from "@arizeai/openinference-core";
 
-const retriever = withSpan(
-  async (query: string) => [`Doc A for ${query}`, `Doc B for ${query}`],
-  {
-    name: "retriever",
-    kind: "RETRIEVER",
-    processInput: (query) => getInputAttributes(query),
-    processOutput: (documents) =>
-      getRetrieverAttributes({
-        documents: documents.map((content, i) => ({
-          id: `doc-${i}`,
-          content,
-        })),
-      }),
-  },
-);
+const retriever = withSpan(async (query: string) => [`Doc A for ${query}`, `Doc B for ${query}`], {
+  name: "retriever",
+  kind: "RETRIEVER",
+  processInput: (query) => getInputAttributes(query),
+  processOutput: (documents) =>
+    getRetrieverAttributes({
+      documents: documents.map((content, i) => ({
+        id: `doc-${i}`,
+        content,
+      })),
+    }),
+});
 ```
 
 ## Decorators (`@observe`)
@@ -215,8 +207,11 @@ class ChatService {
 Use these helpers to generate OpenInference-compatible attributes and attach them to spans:
 
 - `getLLMAttributes({ provider, modelName, inputMessages, outputMessages, tokenCount, tools, ... })`
+- `getDecisionAttributes({ provider, system, modelName, requestModelName, responseModelName, tokenCount })`
 - `getEmbeddingAttributes({ modelName, embeddings })`
 - `getRetrieverAttributes({ documents })`
+- `getAnnotationAttributes({ annotations, scope? })`
+- `getEvaluationAttributes({ evaluations, scope? })`
 - `getToolAttributes({ name, description?, parameters })`
 - `getMetadataAttributes(metadataObject)`
 - `getInputAttributes(input)` / `getOutputAttributes(output)`
@@ -264,18 +259,16 @@ const tracer = new OITracer({
   },
 });
 
-const traced = withSpan(
-  async (prompt: string) => `model response for ${prompt}`,
-  {
-    tracer,
-    kind: OpenInferenceSpanKind.LLM,
-    name: "safe-llm-call",
-  },
-);
+const traced = withSpan(async (prompt: string) => `model response for ${prompt}`, {
+  tracer,
+  kind: OpenInferenceSpanKind.LLM,
+  name: "safe-llm-call",
+});
 ```
 
 You can also configure masking with environment variables:
 
+- `OPENINFERENCE_HIDE_LLM_TOOLS`
 - `OPENINFERENCE_HIDE_INPUTS`
 - `OPENINFERENCE_HIDE_OUTPUTS`
 - `OPENINFERENCE_HIDE_INPUT_MESSAGES`
@@ -291,6 +284,22 @@ You can also configure masking with environment variables:
 
 - `withSafety({ fn, onError? })`: wraps a function and returns `null` on error
 - `safelyJSONStringify(value)` / `safelyJSONParse(value)`: guarded JSON operations
+
+## Docs and Source Code in node_modules
+
+Once you've installed the openinference-core package, you already have the full
+openinference-core documentation and source code available locally inside
+node_modules. Your coding agent can read these directly -- no internet access
+required.
+
+```
+node_modules/@arizeai/openinference-core/src/              # Full source code organized by module
+node_modules/@arizeai/openinference-core/docs/             # Official documentation with examples
+```
+
+This means your agent can look up accurate API signatures, implementations, and
+usage examples directly from the installed package -- ensuring it always uses the
+version of the SDK that's actually installed in your project.
 
 ## Documentation
 

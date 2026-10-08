@@ -7,6 +7,7 @@ import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.util._importlib_metadata import entry_points
 from pipecat.pipeline.task import PipelineTask
+from pipecat.pipeline.worker import PipelineWorker
 from wrapt import BoundFunctionWrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
@@ -29,58 +30,68 @@ class TestInstrumentor:
         """Test that instrumentor uses OITracer from common package."""
         assert isinstance(PipecatInstrumentor()._tracer, OITracer)
 
-    def test_instrument_wraps_pipeline_task(self, tracer_provider: TracerProvider) -> None:
-        """Test that instrument() wraps PipelineTask.__init__."""
+    def test_instrument_wraps_pipeline_worker(self, tracer_provider: TracerProvider) -> None:
+        """Test that instrument() wraps PipelineWorker.__init__."""
         # Ensure not already instrumented
         PipecatInstrumentor().uninstrument()
-
-        # Store original __init__
-        _ = PipelineTask.__init__
 
         # Instrument
         PipecatInstrumentor().instrument(tracer_provider=tracer_provider)
 
         # Verify __init__ was wrapped
-        assert isinstance(PipelineTask.__init__, BoundFunctionWrapper)
+        assert isinstance(PipelineWorker.__init__, BoundFunctionWrapper)
 
         # Clean up
         PipecatInstrumentor().uninstrument()
 
     def test_uninstrument_restores_original(self, tracer_provider: TracerProvider) -> None:
-        """Test that uninstrument() restores original PipelineTask.__init__."""
+        """Test that uninstrument() restores original PipelineWorker.__init__."""
         # Ensure clean state
         PipecatInstrumentor().uninstrument()
-
-        # Store original __init__
-        _ = PipelineTask.__init__
 
         # Instrument
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
 
         # Verify wrapped
-        assert isinstance(PipelineTask.__init__, BoundFunctionWrapper)
+        assert isinstance(PipelineWorker.__init__, BoundFunctionWrapper)
 
         # Uninstrument
         instrumentor.uninstrument()
 
         # Verify restored
-        assert not isinstance(PipelineTask.__init__, BoundFunctionWrapper)
+        assert not isinstance(PipelineWorker.__init__, BoundFunctionWrapper)
 
-    def test_observer_injection_into_pipeline_task(
+    def test_observer_injection_into_pipeline_worker(
         self, setup_pipecat_instrumentation: Any
     ) -> None:
-        """Test that observer is injected into PipelineTask instances."""
-        # Create a mock pipeline to pass to PipelineTask
+        """Test that observer is injected into PipelineWorker instances."""
         mock_pipeline = Mock()
-        mock_pipeline.processors = []  # PipelineTask expects processors attribute
+        mock_pipeline.processors = []
 
-        # Create a PipelineTask - observer should be automatically added
-        with patch.object(PipelineTask, "add_observer") as mock_add_observer:
+        with patch.object(PipelineWorker, "add_observer") as mock_add_observer:
+            _ = PipelineWorker(mock_pipeline)
+
+            assert mock_add_observer.called
+            observer = mock_add_observer.call_args[0][0]
+            assert isinstance(observer, OpenInferenceObserver)
+
+    def test_observer_injection_into_pipeline_task_alias(
+        self, setup_pipecat_instrumentation: Any
+    ) -> None:
+        """The deprecated ``PipelineTask`` subclass must still be instrumented
+        — exactly once — via the base class wrap (since ``PipelineTask.__init__``
+        calls ``super().__init__``).
+        """
+        mock_pipeline = Mock()
+        mock_pipeline.processors = []
+
+        with patch.object(PipelineWorker, "add_observer") as mock_add_observer:
             _ = PipelineTask(mock_pipeline)
 
-            # Verify add_observer was called with an OpenInferenceObserver
-            assert mock_add_observer.called
+            # Exactly one observer injection — not zero (regression in 1.0.4)
+            # and not two (would happen if both base and subclass were wrapped).
+            assert mock_add_observer.call_count == 1
             observer = mock_add_observer.call_args[0][0]
             assert isinstance(observer, OpenInferenceObserver)
 

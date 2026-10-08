@@ -5,7 +5,7 @@ from uuid import UUID
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import Span
-from wrapt import wrap_function_wrapper  # type: ignore
+from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.langchain.package import _instruments
@@ -47,14 +47,14 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
         self._tracer: Optional[OpenInferenceTracer] = OpenInferenceTracer(
-            tracer,
+            tracer,  # type: ignore[arg-type]
             bool(kwargs.get("separate_trace_from_runtime_context")),
         )
         self._original_callback_manager_init = langchain_core.callbacks.BaseCallbackManager.__init__
         wrap_function_wrapper(
-            module="langchain_core.callbacks",
-            name="BaseCallbackManager.__init__",
-            wrapper=_BaseCallbackManagerInit(self._tracer),
+            "langchain_core.callbacks",
+            "BaseCallbackManager.__init__",
+            _BaseCallbackManagerInit(self._tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

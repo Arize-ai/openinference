@@ -1,3 +1,6 @@
+import { diag } from "@opentelemetry/api";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
 import {
   MimeType,
   OpenInferenceSpanKind,
@@ -6,11 +9,10 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { diag } from "@opentelemetry/api";
-
-import { LLMMessage } from "../src/types";
+import type { LLMMessage } from "../src/types";
 import {
   safelyFlattenAttributes,
+  safelyFormatFinishReason,
   safelyFormatFunctionCalls,
   safelyFormatInputMessages,
   safelyFormatIO,
@@ -23,10 +25,7 @@ import {
   safelyFormatToolCalls,
   safelyGetOpenInferenceSpanKindFromRunType,
 } from "../src/utils";
-
 import { getLangchainMessage, getLangchainRun } from "./fixtures";
-
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("safelyFlattenAttributes", () => {
   const testAttributes = {
@@ -193,6 +192,123 @@ describe("formatMessages", () => {
       });
     });
 
+    it("should record content blocks as message contents", () => {
+      const result = safelyFormatInputMessages({
+        messages: [
+          [
+            getLangchainMessage({
+              lc_kwargs: {
+                content: [
+                  { type: "text", text: "what is in this image?" },
+                  {
+                    type: "image_url",
+                    image_url: { url: "data:image/png;base64,abc123" },
+                  },
+                ],
+                additional_kwargs: {},
+              },
+            }),
+            getLangchainMessage({
+              lc_kwargs: {
+                content: "plain string",
+                additional_kwargs: {},
+              },
+            }),
+          ],
+        ],
+      });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_INPUT_MESSAGES]: [
+          {
+            [SemanticConventions.MESSAGE_ROLE]: "user",
+            [SemanticConventions.MESSAGE_CONTENTS]: [
+              {
+                [SemanticConventions.MESSAGE_CONTENT_TYPE]: "text",
+                [SemanticConventions.MESSAGE_CONTENT_TEXT]: "what is in this image?",
+              },
+              {
+                [SemanticConventions.MESSAGE_CONTENT_TYPE]: "image",
+                [SemanticConventions.MESSAGE_CONTENT_IMAGE]: {
+                  [SemanticConventions.IMAGE_URL]: "data:image/png;base64,abc123",
+                },
+              },
+            ],
+          },
+          {
+            [SemanticConventions.MESSAGE_ROLE]: "user",
+            [SemanticConventions.MESSAGE_CONTENT]: "plain string",
+          },
+        ],
+      });
+    });
+
+    it("should record langchain standard image blocks and skip unknown blocks", () => {
+      const result = safelyFormatInputMessages({
+        messages: [
+          [
+            getLangchainMessage({
+              lc_kwargs: {
+                content: [
+                  "a bare string block",
+                  { type: "image", url: "https://example.com/cat.png" },
+                  { type: "image", source_type: "url", url: "https://example.com/dog.png" },
+                  { type: "image", mimeType: "image/jpeg", data: "abc123" },
+                  { type: "image", source_type: "base64", mime_type: "image/gif", data: "def456" },
+                  { type: "image_url", image_url: "https://example.com/plain.png" },
+                  { type: "image" },
+                  { type: "audio", url: "https://example.com/audio.mp3" },
+                  42,
+                ],
+                additional_kwargs: {},
+              },
+            }),
+          ],
+        ],
+      });
+      const image = (url: string) => ({
+        [SemanticConventions.MESSAGE_CONTENT_TYPE]: "image",
+        [SemanticConventions.MESSAGE_CONTENT_IMAGE]: {
+          [SemanticConventions.IMAGE_URL]: url,
+        },
+      });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_INPUT_MESSAGES]: [
+          {
+            [SemanticConventions.MESSAGE_ROLE]: "user",
+            [SemanticConventions.MESSAGE_CONTENTS]: [
+              {
+                [SemanticConventions.MESSAGE_CONTENT_TYPE]: "text",
+                [SemanticConventions.MESSAGE_CONTENT_TEXT]: "a bare string block",
+              },
+              image("https://example.com/cat.png"),
+              image("https://example.com/dog.png"),
+              image("data:image/jpeg;base64,abc123"),
+              image("data:image/gif;base64,def456"),
+              image("https://example.com/plain.png"),
+            ],
+          },
+        ],
+      });
+    });
+
+    it("should not record message contents when every block is unknown", () => {
+      const result = safelyFormatInputMessages({
+        messages: [
+          [
+            getLangchainMessage({
+              lc_kwargs: {
+                content: [{ type: "audio", url: "https://example.com/audio.mp3" }],
+                additional_kwargs: {},
+              },
+            }),
+          ],
+        ],
+      });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_INPUT_MESSAGES]: [{ [SemanticConventions.MESSAGE_ROLE]: "user" }],
+      });
+    });
+
     it("should ignore non-object messages and return the valid ones", () => {
       const result = safelyFormatInputMessages({
         messages: [[...testMessages[0], "invalid message"]],
@@ -281,9 +397,7 @@ describe("formatMessages", () => {
   });
 
   describe("formatOutputMessages", () => {
-    const testOutputMessages = [
-      testMessages[0].map((message) => ({ message })),
-    ];
+    const testOutputMessages = [testMessages[0].map((message) => ({ message }))];
     it("should return null if generations is an empty array", () => {
       const result = safelyFormatOutputMessages({
         generations: [],
@@ -310,11 +424,7 @@ describe("formatMessages", () => {
     it("should ignore non-object messages and return the valid ones", () => {
       const result = safelyFormatOutputMessages({
         generations: [
-          [
-            ...testOutputMessages[0],
-            "invalid message",
-            { notGeneration: getLangchainMessage() },
-          ],
+          [...testOutputMessages[0], "invalid message", { notGeneration: getLangchainMessage() }],
         ],
       });
       expect(result).toEqual({
@@ -328,15 +438,14 @@ describe("formatRetrievalDocuments", () => {
   const runOutputDocuments = [{ pageContent: "doc1" }, { pageContent: "doc2" }];
 
   const expectedOpenInferenceRetrievalDocuments = {
-    [`${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`]:
-      [
-        {
-          [SemanticConventions.DOCUMENT_CONTENT]: "doc1",
-        },
-        {
-          [SemanticConventions.DOCUMENT_CONTENT]: "doc2",
-        },
-      ],
+    [`${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`]: [
+      {
+        [SemanticConventions.DOCUMENT_CONTENT]: "doc1",
+      },
+      {
+        [SemanticConventions.DOCUMENT_CONTENT]: "doc2",
+      },
+    ],
   };
   it("should return null if run_type is not 'retriever'", () => {
     const result = safelyFormatRetrievalDocuments(getLangchainRun());
@@ -344,9 +453,7 @@ describe("formatRetrievalDocuments", () => {
   });
 
   it("should return null if outputs is not an object", () => {
-    const result = safelyFormatRetrievalDocuments(
-      getLangchainRun({ run_type: "retriever" }),
-    );
+    const result = safelyFormatRetrievalDocuments(getLangchainRun({ run_type: "retriever" }));
     expect(result).toBeNull();
   });
 
@@ -391,15 +498,14 @@ describe("formatRetrievalDocuments", () => {
       }),
     );
     expect(result).toEqual({
-      [`${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`]:
-        [
-          {
-            [SemanticConventions.DOCUMENT_CONTENT]: "doc1",
-            [SemanticConventions.DOCUMENT_METADATA]: JSON.stringify({
-              key: "value",
-            }),
-          },
-        ],
+      [`${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`]: [
+        {
+          [SemanticConventions.DOCUMENT_CONTENT]: "doc1",
+          [SemanticConventions.DOCUMENT_METADATA]: JSON.stringify({
+            key: "value",
+          }),
+        },
+      ],
     });
   });
 });
@@ -436,9 +542,7 @@ describe("formatLLMParams", () => {
       },
     };
     const expectedParams = {
-      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(
-        runExtra.invocation_params,
-      ),
+      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(runExtra.invocation_params),
       [SemanticConventions.LLM_MODEL_NAME]: "test",
     };
     const result = safelyFormatLLMParams(runExtra);
@@ -452,9 +556,7 @@ describe("formatLLMParams", () => {
       },
     };
     const expectedParams = {
-      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(
-        runExtra.invocation_params,
-      ),
+      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(runExtra.invocation_params),
       [SemanticConventions.LLM_MODEL_NAME]: "test",
     };
     const result = safelyFormatLLMParams(runExtra);
@@ -481,9 +583,7 @@ describe("formatPromptTemplate", () => {
     });
     const result = safelyFormatPromptTemplate(promptRun);
     expect(result).toEqual({
-      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(
-        promptRun.inputs,
-      ),
+      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
     });
   });
 
@@ -505,9 +605,7 @@ describe("formatPromptTemplate", () => {
     });
     const result = safelyFormatPromptTemplate(promptRun);
     expect(result).toEqual({
-      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(
-        promptRun.inputs,
-      ),
+      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
       [SemanticConventions.PROMPT_TEMPLATE_TEMPLATE]: "my template",
     });
   });
@@ -528,9 +626,7 @@ describe("formatPromptTemplate", () => {
     });
     const result = safelyFormatPromptTemplate(promptRun);
     expect(result).toEqual({
-      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(
-        promptRun.inputs,
-      ),
+      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
     });
   });
 });
@@ -671,6 +767,85 @@ describe("formatTokenCounts", () => {
   });
 });
 
+describe("formatFinishReason", () => {
+  it("should return null when the first generation is missing", () => {
+    expect(safelyFormatFinishReason(undefined)).toBeNull();
+    expect(safelyFormatFinishReason({ generations: [] })).toBeNull();
+  });
+
+  it.each([
+    ["finish_reason", "stop"],
+    ["stop_reason", "end_turn"],
+    ["finishReason", "length"],
+    ["stopReason", "tool_use"],
+  ])("should extract %s from generationInfo", (key, value) => {
+    const result = safelyFormatFinishReason({
+      generations: [[{ generationInfo: { [key]: value } }]],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: value,
+    });
+  });
+
+  it("should fall back to response_metadata for streamed generations", () => {
+    const result = safelyFormatFinishReason({
+      generations: [
+        [
+          {
+            message: {
+              response_metadata: { finish_reason: "stop" },
+            },
+          },
+        ],
+      ],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: "stop",
+    });
+  });
+
+  it("should prefer generationInfo over response_metadata", () => {
+    const result = safelyFormatFinishReason({
+      generations: [
+        [
+          {
+            generationInfo: { finish_reason: "length" },
+            message: {
+              response_metadata: { finish_reason: "stop" },
+            },
+          },
+        ],
+      ],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: "length",
+    });
+  });
+
+  it("should read response_metadata from serialized message kwargs", () => {
+    const result = safelyFormatFinishReason({
+      generations: [
+        [
+          {
+            message: {
+              lc_kwargs: {
+                response_metadata: { stop_reason: "end_turn" },
+              },
+            },
+          },
+        ],
+      ],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: "end_turn",
+    });
+  });
+});
+
 describe("formatFunctionCalls", () => {
   it("should return null if outputs is empty", () => {
     const result = safelyFormatFunctionCalls(undefined);
@@ -692,9 +867,7 @@ describe("formatFunctionCalls", () => {
       },
     });
 
-    const resultWithNoMessage = safelyFormatFunctionCalls(
-      runWithInvalidMessage.outputs,
-    );
+    const resultWithNoMessage = safelyFormatFunctionCalls(runWithInvalidMessage.outputs);
     expect(resultWithNoMessage).toBeNull();
   });
 

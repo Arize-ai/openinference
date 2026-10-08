@@ -5,6 +5,7 @@ import random
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from contextvars import ContextVar
 from importlib.metadata import version
 from itertools import count
 from typing import (
@@ -26,7 +27,7 @@ import pytest
 from httpx import AsyncByteStream, Response, SyncByteStream
 from llama_index.core import Document, ListIndex, Settings
 from llama_index.core.base.response.schema import StreamingResponse
-from llama_index.core.callbacks import CallbackManager
+from llama_index.core.callbacks import CallbackManager, CBEventType, EventPayload
 from llama_index.core.schema import TextNode
 from llama_index.llms.openai import OpenAI
 from opentelemetry import trace as trace_api
@@ -39,6 +40,7 @@ from tenacity import wait_none
 
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from openinference.instrumentation.llama_index._callback import payload_to_semantic_attributes
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -60,6 +62,120 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.addHandler(logging.StreamHandler())
 
 LLAMA_INDEX_VERSION = tuple(map(int, version("llama-index-core").split(".")[:3]))
+
+
+@pytest.mark.parametrize(
+    "serialized, expected_model_name",
+    [
+        ({"model": "gpt-4o"}, "gpt-4o"),
+        ({"class_name": "OpenAI", "model_name": "gpt-4o-mini"}, "gpt-4o-mini"),
+    ],
+)
+def test_payload_to_semantic_attributes_sets_llm_model_name(
+    serialized: Dict[str, Any],
+    expected_model_name: str,
+) -> None:
+    payload: Dict[str, Any] = {EventPayload.SERIALIZED: serialized}
+
+    attributes = payload_to_semantic_attributes(CBEventType.LLM, payload)
+
+    assert attributes[LLM_MODEL_NAME] == expected_model_name
+    invocation_parameters = json.loads(cast(str, attributes[LLM_INVOCATION_PARAMETERS]))
+    assert invocation_parameters["model"] == expected_model_name
+
+
+@pytest.mark.parametrize("completion", ["exhaust", "error", "close", "throw"])
+@pytest.mark.parametrize("cross_thread", [False, True])
+def test_deferred_stream_context(
+    completion: str,
+    cross_thread: bool,
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    manager = CallbackManager()
+    producer_state: ContextVar[str] = ContextVar("producer_state", default="consumer")
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def tokens(label: str) -> Generator[str, None, None]:
+        assert producer_state.get() == "consumer"
+        token = producer_state.set(label)
+        try:
+            with manager.event(CBEventType.LLM):
+                yield label
+                assert producer_state.get() == label
+                if completion == "error":
+                    raise ValueError("stream failed")
+                yield "!"
+        finally:
+            assert producer_state.get() == label
+            producer_state.reset(token)
+
+    streams = []
+    for label in ("first", "second"):
+        with manager.event(CBEventType.QUERY) as event:
+            response = StreamingResponse(response_gen=tokens(label))
+            event.on_end(payload={EventPayload.RESPONSE: response})
+        streams.append(response.response_gen)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        for label, stream in zip(("first", "second"), streams):
+            assert next(stream) == label
+            assert producer_state.get() == "consumer"
+            assert not trace_api.get_current_span().get_span_context().is_valid
+        with tracer.start_as_current_span("unrelated"):
+            pass
+
+        def finish(stream: Any) -> None:
+            if completion == "close":
+                stream.close()
+            elif completion in ("error", "throw"):
+                with pytest.raises(ValueError, match="stream failed"):
+                    if completion == "throw":
+                        stream.throw(ValueError("stream failed"))
+                    else:
+                        next(stream)
+            else:
+                assert stream.send(None) == "!"
+                assert list(stream) == []
+            stream.close()
+            with pytest.raises(StopIteration):
+                next(stream)
+            assert producer_state.get() == "consumer"
+            assert not trace_api.get_current_span().get_span_context().is_valid
+
+        for stream in streams:
+            if cross_thread:
+                executor.submit(finish, stream).result()
+            else:
+                finish(stream)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 5
+    unrelated = next(span for span in spans if span.name == "unrelated")
+    assert unrelated.parent is None
+    queries = [span for span in spans if span.name == "query"]
+    assert len(queries) == 2
+    assert len({span.context.trace_id for span in queries}) == 2
+    for query in queries:
+        child = next(
+            span
+            for span in spans
+            if span.name == "llm" and span.context.trace_id == query.context.trace_id
+        )
+        assert child.parent is not None
+        assert child.parent.span_id == query.context.span_id
+        assert query.start_time is not None and query.end_time is not None
+        assert child.start_time is not None and child.end_time is not None
+        assert query.start_time <= child.start_time <= child.end_time <= query.end_time
+        assert query.status.status_code == (
+            trace_api.StatusCode.ERROR
+            if completion in ("error", "throw")
+            else trace_api.StatusCode.OK
+        )
+        assert query.attributes is not None
+        assert query.attributes[OUTPUT_VALUE] in (
+            ("first!", "second!") if completion == "exhaust" else ("first", "second")
+        )
 
 
 @pytest.mark.parametrize("is_stream", [False, True])
@@ -364,12 +480,14 @@ def instrument(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
+    original_callback_manager = Settings.callback_manager
     LlamaIndexInstrumentor().instrument(
         tracer_provider=tracer_provider,
         use_legacy_callback_handler=True,
     )
     yield
     LlamaIndexInstrumentor().uninstrument()
+    Settings.callback_manager = original_callback_manager
     in_memory_span_exporter.clear()
 
 
