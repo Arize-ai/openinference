@@ -21,6 +21,7 @@ import {
   EveOperationNameToSpanKindMap,
   VercelSDKFunctionNameToSpanKindMap,
 } from "../src/constants";
+import { getParentSpanId } from "../src/typeUtils";
 import { VercelAISemanticConventions } from "../src/VercelAISemanticConventions";
 import embedDoEmbedFixture from "./__fixtures__/v6-spans/ai-embed-doEmbed.json";
 import generateObjectDoGenerateFixture from "./__fixtures__/v6-spans/ai-generateObject-doGenerate.json";
@@ -1914,8 +1915,8 @@ describe.each([
         trace.setSpan(context.active(), http),
       );
       const topId = top.spanContext().spanId;
-      const liveParentOf = (span: typeof top) =>
-        (span as unknown as { parentSpanId?: string }).parentSpanId;
+      // Reads both the SDK 1.x (`parentSpanId`) and 2.x (`parentSpanContext`) shapes.
+      const liveParentOf = (span: typeof top) => getParentSpanId(span);
 
       // The live span's parent is intact immediately after start — it is not cleared in place.
       expect(liveParentOf(top)).toBe(httpId);
@@ -1933,7 +1934,7 @@ describe.each([
       // The exported span, by contrast, is re-rooted (detached from the filtered-out parent).
       const exported = spans.find((s) => s.spanContext().spanId === topId);
       expect(exported).toBeDefined();
-      expect(exported?.parentSpanId).toBeUndefined();
+      expect(exported && getParentSpanId(exported)).toBeUndefined();
     });
 
     it("leaves the top AI span orphaned when reparentOrphanedSpans is off (default)", async () => {

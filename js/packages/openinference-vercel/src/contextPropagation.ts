@@ -16,7 +16,7 @@ import { getAttributesFromContext, withSafety } from "@arizeai/openinference-cor
  * context.with(setSession(context.active(), { sessionId }), () => streamText({ ... }))
  * ```
  *
- * would never reach the exported AI spans. {@link reparentOrphanedSpan} makes this worse:
+ * would never reach the exported AI spans. Re-rooting (`reparentOrphanedSpans`) makes this worse:
  * once the HTTP/server span that carried the session is filtered out and the AI span is
  * re-rooted, there is nothing left holding the session id.
  *
