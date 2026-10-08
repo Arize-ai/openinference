@@ -7,9 +7,7 @@ scratchpad; `<pkg>` is the short name (`openai`, `ag2`), `<mod>` the module unde
 ## Where examples live
 
 `python/instrumentation/openinference-instrumentation-<pkg>/examples/<scenario>.py`, with
-`requirements.txt` and usually a `README.md` beside them. Eight packages ship `examples/` with
-no `requirements.txt` (`groq`, `mcp`, `instructor`, `google-adk`, `agent-framework`,
-`agentspec`, `pipecat`, `promptflow`; tracked in #3724).
+`requirements.txt` and usually a `README.md` beside them.
 
 ## Setup, proof, run
 
@@ -27,10 +25,7 @@ cd python/instrumentation/openinference-instrumentation-<pkg>/examples && "$SCRA
 ```
 
 Install `-e` and the requirements in one command: `requirements.txt` lists the package from
-PyPI and would shadow the editable install if installed afterwards. A missing `-r` file aborts
-the whole command, including the editable install; for the packages without one, drop `-r` and
-add `opentelemetry-sdk opentelemetry-exporter-otlp-proto-http` plus the provider SDK the example
-imports.
+PyPI and would shadow the editable install if installed afterwards.
 
 ## Example template
 

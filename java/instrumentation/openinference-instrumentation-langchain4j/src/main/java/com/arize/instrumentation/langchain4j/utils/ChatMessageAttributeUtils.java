@@ -304,10 +304,9 @@ public class ChatMessageAttributeUtils {
     public static void handleChatResponse(OITracer tracer, Span span, ChatResponse response) {
         // Set response attributes
         if (response.finishReason() != null) {
-            // Set finish reasons as an array attribute
             span.setAttribute(
-                    AttributeKey.stringArrayKey("llm.response.finish_reasons"),
-                    List.of(response.finishReason().name()));
+                    SemanticConventions.LLM_FINISH_REASON,
+                    response.finishReason().name());
         }
 
         // Set output attributes

@@ -17,6 +17,8 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 
 import {
+  EveOperationNameToSpanKindMap,
+  GenAIAgentIdentityAttributes,
   GenAIOperationNameToSpanKindMap,
   VercelSDKFunctionNameToSpanKindMap,
 } from "./constants.js";
@@ -59,7 +61,10 @@ const getOISpanKindFromAttributes = (
   if (typeof maybeOperationName === "string") {
     const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
     if (maybeFunctionName != null) {
-      const spanKind = VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName);
+      const hasAgentIdentity = GenAIAgentIdentityAttributes.some((key) => attributes[key] != null);
+      const spanKind =
+        VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName) ??
+        (hasAgentIdentity ? undefined : EveOperationNameToSpanKindMap.get(maybeFunctionName));
       if (spanKind != null) {
         return spanKind;
       }
@@ -705,6 +710,27 @@ const safelyGetVercelIOAttributes = withSafety({
 });
 
 /**
+ * Gets the OpenInference finish reason from Vercel's response attributes.
+ * @param attributes the span attributes
+ * @returns the finish reason attribute, or null when it is unavailable
+ */
+const getFinishReasonAttribute = (attributes: Attributes): Attributes | null => {
+  const finishReason = attributes[VercelAISemanticConventions.RESPONSE_FINISH_REASON];
+  if (typeof finishReason !== "string") {
+    return null;
+  }
+  return { [SemanticConventions.LLM_FINISH_REASON]: finishReason };
+};
+
+/**
+ * {@link getFinishReasonAttribute} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetFinishReasonAttribute = withSafety({
+  fn: getFinishReasonAttribute,
+  onError: onErrorCallback("finish reason"),
+});
+
+/**
  * Gets model name from Vercel attributes when gen_ai.* attributes are not present
  * @param attributes the span attributes
  * @param spanKind the span kind
@@ -1169,6 +1195,9 @@ const getVercelSpecificAttributes = (
     // Input/Output values from ai.response.* and ai.prompt
     ...safelyGetVercelIOAttributes(attributes, spanKind),
 
+    // Finish reason from ai.response.finishReason
+    ...safelyGetFinishReasonAttribute(attributes),
+
     // Metadata from ai.telemetry.metadata.*
     ...safelyGetMetadataAttributes(attributes),
 
@@ -1283,6 +1312,12 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
     ...vercelGenAIAttributes,
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: finalSpanKind,
   };
+
+  // A session.id already on the span (e.g. propagated from setSession context) takes precedence
+  // over the one derived from gen_ai.conversation.id.
+  if (attributes[SemanticConventions.SESSION_ID] != null) {
+    delete result[SemanticConventions.SESSION_ID];
+  }
 
   if (
     finalSpanKind === OpenInferenceSpanKind.EMBEDDING ||

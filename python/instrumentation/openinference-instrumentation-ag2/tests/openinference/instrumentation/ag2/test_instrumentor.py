@@ -13,10 +13,10 @@ from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import TraceConfig, using_attributes
 from openinference.instrumentation.ag2 import AG2Instrumentor
+from openinference.instrumentation.ag2._types import AttributeValue
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,

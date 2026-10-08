@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.0.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.13...python-openinference-instrumentation-agno-v1.0.14) (2026-10-07)
+
+
+### Bug Fixes
+
+* **agno:** Mark Failed Agent and Team Runs as Errors ([#3951](https://github.com/Arize-ai/openinference/issues/3951)) ([78c1b1d](https://github.com/Arize-ai/openinference/commit/78c1b1d6ce6d7afe764249943d9e420dbeecbb98))
+* **agno:** Mark Failed Model Spans as Errors ([#3953](https://github.com/Arize-ai/openinference/issues/3953)) ([c3624c8](https://github.com/Arize-ai/openinference/commit/c3624c8417e562c820494229a0206252d078d290))
+
+## [1.0.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.12...python-openinference-instrumentation-agno-v1.0.13) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.69 ([#3911](https://github.com/Arize-ai/openinference/issues/3911)) ([ac30a8f](https://github.com/Arize-ai/openinference/commit/ac30a8f3df9da1c0fb00f923a5281ad5cec94674))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.41 ([#3907](https://github.com/Arize-ai/openinference/issues/3907)) ([04fe33f](https://github.com/Arize-ai/openinference/commit/04fe33f2b10147ec4481983f725d89a9ca42fc5f))
+
+## [1.0.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.11...python-openinference-instrumentation-agno-v1.0.12) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+
+## [1.0.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.10...python-openinference-instrumentation-agno-v1.0.11) (2026-09-29)
+
+
+### Bug Fixes
+
+* **agno:** define local AttributeValue alias for opentelemetry-api&gt;=1.45.0 mypy compatibility ([#3864](https://github.com/Arize-ai/openinference/issues/3864)) ([60f558a](https://github.com/Arize-ai/openinference/commit/60f558a7227e2d4ddd94f7ef8efccf5b94a6ce0c))
+
+## [1.0.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.9...python-openinference-instrumentation-agno-v1.0.10) (2026-09-15)
+
+
+### Bug Fixes
+
+* **agno:** propagate MessageMetrics.cost to llm.cost.total span attribute ([#3666](https://github.com/Arize-ai/openinference/issues/3666)) ([66ef597](https://github.com/Arize-ai/openinference/commit/66ef5975b75a549346f2203a3c085305b47d3872))
+
 ## [1.0.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.8...python-openinference-instrumentation-agno-v1.0.9) (2026-09-10)
 
 

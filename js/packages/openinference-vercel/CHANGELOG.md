@@ -1,5 +1,49 @@
 # @arizeai/openinference-vercel
 
+## 3.2.4
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
+## 3.2.3
+
+### Patch Changes
+
+- 945c024: Classify Vercel eve's `agent.step`, `agent.action`, and `agent.approval` control-flow spans as CHAIN instead of LLM (an `agent.action` for a subagent or remote-agent call stays AGENT). They carry `gen_ai.*` context but no `gen_ai.operation.name`, so they fell through to the GenAI converter's LLM default and inflated the LLM span count well beyond the number of model calls. A `session.id` already on a span (for example from `setSession` context) now takes precedence over the one derived from `gen_ai.conversation.id`.
+- Updated dependencies [53b7a0e]
+- Updated dependencies [945c024]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+  - @arizeai/openinference-genai@0.4.0
+  - @arizeai/openinference-core@2.7.3
+
+## 3.2.2
+
+### Patch Changes
+
+- 300bba9: Read the parent span from `parentSpanContext` (OpenTelemetry JS SDK 2.x) with a fallback to `parentSpanId` (SDK 1.x) when deciding whether a span is the trace root. Under SDK 2.x every span was treated as a root, so child AI SDK spans were renamed to their `operation.name`, a later successful child span inherited an earlier sibling's ERROR status, and nested kind-less AI spans were promoted to AGENT when `reparentOrphanedSpans` is enabled.
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+  - @arizeai/openinference-genai@0.3.11
+
+## 3.2.1
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+  - @arizeai/openinference-genai@0.3.10
+
+## 3.2.0
+
+### Minor Changes
+
+- 4a64b91: Add the `llm.finish_reason` attribute to Vercel AI SDK LLM spans by mapping `ai.response.finishReason`.
+
 ## 3.1.13
 
 ### Patch Changes

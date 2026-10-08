@@ -327,8 +327,14 @@ async def test_agent_with_system_instructions(
     assert SpanAttributes.LLM_MODEL_NAME in attrs
     assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in attrs
 
-    # Note: System instructions handling may vary across agent-framework versions
-    # The processor correctly transforms whatever agent-framework provides
+    # The system prompt appears exactly once, first, whichever way the installed
+    # agent-framework version records it
+    roles = []
+    while f"{SpanAttributes.LLM_INPUT_MESSAGES}.{len(roles)}.message.role" in attrs:
+        roles.append(attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.{len(roles)}.message.role"])
+    assert roles[0] == "system"
+    assert roles.count("system") == 1
+    assert attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.content"] == system_instructions
 
 
 @pytest.mark.vcr

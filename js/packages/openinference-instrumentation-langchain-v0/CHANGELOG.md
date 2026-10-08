@@ -1,5 +1,44 @@
 # @arizeai/openinference-instrumentation-langchain-v0
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+  - @arizeai/openinference-core@2.7.3
+
+## 0.1.2
+
+### Patch Changes
+
+- b20a083: Keep the content blocks of multimodal LangChain messages on spans: text and image blocks (OpenAI-style `image_url` and LangChain standard `image` blocks, given as a url or base64 data) are recorded under `message.contents` instead of being dropped.
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
+## 0.1.0
+
+### Minor Changes
+
+- 88afc17: Add the `llm.finish_reason` attribute to LangChain v0 LLM spans, supporting finish and stop reasons from generation information and streamed response metadata.
+
 ## 0.0.26
 
 ### Patch Changes

@@ -1,0 +1,4 @@
+google-adk>=2.10.0
+openinference-instrumentation-google-adk
+opentelemetry-exporter-otlp
+opentelemetry-sdk

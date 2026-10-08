@@ -253,6 +253,8 @@ describe("openInferenceMiddleware", () => {
 
     expect(agentSpan).toBeDefined();
     expect(llmSpans).toHaveLength(2);
+    expect(llmSpans[0]?.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("tool_calls");
+    expect(llmSpans[1]?.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("stop");
     expect(toolSpan).toBeDefined();
 
     expect(agentSpan?.name).toBe("ai.chat");
@@ -289,6 +291,38 @@ describe("openInferenceMiddleware", () => {
     );
     expect(toolSpan?.parentSpanId).toBe(agentSpan?.spanContext().spanId);
   });
+
+  it.each(["stop", "length", "tool_calls", "content_filter", null] as const)(
+    "records the model finish reason %s when provided",
+    async (finishReason) => {
+      const { exporter, tracer } = createTracer();
+      const middleware = openInferenceMiddleware({ tracer });
+      const ctx = createContext({ phase: "beforeModel" });
+
+      await middleware.onStart?.(ctx);
+      await middleware.onConfig?.(
+        ctx,
+        createConfig(ctx.messages as ChatMiddlewareConfig["messages"]),
+      );
+      await middleware.onChunk?.(ctx, {
+        type: "RUN_FINISHED",
+        timestamp: Date.now(),
+        runId: "run-1",
+        finishReason,
+      });
+      await middleware.onFinish?.(ctx, {
+        finishReason,
+        duration: 10,
+        content: "",
+      });
+
+      const llmSpan = exporter.getFinishedSpans().find((span) => span.name === "ai.llm 1");
+      expect(llmSpan).toBeDefined();
+      expect(llmSpan?.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe(
+        finishReason ?? undefined,
+      );
+    },
+  );
 
   it("captures spec-shaped llm inputs including system prompts, invocation parameters, and tool schema", async () => {
     const { exporter, tracer } = createTracer();

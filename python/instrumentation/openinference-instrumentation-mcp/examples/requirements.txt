@@ -1,0 +1,5 @@
+mcp>=1.28.1
+openinference-instrumentation-mcp
+opentelemetry-exporter-otlp
+opentelemetry-sdk
+uvicorn

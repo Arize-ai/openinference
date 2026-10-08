@@ -11,6 +11,7 @@
 
 import { PassThrough } from "stream";
 
+import type { MessageStopEvent } from "@aws-sdk/client-bedrock-runtime";
 import type { Span } from "@opentelemetry/api";
 import { diag } from "@opentelemetry/api";
 
@@ -19,7 +20,7 @@ import { LLMSystem, SemanticConventions } from "@arizeai/openinference-semantic-
 
 import type { UsageAttributes } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
-import { normalizeUsageAttributes } from "./invoke-model-helpers";
+import { extractFinishReason, normalizeUsageAttributes } from "./invoke-model-helpers";
 
 /**
  * Interface for raw stream chunks from AWS SDK (network level)
@@ -35,6 +36,7 @@ interface StreamChunk {
  * Covers the common fields across different provider streaming formats
  */
 interface StreamEventData {
+  messageStop?: MessageStopEvent;
   type?: string;
   message?: {
     usage?: Record<string, unknown>;
@@ -47,9 +49,24 @@ interface StreamEventData {
     input?: Record<string, unknown>;
   };
   delta?: {
+    type?: string;
     text?: string;
+    partial_json?: string;
   };
+  index?: number;
   usage?: Record<string, unknown>;
+  // OpenAI Chat Completions chunk fields
+  choices?: Array<{
+    delta?: {
+      content?: string | null;
+      refusal?: string | null;
+      tool_calls?: Array<{
+        index?: number;
+        id?: string;
+        function?: { name?: string; arguments?: string };
+      }>;
+    };
+  }>;
 
   // Amazon-specific fields
   outputText?: string;
@@ -95,16 +112,52 @@ function isValidStreamEventData(data: unknown): data is StreamEventData {
  * Stream processing state shared across chunk processors
  * Contains accumulated content and usage data during stream consumption
  */
+interface ContentBlock {
+  type: string;
+  text?: string;
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+}
+
 interface StreamProcessingState {
+  finishReason?: string;
   outputText: string;
-  contentBlocks: Array<{
-    type: string;
-    text?: string;
-    id?: string;
-    name?: string;
-    input?: Record<string, unknown>;
-  }>;
+  contentBlocks: ContentBlock[];
   rawUsageData: Record<string, unknown>;
+  /** Tool blocks by content block index, with their partial input JSON */
+  toolBlocksByIndex: Record<number, { block: ContentBlock; json: string }>;
+}
+
+/**
+ * Parses the joined JSON fragments of each streamed tool call into its block's input.
+ */
+function finalizeToolInputs(state: StreamProcessingState): void {
+  for (const { block, json } of Object.values(state.toolBlocksByIndex)) {
+    if (!json) continue;
+    try {
+      block.input = JSON.parse(json);
+    } catch (error) {
+      diag.warn("Failed to parse streamed tool call arguments:", error);
+    }
+  }
+}
+
+/**
+ * Adds an Anthropic `input_json_delta` fragment to its tool block. The fragments are only
+ * valid JSON once joined.
+ */
+function appendToolInputFragment(data: StreamEventData, state: StreamProcessingState): void {
+  if (
+    data.type !== "content_block_delta" ||
+    data.delta?.type !== "input_json_delta" ||
+    typeof data.delta.partial_json !== "string" ||
+    typeof data.index !== "number"
+  ) {
+    return;
+  }
+  const tool = state.toolBlocksByIndex[data.index];
+  if (tool) tool.json += data.delta.partial_json;
 }
 
 /**
@@ -132,8 +185,13 @@ function processAnthropicStreamChunk(
     // Store tool use blocks for later processing, don't add duplicates
     if (data.content_block.type === "tool_use") {
       state.contentBlocks.push(data.content_block);
+      if (typeof data.index === "number") {
+        state.toolBlocksByIndex[data.index] = { block: data.content_block, json: "" };
+      }
     }
   }
+
+  appendToolInputFragment(data, state);
 
   if (data.type === "content_block_delta" && data.delta?.text) {
     // Accumulate all text into the main outputText string
@@ -173,6 +231,75 @@ function processMetaStreamChunk(
     state.rawUsageData.prompt_token_count = data.prompt_token_count;
   }
 
+  return state;
+}
+
+/**
+ * Collects OpenAI streamed tool call fragments by index. The arguments JSON is joined and
+ * parsed once the stream ends.
+ */
+function accumulateOpenAIToolCalls(
+  toolCalls: NonNullable<NonNullable<StreamEventData["choices"]>[number]["delta"]>["tool_calls"],
+  state: StreamProcessingState,
+): void {
+  for (const toolCall of toolCalls ?? []) {
+    const index = toolCall.index ?? 0;
+    let tool = state.toolBlocksByIndex[index];
+    if (!tool) {
+      tool = {
+        block: { type: "tool_use", id: toolCall.id, name: toolCall.function?.name },
+        json: "",
+      };
+      state.toolBlocksByIndex[index] = tool;
+      state.contentBlocks.push(tool.block);
+    }
+    tool.json += toolCall.function?.arguments ?? "";
+  }
+}
+
+/**
+ * Turns Bedrock invocation metrics into usage fields. Each count is kept on its own and the
+ * total needs both.
+ */
+function getOpenAIMetricsUsage(
+  metrics: { inputTokenCount?: number; outputTokenCount?: number } | undefined,
+): Record<string, number> {
+  const input = metrics?.inputTokenCount;
+  const output = metrics?.outputTokenCount;
+  const usage: Record<string, number> = {};
+  if (typeof input === "number") usage.prompt_tokens = input;
+  if (typeof output === "number") usage.completion_tokens = output;
+  if (typeof input === "number" && typeof output === "number") {
+    usage.total_tokens = input + output;
+  }
+  return usage;
+}
+
+/**
+ * Processes OpenAI Chat Completions stream chunks (gpt-oss, GPT-5.x, GPT-6)
+ */
+function processOpenAIStreamChunk(
+  data: StreamEventData,
+  state: StreamProcessingState,
+): StreamProcessingState {
+  const delta = data.choices?.[0]?.delta;
+  if (typeof delta?.content === "string") {
+    state.outputText += delta.content;
+  }
+  // A refusal streams in delta.refusal instead of delta.content
+  if (typeof delta?.refusal === "string") {
+    state.outputText += delta.refusal;
+  }
+  accumulateOpenAIToolCalls(delta?.tool_calls, state);
+  // Without stream_options.include_usage, gpt-oss sends no usage chunk, only Bedrock's
+  // invocation metrics on the last chunk. They fill the gaps; a usage chunk always wins.
+  state.rawUsageData = {
+    ...getOpenAIMetricsUsage(data["amazon-bedrock-invocationMetrics"]),
+    ...state.rawUsageData,
+  };
+  if (data.usage && typeof data.usage === "object") {
+    state.rawUsageData = { ...state.rawUsageData, ...data.usage };
+  }
   return state;
 }
 
@@ -335,6 +462,10 @@ function normalizeStreamUsageData(
     }
   }
 
+  if (modelType === LLMSystem.OPENAI) {
+    return normalizeUsageAttributes({ usage: rawUsageData }, modelType) || {};
+  }
+
   if (modelType === LLMSystem.META) {
     // Meta uses raw usage data directly
     return normalizeUsageAttributes(rawUsageData, modelType) || {};
@@ -352,11 +483,13 @@ function normalizeStreamUsageData(
  */
 function setStreamingOutputAttributes({
   span,
+  finishReason,
   outputText,
   contentBlocks,
   usage,
 }: {
   span: Span;
+  finishReason?: string;
   outputText: string;
   contentBlocks: StreamProcessingState["contentBlocks"];
   usage: UsageAttributes;
@@ -380,6 +513,7 @@ function setStreamingOutputAttributes({
   // Set output value as JSON (matching original behavior)
   setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, JSON.stringify(outputValue));
   setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
+  setSpanAttribute(span, SemanticConventions.LLM_FINISH_REASON, finishReason);
 
   // Set the message role
   setSpanAttribute(
@@ -534,6 +668,7 @@ export const consumeBedrockStreamChunks = withSafety({
       outputText: "",
       contentBlocks: [],
       rawUsageData: {},
+      toolBlocksByIndex: {},
     };
 
     for await (const chunk of stream) {
@@ -551,6 +686,19 @@ export const consumeBedrockStreamChunks = withSafety({
               }
               const data: StreamEventData = rawData;
 
+              // Stop events may arrive without content or usage. Preserve the reason
+              // across subsequent metadata chunks until the stream is finalized.
+              state.finishReason =
+                extractFinishReason({ responseBody: data }) ??
+                extractFinishReason({ responseBody: data.messageStop }) ??
+                (data.type === "message_delta"
+                  ? extractFinishReason({ responseBody: data.delta })
+                  : undefined) ??
+                (data.type === "message_start"
+                  ? extractFinishReason({ responseBody: data.message })
+                  : undefined) ??
+                state.finishReason;
+
               // Process based on provider format using dedicated helpers
               if (modelType === LLMSystem.ANTHROPIC) {
                 processAnthropicStreamChunk(data, state);
@@ -562,6 +710,8 @@ export const consumeBedrockStreamChunks = withSafety({
                 }
               } else if (modelType === LLMSystem.META) {
                 processMetaStreamChunk(data, state);
+              } else if (modelType === LLMSystem.OPENAI) {
+                processOpenAIStreamChunk(data, state);
               }
             } catch {
               // Skip malformed JSON lines silently
@@ -572,11 +722,14 @@ export const consumeBedrockStreamChunks = withSafety({
       }
     }
 
+    finalizeToolInputs(state);
+
     // Normalize usage data once at the end
     const normalizedUsage = normalizeStreamUsageData(state.rawUsageData, modelType);
 
     setStreamingOutputAttributes({
       span,
+      finishReason: state.finishReason,
       outputText: state.outputText,
       contentBlocks: state.contentBlocks,
       usage: normalizedUsage,
