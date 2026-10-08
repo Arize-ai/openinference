@@ -263,10 +263,9 @@ export function getResponsesOutputImageAttributes(
   let imageIndex = 0;
   for (const item of response.output) {
     if (item.type !== "image_generation_call" || !item.result) continue;
-    const itemFormat = Reflect.get(item, "output_format");
     attributes[
       `${SemanticConventions.OUTPUT_IMAGES}.${imageIndex}.${SemanticConventions.IMAGE_URL}`
-    ] = imageBase64ToDataURL(item.result, itemFormat ?? imageFormat);
+    ] = imageBase64ToDataURL(item.result, item.output_format ?? imageFormat);
     imageIndex++;
   }
   return attributes;
