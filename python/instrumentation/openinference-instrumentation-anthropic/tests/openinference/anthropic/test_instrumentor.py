@@ -1749,6 +1749,75 @@ def test_anthropic_instrumentation_multiple_tool_results_in_input(
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny, 22C"
 
 
+def test_anthropic_instrumentation_mixed_tool_results_and_text_in_input(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(_message_handler)
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[
+            {"role": "user", "content": "Add 2+2 and get the weather in Paris."},
+            {
+                "role": "assistant",
+                "content": [
+                    ToolUseBlockParam(
+                        id="toolu_01AAA",
+                        input={"expression": "2+2"},
+                        name="calculator",
+                        type="tool_use",
+                    ),
+                    ToolUseBlockParam(
+                        id="toolu_02BBB",
+                        input={"city": "Paris"},
+                        name="get_weather",
+                        type="tool_use",
+                    ),
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    ToolResultBlockParam(
+                        tool_use_id="toolu_01AAA", content="4", type="tool_result"
+                    ),
+                    ToolResultBlockParam(
+                        tool_use_id="toolu_02BBB", content="sunny, 22C", type="tool_result"
+                    ),
+                    {"type": "text", "text": "Now answer in one sentence."},
+                ],
+            },
+        ],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    # the tool messages come first, matching the order the API requires
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALL_ID}") == "toolu_01AAA"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}") == "4"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_TOOL_CALL_ID}") == "toolu_02BBB"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny, 22C"
+    # then the rest of the message, with contiguous content-part indices
+    prefix = f"{LLM_INPUT_MESSAGES}.4"
+    assert attributes.get(f"{prefix}.{MESSAGE_ROLE}") == "user"
+    assert f"{prefix}.{MESSAGE_TOOL_CALL_ID}" not in attributes
+    assert attributes.get(f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.get(f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "Now answer in one sentence."
+    )
+    assert [key for key in attributes if key.startswith(f"{prefix}.{MESSAGE_CONTENTS}.")] == [
+        f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}",
+        f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}",
+    ]
+    assert f"{LLM_INPUT_MESSAGES}.5.{MESSAGE_ROLE}" not in attributes
+
+
 @pytest.mark.vcr
 def test_anthropic_instrumentation_context_attributes_existence(
     tracer_provider: TracerProvider,

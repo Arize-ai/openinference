@@ -748,6 +748,12 @@ def _get_llm_model_name_from_response(message: "Message") -> Iterator[Tuple[str,
         yield LLM_RESPONSE_MODEL_NAME, model_name
 
 
+def _is_tool_result_block(block: Any) -> bool:
+    if isinstance(block, dict):
+        return bool(block.get("type") == "tool_result")
+    return getattr(block, "type", None) == "tool_result"
+
+
 @_stop_on_exception
 def _get_llm_input_messages(
     messages: Iterable[MessageParam],
@@ -767,22 +773,32 @@ def _get_llm_input_messages(
         content = message["content"]
         # A message can carry several tool_result blocks (parallel tool calls), but a
         # span message has one message.content and one message.tool_call_id. Each block
-        # becomes its own tool message right after this one, per the OpenInference spec.
-        tool_result_blocks = (
-            [
-                block
-                for block in content
-                if (isinstance(block, dict) and block.get("type") == "tool_result")
-                or (not isinstance(block, dict) and getattr(block, "type", None) == "tool_result")
-            ]
-            if isinstance(content, list)
-            else []
-        )
-        pure_tool_results = (
-            isinstance(content, list)
-            and len(content) > 0
-            and len(tool_result_blocks) == len(content)
-        )
+        # becomes its own tool message, per the OpenInference spec.
+        blocks = [] if isinstance(content, str) else list(content)
+        tool_result_blocks = [block for block in blocks if _is_tool_result_block(block)]
+        # tool_result blocks are left out so the content-part indices stay contiguous
+        remaining_blocks = [block for block in blocks if not _is_tool_result_block(block)]
+        pure_tool_results = len(tool_result_blocks) > 0 and len(remaining_blocks) == 0
+        # The API requires tool_result blocks to lead a user message, so the tool
+        # messages are recorded before the rest of the message to keep that order.
+        for tr_block in tool_result_blocks:
+            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", "tool"
+            if isinstance(tr_block, dict):
+                tool_use_id = tr_block.get("tool_use_id")
+                tool_result_content = tr_block.get("content")
+            else:
+                tool_use_id = getattr(tr_block, "tool_use_id", None)
+                tool_result_content = getattr(tr_block, "content", None)
+            if tool_use_id:
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALL_ID}", tool_use_id
+            if tool_result_content is not None:
+                yield (
+                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
+                    tool_result_content
+                    if isinstance(tool_result_content, str)
+                    else safe_json_dumps(tool_result_content),
+                )
+            i += 1
         if not pure_tool_results:
             if role := message["role"]:
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
@@ -790,7 +806,7 @@ def _get_llm_input_messages(
                 if content:
                     yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
             else:
-                for j, block in enumerate(content):
+                for j, block in enumerate(remaining_blocks):
                     if isinstance(block, dict):
                         if block["type"] == "text":
                             prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
@@ -919,24 +935,6 @@ def _get_llm_input_messages(
                             pass
                         elif TYPE_CHECKING:
                             assert_never(block)
-            i += 1
-        for tr_block in tool_result_blocks:
-            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", "tool"
-            if isinstance(tr_block, dict):
-                tool_use_id = tr_block.get("tool_use_id")
-                tool_result_content = tr_block.get("content")
-            else:
-                tool_use_id = getattr(tr_block, "tool_use_id", None)
-                tool_result_content = getattr(tr_block, "content", None)
-            if tool_use_id:
-                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALL_ID}", tool_use_id
-            if tool_result_content is not None:
-                yield (
-                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
-                    tool_result_content
-                    if isinstance(tool_result_content, str)
-                    else safe_json_dumps(tool_result_content),
-                )
             i += 1
 
     if system:
