@@ -311,11 +311,21 @@ describe("V1 query() wrapper", () => {
     const spans = exporter.getFinishedSpans();
     expect(spans[0].attributes).not.toHaveProperty(SemanticConventions.LLM_FINISH_REASON);
   });
-  it("keeps a caller-supplied session.id from context over the SDK session_id (#3775)", async () => {
-    // provider.register() installs an AsyncLocalStorage context manager so
-    // context.with() propagates into the wrapper.
-    provider.register();
-    try {
+
+  describe("with a registered context manager", () => {
+    beforeEach(() => {
+      // provider.register() installs an AsyncLocalStorage context manager so
+      // context.with() propagates into the wrapper.
+      provider.register();
+    });
+
+    afterEach(() => {
+      context.disable();
+      trace.disable();
+      propagation.disable();
+    });
+
+    it("keeps a caller-supplied session.id from context over the SDK session_id (#3775)", async () => {
       const mockModule = createMockModule([
         {
           type: "system",
@@ -350,16 +360,9 @@ describe("V1 query() wrapper", () => {
       expect(spans[0].attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(
         "claude-sonnet-4-20250514",
       );
-    } finally {
-      context.disable();
-      trace.disable();
-      propagation.disable();
-    }
-  });
+    });
 
-  it("decides session.id precedence from the context the AGENT span starts in (#3775)", async () => {
-    provider.register();
-    try {
+    it("decides session.id precedence from the context the AGENT span starts in (#3775)", async () => {
       const messages = [
         { type: "system", subtype: "init", session_id: "sess-123", model: "m", tools: [] },
         {
@@ -389,10 +392,6 @@ describe("V1 query() wrapper", () => {
       const spans = exporter.getFinishedSpans();
       expect(spans).toHaveLength(1);
       expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("sess-123");
-    } finally {
-      context.disable();
-      trace.disable();
-      propagation.disable();
-    }
+    });
   });
 });

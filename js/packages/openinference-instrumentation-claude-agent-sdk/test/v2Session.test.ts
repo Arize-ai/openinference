@@ -349,9 +349,21 @@ describe("V2 session wrappers", () => {
     const spans = exporter.getFinishedSpans();
     expect(spans[0].attributes).not.toHaveProperty(SemanticConventions.LLM_FINISH_REASON);
   });
-  it("keeps a caller-supplied session.id from context for prompt() (#3775)", async () => {
-    provider.register();
-    try {
+
+  describe("with a registered context manager", () => {
+    beforeEach(() => {
+      // provider.register() installs an AsyncLocalStorage context manager so
+      // context.with() propagates into the wrapper.
+      provider.register();
+    });
+
+    afterEach(() => {
+      context.disable();
+      trace.disable();
+      propagation.disable();
+    });
+
+    it("keeps a caller-supplied session.id from context for prompt() (#3775)", async () => {
       const mockModule = {
         query: () => ({
           [Symbol.asyncIterator]: () => ({ next: async () => ({ done: true, value: undefined }) }),
@@ -378,16 +390,9 @@ describe("V2 session wrappers", () => {
       expect(spans).toHaveLength(1);
       expect(spans[0].name).toBe("ClaudeAgent.prompt");
       expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("ctx-session");
-    } finally {
-      context.disable();
-      trace.disable();
-      propagation.disable();
-    }
-  });
+    });
 
-  it("keeps a caller-supplied session.id from context for session turns (#3775)", async () => {
-    provider.register();
-    try {
+    it("keeps a caller-supplied session.id from context for session turns (#3775)", async () => {
       const mockSession = {
         sessionId: "sess-mock",
         send: async (_msg: string) => {},
@@ -436,10 +441,6 @@ describe("V2 session wrappers", () => {
       expect(spans[0].attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(
         "claude-sonnet-4-20250514",
       );
-    } finally {
-      context.disable();
-      trace.disable();
-      propagation.disable();
-    }
+    });
   });
 });
