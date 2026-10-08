@@ -9,13 +9,13 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from openinference.semconv.trace import SpanAttributes
 
 from openinference.instrumentation.claude_agent_sdk._wrappers import (
     _extract_model_name_from_usage,
     _extract_usage_and_cost_attributes,
     _TurnUsageAccumulator,
 )
+from openinference.semconv.trace import SpanAttributes
 
 # ---------------------------------------------------------------------------
 # Mapping-shaped `modelUsage` — the case #3136 was about

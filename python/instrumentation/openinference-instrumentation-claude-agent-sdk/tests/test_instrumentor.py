@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 import pytest
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
+
+from openinference.instrumentation import OITracer
+from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -23,11 +28,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import StatusCode
-
-from openinference.instrumentation import OITracer
-from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
 
 TOOL_KIND = OpenInferenceSpanKindValues.TOOL.value
 AGENT_KIND = OpenInferenceSpanKindValues.AGENT.value
@@ -157,11 +157,11 @@ async def test_propagated_session_id_not_overwritten_by_sdk_session(
 ) -> None:
     """Session ID set via using_session() must not be overwritten by the internal
     Claude CLI session UUID emitted in init/result messages."""
-    from openinference.semconv.trace import SpanAttributes
     from opentelemetry import trace as trace_api
 
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
     from openinference.instrumentation import using_session
+    from openinference.semconv.trace import SpanAttributes
 
     APPLICATION_SESSION_ID = "dedf7759-99ee-46ad-a5fc-3837892a0d78"
     CLI_SESSION_ID = "4e00c355-0cb1-4a44-a7ec-50739f9aabcd"
@@ -212,10 +212,10 @@ async def test_query_uses_per_turn_message_usage_instead_of_session_totals(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: Any,
 ) -> None:
-    from openinference.semconv.trace import SpanAttributes
     from opentelemetry import trace as trace_api
 
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import SpanAttributes
 
     trace_api.set_tracer_provider(tracer_provider)
     tracer = tracer_provider.get_tracer(__name__)
@@ -298,10 +298,10 @@ async def test_query_drops_session_totals_when_no_assistant_usage_is_available(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: Any,
 ) -> None:
-    from openinference.semconv.trace import SpanAttributes
     from opentelemetry import trace as trace_api
 
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import SpanAttributes
 
     trace_api.set_tracer_provider(tracer_provider)
     tracer = tracer_provider.get_tracer(__name__)
@@ -345,10 +345,10 @@ async def test_sdk_session_id_set_when_none_propagated(
 ) -> None:
     """When no session ID is propagated via OTel context, the SDK session UUID
     should still be written to the span."""
-    from openinference.semconv.trace import SpanAttributes
     from opentelemetry import trace as trace_api
 
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import SpanAttributes
 
     CLI_SESSION_ID = "4e00c355-0cb1-4a44-a7ec-50739f9aabcd"
 
@@ -397,11 +397,11 @@ async def test_propagated_session_id_not_overwritten_on_error_result(
     tracer_provider: Any,
 ) -> None:
     """Propagated session ID must be preserved even when the result message is an error."""
-    from openinference.semconv.trace import SpanAttributes
     from opentelemetry import trace as trace_api
 
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
     from openinference.instrumentation import using_session
+    from openinference.semconv.trace import SpanAttributes
 
     APPLICATION_SESSION_ID = "app-session-error-path"
     CLI_SESSION_ID = "cli-session-error-path"
@@ -452,10 +452,10 @@ async def test_receive_response_preserves_session_id_set_by_span_processor(
     tracer_provider: Any,
 ) -> None:
     """Span processors can set session.id on span start; SDK session IDs must not clobber it."""
-    from openinference.semconv.trace import SpanAttributes
     from opentelemetry.sdk.trace import SpanProcessor
 
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import SpanAttributes
 
     APPLICATION_SESSION_ID = "dedf7759-99ee-46ad-a5fc-3837892a0d78"
     CLI_SESSION_ID = "4e00c355-0cb1-4a44-a7ec-50739f9aabcd"
