@@ -2,7 +2,11 @@ name: Python Canary Cron
 
 on:
   schedule:
-    - cron: "0 18 * * 1-5"
+    # Weekdays at 18:15 UTC. Scheduled workflows run as the user who last
+    # modified this cron expression, so if that account is suspended or
+    # removed from the org the schedule silently stops firing. Re-authoring
+    # this line (not just a comment) under an active maintainer restores it.
+    - cron: "15 18 * * 1-5"
   workflow_dispatch:
 
 # Serialize runs so an in-flight auto-fix can't race a second run (e.g. a
