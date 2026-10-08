@@ -10,6 +10,7 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
+    Optional,
     Tuple,
     Type,
 )
@@ -17,7 +18,7 @@ from typing import (
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
 from openinference.instrumentation.openai._image_utils import image_b64_to_data_url
 from openinference.instrumentation.openai._types import AttributeValue
-from openinference.instrumentation.openai._utils import _get_openai_version
+from openinference.instrumentation.openai._utils import _get_decision_type, _get_openai_version
 from openinference.semconv.trace import (
     ChoiceAttributes,
     EmbeddingAttributes,
@@ -46,6 +47,7 @@ class _ResponseAttributesExtractor:
         "_create_embedding_response_type",
         "_responses_type",
         "_images_response_type",
+        "_decision_type",
     )
 
     def __init__(self, openai: ModuleType) -> None:
@@ -57,6 +59,8 @@ class _ResponseAttributesExtractor:
         self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
             openai.types.CreateEmbeddingResponse
         )
+        # `None` on openai < 3.26.0, which predates the Decisions API.
+        self._decision_type: Optional[type] = _get_decision_type(openai)
 
     def get_attributes_from_response(
         self,
@@ -81,6 +85,10 @@ class _ResponseAttributesExtractor:
             yield from self._get_attributes_from_completion(
                 completion=response,
             )
+        elif self._decision_type is not None and isinstance(response, self._decision_type):
+            yield from self._get_attributes_from_decision(
+                decision=response,
+            )
         elif isinstance(response, self._images_response_type) or (
             response.__class__.__name__ == "ImagesResponse" and hasattr(response, "data")
         ):
@@ -91,6 +99,32 @@ class _ResponseAttributesExtractor:
                 response=response,
                 request_parameters=request_parameters,
             )
+
+    def _get_attributes_from_decision(
+        self,
+        decision: object,
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """
+        Extract response-side attributes for the Decisions API (`client.decisions.create`).
+
+        The answers themselves are recorded in `output.value` as the response JSON; this adds
+        the model that answered and the token usage under `decision.*`. Decision spans have no
+        prompt/completion split and no total, so only `usage.input_tokens` and
+        `usage.output_tokens` are recorded, and only when the response reports them.
+
+        See https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md and
+        openai.types.Decision (openai>=3.26.0).
+        """
+        if isinstance(model := getattr(decision, "model", None), str) and model:
+            yield SpanAttributes.DECISION_RESPONSE_MODEL_NAME, model
+            # Overrides the requested model recorded from the request parameters, so
+            # `decision.model_name` is the most specific identifier available.
+            yield SpanAttributes.DECISION_MODEL_NAME, model
+        if (usage := getattr(decision, "usage", None)) is not None:
+            if isinstance(input_tokens := getattr(usage, "input_tokens", None), int):
+                yield SpanAttributes.DECISION_TOKEN_COUNT_INPUT, input_tokens
+            if isinstance(output_tokens := getattr(usage, "output_tokens", None), int):
+                yield SpanAttributes.DECISION_TOKEN_COUNT_OUTPUT, output_tokens
 
     def _get_attributes_from_images_response(
         self,

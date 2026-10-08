@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.48...python-openinference-instrumentation-litellm-v0.1.49) (2026-10-07)
+
+
+### Bug Fixes
+
+* **litellm:** redact proxy_server_request from invocation parameters ([#3946](https://github.com/Arize-ai/openinference/issues/3946)) ([7264f4c](https://github.com/Arize-ai/openinference/commit/7264f4c6b8d4866a0692b3e9c3218e4aeb0fec65))
+
 ## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.47...python-openinference-instrumentation-litellm-v0.1.48) (2026-10-01)
 
 

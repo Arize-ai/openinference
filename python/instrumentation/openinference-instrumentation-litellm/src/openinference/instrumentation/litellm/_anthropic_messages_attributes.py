@@ -16,7 +16,7 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-ANTHROPIC_KEYS_TO_REDACT = ["api_key", "messages", "system"]
+ANTHROPIC_KEYS_TO_REDACT = ["api_key", "messages", "system", "proxy_server_request"]
 
 
 def _get_block_type(block: Any) -> Optional[str]:

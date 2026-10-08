@@ -48,10 +48,12 @@ from openinference.instrumentation.openai._utils import (
     _as_input_attributes,
     _as_output_attributes,
     _finish_tracing,
+    _get_decision_type,
     _io_value_and_type,
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import (
+    OpenInferenceDecisionSystemValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -108,6 +110,7 @@ class _WithOpenAI(ABC):
     __slots__ = (
         "_openai",
         "_stream_types",
+        "_decision_type",
         "_request_attributes_extractor",
         "_response_attributes_extractor",
         "_response_accumulator_factories",
@@ -117,6 +120,9 @@ class _WithOpenAI(ABC):
         super().__init__(*args, **kwargs)
         self._openai = openai
         self._stream_types = (openai.Stream, openai.AsyncStream)
+        # The Decisions API (`client.decisions.create`) was added in openai 3.26.0. Older
+        # SDKs have no `Decision` type, in which case nothing can match it.
+        self._decision_type: Optional[type] = _get_decision_type(openai)
         self._request_attributes_extractor = _RequestAttributesExtractor(openai=openai)
         self._response_attributes_extractor = _ResponseAttributesExtractor(openai=openai)
 
@@ -144,14 +150,21 @@ class _WithOpenAI(ABC):
             openai.types.ImagesResponse: lambda request_parameters: _ImagesAccumulator(),
         }
 
-    def _get_span_kind(self, cast_to: type) -> str:
-        return (
-            OpenInferenceSpanKindValues.EMBEDDING.value
-            if cast_to is self._openai.types.CreateEmbeddingResponse
-            else OpenInferenceSpanKindValues.LLM.value
-        )
+    def _is_decision(self, cast_to: type) -> bool:
+        return self._decision_type is not None and cast_to is self._decision_type
 
-    def _get_attributes_from_instance(self, instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
+    def _get_span_kind(self, cast_to: type) -> str:
+        if cast_to is self._openai.types.CreateEmbeddingResponse:
+            return OpenInferenceSpanKindValues.EMBEDDING.value
+        if self._is_decision(cast_to):
+            return OpenInferenceSpanKindValues.DECISION.value
+        return OpenInferenceSpanKindValues.LLM.value
+
+    def _get_attributes_from_instance(
+        self,
+        instance: Any,
+        cast_to: type,
+    ) -> Iterator[Tuple[str, AttributeValue]]:
         if (
             not (base_url := getattr(instance, "base_url", None))
             or not (host := getattr(base_url, "host", None))
@@ -159,7 +172,14 @@ class _WithOpenAI(ABC):
         ):
             return
         if provider := infer_llm_provider_from_host(host):
-            yield SpanAttributes.LLM_PROVIDER, provider.value
+            # DECISION spans identify the model under `decision.*` rather than `llm.*`, so
+            # decision model usage is not counted as LLM usage. The well-known values are
+            # shared between the two namespaces, so the inferred value carries over as is.
+            # See https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+            if self._is_decision(cast_to):
+                yield SpanAttributes.DECISION_PROVIDER, provider.value
+            else:
+                yield SpanAttributes.LLM_PROVIDER, provider.value
 
     def _get_attributes_from_request(
         self,
@@ -170,7 +190,10 @@ class _WithOpenAI(ABC):
         extract_image_files: bool = True,
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
-        yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+        if self._is_decision(cast_to):
+            yield SpanAttributes.DECISION_SYSTEM, OpenInferenceDecisionSystemValues.OPENAI.value
+        else:
+            yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
             # Get the configuration from the tracer to check image hiding settings
             if TYPE_CHECKING:
@@ -343,7 +366,7 @@ class _Request(_WithTracer, _WithOpenAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=chain(
-                self._get_attributes_from_instance(instance),
+                self._get_attributes_from_instance(instance, cast_to=cast_to),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
@@ -358,7 +381,7 @@ class _Request(_WithTracer, _WithOpenAI):
         ) as with_span:
             try:
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 with_span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -420,7 +443,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=chain(
-                self._get_attributes_from_instance(instance),
+                self._get_attributes_from_instance(instance, cast_to=cast_to),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
@@ -437,7 +460,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         ) as with_span:
             try:
                 response = await wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 with_span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,

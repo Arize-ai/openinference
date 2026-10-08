@@ -741,15 +741,12 @@ def test_chat_stream_abandoned_before_iteration(
     in_memory_span_exporter: InMemorySpanExporter,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An abandoned (never iterated) stream must still end its span."""
     monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
 
     stream = _client().chat_stream(
         model="command-a-03-2025",
         messages=[_user_message("Why is the sky blue?")],
     )
-    # Drop the stream without ever iterating it: the span must still be
-    # finished (with status UNSET, to distinguish it from a completed stream).
     del stream
     gc.collect()
 
@@ -760,25 +757,22 @@ def test_chat_stream_abandoned_before_iteration(
     assert span.name == "ClientV2.chat_stream"
     assert span.status.status_code == StatusCode.UNSET
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == '{"role": "assistant"}'
 
 
-def test_chat_stream_closed_before_exhaustion(
+def test_chat_stream_abandoned_after_partial_iteration(
     in_memory_span_exporter: InMemorySpanExporter,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Explicitly closing a partially consumed stream must end its span with UNSET status."""
     monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
 
     stream = _client().chat_stream(
         model="command-a-03-2025",
         messages=[_user_message("Why is the sky blue?")],
     )
-    stream_iterator = iter(stream)
-    # Consume message-start, content-start and the first content-delta, then
-    # close the stream before it is exhausted.
-    for _ in range(3):
-        next(stream_iterator)
-    stream.close()
+    next(iter(stream))
+    del stream
+    gc.collect()
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -786,8 +780,56 @@ def test_chat_stream_closed_before_exhaustion(
     attrs = dict(span.attributes or {})
     assert span.name == "ClientV2.chat_stream"
     assert span.status.status_code == StatusCode.UNSET
-    # The partial output that arrived before the drop is still recorded.
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == '{"role": "assistant"}'
+
+
+def test_chat_stream_explicit_close(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    stream_iterator = iter(stream)
+    # Consume message-start, content-start, and first content-delta
+    for _ in range(3):
+        next(stream_iterator)
+    stream.close()  # type: ignore[attr-defined]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
     assert attrs[SpanAttributes.OUTPUT_VALUE] == "The sky is blue "
+
+
+async def test_async_chat_stream_explicit_aclose(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(AsyncRawV2Client, "chat_stream", _raw_async_stream(_stream_events()))
+
+    client = cohere.AsyncClientV2(api_key="fake-key")
+    stream = client.chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    await stream.aclose()  # type: ignore[attr-defined]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == '{"role": "assistant"}'
 
 
 def test_chat_stream_with_tool_calls(

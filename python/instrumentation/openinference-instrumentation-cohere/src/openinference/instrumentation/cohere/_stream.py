@@ -187,18 +187,20 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         return self
 
     def __exit__(self, *args: Any) -> Any:
-        result = self.__wrapped__.__exit__(*args)
-        self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
-        return result
+        try:
+            return self.__wrapped__.__exit__(*args)
+        finally:
+            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
 
     async def __aenter__(self) -> "_Stream":
         await self.__wrapped__.__aenter__()
         return self
 
     async def __aexit__(self, *args: Any) -> Any:
-        result = await self.__wrapped__.__aexit__(*args)
-        self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
-        return result
+        try:
+            return await self.__wrapped__.__aexit__(*args)
+        finally:
+            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
 
     def close(self) -> None:
         try:
@@ -234,7 +236,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
             )
         )
 
-    def _finish(self, status: Optional[trace_api.Status]) -> None:
+    def _finish(self, status: Optional[trace_api.Status] = None) -> None:
         if self._self_with_span.is_finished:
             return
         attributes: Optional[Dict[str, AttributeValue]] = None

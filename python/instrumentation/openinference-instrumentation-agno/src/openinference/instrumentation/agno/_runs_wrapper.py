@@ -20,6 +20,7 @@ from opentelemetry.context.context import Context
 
 from agno.agent import Agent
 from agno.models.message import Message
+from agno.run import RunStatus
 from agno.run.agent import RunCompletedEvent as AgentRunCompletedEvent
 from agno.run.agent import RunOutput
 from agno.run.messages import RunMessages
@@ -111,6 +112,15 @@ def _extract_completed_event_output(
     if hasattr(completed_event.content, "model_dump_json"):
         return str(completed_event.content.model_dump_json())
     return str(completed_event.content)
+
+
+def _set_run_status(
+    span: trace_api.Span, run_response: Optional[Union[RunOutput, TeamRunOutput]]
+) -> None:
+    if getattr(run_response, "status", None) == RunStatus.error:
+        span.set_status(trace_api.StatusCode.ERROR, "run status: error")
+    else:
+        span.set_status(trace_api.StatusCode.OK)
 
 
 def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -360,7 +370,7 @@ class _RunWrapper:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
                 run_response: RunOutput = wrapped(*args, **kwargs)
-            span.set_status(trace_api.StatusCode.OK)
+            _set_run_status(span, run_response)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
@@ -464,7 +474,7 @@ class _RunWrapper:
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-            span.set_status(trace_api.StatusCode.OK)
+            _set_run_status(span, run_response)
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             span.record_exception(e)
@@ -530,7 +540,7 @@ class _RunWrapper:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
                 run_response = await wrapped(*args, **kwargs)
-            span.set_status(trace_api.StatusCode.OK)
+            _set_run_status(span, run_response)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
@@ -646,7 +656,7 @@ class _RunWrapper:
             elif completed_event_output:
                 span.set_attribute(OUTPUT_VALUE, completed_event_output)
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-            span.set_status(trace_api.StatusCode.OK)
+            _set_run_status(span, run_response)
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))

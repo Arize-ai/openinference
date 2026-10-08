@@ -210,3 +210,26 @@ def test_batch_embedding_with_different_model(
 
     # All attributes should be accounted for
     assert attributes == {}
+
+
+def test_embedding_does_not_record_proxy_server_request(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    litellm.embedding(
+        model="openai/text-embedding-ada-002",
+        input="hello",
+        mock_response=[0.1, 0.2],
+        proxy_server_request={
+            "url": "http://localhost:4000/v1/embeddings",
+            "method": "POST",
+            "headers": {},
+            "body": {"model": "text-embedding-ada-002", "input": "hello"},
+        },
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert (
+        attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
+        == '{"model": "openai/text-embedding-ada-002", "mock_response": [0.1, 0.2]}'
+    )

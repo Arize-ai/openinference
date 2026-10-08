@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.64](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.63...python-openinference-instrumentation-openai-v0.1.64) (2026-10-07)
+
+
+### Features
+
+* **openai:** trace the OpenAI Decisions API as DECISION spans ([#3967](https://github.com/Arize-ai/openinference/issues/3967)) ([889a937](https://github.com/Arize-ai/openinference/commit/889a9375442f655f61f02726873aeab24c2cf970))
+
+
+### Bug Fixes
+
+* **openai,google-genai:** end the span when a request is cancelled or interrupted ([#3971](https://github.com/Arize-ai/openinference/issues/3971)) ([b6d18d9](https://github.com/Arize-ai/openinference/commit/b6d18d992a5bc323e550a952a233a196c32dcced))
+
 ## [0.1.63](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.62...python-openinference-instrumentation-openai-v0.1.63) (2026-10-01)
 
 
