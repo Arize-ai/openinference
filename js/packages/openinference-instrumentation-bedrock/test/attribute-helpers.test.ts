@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  extractModelName,
-  getSystemFromModelId,
-} from "../src/attributes/attribute-helpers";
+
+import { extractModelName, getSystemFromModelId } from "../src/attributes/attribute-helpers";
 
 describe("extractModelName", () => {
   // Standard model IDs (vendor.model-version)
@@ -20,9 +18,9 @@ describe("extractModelName", () => {
 
   // Cross-region inference model IDs (region.vendor.model-version)
   it("extracts Anthropic model name from cross-region US ID", () => {
-    expect(
-      extractModelName("us.anthropic.claude-haiku-4-5-20251001-v1:0"),
-    ).toBe("claude-haiku-4-5-20251001");
+    expect(extractModelName("us.anthropic.claude-haiku-4-5-20251001-v1:0")).toBe(
+      "claude-haiku-4-5-20251001",
+    );
   });
 
   it("extracts Anthropic model name from cross-region EU ID", () => {
@@ -39,27 +37,19 @@ describe("extractModelName", () => {
 
   // Non-Anthropic models
   it("extracts AI21 model name from standard ID", () => {
-    expect(extractModelName("ai21.jamba-1-5-mini-v1:0")).toBe(
-      "jamba-1-5-mini-v1:0",
-    );
+    expect(extractModelName("ai21.jamba-1-5-mini-v1:0")).toBe("jamba-1-5-mini-v1:0");
   });
 
   it("extracts Amazon model name from standard ID", () => {
-    expect(extractModelName("amazon.titan-text-express-v1")).toBe(
-      "titan-text-express-v1",
-    );
+    expect(extractModelName("amazon.titan-text-express-v1")).toBe("titan-text-express-v1");
   });
 
   it("extracts Meta model name from standard ID", () => {
-    expect(extractModelName("meta.llama3-8b-instruct-v1:0")).toBe(
-      "llama3-8b-instruct-v1:0",
-    );
+    expect(extractModelName("meta.llama3-8b-instruct-v1:0")).toBe("llama3-8b-instruct-v1:0");
   });
 
   it("extracts Cohere model name from standard ID", () => {
-    expect(extractModelName("cohere.command-text-v14")).toBe(
-      "command-text-v14",
-    );
+    expect(extractModelName("cohere.command-text-v14")).toBe("command-text-v14");
   });
 
   it("extracts Amazon Nova model name from cross-region ID", () => {
@@ -78,15 +68,11 @@ describe("extractModelName", () => {
 
 describe("getSystemFromModelId", () => {
   it("identifies Anthropic from standard ID", () => {
-    expect(
-      getSystemFromModelId("anthropic.claude-3-sonnet-20240229-v1:0"),
-    ).toBe("anthropic");
+    expect(getSystemFromModelId("anthropic.claude-3-sonnet-20240229-v1:0")).toBe("anthropic");
   });
 
   it("identifies Anthropic from cross-region ID", () => {
-    expect(
-      getSystemFromModelId("us.anthropic.claude-haiku-4-5-20251001-v1:0"),
-    ).toBe("anthropic");
+    expect(getSystemFromModelId("us.anthropic.claude-haiku-4-5-20251001-v1:0")).toBe("anthropic");
   });
 
   it("identifies Meta from standard ID", () => {
