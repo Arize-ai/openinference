@@ -489,7 +489,7 @@ function getAnthropicFallbackContentAttributes(
 function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attributes {
   const attributes: Attributes = {};
   let messageIndex = 0;
-  for (const message of body.messages) {
+  for (let message of body.messages) {
     const content = message.content;
     const toolResultParts: Array<
       Anthropic.Messages.ToolResultBlockParam | Anthropic.Beta.Messages.BetaToolResultBlockParam
@@ -501,23 +501,10 @@ function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attribu
         }
       }
     }
-    // A message made up only of tool_result parts is just the wrapper around
-    // the tool messages below, so it has no content of its own to record
-    const pureToolResults =
-      toolResultParts.length > 0 &&
-      Array.isArray(content) &&
-      content.length === toolResultParts.length;
-    if (!pureToolResults) {
-      const messageAttributes = getAnthropicInputMessageAttributes(message);
-      const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.`;
-      // Flatten the attributes on the index prefix
-      for (const [key, value] of Object.entries(messageAttributes)) {
-        attributes[`${indexPrefix}${key}`] = value;
-      }
-      messageIndex++;
-    }
     // Each tool_result part becomes its own input message with role "tool",
-    // so several results in one message are all preserved
+    // so several results in one message are all preserved. The API requires
+    // tool_result parts to lead a user message, so the tool messages are
+    // recorded before the rest of the message to keep the original order.
     for (const part of toolResultParts) {
       const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.`;
       attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] = "tool";
@@ -528,6 +515,23 @@ function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attribu
       }
       messageIndex++;
     }
+    // A message made up only of tool_result parts is just the wrapper around
+    // the tool messages above, so it has no content of its own to record
+    if (toolResultParts.length > 0 && Array.isArray(content)) {
+      const remainingParts = content.filter((part) => part.type !== "tool_result");
+      if (remainingParts.length === 0) {
+        continue;
+      }
+      // Drop the tool_result parts so the remaining content-part indices are contiguous
+      message = { ...message, content: remainingParts };
+    }
+    const messageAttributes = getAnthropicInputMessageAttributes(message);
+    const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.`;
+    // Flatten the attributes on the index prefix
+    for (const [key, value] of Object.entries(messageAttributes)) {
+      attributes[`${indexPrefix}${key}`] = value;
+    }
+    messageIndex++;
   }
   return attributes;
 }
