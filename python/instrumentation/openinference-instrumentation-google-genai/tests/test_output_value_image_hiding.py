@@ -7,6 +7,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation import REDACTED_VALUE, OITracer, TraceConfig
+from openinference.instrumentation.google_genai import _response_attributes_extractor, _stream
 from openinference.instrumentation.google_genai._wrappers import (
     _AsyncGenerateContentStream,
     _AsyncGenerateContentWrapper,
@@ -102,7 +103,10 @@ async def test_async_generate_content_output_value_respects_base64_image_max_len
     assert parts[1]["inline_data"]["data"] == expected_data
 
 
-def test_generate_content_stream_output_value_redacts_oversized_image(
+@pytest.mark.parametrize("maximum_length, expected_data", _LIMIT_PARAMS)
+def test_generate_content_stream_output_value_respects_base64_image_max_length(
+    maximum_length: int,
+    expected_data: str,
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -111,7 +115,7 @@ def test_generate_content_stream_output_value_redacts_oversized_image(
     ) -> Iterator[types.GenerateContentResponse]:
         yield _response()
 
-    config = TraceConfig(base64_image_max_length=_IMAGE_URL_LENGTH - 1)
+    config = TraceConfig(base64_image_max_length=maximum_length)
     tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
     stream = _SyncGenerateContentStream(tracer=tracer)(
         generate_content_stream,
@@ -124,7 +128,9 @@ def test_generate_content_stream_output_value_redacts_oversized_image(
 
     parts = _get_output_parts(in_memory_span_exporter)
     assert parts[0]["text"] == "Here is your image."
-    assert parts[1]["inline_data"] == {"data": REDACTED_VALUE, "mime_type": "image/png"}
+    assert parts[1]["inline_data"] == {"data": expected_data, "mime_type": "image/png"}
+    # Inline bytes are base64-encoded like the SDK's own JSON, not a Python bytes repr.
+    assert parts[2]["inline_data"] == {"data": "-_8=", "mime_type": "audio/wav"}
 
 
 async def test_async_generate_content_stream_output_value_redacts_oversized_image(
@@ -176,3 +182,61 @@ def test_unredacted_output_value_preserves_pydantic_serialization(
     attributes = dict(spans[0].attributes or {})
     # Nothing exceeded the limit, so output.value is the SDK's own JSON serialization.
     assert attributes[SpanAttributes.OUTPUT_VALUE] == response.model_dump_json(exclude_unset=True)
+
+
+def _raise(*args: Any, **kwargs: Any) -> Any:
+    raise RuntimeError("redaction failed")
+
+
+def _assert_output_value_redacted(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
+
+
+def test_generate_content_output_value_fails_closed_on_redaction_error(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_response_attributes_extractor, "redact_images_from_output_value", _raise)
+
+    def generate_content(*, model: str, contents: Any) -> types.GenerateContentResponse:
+        return _response()
+
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=TraceConfig())
+    _SyncGenerateContent(tracer=tracer)(
+        generate_content,
+        None,
+        (),
+        {"model": "gemini-2.5-flash-image", "contents": "draw a cat"},
+    )
+
+    _assert_output_value_redacted(in_memory_span_exporter)
+
+
+def test_generate_content_stream_output_value_fails_closed_on_redaction_error(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_stream, "redact_images_from_output_value", _raise)
+
+    def generate_content_stream(
+        *, model: str, contents: Any
+    ) -> Iterator[types.GenerateContentResponse]:
+        yield _response()
+
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=TraceConfig())
+    stream = _SyncGenerateContentStream(tracer=tracer)(
+        generate_content_stream,
+        None,
+        (),
+        {"model": "gemini-2.5-flash-image", "contents": "draw a cat"},
+    )
+    for _ in stream:
+        pass
+
+    _assert_output_value_redacted(in_memory_span_exporter)

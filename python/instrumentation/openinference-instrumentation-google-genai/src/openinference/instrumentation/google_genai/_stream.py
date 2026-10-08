@@ -18,7 +18,7 @@ from typing import (
 from opentelemetry import trace as trace_api
 from wrapt import ObjectProxy
 
-from openinference.instrumentation import TraceConfig, safe_json_dumps
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig, safe_json_dumps
 from openinference.instrumentation.google_genai._context import (
     CapturedRequestScope,
     get_input_attributes,
@@ -198,21 +198,29 @@ class _ResponseExtractor:
     def get_attributes(self) -> Iterator[tuple[str, AttributeValue]]:
         if not (result := self._response_accumulator._result()):
             return
-        output_value: Any = result
-        if self._config is not None:
+        if self._config is None:
+            output_value_and_type = _ValueAndType(
+                safe_json_dumps(result), OpenInferenceMimeTypeValues.JSON
+            )
+        else:
             try:
-                redacted, changed = redact_images_from_output_value(
+                # Always serialize the walked tree: besides redacting oversized images,
+                # it base64-encodes inline bytes that safe_json_dumps would otherwise
+                # render as a Python bytes repr.
+                redacted, _ = redact_images_from_output_value(
                     result,
                     base64_image_max_length=int(self._config.base64_image_max_length or 0),
                 )
-                if changed:
-                    output_value = redacted
+                output_value_and_type = _ValueAndType(
+                    safe_json_dumps(redacted), OpenInferenceMimeTypeValues.JSON
+                )
             except Exception:
+                # Fail closed: never export an unredacted image after a redaction error.
                 logger.exception("Failed to redact images from output value")
-        json_string = safe_json_dumps(output_value)
-        yield from _as_output_attributes(
-            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
-        )
+                output_value_and_type = _ValueAndType(
+                    REDACTED_VALUE, OpenInferenceMimeTypeValues.TEXT
+                )
+        yield from _as_output_attributes(output_value_and_type)
 
         if model_version := result.get("model_version"):
             yield SpanAttributes.LLM_MODEL_NAME, model_version

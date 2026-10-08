@@ -5,7 +5,7 @@ from typing import Any, Iterable, Iterator, Mapping, Optional
 
 from google.genai import types
 
-from openinference.instrumentation import TraceConfig, safe_json_dumps
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig, safe_json_dumps
 from openinference.instrumentation.google_genai._image_utils import (
     redact_images_from_output_value,
 )
@@ -67,7 +67,9 @@ class _ResponseAttributesExtractor:
                         safe_json_dumps(redacted), OpenInferenceMimeTypeValues.JSON
                     )
             except Exception:
+                # Fail closed: never export an unredacted image after a redaction error.
                 logger.exception("Failed to redact images from output value")
+                return _ValueAndType(REDACTED_VALUE, OpenInferenceMimeTypeValues.TEXT)
         return _io_value_and_type(response)
 
     def _get_attributes_from_generate_content(
