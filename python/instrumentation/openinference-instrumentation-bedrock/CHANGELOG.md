@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Bug Fixes
-
-* **bedrock:** include Converse additional model request fields in invocation parameters and keep response stop reasons out of them ([#3944](https://github.com/Arize-ai/openinference/issues/3944)). This changes the nested JSON keys recorded in `llm.invocation_parameters`; `stop_reason` remains available as `llm.finish_reason`.
-
 ## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.57...python-openinference-instrumentation-bedrock-v0.1.58) (2026-10-08)
 
 
