@@ -1,27 +1,45 @@
-"""Check that every README.<lang>.md stays structurally in sync with README.md.
+"""Check that every docs/i18n/README.<lang>.md stays structurally in sync with README.md.
 
 Translations mirror README.md line for line. For each line, the links, image
 and badge URLs, inline code, and HTML tags must match the English line exactly;
 only the surrounding prose may differ. Lines with no prose (HTML blocks, code,
 badge-only table rows) must be byte-identical. The language bar line and the
 Scarf pixel's ``page=`` parameter are expected to differ per language.
+Relative links are compared by the repository path they resolve to, since the
+translations live two directories below README.md.
 
-Usage: python scripts/check_readme_translations.py [README.<lang>.md ...]
-With no arguments, every README.*.md next to README.md is checked.
+Usage: python scripts/check_readme_translations.py [docs/i18n/README.<lang>.md ...]
+With no arguments, every README.*.md in docs/i18n is checked.
 """
 
+import posixpath
 import re
 import sys
 from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+TRANSLATIONS = ROOT / "docs" / "i18n"
 TOKEN = re.compile(
     r"!\[[^\]]*\]\([^)]*\)|\]\([^)]*\)|`[^`]+`|<[^>]+>"
     r"|\[!(?:NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]|https?://\S+"
 )
-LANG_BAR = re.compile(r'<a href="README(\.[\w-]+)?\.md">')
+LANG_BAR = re.compile(r'<a href="(?:[\w./]*/)?README(\.[\w-]+)?\.md">')
 SCARF_PAGE = re.compile(r"page=README[\w.-]*\.md")
+LINK_TARGET = re.compile(r"\]\(([^)]*)\)")
+
+
+def resolve_links(line: str, base: str) -> str:
+    """Rewrite relative link targets as repository paths seen from ``base``."""
+
+    def resolve(m: re.Match[str]) -> str:
+        target = m.group(1)
+        if re.match(r"(https?:|mailto:|#)", target):
+            return m.group(0)
+        path = posixpath.normpath(posixpath.join(base, target))
+        return f"]({path}{'/' if target.endswith('/') else ''})"
+
+    return LINK_TARGET.sub(resolve, line)
 
 
 def tokens(line: str) -> Counter[str]:
@@ -43,8 +61,10 @@ def leading(line: str) -> str:
 
 def check(english: list[str], path: Path) -> list[str]:
     lines = path.read_text(encoding="utf-8").split("\n")
-    if len(lines) != len(english):
+    # A translation may end with a translator's note after the mirrored content.
+    if len(lines) < len(english):
         return [f"{path.name}: {len(lines)} lines, README.md has {len(english)}"]
+    base = path.resolve().parent.relative_to(ROOT).as_posix()
     errors = []
     in_code = False
     for n, (en, tr) in enumerate(zip(english, lines), start=1):
@@ -54,6 +74,7 @@ def check(english: list[str], path: Path) -> list[str]:
         if len(LANG_BAR.findall(en)) > 3:
             continue
         en, tr = SCARF_PAGE.sub("page=*", en), SCARF_PAGE.sub("page=*", tr)
+        en, tr = resolve_links(en, ""), resolve_links(tr, base)
         translatable = (
             stripped.startswith("# ")
             if in_code
@@ -83,7 +104,7 @@ def check(english: list[str], path: Path) -> list[str]:
 
 def main() -> int:
     english = (ROOT / "README.md").read_text(encoding="utf-8").split("\n")
-    paths = [Path(p) for p in sys.argv[1:]] or sorted(ROOT.glob("README.*.md"))
+    paths = [Path(p) for p in sys.argv[1:]] or sorted(TRANSLATIONS.glob("README.*.md"))
     errors = [e for p in paths for e in check(english, p)]
     for e in errors:
         print(e)
