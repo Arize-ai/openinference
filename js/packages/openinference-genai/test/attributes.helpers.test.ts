@@ -3,6 +3,7 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 import {
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
   mapAgentAttributes,
+  mapConversationId,
   mapFinishReason,
   mapInputMessages,
   mapInputValue,
@@ -152,6 +153,22 @@ describe("attributes helpers", () => {
     it("ignores non-string agent name", () => {
       const attrs = mapAgentAttributes({
         "gen_ai.agent.name": 42,
+      });
+      expect(attrs).toEqual({});
+    });
+  });
+
+  describe("mapConversationId", () => {
+    it("maps conversation id to session.id", () => {
+      const attrs = mapConversationId({
+        "gen_ai.conversation.id": "conv_5j66UpCpwteGg4YSxUnt7lPY",
+      });
+      expect(attrs[SemanticConventions.SESSION_ID]).toBe("conv_5j66UpCpwteGg4YSxUnt7lPY");
+    });
+
+    it("ignores non-string conversation id", () => {
+      const attrs = mapConversationId({
+        "gen_ai.conversation.id": 42,
       });
       expect(attrs).toEqual({});
     });
@@ -699,6 +716,14 @@ describe("attributes helpers", () => {
   });
 
   describe("convertGenAISpanAttributesToOpenInferenceSpanAttributes", () => {
+    it("preserves an explicit session id over the conversation id", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        [SemanticConventions.SESSION_ID]: "explicit-session",
+        "gen_ai.conversation.id": "eve-conversation",
+      });
+      expect(attrs[SemanticConventions.SESSION_ID]).toBe("explicit-session");
+    });
+
     it("includes finish reason when present", () => {
       const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
         "gen_ai.operation.name": "chat",

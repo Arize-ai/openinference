@@ -62,15 +62,27 @@ def _attrs(span: ReadableSpan) -> Dict[str, Any]:
     return dict(span.attributes or {})
 
 
-def _assert_llm_span(span: ReadableSpan, transport: RecordingTransport) -> None:
+def _assert_decision_span(span: ReadableSpan, transport: RecordingTransport) -> None:
     attrs = _attrs(span)
     assert span.status.status_code is StatusCode.OK
-    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
-    assert attrs[SpanAttributes.LLM_PROVIDER] == "typesafe"
-    assert SpanAttributes.LLM_SYSTEM not in attrs
-    assert attrs[SpanAttributes.LLM_REQUEST_MODEL_NAME] == "jev-latest"
-    assert attrs[SpanAttributes.LLM_RESPONSE_MODEL_NAME] == "jev-1.13.0"
-    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "jev-1.13.0"
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.DECISION.value
+    )
+    assert attrs[SpanAttributes.DECISION_SYSTEM] == "typesafe"
+    assert attrs[SpanAttributes.DECISION_PROVIDER] == "typesafe"
+    assert attrs[SpanAttributes.DECISION_REQUEST_MODEL_NAME] == "jev-latest"
+    assert attrs[SpanAttributes.DECISION_RESPONSE_MODEL_NAME] == "jev-1.13.0"
+    assert attrs[SpanAttributes.DECISION_MODEL_NAME] == "jev-1.13.0"
+    # Decision spans identify the model under decision.*, never llm.*.
+    for key in (
+        SpanAttributes.LLM_SYSTEM,
+        SpanAttributes.LLM_PROVIDER,
+        SpanAttributes.LLM_MODEL_NAME,
+        SpanAttributes.LLM_REQUEST_MODEL_NAME,
+        SpanAttributes.LLM_RESPONSE_MODEL_NAME,
+    ):
+        assert key not in attrs
+    assert not any(key.startswith("llm.token_count") for key in attrs)
 
     # input.value mirrors the wire request body exactly.
     assert attrs[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
@@ -94,9 +106,8 @@ def _assert_llm_span(span: ReadableSpan, transport: RecordingTransport) -> None:
     assert attrs[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
     assert json.loads(str(attrs[SpanAttributes.OUTPUT_VALUE])) == SYSTEM_ONE_RESPONSE
 
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 344
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 65
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 409
+    assert attrs[SpanAttributes.DECISION_TOKEN_COUNT_INPUT] == 344
+    assert attrs[SpanAttributes.DECISION_TOKEN_COUNT_OUTPUT] == 65
 
 
 def test_oitracer() -> None:
@@ -118,7 +129,7 @@ def test_system_one(
 
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.name == "TypeSafeClient"
-    _assert_llm_span(span, transport)
+    _assert_decision_span(span, transport)
 
 
 async def test_async_system_one(
@@ -130,7 +141,7 @@ async def test_async_system_one(
 
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.name == "AsyncTypeSafeClient"
-    _assert_llm_span(span, transport)
+    _assert_decision_span(span, transport)
 
 
 def test_structured_state_and_raw_dict_questions(
@@ -148,7 +159,7 @@ def test_structured_state_and_raw_dict_questions(
     # Structured state rides in input.value as sent on the wire.
     assert json.loads(str(attrs[SpanAttributes.INPUT_VALUE]))["state"] == state
     # The client-level default model is picked up when no per-call model is given.
-    assert attrs[SpanAttributes.LLM_REQUEST_MODEL_NAME] == "jev-preview"
+    assert attrs[SpanAttributes.DECISION_REQUEST_MODEL_NAME] == "jev-preview"
     invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
     assert invocation_parameters == {"model": "jev-preview", "beam_width": 4}
     assert json.loads(str(attrs[SpanAttributes.INPUT_VALUE])) == transport.requests[-1]
@@ -211,7 +222,9 @@ def test_model_dump_objects_are_encoded_as_json() -> None:
     }
 
 
-def test_partial_usage_omits_total(in_memory_span_exporter: InMemorySpanExporter) -> None:
+def test_partial_usage_records_only_reported_counts(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
     body = {**SYSTEM_ONE_RESPONSE, "usage": {"input_tokens": 344, "output_tokens": None}}
     transport = RecordingTransport(body=body)
     client = TypeSafeClient(transport=transport.mock)
@@ -219,9 +232,8 @@ def test_partial_usage_omits_total(in_memory_span_exporter: InMemorySpanExporter
 
     (span,) = in_memory_span_exporter.get_finished_spans()
     attrs = _attrs(span)
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 344
-    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION not in attrs
-    assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL not in attrs
+    assert attrs[SpanAttributes.DECISION_TOKEN_COUNT_INPUT] == 344
+    assert SpanAttributes.DECISION_TOKEN_COUNT_OUTPUT not in attrs
 
 
 def test_per_call_options_and_env_default_model(
@@ -246,7 +258,7 @@ def test_per_call_options_and_env_default_model(
 
     per_call, env_default = in_memory_span_exporter.get_finished_spans()
     per_call_attrs = _attrs(per_call)
-    assert per_call_attrs[SpanAttributes.LLM_REQUEST_MODEL_NAME] == "jev-latest"
+    assert per_call_attrs[SpanAttributes.DECISION_REQUEST_MODEL_NAME] == "jev-latest"
     assert json.loads(str(per_call_attrs[SpanAttributes.INPUT_VALUE])) == transport.requests[0]
     invocation_parameters = json.loads(
         str(per_call_attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])
@@ -255,7 +267,7 @@ def test_per_call_options_and_env_default_model(
     assert set(invocation_parameters) == {"model"}
 
     env_attrs = _attrs(env_default)
-    assert env_attrs[SpanAttributes.LLM_REQUEST_MODEL_NAME] == "jev-preview"
+    assert env_attrs[SpanAttributes.DECISION_REQUEST_MODEL_NAME] == "jev-preview"
     assert json.loads(str(env_attrs[SpanAttributes.INPUT_VALUE])) == transport.requests[1]
     assert transport.requests[1]["model"] == "jev-preview"
 
@@ -272,9 +284,14 @@ def test_error_sets_span_status(in_memory_span_exporter: InMemorySpanExporter) -
     assert any(event.name == "exception" for event in span.events)
     attrs = _attrs(span)
     # Request-side attributes are still recorded; there is no output.
-    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.DECISION.value
+    )
     assert SpanAttributes.INPUT_VALUE in attrs
     assert SpanAttributes.OUTPUT_VALUE not in attrs
+    # With no response, decision.model_name falls back to the requested model.
+    assert attrs[SpanAttributes.DECISION_MODEL_NAME] == "jev-latest"
+    assert SpanAttributes.DECISION_RESPONSE_MODEL_NAME not in attrs
 
 
 def test_suppress_tracing(
@@ -330,8 +347,9 @@ def test_trace_config_hides_inputs_and_outputs(
     invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
     assert invocation_parameters == {"model": "jev-latest"}
     # Non-sensitive attributes survive masking.
-    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "jev-1.13.0"
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 409
+    assert attrs[SpanAttributes.DECISION_MODEL_NAME] == "jev-1.13.0"
+    assert attrs[SpanAttributes.DECISION_TOKEN_COUNT_INPUT] == 344
+    assert attrs[SpanAttributes.DECISION_TOKEN_COUNT_OUTPUT] == 65
 
 
 def test_trace_config_hides_llm_invocation_parameters(
@@ -355,7 +373,7 @@ def test_trace_config_hides_llm_invocation_parameters(
     assert SpanAttributes.LLM_INVOCATION_PARAMETERS not in attrs
     assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 409
+    assert attrs[SpanAttributes.DECISION_TOKEN_COUNT_INPUT] == 344
 
 
 def test_uninstrument(

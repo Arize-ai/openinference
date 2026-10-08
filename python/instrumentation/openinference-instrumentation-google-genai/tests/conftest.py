@@ -92,6 +92,12 @@ def _bridge_google_api_key() -> None:
 #   response.  That poisons the cached stream and makes the next readline()
 #   raise instead of returning data.
 #
+#   Fixes #1 and #2 are skipped once vcrpy fixes the bug itself
+#   (https://github.com/kevin1024/vcrpy/pull/1055): its MockStream is then aiohttp's
+#   StreamReader, not an asyncio.StreamReader, and `content` is a plain attribute
+#   holding one stream per response, so these patches are not needed and would
+#   break replay.
+#
 # Fix #3 — normalise old-format cassettes before build_response sees them.
 #   Cassettes recorded with older vcrpy versions use a flat layout:
 #     { content: "...", status_code: 200, http_version: "HTTP/1.1" }
@@ -102,8 +108,9 @@ def _bridge_google_api_key() -> None:
 #
 # Fix #4 — gzip decoding for aiohttp stubs.
 #   VCR's httpcore stubs handle gzip, but aiohttp stubs return raw gzip bytes.
-#   Decompress gzip in text(), read(), and the content stream.
+#   Decompress gzip in text(), read(), and (with Fix #1) the content stream.
 try:
+    import asyncio
     import gzip
 
     import vcr.stubs.aiohttp_stubs as _aiohttp_stubs
@@ -136,12 +143,12 @@ try:
             self._content_stream_cache = s
         return self._content_stream_cache
 
-    MockClientResponse.content = property(_cached_content)
-
     def _noop_set_exception(self: Any, exc: Any) -> None:
         pass
 
-    MockStream.set_exception = _noop_set_exception
+    if issubclass(MockStream, asyncio.StreamReader):
+        MockClientResponse.content = property(_cached_content)
+        MockStream.set_exception = _noop_set_exception
 
     _original_build_response = _aiohttp_stubs.build_response
 

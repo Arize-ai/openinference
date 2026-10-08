@@ -11,41 +11,49 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
+    Optional,
     Tuple,
 )
 
+import anyio
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
 from openinference.instrumentation import (
     get_attributes_from_context,
     infer_llm_provider_from_host,
 )
-from openinference.instrumentation.openai._image_utils import redact_images_from_request_parameters
+from openinference.instrumentation.openai._image_utils import (
+    get_attributes_from_image_files,
+    redact_images_from_request_parameters,
+)
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
 from openinference.instrumentation.openai._response_accumulator import (
     _ChatCompletionAccumulator,
     _CompletionAccumulator,
+    _ImagesAccumulator,
     _ResponsesAccumulator,
 )
 from openinference.instrumentation.openai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
 from openinference.instrumentation.openai._stream import _ResponseAccumulator, _Stream
+from openinference.instrumentation.openai._types import AttributeValue
 from openinference.instrumentation.openai._utils import (
     _as_input_attributes,
     _as_output_attributes,
     _finish_tracing,
+    _get_decision_type,
     _io_value_and_type,
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import (
+    OpenInferenceDecisionSystemValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -102,6 +110,7 @@ class _WithOpenAI(ABC):
     __slots__ = (
         "_openai",
         "_stream_types",
+        "_decision_type",
         "_request_attributes_extractor",
         "_response_attributes_extractor",
         "_response_accumulator_factories",
@@ -111,6 +120,9 @@ class _WithOpenAI(ABC):
         super().__init__(*args, **kwargs)
         self._openai = openai
         self._stream_types = (openai.Stream, openai.AsyncStream)
+        # The Decisions API (`client.decisions.create`) was added in openai 3.26.0. Older
+        # SDKs have no `Decision` type, in which case nothing can match it.
+        self._decision_type: Optional[type] = _get_decision_type(openai)
         self._request_attributes_extractor = _RequestAttributesExtractor(openai=openai)
         self._response_attributes_extractor = _ResponseAttributesExtractor(openai=openai)
 
@@ -135,16 +147,24 @@ class _WithOpenAI(ABC):
                 response_attributes_extractor=self._response_attributes_extractor,
             ),
             openai.types.responses.response.Response: responses_accumulator,
+            openai.types.ImagesResponse: lambda request_parameters: _ImagesAccumulator(),
         }
 
-    def _get_span_kind(self, cast_to: type) -> str:
-        return (
-            OpenInferenceSpanKindValues.EMBEDDING.value
-            if cast_to is self._openai.types.CreateEmbeddingResponse
-            else OpenInferenceSpanKindValues.LLM.value
-        )
+    def _is_decision(self, cast_to: type) -> bool:
+        return self._decision_type is not None and cast_to is self._decision_type
 
-    def _get_attributes_from_instance(self, instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
+    def _get_span_kind(self, cast_to: type) -> str:
+        if cast_to is self._openai.types.CreateEmbeddingResponse:
+            return OpenInferenceSpanKindValues.EMBEDDING.value
+        if self._is_decision(cast_to):
+            return OpenInferenceSpanKindValues.DECISION.value
+        return OpenInferenceSpanKindValues.LLM.value
+
+    def _get_attributes_from_instance(
+        self,
+        instance: Any,
+        cast_to: type,
+    ) -> Iterator[Tuple[str, AttributeValue]]:
         if (
             not (base_url := getattr(instance, "base_url", None))
             or not (host := getattr(base_url, "host", None))
@@ -152,15 +172,28 @@ class _WithOpenAI(ABC):
         ):
             return
         if provider := infer_llm_provider_from_host(host):
-            yield SpanAttributes.LLM_PROVIDER, provider.value
+            # DECISION spans identify the model under `decision.*` rather than `llm.*`, so
+            # decision model usage is not counted as LLM usage. The well-known values are
+            # shared between the two namespaces, so the inferred value carries over as is.
+            # See https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+            if self._is_decision(cast_to):
+                yield SpanAttributes.DECISION_PROVIDER, provider.value
+            else:
+                yield SpanAttributes.LLM_PROVIDER, provider.value
 
     def _get_attributes_from_request(
         self,
         cast_to: type,
         request_parameters: Mapping[str, Any],
+        request_files: Any = None,
+        image_file_attributes: Optional[Iterable[Tuple[str, AttributeValue]]] = None,
+        extract_image_files: bool = True,
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
-        yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+        if self._is_decision(cast_to):
+            yield SpanAttributes.DECISION_SYSTEM, OpenInferenceDecisionSystemValues.OPENAI.value
+        else:
+            yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
             # Get the configuration from the tracer to check image hiding settings
             if TYPE_CHECKING:
@@ -168,6 +201,7 @@ class _WithOpenAI(ABC):
             config = getattr(getattr(self, "_tracer", None), "_self_config", None)
 
             # Apply image redaction if configured
+            hide_inputs = bool(config and getattr(config, "hide_inputs", False))
             hide_images = bool(config and getattr(config, "hide_input_images", False))
             max_length = int(getattr(config, "base64_image_max_length", 0) if config else 0)
 
@@ -182,6 +216,17 @@ class _WithOpenAI(ABC):
                 processed_params = dict(request_parameters)
 
             yield from _as_input_attributes(_io_value_and_type(processed_params))
+            if (
+                extract_image_files
+                and cast_to is self._openai.types.ImagesResponse
+                and not hide_inputs
+                and not hide_images
+            ):
+                yield from (
+                    image_file_attributes
+                    if image_file_attributes is not None
+                    else get_attributes_from_image_files(request_files)
+                )
         except Exception:
             logger.exception(
                 f"Failed to get input attributes from request parameters of "
@@ -308,7 +353,7 @@ class _Request(_WithTracer, _WithOpenAI):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         try:
-            cast_to, request_parameters = _parse_request_args(args)
+            cast_to, request_parameters, request_files = _parse_request_args(args)
             # Use consistent span names: "CreateEmbeddings" for embeddings, class name for others
             if cast_to is self._openai.types.CreateEmbeddingResponse:
                 span_name = "CreateEmbeddings"
@@ -321,10 +366,11 @@ class _Request(_WithTracer, _WithOpenAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=chain(
-                self._get_attributes_from_instance(instance),
+                self._get_attributes_from_instance(instance, cast_to=cast_to),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
+                    request_files=request_files,
                 ),
             ),
             context_attributes=get_attributes_from_context(),
@@ -335,7 +381,7 @@ class _Request(_WithTracer, _WithOpenAI):
         ) as with_span:
             try:
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 with_span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -369,7 +415,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
         try:
-            cast_to, request_parameters = _parse_request_args(args)
+            cast_to, request_parameters, request_files = _parse_request_args(args)
             # Use consistent span names: "CreateEmbeddings" for embeddings, class name for others
             if cast_to is self._openai.types.CreateEmbeddingResponse:
                 span_name = "CreateEmbeddings"
@@ -379,13 +425,31 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         except Exception:
             logger.exception("Failed to parse request args")
             return await wrapped(*args, **kwargs)
+        image_file_attributes: Optional[Tuple[Tuple[str, AttributeValue], ...]] = None
+        config = getattr(self._tracer, "_self_config", None)
+        if cast_to is self._openai.types.ImagesResponse and not (
+            config
+            and (
+                getattr(config, "hide_inputs", False) or getattr(config, "hide_input_images", False)
+            )
+        ):
+            try:
+                image_file_attributes = await anyio.to_thread.run_sync(
+                    lambda: tuple(get_attributes_from_image_files(request_files))
+                )
+            except Exception:
+                logger.exception("Failed to extract image file attributes")
+        extract_image_files = image_file_attributes is not None
         with self._start_as_current_span(
             span_name=span_name,
             attributes=chain(
-                self._get_attributes_from_instance(instance),
+                self._get_attributes_from_instance(instance, cast_to=cast_to),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
+                    request_files=request_files,
+                    image_file_attributes=image_file_attributes,
+                    extract_image_files=extract_image_files,
                 ),
             ),
             context_attributes=get_attributes_from_context(),
@@ -396,7 +460,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         ) as with_span:
             try:
                 response = await wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 with_span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -419,7 +483,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         return response
 
 
-def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]]:
+def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any], Any]:
     # We don't use `signature(request).bind()` because `request` could have been monkey-patched
     # (incorrectly) by others and the signature at runtime may not match the original.
     # The targeted signature of `request` is here:
@@ -442,7 +506,8 @@ def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]
     #     request_parameters = json.loads(json.dumps(request_parameters))
     # except Exception:
     #     pass
-    return cast_to, request_parameters
+    request_files = getattr(args[1], "files", None)
+    return cast_to, request_parameters, request_files
 
 
 class _ResponseAttributes:

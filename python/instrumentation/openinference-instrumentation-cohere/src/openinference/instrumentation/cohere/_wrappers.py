@@ -8,7 +8,6 @@ from typing import Any, Callable, Dict, FrozenSet, Iterable, Iterator, Mapping, 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     OITracer,
@@ -22,6 +21,7 @@ from openinference.instrumentation.cohere._response_attributes_extractor import 
     _ResponseAttributesExtractor,
 )
 from openinference.instrumentation.cohere._stream import _Stream
+from openinference.instrumentation.cohere._types import AttributeValue
 from openinference.instrumentation.cohere._with_span import _WithSpan
 
 logger = logging.getLogger(__name__)

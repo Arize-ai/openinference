@@ -1,4 +1,4 @@
-from functools import lru_cache
+from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -7,13 +7,14 @@ from typing import (
     Iterator,
     Optional,
     Tuple,
+    Type,
 )
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.anthropic._types import AttributeValue
 from openinference.instrumentation.anthropic._utils import (
     _finish_tracing,
     _get_token_counts,
@@ -28,6 +29,8 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
+    from httpx2 import Headers
+
     from anthropic import Stream
     from anthropic.types import RawMessageStreamEvent
 
@@ -107,10 +110,70 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         self,
         stream: "Stream[RawMessageStreamEvent]",
         with_span: _WithSpan,
+        *,
+        is_beta: bool = False,
     ) -> None:
         super().__init__(stream)
-        self._response_accumulator = _MessageResponseAccumulator()
+        self._response_accumulator = _MessageResponseAccumulator(
+            is_beta=is_beta,
+            request_headers=stream.response.request.headers,
+        )
         self._with_span = with_span
+
+    # The SDK stream's context manager returns the SDK stream, which would bypass the iteration
+    # below, so these return the proxy. Exiting finishes the span if iteration has not, e.g. when
+    # the stream is left early, recording the exception that ended the context, e.g. a
+    # CancelledError, which iteration does not catch.
+
+    def __enter__(self) -> "_MessagesStream":
+        self.__wrapped__.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        try:
+            self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+        except BaseException as exception:
+            # e.g. closing the response failed
+            self._finish_tracing_on_exit(exception)
+            raise
+        self._finish_tracing_on_exit(exc_val)
+
+    async def __aenter__(self) -> "_MessagesStream":
+        await self.__wrapped__.__aenter__()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        try:
+            await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        except BaseException as exception:
+            # e.g. closing the response failed, or the task was cancelled while it closed
+            self._finish_tracing_on_exit(exception)
+            raise
+        self._finish_tracing_on_exit(exc_val)
+
+    def _finish_tracing_on_exit(self, exception: Optional[BaseException]) -> None:
+        # GeneratorExit: a generator holding the context was closed, which leaves the stream
+        # early rather than failing the request
+        if exception is None or isinstance(exception, GeneratorExit):
+            self._finish_tracing()
+            return
+        self._with_span.record_exception(exception)
+        self._finish_tracing(
+            status=trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+        )
 
     def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
         try:
@@ -161,37 +224,53 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         )
 
 
-@lru_cache(maxsize=1)
-def _accumulate_event_supports_json_bufs() -> bool:
-    """anthropic >= 1.5.0 added a required ``json_bufs`` parameter to accumulate_event."""
-    import inspect
-
-    from anthropic.lib.streaming._messages import accumulate_event
-
-    return "json_bufs" in inspect.signature(accumulate_event).parameters
-
-
 class _MessageResponseAccumulator:
     """Accumulates raw SSE events into a ParsedMessage using the SDK's own accumulate_event."""
 
-    __slots__ = ("_snapshot", "_json_bufs")
+    __slots__ = ("_is_beta", "_request_headers", "_snapshot", "_json_bufs")
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        is_beta: bool,
+        request_headers: "Headers",
+    ) -> None:
+        self._is_beta = is_beta
+        self._request_headers = request_headers
         self._snapshot: Any = None
         # Buffers partial tool-use input JSON across events, keyed by content block
-        # index. Required by anthropic >= 1.5.0; unused on older versions.
+        # index.
         self._json_bufs: Dict[int, bytes] = {}
 
     def process_chunk(self, chunk: "RawMessageStreamEvent") -> None:
-        from anthropic.lib.streaming._messages import accumulate_event
+        # Beta and stable chunks need their matching accumulate_event; beta's
+        # raises on stable chunks and vice versa silently drops updates.
+        if self._is_beta:
+            from anthropic.lib.streaming._beta_messages import (
+                accumulate_event as accumulate_beta_event,
+            )
 
-        kwargs: Dict[str, Any] = dict(event=chunk, current_snapshot=self._snapshot)
-        if _accumulate_event_supports_json_bufs():
-            kwargs["json_bufs"] = self._json_bufs
-        try:
-            self._snapshot = accumulate_event(**kwargs)
-        except Exception:
-            pass
+            beta_kwargs: Dict[str, Any] = dict(
+                event=chunk,
+                current_snapshot=self._snapshot,
+                request_headers=self._request_headers,
+                json_bufs=self._json_bufs,
+            )
+            try:
+                self._snapshot = accumulate_beta_event(**beta_kwargs)
+            except Exception:
+                pass
+        else:
+            from anthropic.lib.streaming._messages import accumulate_event
+
+            try:
+                self._snapshot = accumulate_event(
+                    event=chunk,
+                    current_snapshot=self._snapshot,
+                    json_bufs=self._json_bufs,
+                )
+            except Exception:
+                pass
 
     def _result(self) -> Any:
         return self._snapshot

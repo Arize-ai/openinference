@@ -680,8 +680,8 @@ importers:
         specifier: ^20.14.11
         version: 20.19.23
       openai:
-        specifier: ^6.7.0
-        version: 6.7.0(ws@8.21.0)(zod@3.25.76)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.39)(ws@8.21.0)(zod@3.25.76)
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -787,8 +787,8 @@ importers:
         specifier: 0.6.0
         version: 0.6.0
       openai:
-        specifier: 6.7.0
-        version: 6.7.0(ws@8.21.0)(zod@3.25.76)
+        specifier: 7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.39)(ws@8.21.0)(zod@3.25.76)
       tsx:
         specifier: ^4.19.0
         version: 4.20.6
@@ -4903,6 +4903,30 @@ packages:
       ws: '>=8.21.0'
       zod: ^3.25 || ^4.0
     peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
+  openai@7.30.0:
+    resolution: {integrity: sha512-tvvcPdhS56B/79o0mJS5h4JndAov5Sz78T7CFl4gJ+C9S3GoSqHNLO6lG/8kdK+/c13zWEI97Srf66ar0V242g==}
+    engines: {node: '>=22.0.0'}
+    peerDependencies:
+      '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
+      '@smithy/hash-node': '>=4.3.0 <5'
+      '@smithy/signature-v4': '>=5.4.0 <6'
+      undici: '>=5 <9'
+      ws: ^8.21.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      '@aws-sdk/credential-provider-node':
+        optional: true
+      '@smithy/hash-node':
+        optional: true
+      '@smithy/signature-v4':
+        optional: true
+      undici:
+        optional: true
       ws:
         optional: true
       zod:
@@ -10588,6 +10612,12 @@ snapshots:
 
   openai@6.7.0(ws@8.21.0)(zod@3.25.76):
     optionalDependencies:
+      ws: 8.21.0
+      zod: 3.25.76
+
+  openai@7.30.0(@aws-sdk/credential-provider-node@3.972.39)(ws@8.21.0)(zod@3.25.76):
+    optionalDependencies:
+      '@aws-sdk/credential-provider-node': 3.972.39
       ws: 8.21.0
       zod: 3.25.76
 

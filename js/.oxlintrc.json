@@ -24,9 +24,9 @@
         "caughtErrorsIgnorePattern": "^_"
       }
     ],
-    "typescript/consistent-return": "warn",
+    "typescript/consistent-return": "error",
     "typescript/no-unsafe-type-assertion": "error",
-    "typescript/prefer-reduce-type-parameter": "warn",
+    "typescript/prefer-reduce-type-parameter": "error",
     "typescript/no-floating-promises": "error",
     "typescript/unbound-method": "error",
     "typescript/restrict-template-expressions": "error",

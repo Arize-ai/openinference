@@ -369,7 +369,7 @@ def test_callback_llm(
         assert retriever_span.parent is not None
         assert retriever_span.parent.span_id == rqa_span.context.span_id
         assert retriever_span.context.trace_id == rqa_span.context.trace_id
-        retriever_attributes = dict(retriever_span.attributes or {})
+        retriever_attributes: Dict[str, Any] = dict(retriever_span.attributes or {})
         assert retriever_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == RETRIEVER.value
         assert retriever_attributes.pop(INPUT_VALUE, None) == question
         assert retriever_attributes.pop(OUTPUT_VALUE, None) is not None

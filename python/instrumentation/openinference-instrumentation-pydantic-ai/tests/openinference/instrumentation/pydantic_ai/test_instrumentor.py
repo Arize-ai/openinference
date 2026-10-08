@@ -7,7 +7,6 @@ import pytest
 from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel
 
 # Import necessary Pydantic AI components
@@ -17,6 +16,7 @@ from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
+from openinference.instrumentation.pydantic_ai._types import AttributeValue
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,

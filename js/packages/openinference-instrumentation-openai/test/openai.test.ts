@@ -19,6 +19,7 @@ import {
   isPatched,
   OpenAIInstrumentation,
 } from "../src";
+import { mockAPIPromise } from "./mockAPIPromise";
 
 const ALL_PROVIDER_VALUES = new Set(Object.values(LLMProvider));
 
@@ -103,10 +104,9 @@ describe("OpenAIInstrumentation", () => {
     };
     // Mock out the chat completions endpoint
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         return response;
-      },
+      }),
     );
     await openai.chat.completions.create({
       messages: [{ role: "user", content: "Say this is a test" }],
@@ -162,10 +162,9 @@ describe("OpenAIInstrumentation", () => {
       },
     };
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         return response;
-      },
+      }),
     );
     await openai.chat.completions.create({
       messages: [{ role: "user", content: "Write a long essay" }],
@@ -200,15 +199,15 @@ describe("OpenAIInstrumentation", () => {
         total_tokens: 17,
         prompt_tokens_details: {
           cached_tokens: 1,
+          cache_write_tokens: 2,
         },
       },
     };
     // Mock out the chat completions endpoint
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         return response;
-      },
+      }),
     );
     await openai.chat.completions.create({
       messages: [{ role: "user", content: "Say this is a test" }],
@@ -234,10 +233,11 @@ describe("OpenAIInstrumentation", () => {
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
         "llm.token_count.prompt_details.cache_read": 1,
+        "llm.token_count.prompt_details.cache_write": 2,
         "llm.token_count.total": 17,
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
-        "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17,"prompt_tokens_details":{"cached_tokens":1}}}",
+        "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17,"prompt_tokens_details":{"cached_tokens":1,"cache_write_tokens":2}}}",
       }
     `);
   });
@@ -259,10 +259,9 @@ describe("OpenAIInstrumentation", () => {
     };
     // Mock out the completions endpoint
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         return response;
-      },
+      }),
     );
     await openai.completions.create({
       prompt: "Say this is a test",
@@ -347,8 +346,7 @@ describe("OpenAIInstrumentation", () => {
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         const iterator = () =>
           (async function* () {
             yield { choices: [{ delta: { content: "This is " } }] };
@@ -357,7 +355,7 @@ describe("OpenAIInstrumentation", () => {
           })();
         const controller = new AbortController();
         return new Stream(iterator, controller);
-      },
+      }),
     );
     const stream = await openai.chat.completions.create({
       messages: [{ role: "user", content: "Say this is a test" }],
@@ -472,22 +470,19 @@ describe("OpenAIInstrumentation", () => {
     };
     vi.spyOn(openai, "post")
       .mockImplementationOnce(
-        // @ts-expect-error the response type is not correct - this is just for testing
-        async (): Promise<unknown> => {
+        mockAPIPromise(openai, async () => {
           return response1;
-        },
+        }),
       )
       .mockImplementationOnce(
-        // @ts-expect-error the response type is not correct - this is just for testing
-        async (): Promise<unknown> => {
+        mockAPIPromise(openai, async () => {
           return response2;
-        },
+        }),
       )
       .mockImplementationOnce(
-        // @ts-expect-error the response type is not correct - this is just for testing
-        async (): Promise<unknown> => {
+        mockAPIPromise(openai, async () => {
           return response3;
-        },
+        }),
       );
 
     const messages = [];
@@ -556,7 +551,7 @@ describe("OpenAIInstrumentation", () => {
     expect(span2.attributes).toMatchInlineSnapshot(`
       {
         "input.mime_type": "application/json",
-        "input.value": "{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"How is the weather this week?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}","parsed_arguments":null}}],"parsed":null},{"role":"tool","tool_call_id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","content":"Boston"}],"tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
+        "input.value": "{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"How is the weather this week?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"arguments":"{}","name":"getCurrentLocation"}}]},{"role":"tool","tool_call_id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","content":"Boston"}],"tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
         "llm.finish_reason": "tool_calls",
         "llm.input_messages.0.message.content": "How is the weather this week?",
         "llm.input_messages.0.message.role": "user",
@@ -591,7 +586,7 @@ describe("OpenAIInstrumentation", () => {
     expect(span3.attributes).toMatchInlineSnapshot(`
       {
         "input.mime_type": "application/json",
-        "input.value": "{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"How is the weather this week?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}","parsed_arguments":null}}],"parsed":null},{"role":"tool","tool_call_id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","content":"Boston"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_0LCdYLkdRUt3rV3dawoIFHBf","type":"function","function":{"name":"getWeather","arguments":"{\\n  \\"location\\": \\"Boston\\"\\n}","parsed_arguments":null}}],"parsed":null},{"role":"tool","tool_call_id":"call_0LCdYLkdRUt3rV3dawoIFHBf","content":"{\\"temperature\\":52,\\"precipitation\\":\\"rainy\\"}"}],"tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
+        "input.value": "{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"How is the weather this week?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"arguments":"{}","name":"getCurrentLocation"}}]},{"role":"tool","tool_call_id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","content":"Boston"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_0LCdYLkdRUt3rV3dawoIFHBf","type":"function","function":{"arguments":"{\\n  \\"location\\": \\"Boston\\"\\n}","name":"getWeather"}}]},{"role":"tool","tool_call_id":"call_0LCdYLkdRUt3rV3dawoIFHBf","content":"{\\"temperature\\":52,\\"precipitation\\":\\"rainy\\"}"}],"tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
         "llm.finish_reason": "stop",
         "llm.input_messages.0.message.content": "How is the weather this week?",
         "llm.input_messages.0.message.role": "user",
@@ -630,8 +625,7 @@ describe("OpenAIInstrumentation", () => {
   });
   it("should capture tool calls with streaming", async () => {
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         const iterator = () =>
           (async function* () {
             yield {
@@ -695,7 +689,7 @@ describe("OpenAIInstrumentation", () => {
           })();
         const controller = new AbortController();
         return new Stream(iterator, controller);
-      },
+      }),
     );
     const stream = await openai.chat.completions.create({
       messages: [{ role: "user", content: "What's the weather today?" }],
@@ -762,8 +756,7 @@ describe("OpenAIInstrumentation", () => {
   });
   it("should capture a function call with streaming", async () => {
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         const iterator = () =>
           (async function* () {
             yield {
@@ -818,7 +811,7 @@ describe("OpenAIInstrumentation", () => {
           })();
         const controller = new AbortController();
         return new Stream(iterator, controller);
-      },
+      }),
     );
     const stream = await openai.chat.completions.create({
       messages: [{ role: "user", content: "What's the weather today?" }],
@@ -899,10 +892,9 @@ describe("OpenAIInstrumentation", () => {
     };
     // Mock out the chat completions endpoint
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         return response;
-      },
+      }),
     );
     const _response = await new Promise((resolve, _reject) => {
       context.with(suppressTracing(context.active()), () => {
@@ -942,10 +934,9 @@ describe("OpenAIInstrumentation", () => {
     };
     // Mock out the chat completions endpoint
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         return response;
-      },
+      }),
     );
     await openai.chat.completions.create({
       messages: [
@@ -1012,10 +1003,9 @@ describe("OpenAIInstrumentation", () => {
     };
     // Mock out the completions endpoint
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         return response;
-      },
+      }),
     );
     await context.with(
       setSession(
@@ -1210,10 +1200,9 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
     };
     // Mock out the completions endpoint
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         return response;
-      },
+      }),
     );
 
     await openai.completions.create({
@@ -1303,10 +1292,9 @@ describe("AzureOpenAIInstrumentation", () => {
     };
     // Mock out the chat completions endpoint
     vi.spyOn(azureOpenai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(azureOpenai, async () => {
         return response;
-      },
+      }),
     );
     await azureOpenai.chat.completions.create({
       messages: [{ role: "user", content: "Say this is a test" }],
@@ -1398,8 +1386,7 @@ describe("AzureOpenAIInstrumentation", () => {
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream
     vi.spyOn(azureOpenai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(azureOpenai, async () => {
         const iterator = () =>
           (async function* () {
             yield { choices: [{ delta: { content: "This is " } }] };
@@ -1408,7 +1395,7 @@ describe("AzureOpenAIInstrumentation", () => {
           })();
         const controller = new AbortController();
         return new Stream(iterator, controller);
-      },
+      }),
     );
     const stream = await azureOpenai.chat.completions.create({
       messages: [{ role: "user", content: "Say this is a test" }],
@@ -1510,10 +1497,9 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
       };
 
       vi.spyOn(openai, "post").mockImplementation(
-        // @ts-expect-error the response type is not correct - this is just for testing
-        async (): Promise<unknown> => {
+        mockAPIPromise(openai, async () => {
           return response;
-        },
+        }),
       );
 
       await openai.chat.completions.create({
@@ -1594,10 +1580,9 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
       };
 
       vi.spyOn(openai, "post").mockImplementation(
-        // @ts-expect-error the response type is not correct - this is just for testing
-        async (): Promise<unknown> => {
+        mockAPIPromise(openai, async () => {
           return response;
-        },
+        }),
       );
 
       await openai.chat.completions.create({
@@ -1681,10 +1666,9 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
       };
 
       vi.spyOn(openai, "post").mockImplementation(
-        // @ts-expect-error the response type is not correct - this is just for testing
-        async (): Promise<unknown> => {
+        mockAPIPromise(openai, async () => {
           return response;
-        },
+        }),
       );
 
       await openai.chat.completions.create({

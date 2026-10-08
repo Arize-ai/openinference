@@ -2,10 +2,10 @@ from types import TracebackType
 from typing import Any, Dict, Mapping, Optional, Type, Union
 
 from opentelemetry.trace import Span, SpanContext, Status, StatusCode
-from opentelemetry.util.types import Attributes, AttributeValue
+from opentelemetry.util.types import Attributes
 from typing_extensions import Self
 
-from ._types import OpenInferenceMimeType
+from ._types import AttributeValue, OpenInferenceMimeType
 from .config import TraceConfig
 
 class OpenInferenceSpan(Span):

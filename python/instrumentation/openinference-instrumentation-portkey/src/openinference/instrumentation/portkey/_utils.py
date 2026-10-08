@@ -3,9 +3,9 @@ import warnings
 from typing import Any, Iterable, Iterator, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.portkey._types import AttributeValue
 from openinference.instrumentation.portkey._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 
@@ -82,3 +82,27 @@ def _finish_tracing(
         )
     except Exception:
         logger.exception("Failed to finish tracing")
+
+
+def _materialize_content_iterables(kwargs: Mapping[str, Any]) -> Mapping[str, Any]:
+    """
+    Turns one-shot iterables (e.g. generators) in the chat messages into lists, so the
+    message contents can be recorded on the span and still be sent by the SDK.
+    """
+    messages = kwargs.get("messages")
+    if not isinstance(messages, Iterable) or isinstance(messages, (str, bytes, Mapping)):
+        return kwargs
+    changed = not isinstance(messages, Sequence)
+    materialized = []
+    for message in messages:
+        if isinstance(message, Mapping):
+            content = message.get("content")
+            if isinstance(content, Iterable) and not isinstance(
+                content, (str, bytes, Sequence, Mapping)
+            ):
+                message = {**message, "content": list(content)}
+                changed = True
+        materialized.append(message)
+    if not changed:
+        return kwargs
+    return {**kwargs, "messages": materialized}
