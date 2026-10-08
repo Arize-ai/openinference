@@ -186,8 +186,13 @@ def get_attributes_from_request_data(
     """
     llm_attributes: dict[str, Any] = {"model_name": request_data["modelId"]}
 
+    invocation_parameters: dict[str, Any] = {}
     if "inferenceConfig" in request_data:
-        llm_attributes["invocation_parameters"] = request_data["inferenceConfig"]
+        invocation_parameters.update(request_data["inferenceConfig"])
+    if "additionalModelRequestFields" in request_data:
+        invocation_parameters.update(request_data["additionalModelRequestFields"])
+    if "inferenceConfig" in request_data or "additionalModelRequestFields" in request_data:
+        llm_attributes["invocation_parameters"] = invocation_parameters
 
     if "toolConfig" in request_data:
         tool_config = request_data["toolConfig"]
@@ -258,12 +263,7 @@ def get_attributes_from_response_data(
     # stopReason is required in ConverseResponseTypeDef but may be absent from
     # stream-constructed responses when no messageStop event was received.
     if "stopReason" in response_data:
-        stop_reason = response_data["stopReason"]
-        llm_attributes["invocation_parameters"] = (
-            dict(request_data["inferenceConfig"]) if "inferenceConfig" in request_data else {}
-        )
-        llm_attributes["invocation_parameters"]["stop_reason"] = stop_reason
-        finish_reason_attributes[SpanAttributes.LLM_FINISH_REASON] = stop_reason
+        finish_reason_attributes[SpanAttributes.LLM_FINISH_REASON] = response_data["stopReason"]
 
     # output is required in ConverseResponseTypeDef and always set by _construct_final_message.
     output = response_data["output"]
