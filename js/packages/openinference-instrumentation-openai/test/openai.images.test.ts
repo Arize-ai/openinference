@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import OpenAI from "openai";
+import OpenAI, { APIPromise } from "openai";
 import type { ImageGenStreamEvent, ImagesResponse } from "openai/resources/images";
 import { Stream } from "openai/streaming";
 import { vi } from "vitest";
@@ -66,6 +66,70 @@ describe("OpenAIInstrumentation - Images", () => {
     const span = memoryExporter.getFinishedSpans()[0];
     expect(span.status.code).toBe(2);
     expect(span.status.message).toBe("request failed");
+  });
+
+  describe("over a real APIPromise", () => {
+    // Assigned directly rather than via vi.spyOn: the spy awaits the returned
+    // APIPromise, which would parse the one-shot response body itself.
+    const mockPost = (responsePromise: Promise<Response>) => {
+      openai.post = (() =>
+        new APIPromise(
+          openai,
+          responsePromise.then((response) => ({
+            response,
+            options: { method: "post", path: "/images/generations" },
+            controller: new AbortController(),
+            requestLogID: "mock",
+            retryOfRequestLogID: undefined,
+            startTime: Date.now(),
+          })) as never,
+        )) as never;
+    };
+    const jsonResponse = () =>
+      new Response(JSON.stringify({ created: 1, data: [{ url: "https://example.com/a.png" }] }), {
+        headers: { "content-type": "application/json" },
+      });
+    afterEach(() => {
+      // Drop the own-property override so the prototype's post is used again.
+      Reflect.deleteProperty(openai, "post");
+    });
+
+    it("records outputs and keeps the prompt out of invocation parameters", async () => {
+      mockPost(Promise.resolve(jsonResponse()));
+
+      const result = await openai.images.generate({ prompt: "a lighthouse", size: "1024x1024" });
+
+      expect(result.data?.[0].url).toBe("https://example.com/a.png");
+      const span = memoryExporter.getFinishedSpans()[0];
+      expect(span.attributes["output.images.0.image.url"]).toBe("https://example.com/a.png");
+      expect(JSON.parse(span.attributes["llm.invocation_parameters"] as string)).toEqual({
+        size: "1024x1024",
+      });
+    });
+
+    it("does not consume the body for callers using asResponse()", async () => {
+      mockPost(Promise.resolve(jsonResponse()));
+
+      const response = await openai.images.generate({ prompt: "a lighthouse" }).asResponse();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      await expect(response.json()).resolves.toMatchObject({
+        data: [{ url: "https://example.com/a.png" }],
+      });
+    });
+
+    it("ends the span when the HTTP request rejects", async () => {
+      mockPost(Promise.reject(new Error("request failed")));
+
+      await expect(openai.images.generate({ prompt: "a lighthouse" })).rejects.toThrow(
+        "request failed",
+      );
+
+      await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+      const span = memoryExporter.getFinishedSpans()[0];
+      expect(span.status.code).toBe(2);
+      expect(span.status.message).toBe("request failed");
+    });
   });
 
   it("captures reusable edit image and mask uploads without serializing their bytes", async () => {

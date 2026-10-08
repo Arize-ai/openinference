@@ -618,19 +618,23 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         clientInstance: unknown,
         body: ImageGenerateParamsBase | ImageEditParamsBase | ImageCreateVariationParams,
         requestBody: Record<string, unknown>,
-      ) =>
-        instrumentation.oiTracer.startSpan(`OpenAI Images`, {
+      ) => {
+        // The prompt is user input: keep it out of the invocation parameters so
+        // hideInputs / hideInputText masking of input.value is not bypassed.
+        const { prompt: _prompt, ...invocationParameters } = requestBody;
+        return instrumentation.oiTracer.startSpan(`OpenAI Images`, {
           kind: SpanKind.INTERNAL,
           attributes: {
             [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
             [SemanticConventions.LLM_MODEL_NAME]: body.model ?? undefined,
             [SemanticConventions.INPUT_VALUE]: JSON.stringify(requestBody),
             [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-            [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(requestBody),
+            [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
             [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
             [SemanticConventions.LLM_PROVIDER]: getLLMProvider(clientInstance),
           },
         });
+      };
 
       type ImagesGenerateType = typeof module.OpenAI.Images.prototype.generate;
       this._wrap(
@@ -1358,8 +1362,10 @@ function invokeMaybeAPIPromiseAsync<T>(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const transformedPromise = promise._thenUnwrap(then) as unknown as APIPromise<T>;
     if (onRejected) {
-      // Observe the transformed promise so the response body is parsed only once.
-      void transformedPromise.catch((error: unknown) => {
+      // Observe the HTTP promise rather than the transformed one: awaiting the
+      // transformed APIPromise here would eagerly parse (consume) the response
+      // body and break callers that use `.asResponse()`.
+      observeRejection(promise, (error: unknown) => {
         onRejected(error instanceof Error ? error : new Error(String(error)));
       });
     }
