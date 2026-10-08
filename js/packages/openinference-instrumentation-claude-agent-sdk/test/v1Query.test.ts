@@ -1,4 +1,4 @@
-import { SpanStatusCode } from "@opentelemetry/api";
+import { DiagLogLevel, SpanStatusCode, diag } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -437,5 +437,170 @@ describe("V1 query() wrapper", () => {
 
     mockModule.query({ prompt: "Say hello" });
     expect(calls).toBe(1);
+  });
+
+  it("ends the AGENT span with ERROR when the SDK query() throws synchronously", () => {
+    const mockModule = {
+      query: (_params: { prompt: string; options?: Record<string, unknown> }) => {
+        throw new Error("spawn failed");
+      },
+    };
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    expect(() => mockModule.query({ prompt: "Say hello" })).toThrow("spawn failed");
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("ClaudeAgent.query");
+    expect(spans[0].status.code).toBe(SpanStatusCode.ERROR);
+    expect(spans[0].status.message).toBe("spawn failed");
+    expect(spans[0].events.some((event) => event.name === "exception")).toBe(true);
+  });
+
+  it("ends the AGENT span when the returned Query is disposed (await using)", async () => {
+    let innerReturned = false;
+    let sdkDisposed = false;
+    const mockModule = {
+      query: (_params: { prompt: string; options?: Record<string, unknown> }) => {
+        const query = {
+          async next() {
+            return { done: false, value: { type: "assistant", content: "working..." } };
+          },
+          async return() {
+            innerReturned = true;
+            return { done: true, value: undefined };
+          },
+          [Symbol.asyncIterator]() {
+            return query;
+          },
+          async [Symbol.asyncDispose]() {
+            sdkDisposed = true;
+          },
+        };
+        return query;
+      },
+    };
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    const q = mockModule.query({ prompt: "Say hello" });
+    await q.next();
+    // What `await using q = query(...)` calls when the scope exits.
+    await q[Symbol.asyncDispose]();
+
+    expect(innerReturned).toBe(true);
+    expect(sdkDisposed).toBe(false);
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].status.code).toBe(SpanStatusCode.OK);
+  });
+
+  it("ends the AGENT span exactly once across repeated return() and next() calls", async () => {
+    const mockModule = createMockModule([
+      { type: "assistant", content: "working..." },
+      { type: "assistant", content: "more work..." },
+    ]);
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    // The SDK span warns (rather than throws) when an ended span is touched
+    // again, so capture those warnings to prove it was ended only once.
+    const endedSpanWarnings: string[] = [];
+    const record = (message: string) => {
+      if (/ended Span/i.test(message)) {
+        endedSpanWarnings.push(message);
+      }
+    };
+    diag.setLogger(
+      { error: record, warn: record, info: () => {}, debug: () => {}, verbose: () => {} },
+      DiagLogLevel.WARN,
+    );
+
+    try {
+      const q = mockModule.query({ prompt: "Say hello" }) as unknown as AsyncGenerator<
+        unknown,
+        void
+      >;
+      await q.next();
+      await q.return(undefined);
+      await q.return(undefined);
+      await q.next();
+      await q.next();
+      await q.next();
+    } finally {
+      diag.disable();
+    }
+
+    expect(endedSpanWarnings).toEqual([]);
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].status.code).toBe(SpanStatusCode.OK);
+  });
+
+  it("keeps the iterator from q[Symbol.asyncIterator]() iterable", async () => {
+    const mockModule = createMockModule([
+      { type: "assistant", content: "working..." },
+      { type: "assistant", content: "more work..." },
+    ]);
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    const iterator = mockModule.query({ prompt: "Say hello" })[Symbol.asyncIterator]();
+    expect(iterator[Symbol.asyncIterator as keyof typeof iterator]).toBeTypeOf("function");
+    const collected: unknown[] = [];
+    for await (const msg of iterator as unknown as AsyncIterable<unknown>) {
+      collected.push(msg);
+    }
+
+    expect(collected).toHaveLength(2);
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].status.code).toBe(SpanStatusCode.OK);
+  });
+
+  it("forwards this-dependent control methods to the SDK Query", async () => {
+    // A class with a #private field: calling interrupt() with the Proxy as
+    // `this` would throw a TypeError, so this proves methods are bound to the
+    // real object.
+    class MockQuery {
+      #interrupted = false;
+      #done = false;
+      async next() {
+        if (this.#done) {
+          return { done: true as const, value: undefined };
+        }
+        this.#done = true;
+        return { done: false as const, value: { type: "assistant", content: "working..." } };
+      }
+      async return() {
+        return { done: true as const, value: undefined };
+      }
+      [Symbol.asyncIterator]() {
+        return this;
+      }
+      async interrupt() {
+        this.#interrupted = true;
+      }
+      get interrupted() {
+        return this.#interrupted;
+      }
+    }
+    const mockModule = {
+      query: (_params: { prompt: string; options?: Record<string, unknown> }) => new MockQuery(),
+    };
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    const q = mockModule.query({ prompt: "Say hello" });
+    await q.interrupt();
+    expect(q.interrupted).toBe(true);
+    for await (const _msg of q) {
+      // consume
+    }
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].status.code).toBe(SpanStatusCode.OK);
   });
 });

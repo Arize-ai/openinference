@@ -48,6 +48,7 @@ type TracedIterator = {
   next(): Promise<IteratorResult<SDKMessage>>;
   return(value?: unknown): Promise<IteratorResult<SDKMessage>>;
   throw(error?: unknown): Promise<IteratorResult<SDKMessage>>;
+  [Symbol.asyncIterator](): TracedIterator;
 };
 
 /**
@@ -57,9 +58,10 @@ type TracedIterator = {
  * The wrapper calls the SDK at `query()` time, as the unwrapped SDK does (it
  * spawns the Claude Code process on call), and returns the SDK's own `Query`
  * object behind a Proxy. Iteration goes through the traced iterator whether
- * the caller uses `for await` or `next()`/`return()`/`throw()` directly, and
- * every other member (`interrupt()`, `setPermissionMode()`, ...) forwards to
- * the SDK object unchanged.
+ * the caller uses `for await`, `next()`/`return()`/`throw()` directly, or
+ * `await using` (`Symbol.asyncDispose`), and every other member
+ * (`interrupt()`, `setPermissionMode()`, ...) forwards to the SDK object
+ * unchanged.
  *
  * @param options.original - The original SDK `query()` function
  * @param options.oiTracer - OITracer instance for creating spans
@@ -98,17 +100,47 @@ export function wrapQuery<TQuery extends AsyncIterable<SDKMessage>>({
       parentSpan: span,
     });
 
-    const query = original({
-      ...params,
-      options: modifiedOptions,
-    });
-
     // Track whether an error result was received so we don't
     // overwrite ERROR status with OK on normal completion.
     let hasError = false;
 
+    // The span can be ended from several paths (a synchronous SDK error,
+    // completion, an iteration error, return(), throw(), dispose); only the
+    // first one records status and ends it.
+    let ended = false;
+    const endSpan = (failure?: { error: unknown }): void => {
+      if (ended) {
+        return;
+      }
+      ended = true;
+      toolTracker.endAllInFlight();
+      if (failure) {
+        if (failure.error instanceof Error) {
+          span.recordException(failure.error);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: failure.error.message,
+          });
+        }
+      } else if (!hasError) {
+        span.setStatus({ code: SpanStatusCode.OK });
+      }
+      span.end();
+    };
+
+    let query: TQuery;
+    try {
+      query = original({
+        ...params,
+        options: modifiedOptions,
+      });
+    } catch (error) {
+      endSpan({ error });
+      throw error;
+    }
+
     // One traced iterator per query, created on first use and shared by every
-    // entry point, so the span ends exactly once.
+    // entry point.
     let tracedIterator: TracedIterator | undefined;
     const getTracedIterator = (): TracedIterator => {
       if (tracedIterator) {
@@ -131,53 +163,32 @@ export function wrapQuery<TQuery extends AsyncIterable<SDKMessage>>({
 
             if (result.done) {
               // Generator completed normally
-              toolTracker.endAllInFlight();
-              if (!hasError) {
-                span.setStatus({ code: SpanStatusCode.OK });
-              }
-              span.end();
+              endSpan();
             }
 
             return result;
           } catch (error) {
-            toolTracker.endAllInFlight();
-            if (error instanceof Error) {
-              span.recordException(error);
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: error.message,
-              });
-            }
-            span.end();
+            endSpan({ error });
             throw error;
           }
         },
         async return(value?: unknown) {
           // Generator abandoned early (e.g., break)
-          toolTracker.endAllInFlight();
-          if (!hasError) {
-            span.setStatus({ code: SpanStatusCode.OK });
-          }
-          span.end();
+          endSpan();
           if (innerIterator.return) {
             return innerIterator.return(value);
           }
           return { done: true as const, value: undefined };
         },
         async throw(error?: unknown) {
-          toolTracker.endAllInFlight();
-          if (error instanceof Error) {
-            span.recordException(error);
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: error.message,
-            });
-          }
-          span.end();
+          endSpan({ error });
           if (innerIterator.throw) {
             return innerIterator.throw(error);
           }
           throw error;
+        },
+        [Symbol.asyncIterator]() {
+          return this;
         },
       };
       return tracedIterator;
@@ -196,6 +207,13 @@ export function wrapQuery<TQuery extends AsyncIterable<SDKMessage>>({
         }
         if (prop === "throw") {
           return (error?: unknown) => getTracedIterator().throw(error);
+        }
+        if (prop === Symbol.asyncDispose) {
+          // `await using q = query(...)` disposes through the traced return()
+          // so the span ends; the SDK's own dispose does the same return().
+          return async () => {
+            await getTracedIterator().return(undefined);
+          };
         }
         // Everything else is the SDK's own member. Bind methods to the real
         // object so implementations that rely on `this` keep working.
