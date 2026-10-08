@@ -22,6 +22,7 @@ from openinference.instrumentation.bedrock import (
     BedrockInstrumentor,
 )
 from openinference.instrumentation.bedrock._converse_attributes import (
+    get_attributes_from_request_data,
     get_attributes_from_response_data,
 )
 from openinference.instrumentation.bedrock.utils._extract_invoke_model_attributes import (
@@ -998,6 +999,48 @@ def _run_converse_checks(
             prompt_template_variables,
         )
     assert attributes == {}
+
+
+def test_converse_invocation_parameters_include_additional_model_request_fields() -> None:
+    request = {
+        "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+        "inferenceConfig": {"maxTokens": 100, "temperature": 0.3},
+        "additionalModelRequestFields": {"top_k": 40, "thinking": {"type": "enabled"}},
+    }
+    attributes = get_attributes_from_request_data(request)  # type: ignore[arg-type]
+
+    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
+        "maxTokens": 100,
+        "temperature": 0.3,
+        "top_k": 40,
+        "thinking": {"type": "enabled"},
+    }
+
+
+def test_converse_response_does_not_add_finish_reason_to_invocation_parameters() -> None:
+    request = {
+        "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+        "inferenceConfig": {"maxTokens": 100},
+        "additionalModelRequestFields": {"top_k": 40},
+    }
+    response = {
+        "output": {"message": {"role": "assistant", "content": [{"text": "hi"}]}},
+        "usage": {"inputTokens": 5, "outputTokens": 2, "totalTokens": 7},
+        "stopReason": "end_turn",
+    }
+
+    attributes = get_attributes_from_request_data(request)  # type: ignore[arg-type]
+    attributes.update(
+        get_attributes_from_response_data(request, response)  # type: ignore[arg-type]
+    )
+
+    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
+        "maxTokens": 100,
+        "top_k": 40,
+    }
+    assert attributes[LLM_FINISH_REASON] == "end_turn"
 
 
 @pytest.mark.parametrize(
