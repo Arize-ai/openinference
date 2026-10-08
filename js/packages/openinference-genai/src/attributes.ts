@@ -4,6 +4,7 @@ import {
   ATTR_GEN_AI_AGENT_ID,
   ATTR_GEN_AI_AGENT_NAME,
   ATTR_GEN_AI_COMPLETION,
+  ATTR_GEN_AI_CONVERSATION_ID,
   ATTR_GEN_AI_INPUT_MESSAGES,
   ATTR_GEN_AI_OPERATION_NAME,
   ATTR_GEN_AI_OUTPUT_MESSAGES,
@@ -152,13 +153,17 @@ const isGenAIChatMessage = (value: unknown): value is ChatMessage => {
 };
 
 /**
- * Normalize a GenAI tool definition into the OpenAI-style tool schema shape expected by OpenInference.
- * @param toolDefinition - The tool definition to normalize
- * @returns The normalized tool definition, or the original value when it cannot be normalized
+ * Type guard for a plain record object.
+ * @param value - The value to check
  */
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/**
+ * Normalize a GenAI tool definition into the OpenAI-style tool schema shape expected by OpenInference.
+ * @param toolDefinition - The tool definition to normalize
+ * @returns The normalized tool definition, or the original value when it cannot be normalized
+ */
 const normalizeToolDefinition = (toolDefinition: unknown): unknown => {
   if (!isRecord(toolDefinition)) {
     return toolDefinition;
@@ -341,6 +346,7 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
   return merge(
     mapProviderAndSystem(spanAttributes),
     mapAgentAttributes(spanAttributes),
+    mapConversationId(spanAttributes),
     mapModels(spanAttributes),
     mapFinishReason(spanAttributes),
     mapSpanKind(spanAttributes),
@@ -385,6 +391,23 @@ export const mapAgentAttributes = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
   const agentName = getString(spanAttributes[ATTR_GEN_AI_AGENT_NAME]);
   set(attrs, SemanticConventions.AGENT_NAME, agentName);
+  return attrs;
+};
+
+/**
+ * Map the GenAI conversation id to the OpenInference session id.
+ *
+ * gen_ai.conversation.id identifies the conversation (session or thread) a span belongs to,
+ * which is what session.id represents in OpenInference. An explicit session.id takes precedence.
+ *
+ * @param spanAttributes - The GenAI span attributes to read the conversation id from
+ * @returns The mapped OpenInference session attributes
+ */
+export const mapConversationId = (spanAttributes: Attributes): Attributes => {
+  const attrs: Attributes = {};
+  const sessionId = getString(spanAttributes[SemanticConventions.SESSION_ID]);
+  const conversationId = getString(spanAttributes[ATTR_GEN_AI_CONVERSATION_ID]);
+  set(attrs, SemanticConventions.SESSION_ID, sessionId ?? conversationId);
   return attrs;
 };
 

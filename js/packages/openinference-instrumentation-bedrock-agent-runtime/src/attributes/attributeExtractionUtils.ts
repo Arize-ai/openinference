@@ -316,7 +316,7 @@ export function getAttributesFromModelInvocationInput(
 /**
  * Extract attributes from model invocation output.
  * Processes the model invocation output to extract relevant attributes such as model name,
- * invocation parameters, output messages, and token counts. Combine these attributes with
+ * invocation parameters, output messages, finish reason, and token counts. Combine these attributes with
  * LLM-specific attributes and output attributes.
  * @param modelInvocationOutput The model invocation output dictionary.
  * @returns A dictionary of extracted attributes.
@@ -336,6 +336,7 @@ export function getAttributesFromModelInvocationOutput(
     );
   }
   llmAttributes["outputMessages"] = getOutputMessages(modelInvocationOutput || {});
+  llmAttributes["finishReason"] = getFinishReason(modelInvocationOutput || {});
   llmAttributes["tokenCount"] = getTokenCounts(modelInvocationOutput);
   let requestAttributes = {
     ...getLLMAttributes({ ...llmAttributes }),
@@ -348,6 +349,48 @@ export function getAttributesFromModelInvocationOutput(
     };
   }
   return requestAttributes;
+}
+
+/**
+ * Extracts a provider-native finish reason from the raw model trace response.
+ *
+ * @param modelInvocationOutput - The model invocation output dictionary.
+ * @returns The extracted finish reason string if found, otherwise `undefined`.
+ */
+function getFinishReason(modelInvocationOutput: StringKeyedObject): string | undefined {
+  const rawResponse = getObjectDataFromUnknown({ data: modelInvocationOutput, key: "rawResponse" });
+  const content = rawResponse?.content;
+  const responseBody = typeof content === "string" ? parseSanitizedJson(content) : content;
+  if (!isObjectWithStringKeys(responseBody)) return undefined;
+
+  for (const key of [
+    "stopReason",
+    "stop_reason",
+    "finishReason",
+    "finish_reason",
+    "completionReason",
+  ]) {
+    const value = responseBody[key];
+    if (typeof value === "string" && value) return value;
+  }
+
+  // Match Bedrock InvokeModel extraction by using the first completion's reason.
+  for (const [collectionKey, reasonKey] of [
+    ["results", "completionReason"],
+    ["generations", "finish_reason"],
+    ["outputs", "stop_reason"],
+    ["choices", "finish_reason"],
+    ["completions", "finishReason"],
+  ]) {
+    const collection = responseBody[collectionKey];
+    if (!Array.isArray(collection) || !isObjectWithStringKeys(collection[0])) continue;
+    const value = collection[0][reasonKey];
+    if (typeof value === "string" && value) return value;
+    if (collectionKey === "completions" && isObjectWithStringKeys(value)) {
+      if (typeof value.reason === "string" && value.reason) return value.reason;
+    }
+  }
+  return undefined;
 }
 
 /**

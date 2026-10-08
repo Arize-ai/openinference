@@ -90,6 +90,9 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     expect(typeof response).toBe("object");
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(3);
+    for (const span of spans) {
+      expect(span.attributes).not.toHaveProperty(SemanticConventions.LLM_FINISH_REASON);
+    }
   });
 
   it("should record guardrail trace", async () => {
@@ -296,6 +299,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     });
     expect(llmSpan).toBeDefined();
     expect(llmSpan?.name).toBe("LLM");
+    expect(llmSpan?.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("end_turn");
   });
 
   it("should record all pre post orchestration traces", async () => {
@@ -442,6 +446,13 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
       );
     });
     expect(llmSpans.length).toBe(11);
+    const finishReasons = llmSpans
+      .map((span) => span.attributes[SemanticConventions.LLM_FINISH_REASON])
+      .filter((reason) => reason !== undefined);
+    expect(finishReasons).toEqual(["tool_use", "tool_use", "tool_use"]);
+    for (const span of spans.filter((span) => !llmSpans.includes(span))) {
+      expect(span.attributes).not.toHaveProperty(SemanticConventions.LLM_FINISH_REASON);
+    }
     llmSpans.forEach((span) => {
       expect(span.name).toBe("LLM");
       const modelName = span.attributes[SemanticConventions.LLM_MODEL_NAME];

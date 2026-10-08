@@ -13,6 +13,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import Context
 
 from openinference.instrumentation import (
+    OITracer,
     get_attributes_from_context,
     get_output_attributes,
 )
@@ -84,7 +85,7 @@ class _TransparentScopeEntry:
 class CrewAIEventAssembler:
     """Assembles CrewAI start/end events into OpenTelemetry spans."""
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
         self._spans: "OrderedDict[str, _SpanEntry]" = OrderedDict()
         self._transparent_contexts: "OrderedDict[str, _TransparentScopeEntry]" = OrderedDict()

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.27...python-openinference-instrumentation-instructor-v0.1.28) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.69 ([#3911](https://github.com/Arize-ai/openinference/issues/3911)) ([ac30a8f](https://github.com/Arize-ai/openinference/commit/ac30a8f3df9da1c0fb00f923a5281ad5cec94674))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.41 ([#3907](https://github.com/Arize-ai/openinference/issues/3907)) ([04fe33f](https://github.com/Arize-ai/openinference/commit/04fe33f2b10147ec4481983f725d89a9ca42fc5f))
+
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.26...python-openinference-instrumentation-instructor-v0.1.27) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+* **instructor:** instrument the v2 retry call path; tolerate modern patch() API ([#3763](https://github.com/Arize-ai/openinference/issues/3763)) ([39a7c71](https://github.com/Arize-ai/openinference/commit/39a7c71154f81d065bdff5824f1444155b1bdf4b))
+
 ## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.25...python-openinference-instrumentation-instructor-v0.1.26) (2026-09-10)
 
 

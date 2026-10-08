@@ -60,11 +60,11 @@ from opentelemetry.trace import (
     Tracer,
     set_span_in_context,
 )
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.instrumentation.openai_agents._tool_schemas import get_tool_schema
+from openinference.instrumentation.openai_agents._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -1102,6 +1102,10 @@ def _get_attributes_from_usage(
     yield LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
     if obj.input_tokens_details:
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, obj.input_tokens_details.cached_tokens
+        if (
+            cache_write_tokens := getattr(obj.input_tokens_details, "cache_write_tokens", None)
+        ) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_write_tokens
     if obj.output_tokens_details:
         yield (
             LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
@@ -1167,6 +1171,9 @@ LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
     SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
 )

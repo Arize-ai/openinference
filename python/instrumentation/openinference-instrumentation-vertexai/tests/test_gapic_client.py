@@ -41,11 +41,11 @@ from google.cloud.aiplatform_v1.services.prediction_service.transports import ( 
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan, Tracer
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_attributes
 from openinference.instrumentation.vertexai import VertexAIInstrumentor
-from openinference.instrumentation.vertexai._wrapper import _role
+from openinference.instrumentation.vertexai._types import AttributeValue
+from openinference.instrumentation.vertexai._wrapper import _role, _update_span
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
@@ -179,6 +179,84 @@ async def test_instrumentor(
         spans_by_id[span.context.span_id] = span
     for span in spans[1:]:
         assert is_descendant(span, spans[0], spans_by_id)
+
+
+def test_instrumentor_multiple_function_responses(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer: Tracer,
+) -> None:
+    # One content carrying several function_response parts (the reply to
+    # parallel function calls) records each part as its own tool message.
+    request = GenerateContentRequest(
+        dict(
+            model="publishers/google/models/gemini-2.0-flash",
+            contents=[
+                dict(role="user", parts=[dict(text="Add 2+2 and check the weather in Paris.")]),
+                dict(
+                    role="user",
+                    parts=[
+                        dict(
+                            function_response=FunctionResponse.from_json(
+                                json.dumps(dict(name="calculator", response=dict(result="4")))
+                            )
+                        ),
+                        dict(
+                            function_response=FunctionResponse.from_json(
+                                json.dumps(
+                                    dict(name="get_weather", response=dict(result="sunny, 22C"))
+                                )
+                            )
+                        ),
+                    ],
+                ),
+                dict(
+                    role="user",
+                    parts=[
+                        dict(text="here you go"),
+                        dict(
+                            function_response=FunctionResponse.from_json(
+                                json.dumps(dict(name="calculator", response=dict(result="4")))
+                            )
+                        ),
+                    ],
+                ),
+            ],
+        )
+    )
+    with tracer.start_as_current_span("test") as span:
+        _update_span(request, span)
+    spans = in_memory_span_exporter.get_finished_spans()
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    prefix = LLM_INPUT_MESSAGES
+    assert attributes.pop(message_role(prefix, 0), None) == "user"
+    assert (
+        attributes.pop(message_contents_text(prefix, 0, 0), None)
+        == "Add 2+2 and check the weather in Paris."
+    )
+    # each function_response part becomes its own tool message, in order
+    assert attributes.pop(message_role(prefix, 1), None) == "tool"
+    assert attributes.pop(message_name(prefix, 1), None) == "calculator"
+    assert json.loads(cast(str, attributes.pop(message_content(prefix, 1), None))) == {
+        "result": "4"
+    }
+    assert attributes.pop(message_role(prefix, 2), None) == "tool"
+    assert attributes.pop(message_name(prefix, 2), None) == "get_weather"
+    assert json.loads(cast(str, attributes.pop(message_content(prefix, 2), None))) == {
+        "result": "sunny, 22C"
+    }
+    # a mixed content keeps its own role and its other parts
+    assert attributes.pop(message_role(prefix, 3), None) == "user"
+    assert attributes.pop(message_contents_text(prefix, 3, 0), None) == "here you go"
+    assert attributes.pop(message_role(prefix, 4), None) == "tool"
+    assert attributes.pop(message_name(prefix, 4), None) == "calculator"
+    assert json.loads(cast(str, attributes.pop(message_content(prefix, 4), None))) == {
+        "result": "4"
+    }
+    assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
+    assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS, None), str)
+    assert attributes == {}
 
 
 @pytest.mark.parametrize("hide_inputs", [False, True])

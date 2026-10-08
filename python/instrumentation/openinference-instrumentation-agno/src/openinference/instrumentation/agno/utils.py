@@ -2,10 +2,25 @@ from collections import OrderedDict
 from enum import Enum
 from inspect import signature
 from secrets import token_hex
-from typing import Any, Callable, Dict, Iterator, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, Mapping, Optional, Sequence, Tuple, Union
 
 from opentelemetry import context as context_api
-from opentelemetry.util.types import AttributeValue
+
+# opentelemetry-api>=1.45.0 defines ``AttributeValue`` via a chained assignment
+# (``AnyValue = AttributeValue = ...``), which mypy treats as a plain variable
+# rather than a type alias, raising ``Variable ... is not valid as a type``.
+# Define our own alias (equivalent to opentelemetry's pre-1.45 definition) so it
+# can be used in type annotations regardless of the installed opentelemetry version.
+AttributeValue = Union[
+    str,
+    bool,
+    int,
+    float,
+    Sequence[str],
+    Sequence[bool],
+    Sequence[int],
+    Sequence[float],
+]
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 # Marks that the current async task is already covered by a Workflow.arun span,

@@ -110,6 +110,56 @@ const (
 	LLMTools = "llm.tools"
 )
 
+// Decision-span attributes — set when the span represents a call to a
+// decision model (SpanKindDecision): a model that takes state plus typed
+// questions and returns a typed, probabilistic answer per question instead
+// of generated text. These mirror the llm.* identification attributes and
+// share their well-known values. See
+// https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+// for the convention and the decision model families it covers.
+const (
+	// DecisionModelName is the name of the decision model being used.
+	DecisionModelName = "decision.model_name"
+
+	// DecisionRequestModelName is the decision model requested by the caller,
+	// as sent in the request. May differ from DecisionResponseModelName when
+	// the provider resolves an alias (e.g. jev-latest) or routes the request.
+	DecisionRequestModelName = "decision.request.model_name"
+
+	// DecisionResponseModelName is the decision model that actually produced
+	// the response, as reported by the provider.
+	DecisionResponseModelName = "decision.response.model_name"
+
+	// DecisionProvider is the hosting provider of the decision model: who runs
+	// the hardware that answered (e.g. "typesafe" when calling TypeSafe
+	// directly, or the cloud or self-hosting provider for a model served
+	// elsewhere). Distinct from DecisionSystem, which names the API shape.
+	// Well-known values are the DecisionProvider* constants, which alias the
+	// matching LLMProvider* constants.
+	DecisionProvider = "decision.provider"
+
+	// DecisionSystem is the decision API ecosystem the call conforms to, i.e.
+	// which request and response shape the client speaks, as identified by
+	// the client or server: "typesafe" for the TypeSafe System One / Jev API,
+	// "openai" for the OpenAI Decisions API. A self-hosted vLLM server
+	// answering the Jev-compatible /v1/systemone shape is still "typesafe".
+	// Distinct from DecisionProvider, which says who hosts the model.
+	// Well-known values are the DecisionSystem* constants, which alias the
+	// matching LLMSystem* constants.
+	DecisionSystem = "decision.system"
+
+	// DecisionTokenCountInput is the number of input tokens consumed by a
+	// decision model call: the state, questions, and candidate options. Maps
+	// to usage.input_tokens in TypeSafe System One responses.
+	DecisionTokenCountInput = "decision.token_count.input"
+
+	// DecisionTokenCountOutput is the number of output tokens produced by a
+	// decision model call. Decision models emit typed answers rather than
+	// text, so this is typically small. Maps to usage.output_tokens in
+	// TypeSafe System One responses.
+	DecisionTokenCountOutput = "decision.token_count.output"
+)
+
 // Token-count attributes for LLM spans. Values are integer counts of tokens.
 const (
 	LLMTokenCountPrompt                     = "llm.token_count.prompt"

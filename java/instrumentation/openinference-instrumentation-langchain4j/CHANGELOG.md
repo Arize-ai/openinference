@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-langchain4j-v0.1.8...java-openinference-instrumentation-langchain4j-v0.1.9) (2026-09-25)
+
+
+### Features
+
+* **langchain4j:** Add Finish Reason Attribute ([#3838](https://github.com/Arize-ai/openinference/issues/3838)) ([c7d0d7d](https://github.com/Arize-ai/openinference/commit/c7d0d7d9a3eda20e366b4e34147d1bbafbfc854f))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-langchain4j-v0.1.7...java-openinference-instrumentation-langchain4j-v0.1.8) (2026-04-04)
 
 

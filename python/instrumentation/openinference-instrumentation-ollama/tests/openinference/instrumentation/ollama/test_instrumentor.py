@@ -76,7 +76,7 @@ def test_chat(in_memory_span_exporter: InMemorySpanExporter) -> None:
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    attrs = dict(span.attributes or {})
+    attrs: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "Chat"
     assert span.status.status_code == trace_api.StatusCode.OK
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
@@ -334,7 +334,7 @@ def test_context_attributes_propagation(in_memory_span_exporter: InMemorySpanExp
     assert attrs[SpanAttributes.SESSION_ID] == "my-session"
     assert attrs[SpanAttributes.USER_ID] == "my-user"
     assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
-    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]
 
 
 @pytest.mark.vcr

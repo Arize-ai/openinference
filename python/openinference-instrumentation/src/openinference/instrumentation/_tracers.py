@@ -42,7 +42,7 @@ from opentelemetry.trace import (
     Tracer,
     use_span,
 )
-from opentelemetry.util.types import Attributes, AttributeValue
+from opentelemetry.util.types import Attributes
 from typing_extensions import ParamSpec, TypeVar, _AnnotatedAlias, overload
 
 from openinference.semconv.trace import (
@@ -52,12 +52,12 @@ from openinference.semconv.trace import (
 
 from ._attributes import (
     get_input_attributes,
-    get_llm_attributes,
     get_span_kind_attributes,
     get_tool_attributes,
 )
 from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
+from ._types import AttributeValue
 from .config import (
     TraceConfig,
     mask_without_externalization,
@@ -218,7 +218,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         (the real, uploader-enabled masking happens exactly once in
         ``OpenInferenceSpan.set_attribute`` after the span exists).
         """
-        masked_attributes = {}
+        masked_attributes: Dict[str, Any] = {}
         for key, value in attributes.items():
             masked_value = mask_without_externalization(self._self_config, key, value)
             if masked_value is not None:
@@ -589,6 +589,85 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
+        return self._model_call(
+            wrapped_function,
+            kind=OpenInferenceSpanKindValues.LLM,
+            name=name,
+            process_input=process_input,
+            process_output=process_output,
+        )
+
+    @overload  # @tracer.decision usage with no explicit application of the decorator
+    def decision(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+        process_input: None = None,
+        process_output: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # @tracer.decision(...) usage with explicit application of the decorator
+    def decision(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
+    ) -> Callable[
+        [Callable[ParametersType, ReturnType]],
+        Callable[ParametersType, ReturnType],
+    ]: ...
+
+    def decision(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        """Trace a decision model call as a DECISION span.
+
+        A decision model scores or selects among candidate options supplied in the
+        request rather than generating text. The decorator behaves exactly like
+        :meth:`llm`: it captures the arguments as ``input.value`` and the return
+        value as ``output.value`` unless ``process_input`` / ``process_output`` are
+        given, and supports sync, async, generator and async generator functions.
+        Use :func:`get_decision_attributes` in those callbacks to record the
+        ``decision.*`` model identification and token counts.
+        """
+        return self._model_call(
+            wrapped_function,
+            kind=OpenInferenceSpanKindValues.DECISION,
+            name=name,
+            process_input=process_input,
+            process_output=process_output,
+        )
+
+    def _model_call(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        kind: OpenInferenceSpanKindValues,
+        name: Optional[str] = None,
+        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        # LLM and DECISION spans differ only in span kind: both wrap a model call
+        # whose input and output are captured as-is unless custom processors are
+        # given.
         @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_function_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
@@ -597,8 +676,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
             kwargs: Dict[str, Any],
         ) -> ReturnType:
             tracer = self
-            with _llm_context(
+            with _model_call_context(
                 tracer=tracer,
+                kind=kind,
                 name=name,
                 process_input=process_input,
                 process_output=process_output,
@@ -606,9 +686,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
                 instance=instance,
                 args=args,
                 kwargs=kwargs,
-            ) as llm_context:
+            ) as model_call_context:
                 output = wrapped(*args, **kwargs)
-                llm_context.process_output(output)
+                model_call_context.process_output(output)
                 return output
 
         @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
@@ -619,8 +699,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
             kwargs: Dict[str, Any],
         ) -> ReturnType:
             tracer = self
-            with _llm_context(
+            with _model_call_context(
                 tracer=tracer,
+                kind=kind,
                 name=name,
                 process_input=process_input,
                 process_output=process_output,
@@ -628,9 +709,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
                 instance=instance,
                 args=args,
                 kwargs=kwargs,
-            ) as llm_context:
+            ) as model_call_context:
                 output = await wrapped(*args, **kwargs)
-                llm_context.process_output(output)
+                model_call_context.process_output(output)
                 return output
 
         @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
@@ -641,8 +722,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
             kwargs: Dict[str, Any],
         ) -> Generator[ReturnType, None, None]:
             tracer = self
-            with _llm_context(
+            with _model_call_context(
                 tracer=tracer,
+                kind=kind,
                 name=name,
                 process_input=process_input,
                 process_output=process_output,
@@ -650,7 +732,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
                 instance=instance,
                 args=args,
                 kwargs=kwargs,
-            ) as llm_context:
+            ) as model_call_context:
                 outputs: list[ReturnType] = []
                 generator = wrapped(*args, **kwargs)
                 while True:
@@ -659,11 +741,11 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
                     except StopIteration:
                         break
                     except Exception:
-                        llm_context.process_output(outputs)
+                        model_call_context.process_output(outputs)
                         raise
                     outputs.append(output)
                     yield output
-                llm_context.process_output(outputs)
+                model_call_context.process_output(outputs)
 
         @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_generator_function_wrapper(
@@ -673,8 +755,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
             kwargs: Dict[str, Any],
         ) -> AsyncGenerator[ReturnType, None]:
             tracer = self
-            with _llm_context(
+            with _model_call_context(
                 tracer=tracer,
+                kind=kind,
                 name=name,
                 process_input=process_input,
                 process_output=process_output,
@@ -682,7 +765,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
                 instance=instance,
                 args=args,
                 kwargs=kwargs,
-            ) as llm_context:
+            ) as model_call_context:
                 outputs: list[ReturnType] = []
                 generator = wrapped(*args, **kwargs)
                 while True:
@@ -691,11 +774,11 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
                     except StopAsyncIteration:
                         break
                     except Exception:
-                        llm_context.process_output(outputs)
+                        model_call_context.process_output(outputs)
                         raise
                     outputs.append(output)
                     yield output
-                llm_context.process_output(outputs)
+                model_call_context.process_output(outputs)
 
         def select_wrapper(
             wrapped: Any,
@@ -756,7 +839,7 @@ def _chain_context(
         span.set_status(Status(StatusCode.OK))
 
 
-class _LLMContext:
+class _ModelCallContext:
     def __init__(
         self,
         span: "OpenInferenceSpan",
@@ -781,9 +864,10 @@ class _LLMContext:
 
 
 @contextmanager
-def _llm_context(
+def _model_call_context(
     *,
     tracer: "OITracer",
+    kind: OpenInferenceSpanKindValues,
     name: Optional[str],
     process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]],
     process_output: Optional[Callable[[ReturnType], "Mapping[str, AttributeValue]"]],
@@ -791,8 +875,8 @@ def _llm_context(
     instance: Any,
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
-) -> Iterator[_LLMContext]:
-    llm_span_name = name or _infer_span_name(instance=instance, callable=wrapped)
+) -> Iterator[_ModelCallContext]:
+    span_name = name or _infer_span_name(instance=instance, callable=wrapped)
     bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
     bound_args.apply_defaults()
     arguments = bound_args.arguments
@@ -804,16 +888,12 @@ def _llm_context(
             warnings.warn(f"Failed to get attributes from inputs: {error}")
     else:
         input_attributes = get_input_attributes(arguments)
-    llm_attributes = get_llm_attributes()
     with tracer.start_as_current_span(
-        llm_span_name,
-        openinference_span_kind=OpenInferenceSpanKindValues.LLM,
-        attributes={
-            **input_attributes,
-            **llm_attributes,
-        },
+        span_name,
+        openinference_span_kind=kind,
+        attributes=input_attributes,
     ) as span:
-        context = _LLMContext(
+        context = _ModelCallContext(
             span=span,
             process_output=process_output,
         )

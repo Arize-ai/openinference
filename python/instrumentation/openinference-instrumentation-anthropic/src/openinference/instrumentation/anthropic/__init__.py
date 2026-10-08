@@ -12,19 +12,20 @@ from openinference.instrumentation.anthropic._wrappers import (
     _AsyncMessagesStreamWrapper,
     _AsyncMessageStreamManager,
     _AsyncMessagesWrapper,
-    _AsyncTransformWrapper,
+    _AsyncPrepareRequestDataWrapper,
     _BetaAsyncMessageStreamManager,
     _BetaMessageStreamManager,
     _MessagesStreamWrapper,
     _MessageStreamManager,
     _MessagesWrapper,
-    _TransformWrapper,
+    _PrepareRequestDataWrapper,
 )
 from openinference.instrumentation.anthropic.version import __version__
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
-_instruments = ("anthropic >= 1.0.0",)
+_instruments = ("anthropic >= 1.8.0",)
 
 
 class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
@@ -43,8 +44,8 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_async_beta_messages_stream",
         "_original_beta_messages_parse",
         "_original_async_beta_messages_parse",
-        "_original_transform",
-        "_original_async_transform",
+        "_original_prepare_request_data",
+        "_original_async_prepare_request_data",
         "_instruments",
         "_tracer",
     )
@@ -192,24 +193,31 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ),
         )
 
-        import anthropic._utils._transform as _transform_module
+        self._wrap_request_preparation()
 
-        self._original_transform = _transform_module.transform
-        wrap_function_wrapper(
-            "anthropic._utils._transform",
-            "transform",
-            _TransformWrapper(),
-        )
+    def _wrap_request_preparation(self) -> None:
+        from anthropic import _base_client
 
-        self._original_async_transform = _transform_module.async_transform
+        self._original_prepare_request_data = None
+        self._original_async_prepare_request_data = None
+        try:
+            original = getattr(_base_client, "prepare_request_data")
+            async_original = getattr(_base_client, "async_prepare_request_data")
+        except AttributeError:
+            logger.warning(
+                "Could not find Anthropic request preparation functions. Some invocation "
+                "parameters may be missing from LLM spans."
+            )
+            return
+        wrap_function_wrapper(_base_client, "prepare_request_data", _PrepareRequestDataWrapper())
         wrap_function_wrapper(
-            "anthropic._utils._transform",
-            "async_transform",
-            _AsyncTransformWrapper(),
+            _base_client, "async_prepare_request_data", _AsyncPrepareRequestDataWrapper()
         )
+        self._original_prepare_request_data = original
+        self._original_async_prepare_request_data = async_original
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        import anthropic._utils._transform as _transform_module
+        from anthropic import _base_client
         from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
         from anthropic.resources.beta.messages import Messages as BetaMessages
         from anthropic.resources.messages import AsyncMessages, Messages
@@ -244,7 +252,11 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if self._original_async_beta_messages_parse is not None:
             AsyncBetaMessages.parse = self._original_async_beta_messages_parse  # type: ignore[method-assign]
 
-        if self._original_transform is not None:
-            _transform_module.transform = self._original_transform
-        if self._original_async_transform is not None:
-            _transform_module.async_transform = self._original_async_transform
+        if self._original_prepare_request_data is not None:
+            setattr(_base_client, "prepare_request_data", self._original_prepare_request_data)
+        if self._original_async_prepare_request_data is not None:
+            setattr(
+                _base_client,
+                "async_prepare_request_data",
+                self._original_async_prepare_request_data,
+            )

@@ -314,7 +314,7 @@ def test_realtime_spans_propagate_metadata_from_context(
     for span in spans:
         assert span.attributes is not None
         raw = span.attributes[SpanAttributes.METADATA]
-        assert json.loads(raw) == metadata  # type: ignore[arg-type]
+        assert json.loads(raw) == metadata
 
 
 def test_realtime_spans_propagate_tags_from_context(

@@ -1,8 +1,8 @@
 import pytest
 from openai.types.responses.response_reasoning_item_param import ResponseReasoningItemParam, Summary
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
+from openinference.instrumentation.openai._types import AttributeValue
 
 
 class TestResponseReasoningItemParam:

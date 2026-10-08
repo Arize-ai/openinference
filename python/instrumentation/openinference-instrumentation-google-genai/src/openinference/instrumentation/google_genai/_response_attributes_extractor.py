@@ -3,9 +3,9 @@ import logging
 from typing import Any, Iterable, Iterator, Mapping, Optional
 
 from google.genai import types
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _get_attributes_from_content_text,
