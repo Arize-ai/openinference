@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.13...python-openinference-instrumentation-cohere-v0.1.14) (2026-10-08)
+
+
+### Bug Fixes
+
+* **cohere:** end LLM span when stream is abandoned or closed early ([#3784](https://github.com/Arize-ai/openinference/issues/3784)) ([#3918](https://github.com/Arize-ai/openinference/issues/3918)) ([29d97da](https://github.com/Arize-ai/openinference/commit/29d97da79d01b5b3366ca9110ea8d0510f93ad15))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.12...python-openinference-instrumentation-cohere-v0.1.13) (2026-10-01)
 
 
