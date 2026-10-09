@@ -1175,6 +1175,99 @@ const safelyGetRerankAttributes = withSafety({
   onError: onErrorCallback("rerank"),
 });
 
+const normalizeDecisionProvider = (provider: string): string =>
+  provider === "typesafe-ai" || provider === "typesafe.decision" ? "typesafe" : provider;
+
+const getDecisionModelAttributes = (attributes: Attributes): Attributes => {
+  const result: Attributes = {};
+  const modelId =
+    attributes["gen_ai.request.model"] ?? attributes[VercelAISemanticConventions.MODEL_ID];
+  const responseModel =
+    attributes["gen_ai.response.model"] ?? attributes[VercelAISemanticConventions.RESPONSE_MODEL];
+  const provider =
+    attributes["gen_ai.provider.name"] ?? attributes[VercelAISemanticConventions.MODEL_PROVIDER];
+
+  if (typeof modelId === "string") {
+    result[SemanticConventions.DECISION_MODEL_NAME] = modelId;
+  }
+  if (
+    typeof modelId === "string" &&
+    typeof responseModel === "string" &&
+    responseModel !== modelId
+  ) {
+    result[SemanticConventions.DECISION_REQUEST_MODEL_NAME] = modelId;
+    result[SemanticConventions.DECISION_RESPONSE_MODEL_NAME] = responseModel;
+    result[SemanticConventions.DECISION_MODEL_NAME] = responseModel;
+  }
+
+  // Gateway model IDs identify the API ecosystem even when the gateway hosts the call.
+  const systemName =
+    typeof modelId === "string" && modelId.includes("/") ? modelId.split("/")[0] : provider;
+  if (typeof systemName === "string") {
+    result[SemanticConventions.DECISION_SYSTEM] = normalizeDecisionProvider(systemName);
+  }
+  if (typeof provider === "string") {
+    result[SemanticConventions.DECISION_PROVIDER] = normalizeDecisionProvider(provider);
+  }
+
+  return result;
+};
+
+const getDecisionUsageAttributes = (attributes: Attributes): Attributes => {
+  const result: Attributes = {};
+  const inputTokens =
+    attributes["gen_ai.usage.input_tokens"] ??
+    attributes[VercelAISemanticConventions.TOKEN_COUNT_INPUT];
+  const outputTokens =
+    attributes["gen_ai.usage.output_tokens"] ??
+    attributes[VercelAISemanticConventions.TOKEN_COUNT_OUTPUT];
+  if (typeof inputTokens === "number") {
+    result[SemanticConventions.DECISION_TOKEN_COUNT_INPUT] = inputTokens;
+  }
+  if (typeof outputTokens === "number") {
+    result[SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT] = outputTokens;
+  }
+
+  return result;
+};
+
+const getDecisionIOAttributes = (attributes: Attributes): Attributes => {
+  const result: Attributes = {};
+  const state = attributes[VercelAISemanticConventions.DECISION_STATE];
+  const questions = attributes[VercelAISemanticConventions.DECISION_QUESTIONS];
+  if (typeof state === "string" && typeof questions === "string") {
+    const parsedState = safelyJSONParse(state);
+    const parsedQuestions = safelyJSONParse(questions);
+    if (parsedState !== undefined && parsedQuestions !== undefined) {
+      result[SemanticConventions.INPUT_VALUE] = JSON.stringify({
+        state: parsedState,
+        questions: parsedQuestions,
+      });
+      result[SemanticConventions.INPUT_MIME_TYPE] = MimeType.JSON;
+    }
+  }
+
+  const answers = attributes[VercelAISemanticConventions.DECISION_ANSWERS];
+  if (typeof answers === "string" && safelyJSONParse(answers) !== undefined) {
+    result[SemanticConventions.OUTPUT_VALUE] = answers;
+    result[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  return result;
+};
+
+/** Maps AI SDK decision telemetry into the dedicated OpenInference namespace. */
+const getDecisionAttributes = (attributes: Attributes): Attributes => ({
+  ...getDecisionModelAttributes(attributes),
+  ...getDecisionUsageAttributes(attributes),
+  ...getDecisionIOAttributes(attributes),
+});
+
+const safelyGetDecisionAttributes = withSafety({
+  fn: getDecisionAttributes,
+  onError: onErrorCallback("decision"),
+});
+
 /**
  * Gets Vercel-specific attributes that are not covered by gen_ai.* conventions
  * @param attributes - The span attributes
@@ -1313,6 +1406,17 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: finalSpanKind,
   };
 
+  if (finalSpanKind === OpenInferenceSpanKind.DECISION) {
+    // Generic GenAI conversion treats every model call as an LLM. Decision models
+    // have their own identification and usage semantics, so discard those keys.
+    Object.keys(result).forEach((key) => {
+      if (key.startsWith("llm.")) {
+        delete result[key];
+      }
+    });
+    Object.assign(result, safelyGetDecisionAttributes(attributes));
+  }
+
   // A session.id already on the span (e.g. propagated from setSession context) takes precedence
   // over the one derived from gen_ai.conversation.id.
   if (attributes[SemanticConventions.SESSION_ID] != null) {
@@ -1381,6 +1485,23 @@ export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
   Object.entries(newAttributes).forEach(([key, value]) => {
     span.attributes[key] = value;
   });
+
+  if (
+    newAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.DECISION
+  ) {
+    // Phoenix and other consumers can independently convert these GenAI model
+    // fields back into llm.*. Remove them after preserving their decision mapping.
+    Object.keys(span.attributes).forEach((key) => {
+      if (
+        key === "gen_ai.provider.name" ||
+        key === "gen_ai.request.model" ||
+        key === "gen_ai.response.model" ||
+        key.startsWith("gen_ai.usage.")
+      ) {
+        delete span.attributes[key];
+      }
+    });
+  }
 
   // Remove GenAI semantic convention events (e.g., ai.stream.firstChunk, ai.stream.finish)
   // These are Vercel AI SDK stream events that are not needed for OpenInference.

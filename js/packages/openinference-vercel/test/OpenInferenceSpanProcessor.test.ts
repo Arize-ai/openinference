@@ -1273,6 +1273,81 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
     },
   );
 
+  it("converts AI SDK v7 decision model telemetry without LLM attributes", () => {
+    const span = trace.getTracer("test-tracer").startSpan("decide jev-latest");
+    span.setAttributes({
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "typesafe.decision",
+      "gen_ai.request.model": "jev-latest",
+      "gen_ai.usage.input_tokens": 24,
+      "gen_ai.usage.output_tokens": 2,
+      "ai.decision.state": JSON.stringify("Customer asks about an invoice."),
+      "ai.decision.questions": JSON.stringify({ route: { type: "choice" } }),
+      "ai.decision.answers": JSON.stringify({ route: { type: "choice", choice: "billing" } }),
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.DECISION,
+    );
+    expect(attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe("jev-latest");
+    expect(attributes[SemanticConventions.DECISION_SYSTEM]).toBe("typesafe");
+    expect(attributes[SemanticConventions.DECISION_PROVIDER]).toBe("typesafe");
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_INPUT]).toBe(24);
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT]).toBe(2);
+    expect(JSON.parse(attributes[SemanticConventions.INPUT_VALUE] as string)).toEqual({
+      state: "Customer asks about an invoice.",
+      questions: { route: { type: "choice" } },
+    });
+    expect(JSON.parse(attributes[SemanticConventions.OUTPUT_VALUE] as string)).toEqual({
+      route: { type: "choice", choice: "billing" },
+    });
+    expect(attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(MimeType.JSON);
+    expect(attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(MimeType.JSON);
+    expect(Object.keys(attributes).filter((key) => key.startsWith("llm."))).toEqual([]);
+    expect(attributes["gen_ai.request.model"]).toBeUndefined();
+    expect(attributes["gen_ai.usage.input_tokens"]).toBeUndefined();
+  });
+
+  it("identifies a gateway-hosted decision model from its model ID", () => {
+    const span = trace.getTracer("test-tracer").startSpan("decide typesafe-ai/jev");
+    span.setAttributes({
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "vercel",
+      "gen_ai.request.model": "typesafe-ai/jev",
+      "ai.response.model": "jev-1.13.0",
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.DECISION_SYSTEM]).toBe("typesafe");
+    expect(attributes[SemanticConventions.DECISION_PROVIDER]).toBe("vercel");
+    expect(attributes[SemanticConventions.DECISION_REQUEST_MODEL_NAME]).toBe("typesafe-ai/jev");
+    expect(attributes[SemanticConventions.DECISION_RESPONSE_MODEL_NAME]).toBe("jev-1.13.0");
+    expect(attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe("jev-1.13.0");
+  });
+
+  it("converts legacy AI SDK decision attributes", () => {
+    const span = trace.getTracer("test-tracer").startSpan("ai.decide.doDecide");
+    span.setAttributes({
+      "operation.name": "ai.decide.doDecide",
+      "ai.model.id": "jev-latest",
+      "ai.model.provider": "typesafe-ai",
+      "ai.usage.inputTokens": 12,
+      "ai.usage.outputTokens": 1,
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.DECISION,
+    );
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_INPUT]).toBe(12);
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT]).toBe(1);
+    expect(Object.keys(attributes).filter((key) => key.startsWith("llm."))).toEqual([]);
+  });
+
   it("should expand AI SDK v7 multi-tool response messages into separate tool messages", () => {
     const tracer = trace.getTracer("test-tracer");
     const span = tracer.startSpan("chat gpt-4o-mini");

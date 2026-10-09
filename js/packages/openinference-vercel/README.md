@@ -94,6 +94,7 @@ registerTelemetry(
     providerMetadata: true,
     embedding: true,
     reranking: true,
+    experimental_decision: true,
     runtimeContext: true,
     headers: true,
     toolChoice: true,
@@ -143,6 +144,7 @@ export function register() {
       providerMetadata: true,
       embedding: true,
       reranking: true,
+      experimental_decision: true,
       runtimeContext: true,
       headers: true,
       toolChoice: true,
@@ -191,6 +193,10 @@ const result = await generateText({
 To disable telemetry for a single call, set `telemetry: { isEnabled: false }`.
 
 For details on AI SDK v7 telemetry, see the [AI SDK telemetry documentation](https://ai-sdk.dev/docs/ai-sdk-core/telemetry).
+
+### Decision models
+
+AI SDK `experimental_decide` calls require `ai` 7.0.128 or later and `@ai-sdk/otel` 1.0.128 or later. The processor maps their spans to `DECISION`, with `decision.model_name`, `decision.system`, `decision.provider`, and available `decision.token_count.*` attributes. Set `experimental_decision: true` on `OpenTelemetry` to include the state, questions, and answers as JSON input and output. The [Jev decision example](./examples/ai-sdk-decision.ts) calls TypeSafe's hosted model with `@ai-sdk/typesafe-ai` and requires `TYPESAFE_API_KEY`.
 
 For more information on Vercel OpenTelemetry support, see the [Vercel OpenTelemetry guide](https://vercel.com/docs/observability/otel-overview).
 

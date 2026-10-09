@@ -57,6 +57,7 @@ registerTelemetry(
     headers: true,
     toolChoice: true,
     schema: true,
+    experimental_decision: true,
   }),
 );
 
