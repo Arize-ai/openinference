@@ -31,7 +31,8 @@ export const VercelSDKFunctionNameToSpanKindMap = new Map([
  * A map of Vercel eve control-flow span names to OpenInference span kinds.
  * eve 0.75 and earlier set these under the operation.name attribute. eve 0.76 and later set
  * operation.name and gen_ai.operation.name to the generic "workflow" instead, and keep the span
- * name under the resource.name attribute, so both attributes are matched against this map.
+ * name under the resource.name attribute, so resource.name is also matched against this map
+ * when gen_ai.operation.name is "workflow".
  * Neither "workflow" nor a missing gen_ai.operation.name is a kind the GenAI converter
  * recognizes, so without an explicit mapping these spans fall through to its LLM default.
  * The model call and tool execution beneath them are the chat (LLM) and execute_tool (TOOL) spans.
