@@ -398,6 +398,8 @@ jobs:
             --head "$BRANCH" \
             --title "$PR_TITLE" \
             --body-file "$BODY_FILE")
+          # Auto-merge once a reviewer approves and checks pass.
+          gh pr merge "$PR_URL" --auto --squash || echo "::warning::Could not enable auto-merge on $PR_URL"
           {
             echo "status=pr_opened"
             echo "pr_url=$PR_URL"
