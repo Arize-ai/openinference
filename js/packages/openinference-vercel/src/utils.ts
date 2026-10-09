@@ -78,12 +78,12 @@ const getOISpanKindFromAttributes = (
 
   // eve 0.76+ sets operation.name and gen_ai.operation.name to "workflow" on its control-flow
   // spans and keeps the span name (e.g. agent.step) under resource.name. Only that shape is
-  // matched here, so a span with a recognized gen_ai.operation.name keeps its kind.
+  // matched here, so every other span classifies as it did before.
   const maybeResourceName = attributes["resource.name"];
   if (
     typeof maybeResourceName === "string" &&
     !hasAgentIdentity &&
-    (maybeGenAIOperationName == null || maybeGenAIOperationName === "workflow")
+    maybeGenAIOperationName === "workflow"
   ) {
     const spanKind = EveOperationNameToSpanKindMap.get(maybeResourceName);
     if (spanKind != null) {
