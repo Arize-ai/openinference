@@ -60,17 +60,27 @@ const getOISpanKindFromAttributes = (
   if (existingOISpanKind != null && typeof existingOISpanKind === "string") {
     return existingOISpanKind;
   }
+  const hasAgentIdentity = GenAIAgentIdentityAttributes.some((key) => attributes[key] != null);
   const maybeOperationName = attributes["operation.name"];
   if (typeof maybeOperationName === "string") {
     const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
     if (maybeFunctionName != null) {
-      const hasAgentIdentity = GenAIAgentIdentityAttributes.some((key) => attributes[key] != null);
       const spanKind =
         VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName) ??
         (hasAgentIdentity ? undefined : EveOperationNameToSpanKindMap.get(maybeFunctionName));
       if (spanKind != null) {
         return spanKind;
       }
+    }
+  }
+
+  // eve 0.76+ sets operation.name to "workflow" on its control-flow spans and keeps the span
+  // name (e.g. agent.step) under resource.name.
+  const maybeResourceName = attributes["resource.name"];
+  if (typeof maybeResourceName === "string" && !hasAgentIdentity) {
+    const spanKind = EveOperationNameToSpanKindMap.get(maybeResourceName);
+    if (spanKind != null) {
+      return spanKind;
     }
   }
 

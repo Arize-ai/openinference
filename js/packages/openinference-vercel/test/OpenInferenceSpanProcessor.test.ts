@@ -387,6 +387,46 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
       },
     },
   ],
+  [
+    // eve 0.76+: operation.name is "workflow" and the span name moves to resource.name.
+    "eve 0.76 agent.step span",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.step",
+        "agent.framework.name": "eve",
+        "agent.name": "eve-agent",
+        "agent.step.index": 0,
+        "agent.model.id": "anthropic/claude-sonnet-4.6",
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+        "gen_ai.generation.id": "gen_01M4HDKFBBK6AHEKX0MEJMZAX4",
+        "gen_ai.usage.cost": 0.01799025,
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+    },
+  ],
+  [
+    "eve 0.76 agent.approval span",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.approval",
+        "agent.approval.kind": "tool-approval",
+        "agent.approval.outcome": "approved",
+        "agent.step.index": 0,
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+    },
+  ],
 ];
 
 /**
