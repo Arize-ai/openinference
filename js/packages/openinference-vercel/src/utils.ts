@@ -1417,6 +1417,20 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
     Object.assign(result, safelyGetDecisionAttributes(attributes));
   }
 
+  if (
+    finalSpanKind === OpenInferenceSpanKind.CHAIN &&
+    attributes["gen_ai.operation.name"] === "decide"
+  ) {
+    // The outer decide operation wraps the model call. Keep its input and
+    // output, but leave model identity and usage on the child DECISION span.
+    Object.keys(result).forEach((key) => {
+      if (key.startsWith("llm.")) {
+        delete result[key];
+      }
+    });
+    Object.assign(result, getDecisionIOAttributes(attributes));
+  }
+
   // A session.id already on the span (e.g. propagated from setSession context) takes precedence
   // over the one derived from gen_ai.conversation.id.
   if (attributes[SemanticConventions.SESSION_ID] != null) {
@@ -1487,7 +1501,9 @@ export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
   });
 
   if (
-    newAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.DECISION
+    newAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.DECISION ||
+    (newAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.CHAIN &&
+      span.attributes["gen_ai.operation.name"] === "decide")
   ) {
     // Phoenix and other consumers can independently convert these GenAI model
     // fields back into llm.*. Remove them after preserving their decision mapping.

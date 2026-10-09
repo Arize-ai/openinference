@@ -51,7 +51,10 @@ For a standalone TypeScript or Node.js application exporting to Phoenix, create 
 ```typescript
 // instrumentation.ts
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-import { OpenInferenceBatchSpanProcessor } from "@arizeai/openinference-vercel";
+import {
+  enrichSpanWithOpenInference,
+  OpenInferenceBatchSpanProcessor,
+} from "@arizeai/openinference-vercel";
 
 import { OpenTelemetry } from "@ai-sdk/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
@@ -89,6 +92,7 @@ tracerProvider.register();
 
 registerTelemetry(
   new OpenTelemetry({
+    enrichSpan: enrichSpanWithOpenInference,
     // Optional, but recommended for fuller OpenInference coverage.
     usage: true,
     providerMetadata: true,
@@ -128,6 +132,7 @@ import { registerOTel } from "@vercel/otel";
 import { registerTelemetry } from "ai";
 import { OpenTelemetry } from "@ai-sdk/otel";
 import {
+  enrichSpanWithOpenInference,
   isOpenInferenceSpan,
   OpenInferenceSimpleSpanProcessor,
 } from "@arizeai/openinference-vercel";
@@ -139,6 +144,7 @@ export function register() {
 
   registerTelemetry(
     new OpenTelemetry({
+      enrichSpan: enrichSpanWithOpenInference,
       // Optional, but recommended for fuller OpenInference coverage.
       usage: true,
       providerMetadata: true,
@@ -196,7 +202,7 @@ For details on AI SDK v7 telemetry, see the [AI SDK telemetry documentation](htt
 
 ### Decision models
 
-AI SDK `experimental_decide` calls require `ai` 7.0.128 or later and `@ai-sdk/otel` 1.0.128 or later. The processor maps their spans to `DECISION`, with `decision.model_name`, `decision.system`, `decision.provider`, and available `decision.token_count.*` attributes. Set `experimental_decision: true` on `OpenTelemetry` to include the state, questions, and answers as JSON input and output. The [Jev decision example](./examples/ai-sdk-decision.ts) calls TypeSafe's hosted model with `@ai-sdk/typesafe-ai` and requires `TYPESAFE_API_KEY`.
+AI SDK `experimental_decide` calls require `ai` 7.0.128 or later and `@ai-sdk/otel` 1.0.128 or later. The SDK emits an outer operation span and a child model-call span. Pass `enrichSpan: enrichSpanWithOpenInference` to `OpenTelemetry` to classify the outer operation as `CHAIN` and the model call as `DECISION`. The [Jev decision example](./examples/ai-sdk-decision.ts) calls TypeSafe's hosted model with `@ai-sdk/typesafe-ai` and requires `TYPESAFE_API_KEY`.
 
 For more information on Vercel OpenTelemetry support, see the [Vercel OpenTelemetry guide](https://vercel.com/docs/observability/otel-overview).
 

@@ -13,6 +13,7 @@ import {
 
 import type { SpanFilter } from "../src";
 import {
+  enrichSpanWithOpenInference,
   isOpenInferenceSpan,
   OpenInferenceBatchSpanProcessor,
   OpenInferenceSimpleSpanProcessor,
@@ -1183,6 +1184,84 @@ function setupTraceProvider({
   traceProvider = new BasicTracerProvider({ spanProcessors: [processor] });
   trace.setGlobalTracerProvider(traceProvider);
 }
+
+test.each([
+  ["simple", OpenInferenceSimpleSpanProcessor],
+  ["batch", OpenInferenceBatchSpanProcessor],
+] as const)(
+  "distinguishes decision operation and model call with the %s processor",
+  async (_name, Processor) => {
+    setupTraceProvider({ Processor });
+    const tracer = trace.getTracer("test-tracer");
+    const decisionAttributes = {
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "typesafe.decision",
+      "gen_ai.request.model": "jev-latest",
+      "ai.decision.state": JSON.stringify("Customer asks about an invoice."),
+      "ai.decision.questions": JSON.stringify({ route: { type: "choice" } }),
+    };
+    const operationAttributes = enrichSpanWithOpenInference({
+      spanType: "operation",
+      operationId: "ai.decide",
+      callId: "test-call",
+      runtimeContext: undefined,
+    });
+    const modelCallAttributes = enrichSpanWithOpenInference({
+      spanType: "experimental_decision",
+      operationId: "ai.decide.doDecide",
+      callId: "test-call",
+      runtimeContext: undefined,
+    });
+
+    const operation = tracer.startSpan("decide jev-latest", {
+      attributes: { ...decisionAttributes, ...operationAttributes },
+    });
+    const modelCall = tracer.startSpan(
+      "decide jev-latest",
+      { attributes: { ...decisionAttributes, ...modelCallAttributes } },
+      trace.setSpan(context.active(), operation),
+    );
+    modelCall.setAttribute("ai.decision.answers", JSON.stringify({ route: { choice: "billing" } }));
+    modelCall.end();
+    operation.setAttribute("ai.decision.answers", JSON.stringify({ route: { choice: "billing" } }));
+    operation.end();
+    await processor.forceFlush();
+
+    const spans = memoryExporter.getFinishedSpans();
+    const exportedOperation = spans.find(
+      (span) => span.spanContext().spanId === operation.spanContext().spanId,
+    );
+    const exportedModelCall = spans.find(
+      (span) => span.spanContext().spanId === modelCall.spanContext().spanId,
+    );
+    expect(exportedOperation?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.CHAIN,
+    );
+    expect(exportedModelCall?.parentSpanId).toBe(operation.spanContext().spanId);
+    expect(exportedModelCall?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.DECISION,
+    );
+    expect(exportedModelCall?.attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe(
+      "jev-latest",
+    );
+    expect(exportedOperation?.attributes[SemanticConventions.INPUT_VALUE]).toBeDefined();
+    expect(exportedOperation?.attributes[SemanticConventions.OUTPUT_VALUE]).toBeDefined();
+    expect(
+      Object.keys(exportedOperation?.attributes ?? {}).some(
+        (key) => key.startsWith("decision.") || key.startsWith("llm."),
+      ),
+    ).toBe(false);
+    expect(
+      enrichSpanWithOpenInference({
+        spanType: "languageModel",
+        operationId: "ai.generateText",
+        callId: "test-call",
+        runtimeContext: undefined,
+      }),
+    ).toBeUndefined();
+    trace.disable();
+  },
+);
 
 describe("OpenInferenceSimpleSpanProcessor", () => {
   beforeEach(() => {
