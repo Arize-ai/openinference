@@ -1,5 +1,6 @@
 # ruff: noqa: E501
 import asyncio
+import gc
 import json
 import random
 import string
@@ -2797,6 +2798,173 @@ async def test_closing_async_generator_holding_streaming_create_context_is_not_a
     span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.UNSET
     assert not span.events
+
+
+def _output_texts(span: ReadableSpan) -> List[str]:
+    output = json.loads(str(dict(span.attributes or {})[OUTPUT_VALUE]))
+    return [block["text"] for block in output["content"]]
+
+
+@pytest.mark.parametrize(
+    "exhaust,status_code",
+    [
+        pytest.param(True, trace_api.StatusCode.OK, id="exhausted"),
+        pytest.param(False, trace_api.StatusCode.UNSET, id="closed_early"),
+    ],
+)
+def test_closing_streaming_create_is_recorded(
+    exhaust: bool,
+    status_code: trace_api.StatusCode,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Closing the stream ends the span with the events read so far."""
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    stream = client.messages.create(**_REQUEST_KWARGS, stream=True)
+    events = iter(stream)
+    if exhaust:
+        list(events)
+    else:
+        for _ in range(3):  # up to the text delta
+            next(events)
+    stream.close()
+
+    assert stream.response.is_closed
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == status_code
+    assert _output_texts(span) == ["hi"]
+
+
+@pytest.mark.parametrize(
+    "exhaust,status_code",
+    [
+        pytest.param(True, trace_api.StatusCode.OK, id="exhausted"),
+        pytest.param(False, trace_api.StatusCode.UNSET, id="closed_early"),
+    ],
+)
+async def test_async_closing_streaming_create_is_recorded(
+    exhaust: bool,
+    status_code: trace_api.StatusCode,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_event_stream_handler)
+
+    stream = await client.messages.create(**_REQUEST_KWARGS, stream=True)
+    events = stream.__aiter__()
+    if exhaust:
+        async for _ in events:
+            pass
+    else:
+        for _ in range(3):  # up to the text delta
+            await events.__anext__()
+    closing = stream.close()
+    if not exhaust:
+        # the span ends once the close has been awaited
+        assert not in_memory_span_exporter.get_finished_spans()
+    await closing
+
+    assert stream.response.is_closed
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == status_code
+    assert _output_texts(span) == ["hi"]
+
+
+def test_exception_closing_streaming_create_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    class FailingToCloseStream(httpx2.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            yield _event_stream_body()
+
+        def close(self) -> None:
+            raise OSError("close failed")
+
+    def handler(request: Any) -> Any:
+        return httpx2.Response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            stream=FailingToCloseStream(),
+        )
+
+    client = _mock_anthropic_client(handler)
+
+    stream = client.messages.create(**_REQUEST_KWARGS, stream=True)
+    next(iter(stream))
+    with pytest.raises(OSError):
+        stream.close()
+
+    _assert_error_span(in_memory_span_exporter, OSError)
+
+
+@pytest.mark.parametrize(
+    "events_read,texts",
+    [
+        pytest.param(0, None, id="never_iterated"),
+        pytest.param(3, ["hi"], id="left_early"),
+    ],
+)
+def test_abandoned_streaming_create_is_recorded(
+    events_read: int,
+    texts: Optional[List[str]],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """A stream dropped without being exhausted or closed still ends its span."""
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    stream = client.messages.create(**_REQUEST_KWARGS, stream=True)
+    if events_read:
+        for i, _ in enumerate(stream, 1):
+            if i == events_read:
+                break
+    del stream
+    gc.collect()
+
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    if texts is None:
+        assert OUTPUT_VALUE not in (span.attributes or {})
+    else:
+        assert _output_texts(span) == texts
+
+
+@pytest.mark.parametrize(
+    "events_read,texts",
+    [
+        pytest.param(0, None, id="never_iterated"),
+        pytest.param(3, ["hi"], id="left_early"),
+    ],
+)
+async def test_async_abandoned_streaming_create_is_recorded(
+    events_read: int,
+    texts: Optional[List[str]],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_event_stream_handler)
+
+    stream = await client.messages.create(**_REQUEST_KWARGS, stream=True)
+    if events_read:
+        i = 0
+        async for _ in stream:
+            i += 1
+            if i == events_read:
+                break
+    del stream
+    # the event loop closes the abandoned iteration, which holds the stream, on a later turn
+    for _ in range(5):
+        await asyncio.sleep(0)
+    gc.collect()
+
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    if texts is None:
+        assert OUTPUT_VALUE not in (span.attributes or {})
+    else:
+        assert _output_texts(span) == texts
 
 
 async def test_cancellation_leaving_async_streaming_create_context_is_recorded(

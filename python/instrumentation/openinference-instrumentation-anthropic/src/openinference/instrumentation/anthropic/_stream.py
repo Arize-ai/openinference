@@ -1,8 +1,10 @@
+import inspect
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
     AsyncIterator,
+    Awaitable,
     Dict,
     Iterator,
     Optional,
@@ -160,6 +162,37 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
             self._finish_tracing_on_exit(exception)
             raise
         self._finish_tracing_on_exit(exc_val)
+
+    # Closing the stream, or dropping it, before it is exhausted never ends iteration, so these
+    # finish the span with what was read so far, leaving the status unset as when the context is
+    # left early.
+
+    def close(self) -> Any:
+        try:
+            result = self.__wrapped__.close()
+        except BaseException as exception:
+            self._finish_tracing_on_exit(exception)
+            raise
+        if inspect.isawaitable(result):
+            # the async SDK stream closes in a coroutine
+            return self._finish_tracing_after_close(result)
+        self._finish_tracing_on_exit(None)
+        return result
+
+    async def _finish_tracing_after_close(self, closing: Awaitable[Any]) -> Any:
+        try:
+            result = await closing
+        except BaseException as exception:
+            self._finish_tracing_on_exit(exception)
+            raise
+        self._finish_tracing_on_exit(None)
+        return result
+
+    def __del__(self) -> None:
+        try:
+            self._finish_tracing()
+        except BaseException:
+            pass
 
     def _finish_tracing_on_exit(self, exception: Optional[BaseException]) -> None:
         # GeneratorExit: a generator holding the context was closed, which leaves the stream
