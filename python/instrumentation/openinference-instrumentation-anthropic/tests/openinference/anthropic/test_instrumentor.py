@@ -3680,6 +3680,107 @@ def test_finish_reason_values_messages_create_streaming(
     assert attributes.get(LLM_FINISH_REASON) == stop_reason
 
 
+def test_document_block_in_input_messages(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    def handler(request: Any) -> Any:
+        return httpx2.Response(
+            status_code=200,
+            json={
+                "id": "msg_doc123",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-sonnet-4-6",
+                "content": [{"type": "text", "text": "This is a PDF about onboarding."}],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 25, "output_tokens": 7},
+            },
+        )
+
+    client = _mock_anthropic_client(handler)
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=64,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": "JVBERi0xLjQKJdPr6eEKMSAwIG9iago=",
+                        },
+                    },
+                    {"type": "text", "text": "Summarize this PDF"},
+                ],
+            }
+        ],
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    prefix = f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0"
+    assert attributes.get(f"{prefix}.{MESSAGE_CONTENT_TYPE}") == "document"
+    assert attributes.get(f"{prefix}.message_content.document.media_type") == "application/pdf"
+    text_prefix = f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1"
+    assert attributes.get(f"{text_prefix}.{MESSAGE_CONTENT_TYPE}") == "text"
+    assert attributes.get(f"{text_prefix}.{MESSAGE_CONTENT_TEXT}") == "Summarize this PDF"
+
+
+def test_plain_text_document_block_in_input_messages(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    def handler(request: Any) -> Any:
+        return httpx2.Response(
+            status_code=200,
+            json={
+                "id": "msg_doc124",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-sonnet-4-6",
+                "content": [{"type": "text", "text": "Quarterly revenue grew 12%."}],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 20, "output_tokens": 6},
+            },
+        )
+
+    client = _mock_anthropic_client(handler)
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=64,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "text",
+                            "media_type": "text/plain",
+                            "data": "Q3 revenue grew 12% year over year.",
+                        },
+                        "title": "Q3 report",
+                    },
+                ],
+            }
+        ],
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    prefix = f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0"
+    assert attributes.get(f"{prefix}.{MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.get(f"{prefix}.{MESSAGE_CONTENT_TEXT}") == "Q3 revenue grew 12% year over year."
+    )
+
+
 CHAIN = OpenInferenceSpanKindValues.CHAIN
 LLM = OpenInferenceSpanKindValues.LLM
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
