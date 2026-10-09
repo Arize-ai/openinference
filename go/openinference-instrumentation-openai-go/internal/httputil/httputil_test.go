@@ -213,3 +213,60 @@ func TestSpanEndingBody_NonEOFReadErrorDoesNotEnd(t *testing.T) {
 		t.Fatalf("expected 1 ended span after Close, got %d", got)
 	}
 }
+
+func TestSpanEndingBody_HooksObserveBytesAndRunOnceBeforeEnd(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	_, span := tp.Tracer("test").Start(context.Background(), "stream")
+
+	const stream = "data: one\n\ndata: two\n\n"
+	var seen strings.Builder
+	var calls int
+	body := &httputil.SpanEndingBody{
+		ReadCloser: io.NopCloser(strings.NewReader(stream)),
+		Span:       span,
+		OnRead:     func(p []byte) { seen.Write(p) },
+		BeforeEnd: func(failed bool) {
+			calls++
+			if failed {
+				t.Error("BeforeEnd reported failed on a clean stream")
+			}
+			if got := len(recorder.Ended()); got != 0 {
+				t.Errorf("BeforeEnd ran after the span ended (%d ended)", got)
+			}
+		},
+	}
+	got, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	_ = body.Close()
+
+	if string(got) != stream || seen.String() != stream {
+		t.Errorf("caller got %q, OnRead saw %q, want %q", got, seen.String(), stream)
+	}
+	if calls != 1 {
+		t.Errorf("BeforeEnd ran %d times, want 1", calls)
+	}
+	if n := len(recorder.Ended()); n != 1 {
+		t.Errorf("expected 1 ended span, got %d", n)
+	}
+}
+
+func TestSpanEndingBody_BeforeEndReportsReadFailure(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	_, span := tp.Tracer("test").Start(context.Background(), "stream")
+
+	var failed bool
+	body := &httputil.SpanEndingBody{
+		ReadCloser: &erroringReader{},
+		Span:       span,
+		BeforeEnd:  func(f bool) { failed = f },
+	}
+	_, _ = body.Read(make([]byte, 8))
+	_ = body.Close()
+	if !failed {
+		t.Error("BeforeEnd should report failed after a non-EOF read error")
+	}
+}

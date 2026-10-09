@@ -826,6 +826,30 @@ func TestMiddleware_InvocationParamsCaptureForwardCompatibleFields(t *testing.T)
 	}
 }
 
+func TestChatCompletions_SpanNameUnchanged(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(okResponse))
+	}))
+	defer server.Close()
+
+	recorder := tracetest.NewSpanRecorder()
+	tp := trace.NewTracerProvider(trace.WithSpanProcessor(recorder))
+	client := newClient(t, server.URL, tp)
+
+	_, err := client.Chat.Completions.New(context.Background(), openaisdk.ChatCompletionNewParams{
+		Model:    shared.ChatModelGPT4o,
+		Messages: []openaisdk.ChatCompletionMessageParamUnion{openaisdk.UserMessage("hi")},
+	})
+	if err != nil {
+		t.Fatalf("Chat.Completions.New: %v", err)
+	}
+	_ = tp.ForceFlush(context.Background())
+	if got := recorder.Ended()[0].Name(); got != "openai.chat.completions.create" {
+		t.Errorf("chat span name: got %q", got)
+	}
+}
+
 // okResponse is a minimal valid chat.completion response body used by
 // tests that only care about request-side attribute behaviour.
 const okResponse = `{

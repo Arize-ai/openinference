@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	openaisdk "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/responses"
-	"github.com/openai/openai-go/shared"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -127,8 +127,9 @@ func TestResponses_TextResponse(t *testing.T) {
 	if got := spans[0].Name(); got != responsesSpanName {
 		t.Errorf("span name: got %q want %q", got, responsesSpanName)
 	}
-	if got := spans[0].Status().Code; got != codes.Unset {
-		t.Errorf("span status: got %s want Unset", got)
+	// Successful Responses calls are marked OK, as in Python and JS.
+	if got := spans[0].Status().Code; got != codes.Ok {
+		t.Errorf("span status: got %s want Ok", got)
 	}
 
 	assertExactAttrs(t, attrMap(spans[0].Attributes()), map[string]any{
@@ -266,21 +267,22 @@ func TestResponses_ToolOutputsInInput(t *testing.T) {
 		semconv.InputValue:                string(upstreamReq),
 		semconv.InputMimeType:             semconv.MimeTypeJSON,
 		semconv.LLMInputMessageRoleKey(0): "user",
-		contentKey(semconv.LLMInputMessages, 0, 0, semconv.MessageContentType): "text",
-		contentKey(semconv.LLMInputMessages, 0, 0, semconv.MessageContentText): "Weather in Paris?",
-		// The image part (index 1) is not recorded but keeps its index.
-		contentKey(semconv.LLMInputMessages, 0, 2, semconv.MessageContentType):          "text",
-		contentKey(semconv.LLMInputMessages, 0, 2, semconv.MessageContentText):          "Use Celsius.",
-		semconv.LLMInputMessageRoleKey(1):                                               "assistant",
-		semconv.LLMInputMessageToolCallKey(1, 0, semconv.ToolCallID):                    "call_abc",
-		semconv.LLMInputMessageToolCallKey(1, 0, semconv.ToolCallFunctionName):          "get_weather",
-		semconv.LLMInputMessageToolCallKey(1, 0, semconv.ToolCallFunctionArgumentsJSON): `{"city":"Paris"}`,
-		semconv.LLMInputMessageRoleKey(2):                                               "tool",
-		semconv.LLMInputMessageToolCallIDKey(2):                                         "call_abc",
-		semconv.LLMInputMessageContentKey(2):                                            `{"temp_c":18}`,
-		semconv.LLMOutputMessageRoleKey(0):                                              "assistant",
-		contentKey(semconv.LLMOutputMessages, 0, 0, semconv.MessageContentType):         "text",
-		contentKey(semconv.LLMOutputMessages, 0, 0, semconv.MessageContentText):         "Observability is seeing inside a system.",
+		contentKey(semconv.LLMInputMessages, 0, 0, semconv.MessageContentType):                       "text",
+		contentKey(semconv.LLMInputMessages, 0, 0, semconv.MessageContentText):                       "Weather in Paris?",
+		contentKey(semconv.LLMInputMessages, 0, 1, semconv.MessageContentType):                       "image",
+		contentKey(semconv.LLMInputMessages, 0, 1, semconv.MessageContentImage+"."+semconv.ImageURL): "https://example.com/paris.png",
+		contentKey(semconv.LLMInputMessages, 0, 2, semconv.MessageContentType):                       "text",
+		contentKey(semconv.LLMInputMessages, 0, 2, semconv.MessageContentText):                       "Use Celsius.",
+		semconv.LLMInputMessageRoleKey(1):                                                            "assistant",
+		semconv.LLMInputMessageToolCallKey(1, 0, semconv.ToolCallID):                                 "call_abc",
+		semconv.LLMInputMessageToolCallKey(1, 0, semconv.ToolCallFunctionName):                       "get_weather",
+		semconv.LLMInputMessageToolCallKey(1, 0, semconv.ToolCallFunctionArgumentsJSON):              `{"city":"Paris"}`,
+		semconv.LLMInputMessageRoleKey(2):                                                            "tool",
+		semconv.LLMInputMessageToolCallIDKey(2):                                                      "call_abc",
+		semconv.LLMInputMessageContentKey(2):                                                         `{"temp_c":18}`,
+		semconv.LLMOutputMessageRoleKey(0):                                                           "assistant",
+		contentKey(semconv.LLMOutputMessages, 0, 0, semconv.MessageContentType):                      "text",
+		contentKey(semconv.LLMOutputMessages, 0, 0, semconv.MessageContentText):                      "Observability is seeing inside a system.",
 		semconv.OutputValue:                             textResponse,
 		semconv.OutputMimeType:                          semconv.MimeTypeJSON,
 		semconv.LLMTokenCountPrompt:                     int64(20),
@@ -295,44 +297,29 @@ func TestResponses_OtherItemTypes(t *testing.T) {
 	// Drive the middleware with raw bodies to cover item shapes the
 	// SDK's param helpers make awkward to build: an EasyInputMessage
 	// without "type", custom tool calls, a function_call_output whose
-	// output is a content list, hosted tool calls, refusals, and an
-	// unknown item type that must keep its index.
+	// output is a content list, computer use, hosted tool calls,
+	// refusals, an item without a type that has no content (not a
+	// message, as in Python), and an unknown item type. Skipped items
+	// keep their index.
 	reqBody := `{"model":"gpt-6.1-sol","input":[
 		{"role":"developer","content":"Be terse."},
 		{"type":"custom_tool_call","call_id":"call_c","name":"run_sql","input":"SELECT 1"},
 		{"type":"custom_tool_call_output","call_id":"call_c","output":"1"},
 		{"type":"item_reference","id":"msg_0"},
-		{"type":"function_call_output","call_id":"call_f","output":[{"type":"input_text","text":"done"}]}
+		{"type":"function_call_output","call_id":"call_f","output":[{"type":"input_text","text":"done"}]},
+		{"type":"computer_call","id":"cu_1","call_id":"call_cu","action":{"type":"click","x":1,"y":2},"pending_safety_checks":[],"status":"completed"},
+		{"type":"computer_call_output","call_id":"call_cu","output":{"type":"computer_screenshot","image_url":"data:image/png;base64,AAAA"}},
+		{"role":"user"}
 	]}`
 	respBody := `{"id":"resp_1","object":"response","model":"gpt-6.1-sol","output":[
 		{"type":"web_search_call","id":"ws_1","status":"completed"},
 		{"type":"file_search_call","id":"fs_1","status":"completed","queries":["q"]},
-		{"type":"message","role":"assistant","content":[{"type":"refusal","refusal":"I can't help with that."}]}
+		{"type":"message","role":"assistant","content":[{"type":"refusal","refusal":"I can't help with that."}]},
+		{"type":"computer_call","id":"cu_2","call_id":"call_cu2","action":{"type":"screenshot"},"pending_safety_checks":[],"status":"completed"}
 	]}`
 
-	recorder := tracetest.NewSpanRecorder()
-	tp := trace.NewTracerProvider(trace.WithSpanProcessor(recorder))
-	mw := openaiotel.Middleware(tp.Tracer("test"))
-
-	req, err := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/responses", strings.NewReader(reqBody))
-	if err != nil {
-		t.Fatalf("NewRequest: %v", err)
-	}
-	resp, err := mw(req, func(*http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(respBody)),
-		}, nil
-	})
-	if err != nil {
-		t.Fatalf("middleware: %v", err)
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
-	_ = tp.ForceFlush(context.Background())
-
-	assertExactAttrs(t, attrMap(recorder.Ended()[0].Attributes()), map[string]any{
+	span := runResponses(t, reqBody, respBody)
+	assertExactAttrs(t, attrMap(span.Attributes()), map[string]any{
 		semconv.OpenInferenceSpanKind:                                semconv.SpanKindLLM,
 		semconv.LLMSystem:                                            semconv.LLMSystemOpenAI,
 		semconv.LLMProvider:                                          semconv.LLMProviderOpenAI,
@@ -362,9 +349,162 @@ func TestResponses_OtherItemTypes(t *testing.T) {
 		semconv.LLMOutputMessageRoleKey(2):                                      "assistant",
 		contentKey(semconv.LLMOutputMessages, 2, 0, semconv.MessageContentType): "text",
 		contentKey(semconv.LLMOutputMessages, 2, 0, semconv.MessageContentText): "I can't help with that.",
-		semconv.OutputValue:    respBody,
-		semconv.OutputMimeType: semconv.MimeTypeJSON,
+		// computer_call follows Python: an assistant tool call with only
+		// the call id. computer_call_output is a tool message with no
+		// content.
+		semconv.LLMInputMessageRoleKey(5):                             "assistant",
+		semconv.LLMInputMessageToolCallKey(5, 0, semconv.ToolCallID):  "call_cu",
+		semconv.LLMInputMessageRoleKey(6):                             "tool",
+		semconv.LLMInputMessageToolCallIDKey(6):                       "call_cu",
+		semconv.LLMOutputMessageRoleKey(3):                            "assistant",
+		semconv.LLMOutputMessageToolCallKey(3, 0, semconv.ToolCallID): "call_cu2",
+		semconv.OutputValue:                                           respBody,
+		semconv.OutputMimeType:                                        semconv.MimeTypeJSON,
 	})
+}
+
+// responsesTextOutputAttrs returns the span-level and response-side
+// attributes produced by textResponse.
+func responsesTextOutputAttrs() map[string]any {
+	return map[string]any{
+		semconv.OpenInferenceSpanKind:      semconv.SpanKindLLM,
+		semconv.LLMSystem:                  semconv.LLMSystemOpenAI,
+		semconv.LLMProvider:                semconv.LLMProviderOpenAI,
+		semconv.LLMOutputMessageRoleKey(0): "assistant",
+		contentKey(semconv.LLMOutputMessages, 0, 0, semconv.MessageContentType): "text",
+		contentKey(semconv.LLMOutputMessages, 0, 0, semconv.MessageContentText): "Observability is seeing inside a system.",
+		semconv.OutputValue:                             textResponse,
+		semconv.OutputMimeType:                          semconv.MimeTypeJSON,
+		semconv.LLMTokenCountPrompt:                     int64(20),
+		semconv.LLMTokenCountCompletion:                 int64(12),
+		semconv.LLMTokenCountTotal:                      int64(32),
+		semconv.LLMTokenCountPromptDetailsCacheRead:     int64(4),
+		semconv.LLMTokenCountCompletionDetailsReasoning: int64(7),
+	}
+}
+
+// runResponses drives the middleware directly with a raw request body
+// and a canned 200 JSON response, for item shapes the SDK's param
+// helpers make awkward to build, and returns the ended span.
+func runResponses(t *testing.T, reqBody, respBody string, opts ...openaiotel.Option) trace.ReadOnlySpan {
+	t.Helper()
+	recorder := tracetest.NewSpanRecorder()
+	tp := trace.NewTracerProvider(trace.WithSpanProcessor(recorder))
+	mw := openaiotel.Middleware(tp.Tracer("test"), opts...)
+
+	req, err := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/responses", strings.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	resp, err := mw(req, func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(respBody)),
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("middleware: %v", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	_ = tp.ForceFlush(context.Background())
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("expected 1 span, got %d", len(spans))
+	}
+	return spans[0]
+}
+
+func TestResponses_InputImages(t *testing.T) {
+	big := "data:image/png;base64," + strings.Repeat("A", 32_001)
+	reqBody := `{"model":"gpt-6.1-sol","input":[{"role":"user","content":[` +
+		`{"type":"input_text","text":"What is in these?"},` +
+		`{"type":"input_image","image_url":"https://example.com/cat.png","detail":"auto"},` +
+		`{"type":"input_image","image_url":"` + big + `"},` +
+		`{"type":"input_image","file_id":"file_1"}` +
+		`]}]}`
+	imageKey := func(k int) string {
+		return contentKey(semconv.LLMInputMessages, 0, k, semconv.MessageContentImage+"."+semconv.ImageURL)
+	}
+	typeKey := func(k int) string { return contentKey(semconv.LLMInputMessages, 0, k, semconv.MessageContentType) }
+
+	t.Run("recorded", func(t *testing.T) {
+		span := runResponses(t, reqBody, textResponse)
+		want := responsesTextOutputAttrs()
+		for k, v := range map[string]any{
+			semconv.LLMModelName:              "gpt-6.1-sol-2026-09-01",
+			semconv.LLMInvocationParameters:   `{"model":"gpt-6.1-sol"}`,
+			semconv.InputMimeType:             semconv.MimeTypeJSON,
+			semconv.LLMInputMessageRoleKey(0): "user",
+			typeKey(0):                        "text",
+			contentKey(semconv.LLMInputMessages, 0, 0, semconv.MessageContentText): "What is in these?",
+			typeKey(1):  "image",
+			imageKey(1): "https://example.com/cat.png",
+			// Base64 data URIs over Python's default 32,000-character
+			// limit are redacted, in the attribute and in input.value.
+			typeKey(2):  "image",
+			imageKey(2): instrumentation.RedactedValue,
+			// The file_id image (index 3) has no URL and is skipped, as
+			// in Python. input.value is re-encoded only because an image
+			// was redacted.
+			semconv.InputValue: `{"input":[{"content":[` +
+				`{"text":"What is in these?","type":"input_text"},` +
+				`{"detail":"auto","image_url":"https://example.com/cat.png","type":"input_image"},` +
+				`{"image_url":"__REDACTED__","type":"input_image"},` +
+				`{"file_id":"file_1","type":"input_image"}` +
+				`],"role":"user"}],"model":"gpt-6.1-sol"}`,
+		} {
+			want[k] = v
+		}
+		assertExactAttrs(t, attrMap(span.Attributes()), want)
+	})
+
+	t.Run("hidden", func(t *testing.T) {
+		attrs := attrMap(runResponses(t, reqBody, textResponse,
+			openaiotel.WithTraceConfig(instrumentation.TraceConfig{HideInputImages: true})).Attributes())
+		// The URL is dropped but the part keeps its type, as Python's
+		// TraceConfig.mask does; text parts are unaffected.
+		for _, k := range []string{imageKey(1), imageKey(2)} {
+			if v, present := attrs[k]; present {
+				t.Errorf("%s should be hidden, got %v", k, v)
+			}
+		}
+		if got := attrs[typeKey(1)]; got != "image" {
+			t.Errorf("image part type: got %v", got)
+		}
+		if got := attrs[contentKey(semconv.LLMInputMessages, 0, 0, semconv.MessageContentText)]; got != "What is in these?" {
+			t.Errorf("text part: got %v", got)
+		}
+		input, _ := attrs[semconv.InputValue].(string)
+		if strings.Contains(input, "example.com/cat.png") || strings.Contains(input, big) {
+			t.Errorf("input.value should redact every image URL, got %.200s", input)
+		}
+	})
+}
+
+func TestResponses_ResponseParseFailureRecordsError(t *testing.T) {
+	span := runResponses(t, `{"model":"gpt-6.1-sol","input":"hi"}`, `{this is not valid json}`)
+
+	var foundException bool
+	for _, e := range span.Events() {
+		if e.Name == "exception" {
+			foundException = true
+		}
+	}
+	if !foundException {
+		t.Errorf("expected exception event for parse failure, got events: %+v", span.Events())
+	}
+	if got := span.Status().Code; got == codes.Ok {
+		t.Error("an unparseable response must not be marked OK")
+	}
+	attrs := attrMap(span.Attributes())
+	for _, k := range []string{semconv.OutputValue, semconv.OutputMimeType, semconv.LLMTokenCountTotal} {
+		if v, present := attrs[k]; present {
+			t.Errorf("unparseable response should not set %s, got %v", k, v)
+		}
+	}
 }
 
 func TestResponses_AzureHostMapsProviderToAzure(t *testing.T) {
@@ -498,69 +638,250 @@ func TestResponses_TransportErrorRecordsException(t *testing.T) {
 	}
 }
 
-func TestResponses_StreamingPassesThrough(t *testing.T) {
-	const stream = "event: response.created\n" +
-		"data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\",\"status\":\"in_progress\"}}\n\n" +
-		"event: response.output_text.delta\n" +
-		"data: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\n" +
-		"event: response.completed\n" +
-		"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\"}}\n\n"
+// completedResponse is the Response object carried by the
+// response.completed event in the streaming tests.
+const completedResponse = `{"id":"resp_s","object":"response","status":"completed","model":"gpt-6.1-sol-2026-09-01",` +
+	`"output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed",` +
+	`"content":[{"type":"output_text","text":"hi there","annotations":[]}]}],` +
+	`"usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7,` +
+	`"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}`
+
+// responsesStream is a Responses SSE stream with a malformed event in
+// the middle; the middleware must skip it without affecting the caller.
+const responsesStream = "event: response.created\n" +
+	"data: {\"type\":\"response.created\",\"sequence_number\":0,\"response\":{\"id\":\"resp_s\",\"status\":\"in_progress\"}}\n\n" +
+	"event: response.output_text.delta\n" +
+	"data: {not json\n\n" +
+	"event: response.output_text.delta\r\n" +
+	"data: {\"type\":\"response.output_text.delta\",\"sequence_number\":1,\"item_id\":\"msg_1\",\"output_index\":0,\"content_index\":0,\"delta\":\"hi there\"}\r\n\r\n" +
+	"event: response.completed\n" +
+	"data: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":" + completedResponse + "}\n\n"
+
+const streamRequest = `{"model":"gpt-6.1-sol","stream":true,"input":"hi"}`
+
+// streamRequestAttrs are the request-side attributes of streamRequest.
+func streamRequestAttrs() map[string]any {
+	return map[string]any{
+		semconv.OpenInferenceSpanKind:        semconv.SpanKindLLM,
+		semconv.LLMSystem:                    semconv.LLMSystemOpenAI,
+		semconv.LLMProvider:                  semconv.LLMProviderOpenAI,
+		semconv.LLMModelName:                 "gpt-6.1-sol",
+		semconv.LLMInvocationParameters:      `{"model":"gpt-6.1-sol","stream":true}`,
+		semconv.InputValue:                   streamRequest,
+		semconv.InputMimeType:                semconv.MimeTypeJSON,
+		semconv.LLMInputMessageRoleKey(0):    "user",
+		semconv.LLMInputMessageContentKey(0): "hi",
+	}
+}
+
+// streamCompletedAttrs adds the attributes recorded from
+// completedResponse to the request-side ones.
+func streamCompletedAttrs() map[string]any {
+	want := streamRequestAttrs()
+	for k, v := range map[string]any{
+		semconv.LLMModelName:               "gpt-6.1-sol-2026-09-01",
+		semconv.LLMOutputMessageRoleKey(0): "assistant",
+		contentKey(semconv.LLMOutputMessages, 0, 0, semconv.MessageContentType): "text",
+		contentKey(semconv.LLMOutputMessages, 0, 0, semconv.MessageContentText): "hi there",
+		semconv.OutputValue:                             completedResponse,
+		semconv.OutputMimeType:                          semconv.MimeTypeJSON,
+		semconv.LLMTokenCountPrompt:                     int64(5),
+		semconv.LLMTokenCountCompletion:                 int64(2),
+		semconv.LLMTokenCountTotal:                      int64(7),
+		semconv.LLMTokenCountPromptDetailsCacheRead:     int64(0),
+		semconv.LLMTokenCountCompletionDetailsReasoning: int64(0),
+	} {
+		want[k] = v
+	}
+	return want
+}
+
+// startStream sends streamRequest through the middleware with body as
+// the SSE response body, and returns the wrapped response.
+func startStream(t *testing.T, body io.Reader) (*http.Response, *tracetest.SpanRecorder) {
+	t.Helper()
+	recorder := tracetest.NewSpanRecorder()
+	tp := trace.NewTracerProvider(trace.WithSpanProcessor(recorder))
+	mw := openaiotel.Middleware(tp.Tracer("test"))
+
+	req, err := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/responses", strings.NewReader(streamRequest))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	resp, err := mw(req, func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(body),
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("middleware: %v", err)
+	}
+	return resp, recorder
+}
+
+func TestResponses_StreamingRecordsCompletedResponse(t *testing.T) {
+	// Read one byte at a time so events and lines split across reads.
+	resp, recorder := startStream(t, iotest.OneByteReader(strings.NewReader(responsesStream)))
+
+	if got := len(recorder.Ended()); got != 0 {
+		t.Fatalf("span ended before the caller read the stream (%d ended)", got)
+	}
+	got, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("drain body: %v", err)
+	}
+	if string(got) != responsesStream {
+		t.Errorf("stream bytes changed in transit:\ngot  %q\nwant %q", got, responsesStream)
+	}
+	_ = resp.Body.Close()
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("expected 1 ended span, got %d", len(spans))
+	}
+	if name := spans[0].Name(); name != responsesSpanName {
+		t.Errorf("span name: got %q", name)
+	}
+	if got := spans[0].Status().Code; got != codes.Ok {
+		t.Errorf("span status: got %s want Ok", got)
+	}
+	assertExactAttrs(t, attrMap(spans[0].Attributes()), streamCompletedAttrs())
+}
+
+func TestResponses_StreamingThroughSDK(t *testing.T) {
+	// The SDK's own SSE decoder consumes the stream while the
+	// middleware parses alongside it. The SDK rejects malformed events,
+	// so this stream leaves that one out.
+	stream := strings.Replace(responsesStream, "event: response.output_text.delta\ndata: {not json\n\n", "", 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(stream))
-		if f, ok := w.(http.Flusher); ok {
-			f.Flush()
+		for _, chunk := range strings.SplitAfter(stream, "\n") {
+			_, _ = w.Write([]byte(chunk))
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
 		}
 	}))
 	defer server.Close()
 
 	recorder := tracetest.NewSpanRecorder()
 	tp := trace.NewTracerProvider(trace.WithSpanProcessor(recorder))
-	mw := openaiotel.Middleware(tp.Tracer("test"))
+	client := newClient(t, server.URL, tp)
 
-	const reqBody = `{"model":"gpt-6.1-sol","stream":true,"input":"hi"}`
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, server.URL+"/v1/responses", strings.NewReader(reqBody))
-	if err != nil {
-		t.Fatalf("NewRequest: %v", err)
+	sdkStream := client.Responses.NewStreaming(context.Background(), responses.ResponseNewParams{
+		Model: "gpt-6.1-sol",
+		Input: responses.ResponseNewParamsInputUnion{OfString: openaisdk.String("hi")},
+	})
+	var deltas strings.Builder
+	var completedID string
+	for sdkStream.Next() {
+		switch event := sdkStream.Current(); event.Type {
+		case "response.output_text.delta":
+			deltas.WriteString(event.Delta.OfString)
+		case "response.completed":
+			completedID = event.Response.ID
+		}
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if err := sdkStream.Err(); err != nil {
+		t.Fatalf("SDK stream: %v", err)
+	}
+	_ = sdkStream.Close()
+	if deltas.String() != "hi there" || completedID != "resp_s" {
+		t.Errorf("SDK saw deltas %q and completed id %q", deltas.String(), completedID)
+	}
 
-	resp, err := mw(req, http.DefaultClient.Do)
-	if err != nil {
-		t.Fatalf("middleware: %v", err)
+	_ = tp.ForceFlush(context.Background())
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("expected 1 ended span, got %d", len(spans))
 	}
-	defer resp.Body.Close()
+	if got := spans[0].Status().Code; got != codes.Ok {
+		t.Errorf("span status: got %s want Ok", got)
+	}
+	attrs := attrMap(spans[0].Attributes())
+	for k, v := range streamCompletedAttrs() {
+		// input.value and the invocation params are the SDK's own
+		// serialization of the request; the rest must match.
+		if k == semconv.InputValue || k == semconv.LLMInvocationParameters {
+			continue
+		}
+		if got := attrs[k]; got != v {
+			t.Errorf("%s: got %v want %v", k, got, v)
+		}
+	}
+}
 
-	if got := len(recorder.Ended()); got != 0 {
-		t.Fatalf("span ended prematurely (%d) — streaming response should keep span open until body close", got)
+func TestResponses_StreamingClosedEarlyEndsSpanWithoutOutput(t *testing.T) {
+	resp, recorder := startStream(t, strings.NewReader(responsesStream))
+
+	// Read only part of the stream, before response.completed, then
+	// close it.
+	if _, err := io.ReadFull(resp.Body, make([]byte, 40)); err != nil {
+		t.Fatalf("read: %v", err)
 	}
+	_ = resp.Body.Close()
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("closing the body should end the span, got %d ended", len(spans))
+	}
+	if got := spans[0].Status().Code; got != codes.Unset {
+		t.Errorf("span status: got %s want Unset", got)
+	}
+	assertExactAttrs(t, attrMap(spans[0].Attributes()), streamRequestAttrs())
+}
+
+func TestResponses_StreamingMalformedCompletedEventIsIgnored(t *testing.T) {
+	const stream = "event: response.output_text.delta\n" +
+		"data: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\n" +
+		"event: response.completed\n" +
+		"data: {\"type\":\"response.completed\",\"response\":null}\n\n" +
+		"event: response.completed\n" +
+		"data: {\"type\":\"response.completed\",\"response\":{truncated\n\n"
+	resp, recorder := startStream(t, strings.NewReader(stream))
+
 	got, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("drain body: %v", err)
 	}
 	if string(got) != stream {
-		t.Errorf("stream bytes changed in transit:\ngot  %q\nwant %q", got, stream)
+		t.Errorf("stream bytes changed in transit: got %q", got)
 	}
+	_ = resp.Body.Close()
+
 	spans := recorder.Ended()
 	if len(spans) != 1 {
-		t.Fatalf("span did not end on EOF: got %d ended spans", len(spans))
+		t.Fatalf("expected 1 ended span, got %d", len(spans))
 	}
-	if name := spans[0].Name(); name != responsesSpanName {
-		t.Errorf("span name: got %q", name)
+	if len(spans[0].Events()) != 0 {
+		t.Errorf("a malformed event should not record errors, got %+v", spans[0].Events())
 	}
-	// Request attributes only, as for streaming Chat Completions.
-	assertExactAttrs(t, attrMap(spans[0].Attributes()), map[string]any{
-		semconv.OpenInferenceSpanKind:        semconv.SpanKindLLM,
-		semconv.LLMSystem:                    semconv.LLMSystemOpenAI,
-		semconv.LLMProvider:                  semconv.LLMProviderOpenAI,
-		semconv.LLMModelName:                 "gpt-6.1-sol",
-		semconv.LLMInvocationParameters:      `{"model":"gpt-6.1-sol","stream":true}`,
-		semconv.InputValue:                   reqBody,
-		semconv.InputMimeType:                semconv.MimeTypeJSON,
-		semconv.LLMInputMessageRoleKey(0):    "user",
-		semconv.LLMInputMessageContentKey(0): "hi",
-	})
+	assertExactAttrs(t, attrMap(spans[0].Attributes()), streamRequestAttrs())
+}
+
+func TestResponses_StreamingReadErrorIsNotMarkedOK(t *testing.T) {
+	// The completed event arrives, then the connection breaks: output
+	// attributes are recorded, but the Error status must stand.
+	body := io.MultiReader(strings.NewReader(responsesStream), iotest.ErrReader(errors.New("connection reset")))
+	resp, recorder := startStream(t, body)
+
+	_, err := io.ReadAll(resp.Body)
+	if err == nil {
+		t.Fatal("expected the read error to reach the caller")
+	}
+	_ = resp.Body.Close()
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("expected 1 ended span, got %d", len(spans))
+	}
+	if got := spans[0].Status(); got.Code != codes.Error || got.Description != "connection reset" {
+		t.Errorf("span status: got %+v want Error/connection reset", got)
+	}
+	assertExactAttrs(t, attrMap(spans[0].Attributes()), streamCompletedAttrs())
 }
 
 func TestResponses_OtherResponsesEndpointsUntouched(t *testing.T) {
@@ -788,25 +1109,5 @@ func TestResponses_TargetedHideFlags(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestChatCompletions_SpanNameUnchanged(t *testing.T) {
-	server := serveJSON(t, http.StatusOK, okResponse, nil)
-
-	recorder := tracetest.NewSpanRecorder()
-	tp := trace.NewTracerProvider(trace.WithSpanProcessor(recorder))
-	client := newClient(t, server.URL, tp)
-
-	_, err := client.Chat.Completions.New(context.Background(), openaisdk.ChatCompletionNewParams{
-		Model:    shared.ChatModelGPT4o,
-		Messages: []openaisdk.ChatCompletionMessageParamUnion{openaisdk.UserMessage("hi")},
-	})
-	if err != nil {
-		t.Fatalf("Chat.Completions.New: %v", err)
-	}
-	_ = tp.ForceFlush(context.Background())
-	if got := recorder.Ended()[0].Name(); got != "openai.chat.completions.create" {
-		t.Errorf("chat span name: got %q", got)
 	}
 }

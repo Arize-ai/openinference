@@ -22,9 +22,11 @@
 // *.services.ai.azure.com, *.cognitiveservices.azure.com) the span's
 // llm.provider attribute is set to "azure" instead of "openai".
 //
-// Streaming responses (text/event-stream) pass through unchanged; their
-// spans carry request attributes only and end when the caller closes or
-// fully reads the response body.
+// Streaming responses (text/event-stream) pass through unchanged, and
+// their spans end when the caller closes or fully reads the response
+// body. Streamed Chat Completions spans carry request attributes only;
+// streamed Responses spans also record the final response from the
+// response.completed event as the caller reads it.
 package openai
 
 import (
@@ -136,7 +138,11 @@ func (m *middleware) handle(req *http.Request, next option.MiddlewareNext) (*htt
 	// actual time-to-last-token. Reading or buffering the SSE bytes
 	// here would break the caller's stream consumer.
 	if httputil.IsStreaming(resp) {
-		resp.Body = &httputil.SpanEndingBody{ReadCloser: resp.Body, Span: span}
+		body := &httputil.SpanEndingBody{ReadCloser: resp.Body, Span: span}
+		if op.observeStream != nil {
+			op.observeStream(m, span, body)
+		}
+		resp.Body = body
 		return resp, nil
 	}
 
@@ -152,11 +158,14 @@ func (m *middleware) handle(req *http.Request, next option.MiddlewareNext) (*htt
 
 // operation describes one instrumented endpoint: the span name and the
 // functions that map its request and response bodies onto span
-// attributes.
+// attributes. observeStream, when set, hooks into a streaming response
+// body so output attributes can be recorded before the span ends; when
+// nil, streams pass through with request attributes only.
 type operation struct {
 	spanName         string
 	setRequestAttrs  func(m *middleware, span trace.Span, body []byte)
 	setResponseAttrs func(m *middleware, span trace.Span, body []byte, statusCode int)
+	observeStream    func(m *middleware, span trace.Span, body *httputil.SpanEndingBody)
 }
 
 var (
@@ -169,6 +178,7 @@ var (
 		spanName:         "openai.responses.create",
 		setRequestAttrs:  (*middleware).setResponsesRequestAttrs,
 		setResponseAttrs: (*middleware).setResponsesResponseAttrs,
+		observeStream:    (*middleware).observeResponsesStream,
 	}
 )
 
