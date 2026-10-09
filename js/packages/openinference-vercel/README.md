@@ -51,7 +51,10 @@ For a standalone TypeScript or Node.js application exporting to Phoenix, create 
 ```typescript
 // instrumentation.ts
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-import { OpenInferenceBatchSpanProcessor } from "@arizeai/openinference-vercel";
+import {
+  enrichSpanWithOpenInference,
+  OpenInferenceBatchSpanProcessor,
+} from "@arizeai/openinference-vercel";
 
 import { OpenTelemetry } from "@ai-sdk/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
@@ -89,11 +92,13 @@ tracerProvider.register();
 
 registerTelemetry(
   new OpenTelemetry({
+    enrichSpan: enrichSpanWithOpenInference,
     // Optional, but recommended for fuller OpenInference coverage.
     usage: true,
     providerMetadata: true,
     embedding: true,
     reranking: true,
+    experimental_decision: true,
     runtimeContext: true,
     headers: true,
     toolChoice: true,
@@ -127,6 +132,7 @@ import { registerOTel } from "@vercel/otel";
 import { registerTelemetry } from "ai";
 import { OpenTelemetry } from "@ai-sdk/otel";
 import {
+  enrichSpanWithOpenInference,
   isOpenInferenceSpan,
   OpenInferenceSimpleSpanProcessor,
 } from "@arizeai/openinference-vercel";
@@ -138,11 +144,13 @@ export function register() {
 
   registerTelemetry(
     new OpenTelemetry({
+      enrichSpan: enrichSpanWithOpenInference,
       // Optional, but recommended for fuller OpenInference coverage.
       usage: true,
       providerMetadata: true,
       embedding: true,
       reranking: true,
+      experimental_decision: true,
       runtimeContext: true,
       headers: true,
       toolChoice: true,
@@ -191,6 +199,16 @@ const result = await generateText({
 To disable telemetry for a single call, set `telemetry: { isEnabled: false }`.
 
 For details on AI SDK v7 telemetry, see the [AI SDK telemetry documentation](https://ai-sdk.dev/docs/ai-sdk-core/telemetry).
+
+### Decision models
+
+AI SDK `experimental_decide` calls require `ai` 7.0.128 or later and `@ai-sdk/otel` 1.0.128 or later, with `experimental_decision: true` set on `OpenTelemetry` to record the state, questions, and answers.
+
+The SDK emits an outer operation span and a child model-call span, and both carry the same `gen_ai.operation.name: "decide"`, provider, and model attributes. The processor alone cannot tell them apart, so without `enrichSpan` both spans are exported as `DECISION` spans that each carry the model identity, and the model call's usage is attributed to a second decision. Pass `enrichSpan: enrichSpanWithOpenInference` to `OpenTelemetry` to classify the outer operation as a `CHAIN` span (with the decision input and output) and the model call as a `DECISION` span (with `decision.model_name`, `decision.provider`, `decision.system`, and `decision.token_count.*`).
+
+Decision spans identify the model under `decision.*` rather than `llm.*`. To keep downstream GenAI converters from re-labeling the model as an LLM, the processor removes `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model`, and `gen_ai.usage.*` from decision spans after mapping them. Other exporters attached to the same tracer provider see the span after this removal.
+
+The [Jev decision example](./examples/ai-sdk-decision.ts) calls TypeSafe's hosted model with `@ai-sdk/typesafe-ai` and requires `TYPESAFE_API_KEY`.
 
 For more information on Vercel OpenTelemetry support, see the [Vercel OpenTelemetry guide](https://vercel.com/docs/observability/otel-overview).
 

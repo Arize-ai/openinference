@@ -4,6 +4,9 @@ import { isAttributeValue } from "@opentelemetry/core";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 import {
+  getDecisionAttributes,
+  getInputAttributes,
+  getOutputAttributes,
   isObjectWithStringKeys,
   safelyJSONParse,
   safelyJSONStringify,
@@ -1176,6 +1179,161 @@ const safelyGetRerankAttributes = withSafety({
 });
 
 /**
+ * Normalizes an AI SDK provider identifier to an OpenInference decision provider name.
+ *
+ * The AI SDK names providers `<vendor>.<modality>` (e.g. `typesafe.decision`), and the
+ * Vercel AI Gateway prefixes model IDs with `<vendor>-ai/` (e.g. `typesafe-ai/jev`).
+ * Stripping the modality suffix and the `-ai` gateway suffix yields the vendor, which
+ * {@link getDecisionAttributes} lowercases to match the `DecisionProvider` and
+ * `DecisionSystem` values (e.g. `typesafe`, `openai`).
+ *
+ * This normalization is specific to decision spans: there is no well-known
+ * `decision.provider` value for a modality-suffixed name, whereas LLM spans keep the
+ * GenAI provider name unchanged in `llm.system` for parity with the GenAI converter.
+ * @param provider - the raw provider or gateway vendor identifier
+ * @returns the normalized decision provider name
+ */
+const normalizeDecisionProviderName = (provider: string): string => {
+  const [vendor] = provider.split(".");
+  return vendor.endsWith("-ai") ? vendor.slice(0, -"-ai".length) : vendor;
+};
+
+/**
+ * Gets decision model identity and usage attributes from AI SDK v7 `gen_ai.*` attributes,
+ * falling back to the legacy `ai.*` attributes.
+ * @param attributes - the span attributes
+ * @returns the `decision.*` model and token count attributes
+ */
+const getDecisionModelAttributes = (attributes: Attributes): Attributes => {
+  const requestModelName =
+    attributes["gen_ai.request.model"] ?? attributes[VercelAISemanticConventions.MODEL_ID];
+  const responseModelName =
+    attributes["gen_ai.response.model"] ?? attributes[VercelAISemanticConventions.RESPONSE_MODEL];
+  const provider =
+    attributes["gen_ai.provider.name"] ?? attributes[VercelAISemanticConventions.MODEL_PROVIDER];
+  const inputTokens =
+    attributes["gen_ai.usage.input_tokens"] ??
+    attributes[VercelAISemanticConventions.TOKEN_COUNT_INPUT];
+  const outputTokens =
+    attributes["gen_ai.usage.output_tokens"] ??
+    attributes[VercelAISemanticConventions.TOKEN_COUNT_OUTPUT];
+
+  // Gateway model IDs (`<vendor>/<model>`) identify the API ecosystem even when the
+  // gateway hosts the call, so the vendor prefix is the system and the gateway the provider.
+  const system =
+    typeof requestModelName === "string" && requestModelName.includes("/")
+      ? requestModelName.split("/")[0]
+      : provider;
+
+  return getDecisionAttributes({
+    system: typeof system === "string" ? normalizeDecisionProviderName(system) : undefined,
+    provider: typeof provider === "string" ? normalizeDecisionProviderName(provider) : undefined,
+    requestModelName: typeof requestModelName === "string" ? requestModelName : undefined,
+    responseModelName: typeof responseModelName === "string" ? responseModelName : undefined,
+    tokenCount: {
+      input: typeof inputTokens === "number" ? inputTokens : undefined,
+      output: typeof outputTokens === "number" ? outputTokens : undefined,
+    },
+  });
+};
+
+/**
+ * Gets input and output attributes from the AI SDK decision supplemental attributes
+ * (`ai.decision.state`, `ai.decision.questions`, `ai.decision.answers`).
+ * The input is a JSON object of whichever of state and questions were recorded.
+ * @param attributes - the span attributes
+ * @returns the input and output attributes
+ */
+const getDecisionIOAttributes = (attributes: Attributes): Attributes => {
+  const result: Attributes = {};
+  const input: Record<string, unknown> = {};
+  const state = attributes[VercelAISemanticConventions.DECISION_STATE];
+  const questions = attributes[VercelAISemanticConventions.DECISION_QUESTIONS];
+  if (typeof state === "string") {
+    const parsedState = safelyJSONParse(state);
+    if (parsedState !== undefined) {
+      input.state = parsedState;
+    }
+  }
+  if (typeof questions === "string") {
+    const parsedQuestions = safelyJSONParse(questions);
+    if (parsedQuestions !== undefined) {
+      input.questions = parsedQuestions;
+    }
+  }
+  if (Object.keys(input).length > 0) {
+    const inputValue = safelyJSONStringify(input);
+    if (inputValue != null) {
+      Object.assign(result, getInputAttributes({ value: inputValue, mimeType: MimeType.JSON }));
+    }
+  }
+
+  const answers = attributes[VercelAISemanticConventions.DECISION_ANSWERS];
+  if (typeof answers === "string" && safelyJSONParse(answers) !== undefined) {
+    Object.assign(result, getOutputAttributes({ value: answers, mimeType: MimeType.JSON }));
+  }
+
+  return result;
+};
+
+const safelyGetDecisionIOAttributes = withSafety({
+  fn: getDecisionIOAttributes,
+  onError: onErrorCallback("decision input and output"),
+});
+
+/** Maps AI SDK decision model call telemetry into the dedicated OpenInference namespace. */
+const getDecisionModelCallAttributes = (attributes: Attributes): Attributes => ({
+  ...getDecisionModelAttributes(attributes),
+  ...getDecisionIOAttributes(attributes),
+});
+
+const safelyGetDecisionModelCallAttributes = withSafety({
+  fn: getDecisionModelCallAttributes,
+  onError: onErrorCallback("decision"),
+});
+
+/**
+ * Whether the span was emitted by an AI SDK `decide` operation or decision model call.
+ * Checks the v7 `gen_ai.operation.name` and the legacy `operation.name`.
+ * @param attributes - the span attributes
+ * @returns true if the span is part of a decision operation
+ */
+const isDecideOperation = (attributes: Attributes): boolean => {
+  if (attributes["gen_ai.operation.name"] === "decide") {
+    return true;
+  }
+  const operationName = attributes["operation.name"];
+  return (
+    typeof operationName === "string" &&
+    getVercelFunctionNameFromOperationName(operationName)?.startsWith("ai.decide") === true
+  );
+};
+
+/**
+ * Whether the span carries decision telemetry: either the `DECISION` model call or the
+ * `CHAIN` operation wrapping it.
+ * @param attributes - the span attributes
+ * @param spanKind - the OpenInference span kind resolved for the span
+ * @returns true if the span is a decision model call or decision operation
+ */
+const isDecisionSpan = (attributes: Attributes, spanKind: AttributeValue | undefined): boolean =>
+  spanKind === OpenInferenceSpanKind.DECISION ||
+  (spanKind === OpenInferenceSpanKind.CHAIN && isDecideOperation(attributes));
+
+/**
+ * Removes `llm.*` attributes produced by the generic GenAI conversion, which treats every
+ * model call as an LLM. Decision spans identify the model under `decision.*` instead.
+ * @param attributes - the OpenInference attributes to strip in place
+ */
+const deleteLLMAttributes = (attributes: Attributes): void => {
+  Object.keys(attributes).forEach((key) => {
+    if (key.startsWith("llm.")) {
+      delete attributes[key];
+    }
+  });
+};
+
+/**
  * Gets Vercel-specific attributes that are not covered by gen_ai.* conventions
  * @param attributes - The span attributes
  * @param spanKind - The OpenInference span kind
@@ -1293,6 +1451,17 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
 
   // Step 2: Determine span kind from operation.name (Vercel-specific, more precise)
   const spanKind = safelyGetOISpanKindFromAttributes(attributes) ?? undefined;
+  if (
+    attributes["gen_ai.operation.name"] === "decide" &&
+    attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] == null &&
+    attributes["operation.name"] == null
+  ) {
+    // The AI SDK emits identical gen_ai.* attributes on the decide operation and its
+    // model call, so without the enrichSpan hint both become DECISION spans.
+    diag.debug(
+      "AI SDK decide span has no openinference.span.kind; pass enrichSpanWithOpenInference as the OpenTelemetry enrichSpan option to distinguish the decide operation from its model call",
+    );
+  }
 
   // Step 3: Get Vercel-specific attributes not covered by gen_ai.*
   const vercelSpecificAttributes = getVercelSpecificAttributes(attributes, spanKind);
@@ -1312,6 +1481,17 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
     ...vercelGenAIAttributes,
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: finalSpanKind,
   };
+
+  if (isDecisionSpan(attributes, finalSpanKind)) {
+    deleteLLMAttributes(result);
+    if (finalSpanKind === OpenInferenceSpanKind.DECISION) {
+      Object.assign(result, safelyGetDecisionModelCallAttributes(attributes));
+    } else {
+      // The outer decide operation wraps the model call. Keep its input and
+      // output, but leave model identity and usage on the child DECISION span.
+      Object.assign(result, safelyGetDecisionIOAttributes(attributes));
+    }
+  }
 
   // A session.id already on the span (e.g. propagated from setSession context) takes precedence
   // over the one derived from gen_ai.conversation.id.
@@ -1368,6 +1548,26 @@ export const shouldExportSpan = ({
 };
 
 /**
+ * Removes the GenAI model identity and usage attributes from a decision span.
+ * Consumers such as Phoenix independently convert `gen_ai.request.model`, `gen_ai.response.model`,
+ * `gen_ai.provider.name` and `gen_ai.usage.*` into `llm.*`, which would re-label the decision
+ * model as an LLM. The values are preserved under `decision.*` on the DECISION span first.
+ * @param span - the decision span to strip in place
+ */
+const deleteGenAIModelAttributes = (span: ReadableSpan): void => {
+  Object.keys(span.attributes).forEach((key) => {
+    if (
+      key === "gen_ai.provider.name" ||
+      key === "gen_ai.request.model" ||
+      key === "gen_ai.response.model" ||
+      key.startsWith("gen_ai.usage.")
+    ) {
+      delete span.attributes[key];
+    }
+  });
+};
+
+/**
  * Adds OpenInference attributes to a span based on the span's existing attributes.
  * @param span - The span to add OpenInference attributes to.
  */
@@ -1381,6 +1581,10 @@ export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
   Object.entries(newAttributes).forEach(([key, value]) => {
     span.attributes[key] = value;
   });
+
+  if (isDecisionSpan(span.attributes, newAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND])) {
+    deleteGenAIModelAttributes(span);
+  }
 
   // Remove GenAI semantic convention events (e.g., ai.stream.firstChunk, ai.stream.finish)
   // These are Vercel AI SDK stream events that are not needed for OpenInference.
