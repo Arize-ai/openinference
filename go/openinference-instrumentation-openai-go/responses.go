@@ -306,13 +306,13 @@ func (m *middleware) observeResponsesStream(span trace.Span, body *httputil.Span
 		defer mu.Unlock()
 		_, _ = parser.Write(p)
 	}
-	body.BeforeEnd = func(failed bool) {
+	body.BeforeEnd = func(end httputil.StreamEnd) {
 		mu.Lock()
 		defer mu.Unlock()
 		if completed != nil {
 			// Don't mark a stream that hit a read or close error as OK:
 			// an OK status would overwrite the recorded Error.
-			m.setResponsesOutputAttrs(span, completed, !failed)
+			m.setResponsesOutputAttrs(span, completed, !end.Failed)
 		}
 	}
 }

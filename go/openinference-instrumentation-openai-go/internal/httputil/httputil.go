@@ -74,11 +74,22 @@ type SpanEndingBody struct {
 	// The slice is only valid for the duration of the call.
 	OnRead func(p []byte)
 	// BeforeEnd, if set, runs exactly once just before the span ends.
-	// failed reports whether a Read or Close error was recorded, so the
-	// hook can avoid overwriting an Error status with OK.
-	BeforeEnd func(failed bool)
+	BeforeEnd func(StreamEnd)
 	closed    atomic.Bool
+	eof       atomic.Bool
 	failed    atomic.Bool
+}
+
+// StreamEnd describes how a streaming body finished, for
+// SpanEndingBody.BeforeEnd.
+type StreamEnd struct {
+	// EOF reports whether the caller read the body to io.EOF, rather
+	// than closing it early.
+	EOF bool
+	// Failed reports whether a Read or Close error was recorded on the
+	// span. Hooks use it to avoid overwriting that Error status with OK,
+	// which OTel Go would otherwise allow.
+	Failed bool
 }
 
 // Read forwards to the underlying ReadCloser and ends the span on EOF.
@@ -96,6 +107,7 @@ func (b *SpanEndingBody) Read(p []byte) (int, error) {
 		b.Span.SetStatus(codes.Error, err.Error())
 	}
 	if errors.Is(err, io.EOF) {
+		b.eof.Store(true)
 		b.endOnce()
 	}
 	return n, err
@@ -118,7 +130,7 @@ func (b *SpanEndingBody) Close() error {
 func (b *SpanEndingBody) endOnce() {
 	if !b.closed.Swap(true) {
 		if b.BeforeEnd != nil {
-			b.BeforeEnd(b.failed.Load())
+			b.BeforeEnd(StreamEnd{EOF: b.eof.Load(), Failed: b.failed.Load()})
 		}
 		b.Span.End()
 	}

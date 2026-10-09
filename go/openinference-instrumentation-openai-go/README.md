@@ -56,6 +56,8 @@ Chat Completions calls produce an `openai.chat.completions.create` span with:
 | `llm.output_messages.{i}.message.tool_calls.{j}.tool_call.*` | tool calls in response |
 | `output.value` | text of the first choice (omitted if first choice is pure tool-use) |
 | `llm.finish_reason` | finish_reason of the first choice |
+
+A successful call sets the span status to `OK`, as the Python and JS instrumentors do. Non-2xx responses set it to `Error`, and a 2xx body that can't be parsed leaves it unset.
 | `llm.token_count.prompt` / `.completion` / `.total` | usage fields |
 | `llm.token_count.prompt_details.cache_read` / `.audio` | from `prompt_tokens_details` |
 | `llm.token_count.completion_details.reasoning` / `.audio` | from `completion_tokens_details` (o1/gpt-4o) |
@@ -87,7 +89,7 @@ resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
 | `llm.token_count.prompt_details.cache_read` / `.cache_write` | `usage.input_tokens_details.cached_tokens` / `cache_write_tokens` |
 | `llm.token_count.completion_details.reasoning` | `usage.output_tokens_details.reasoning_tokens` |
 
-Only response creation is traced. `GET /v1/responses/{id}`, `/cancel`, and the other `responses` sub-resources pass through without a span. A successful call sets the span status to `OK`, as Python and JS do; Chat Completions spans leave it unset. Non-2xx responses set the span status to `Error` and record no output or token attributes.
+Only response creation is traced. `GET /v1/responses/{id}`, `/cancel`, and the other `responses` sub-resources pass through without a span. A successful call sets the span status to `OK`, as Python and JS do. Non-2xx responses set the span status to `Error` and record no output or token attributes.
 
 [`examples/responses`](examples/responses) runs a two-call tool loop: the first call returns a `function_call`, and the second sends the `function_call_output` with `previous_response_id`.
 
@@ -101,7 +103,7 @@ Streaming responses (`text/event-stream`) pass through unchanged so the caller's
 
 For streamed Responses calls, the middleware also parses the SSE events as the caller reads them, without reading ahead of the caller or changing the bytes it receives. When the span ends, it records the response from the `response.completed` event: output messages, `output.value`, the response model, token counts, and status `OK`, as the Python and JS instrumentors do. A stream that is closed before `response.completed` ends the span with request attributes only. Malformed events are skipped, and a stream that hits a read error keeps its `Error` status.
 
-Streamed Chat Completions spans still carry request attributes only.
+Streamed Chat Completions spans carry request attributes only. They are marked `OK` when the caller reads the stream to EOF without an error, as Python does when its stream wrapper finishes (JS leaves the status unset). Chat streams have no completed event, so a stream closed before EOF stays unset, and a stream that hits a read error keeps its `Error` status.
 
 ## Suppression and context attributes
 

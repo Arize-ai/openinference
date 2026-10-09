@@ -159,8 +159,8 @@ func (m *middleware) handle(req *http.Request, next option.MiddlewareNext) (*htt
 // operation describes one instrumented endpoint: the span name and the
 // functions that map its request and response bodies onto span
 // attributes. observeStream, when set, hooks into a streaming response
-// body so output attributes can be recorded before the span ends; when
-// nil, streams pass through with request attributes only.
+// body so output attributes and status can be recorded before the span
+// ends; when nil, streams pass through with request attributes only.
 type operation struct {
 	spanName         string
 	setRequestAttrs  func(m *middleware, span trace.Span, body []byte)
@@ -173,6 +173,7 @@ var (
 		spanName:         "openai.chat.completions.create",
 		setRequestAttrs:  (*middleware).setRequestAttrs,
 		setResponseAttrs: (*middleware).setResponseAttrs,
+		observeStream:    (*middleware).observeChatCompletionsStream,
 	}
 	responsesOperation = operation{
 		spanName:         "openai.responses.create",
@@ -499,6 +500,10 @@ func (m *middleware) setResponseAttrs(span trace.Span, body []byte, statusCode i
 		span.SetAttributes(attribute.String(semconv.OutputValue, m.config.MaskOutputValue(r.Choices[0].Message.Content)))
 	}
 
+	// The body parsed as a chat completion: mark the call OK, as Python
+	// and JS do. Attributes set below don't depend on the status.
+	span.SetStatus(codes.Ok, "")
+
 	if r.Usage != nil {
 		span.SetAttributes(
 			attribute.Int64(semconv.LLMTokenCountPrompt, r.Usage.PromptTokens),
@@ -520,6 +525,20 @@ func (m *middleware) setResponseAttrs(span trace.Span, body []byte, statusCode i
 			if r.Usage.CompletionTokensDetails.AudioTokens > 0 {
 				span.SetAttributes(attribute.Int64(semconv.LLMTokenCountCompletionDetailsAudio, r.Usage.CompletionTokensDetails.AudioTokens))
 			}
+		}
+	}
+}
+
+// observeChatCompletionsStream marks a streamed chat completion OK when
+// the caller reads it to EOF without a read or close error, as Python
+// does when its stream wrapper reaches StopIteration. (JS leaves the
+// status unset.) Unlike Responses, chat streams have no completed event,
+// so EOF is the end-of-stream signal. A stream closed early stays
+// Unset, and an errored one keeps its Error status.
+func (m *middleware) observeChatCompletionsStream(span trace.Span, body *httputil.SpanEndingBody) {
+	body.BeforeEnd = func(end httputil.StreamEnd) {
+		if end.EOF && !end.Failed {
+			span.SetStatus(codes.Ok, "")
 		}
 	}
 }

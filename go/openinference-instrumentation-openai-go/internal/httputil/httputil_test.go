@@ -226,10 +226,10 @@ func TestSpanEndingBody_HooksObserveBytesAndRunOnceBeforeEnd(t *testing.T) {
 		ReadCloser: io.NopCloser(strings.NewReader(stream)),
 		Span:       span,
 		OnRead:     func(p []byte) { seen.Write(p) },
-		BeforeEnd: func(failed bool) {
+		BeforeEnd: func(end httputil.StreamEnd) {
 			calls++
-			if failed {
-				t.Error("BeforeEnd reported failed on a clean stream")
+			if end != (httputil.StreamEnd{EOF: true}) {
+				t.Errorf("BeforeEnd got %+v on a fully read clean stream, want EOF only", end)
 			}
 			if got := len(recorder.Ended()); got != 0 {
 				t.Errorf("BeforeEnd ran after the span ended (%d ended)", got)
@@ -258,15 +258,33 @@ func TestSpanEndingBody_BeforeEndReportsReadFailure(t *testing.T) {
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	_, span := tp.Tracer("test").Start(context.Background(), "stream")
 
-	var failed bool
+	var end httputil.StreamEnd
 	body := &httputil.SpanEndingBody{
 		ReadCloser: &erroringReader{},
 		Span:       span,
-		BeforeEnd:  func(f bool) { failed = f },
+		BeforeEnd:  func(e httputil.StreamEnd) { end = e },
 	}
 	_, _ = body.Read(make([]byte, 8))
 	_ = body.Close()
-	if !failed {
-		t.Error("BeforeEnd should report failed after a non-EOF read error")
+	if end != (httputil.StreamEnd{Failed: true}) {
+		t.Errorf("BeforeEnd got %+v after a read error and Close, want Failed only", end)
+	}
+}
+
+func TestSpanEndingBody_BeforeEndReportsEarlyClose(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	_, span := tp.Tracer("test").Start(context.Background(), "stream")
+
+	end := httputil.StreamEnd{EOF: true}
+	body := &httputil.SpanEndingBody{
+		ReadCloser: io.NopCloser(strings.NewReader("data: one\n\n")),
+		Span:       span,
+		BeforeEnd:  func(e httputil.StreamEnd) { end = e },
+	}
+	_, _ = body.Read(make([]byte, 4))
+	_ = body.Close()
+	if end != (httputil.StreamEnd{}) {
+		t.Errorf("BeforeEnd got %+v after an early Close, want neither EOF nor Failed", end)
 	}
 }
