@@ -393,6 +393,7 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
     {
       vercelFunctionName: "workflow",
       vercelAttributes: {
+        "operation.name": "workflow",
         "gen_ai.operation.name": "workflow",
         "resource.name": "agent.step",
         "agent.framework.name": "eve",
@@ -414,6 +415,7 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
     {
       vercelFunctionName: "workflow",
       vercelAttributes: {
+        "operation.name": "workflow",
         "gen_ai.operation.name": "workflow",
         "resource.name": "agent.approval",
         "agent.approval.kind": "tool-approval",
@@ -424,6 +426,71 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
       expectedOpenInferenceAttributes: {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
         [SemanticConventions.SESSION_ID]: "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+    },
+  ],
+  [
+    // eve 0.75 and earlier set both operation.name and resource.name to the span name.
+    "eve 0.75 agent.step span with resource.name",
+    {
+      vercelFunctionName: "agent.step",
+      vercelAttributes: {
+        "operation.name": "agent.step",
+        "resource.name": "agent.step",
+        "agent.framework.name": "eve",
+        "agent.step.index": 0,
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+      },
+    },
+  ],
+  [
+    // An agent identity keeps the eve map from applying, as it does for operation.name.
+    "eve 0.76-shaped span with an agent identity",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "operation.name": "workflow",
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.step",
+        "gen_ai.agent.name": "researcher",
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+      },
+    },
+  ],
+  [
+    // A recognized gen_ai.operation.name takes precedence over resource.name.
+    "span with resource.name agent.step and gen_ai.operation.name chat",
+    {
+      vercelFunctionName: "custom.operation",
+      vercelAttributes: {
+        "operation.name": "custom.operation",
+        "gen_ai.operation.name": "chat",
+        "resource.name": "agent.step",
+        "gen_ai.request.model": "gpt-4o",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      },
+    },
+  ],
+  [
+    // The AI SDK sets resource.name to the functionId; its operation.name kind still applies.
+    "AI SDK span whose functionId is agent.step",
+    {
+      vercelFunctionName: "ai.generateText",
+      vercelAttributes: {
+        "operation.name": "ai.generateText",
+        "resource.name": "agent.step",
+        "ai.telemetry.functionId": "agent.step",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
       },
     },
   ],
