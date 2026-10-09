@@ -1,6 +1,6 @@
 # openinference-instrumentation-openai-go (Go)
 
-OTel middleware that traces calls made through the official [`openai/openai-go`](https://github.com/openai/openai-go) SDK with OpenInference LLM spans.
+OTel middleware that traces calls made through the official [`openai/openai-go`](https://github.com/openai/openai-go) SDK with OpenInference spans.
 
 ## Install
 
@@ -33,7 +33,7 @@ resp, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 })
 ```
 
-Every `/v1/chat/completions` and `/v1/responses` call now emits an LLM-kind span.
+Every `/v1/chat/completions` and `/v1/responses` call now emits an LLM-kind span, and every `/v1/decisions` call a DECISION-kind span.
 
 ### Chat Completions
 
@@ -93,9 +93,46 @@ Only response creation is traced. `GET /v1/responses/{id}`, `/cancel`, and the o
 
 [`examples/responses`](examples/responses) runs a two-call tool loop: the first call returns a `function_call`, and the second sends the `function_call_output` with `previous_response_id`.
 
+### Decisions
+
+Decisions API calls (`POST /v1/decisions`) produce an `openai.decisions.create` span of kind `DECISION`, following the [decision span spec](https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md) and the Python and JS OpenAI instrumentors. A decision model answers typed questions (`predicate`, `choice`, `score`) instead of generating text, so the span identifies the model under `decision.*` and has no `llm.*` attributes. Decision usage is not counted as LLM usage.
+
+`openai-go` v1 has no Decisions client, so send the request with the generic `client.Post`, which goes through the middleware:
+
+```go
+var res struct {
+    Answers []map[string]any `json:"answers"`
+}
+err := client.Post(ctx, "decisions", map[string]any{
+    "model": "gpt-6-luna",
+    "input": "I was charged twice for my order.",
+    "questions": []map[string]any{
+        {"type": "predicate", "name": "is_complaint", "instructions": "Is this a complaint?"},
+    },
+}, &res)
+```
+
+`github.com/openai/openai-go/v3` added `client.Decisions.New` in v3.73.0. `option.Middleware` is a type alias in both major versions, so `openaiotel.Middleware(...)` can be passed to a v3 client unchanged, and its `client.Decisions.New` calls are traced the same way.
+
+| Attribute | Source |
+|-----------|--------|
+| `openinference.span.kind` | `DECISION` |
+| `decision.system` | `openai` |
+| `decision.provider` | `openai`, or `azure` for the Azure host suffixes listed above |
+| `decision.request.model_name` | request `model` |
+| `decision.response.model_name` | response `model` |
+| `decision.model_name` | request `model`, then overwritten by response `model` |
+| `decision.token_count.input` / `.output` | `usage.input_tokens` / `usage.output_tokens`, recorded when present, including zero |
+| `input.value` / `input.mime_type` | the request body as JSON / `application/json` |
+| `output.value` / `output.mime_type` | the response body as JSON / `application/json`, including every answer and refusal |
+
+Successful calls set the span status to `OK`. Non-2xx responses set it to `Error` and record only the request attributes, so `decision.model_name` stays the requested model. The Decisions API has no streaming mode.
+
+[`examples/decisions`](examples/decisions) asks a `predicate`, a `choice` and a `score` question about one customer message.
+
 ## Azure OpenAI
 
-Azure-hosted clients (created via [`openai-go/azure`](https://pkg.go.dev/github.com/openai/openai-go/azure)) are instrumented the same way — just pass `openaiotel.Middleware(...)` alongside `azure.WithEndpoint(...)`. The middleware recognises the Azure host suffixes and sets `llm.provider=azure` on those spans so backend queries can distinguish them from direct OpenAI traffic; `llm.system` stays `openai`.
+Azure-hosted clients (created via [`openai-go/azure`](https://pkg.go.dev/github.com/openai/openai-go/azure)) are instrumented the same way — just pass `openaiotel.Middleware(...)` alongside `azure.WithEndpoint(...)`. The middleware recognises the Azure host suffixes and sets `llm.provider=azure` (or `decision.provider=azure` on DECISION spans) so backend queries can distinguish them from direct OpenAI traffic; `llm.system` / `decision.system` stays `openai`.
 
 ## Streaming
 
@@ -146,6 +183,8 @@ Top-level values (`input.value` / `output.value`) are replaced with the `__REDAC
 
 Responses spans follow the same rules. Their content parts (`.message.contents.{k}.message_content.text`) are redacted by the `_TEXT` flags like `.content` is. `OPENINFERENCE_HIDE_INPUT_IMAGES` (implied by `HIDE_INPUTS`) drops input image URLs but keeps the parts' `image` type, and redacts the URLs in `input.value`. Because their `input.value` / `output.value` are JSON, `HIDE_INPUTS` / `HIDE_OUTPUTS` also drop `input.mime_type` / `output.mime_type`, so the `__REDACTED__` sentinel is not labeled as JSON.
 
+Decision spans have no messages, tools, or invocation parameters, so the message, text, tool, and invocation-parameter flags don't change them. `HIDE_INPUTS` and `HIDE_OUTPUTS` redact `input.value` / `output.value` and drop the mime types, as for Responses. Decision request images go through the same `input.value` redaction as Responses: `OPENINFERENCE_HIDE_INPUT_IMAGES` replaces the `image_url` of each `input_image` part with `__REDACTED__`, as do base64 images over 32,000 characters. A redacted request is re-encoded, so its keys are in sorted order.
+
 To override the env-driven config programmatically:
 
 ```go
@@ -167,7 +206,7 @@ client := openai.NewClient(
 
 ## Limitations (v0)
 
-- Only `/v1/chat/completions` and `POST /v1/responses` are instrumented. Embeddings, completions, and image endpoints fall through to the next middleware unchanged.
-- Responses input files and audio parts are not recorded as message contents; they remain in `input.value`. The base64 image limit is fixed at Python's default of 32,000 characters, because the Go `TraceConfig` has no `base64_image_max_length` setting yet.
+- Only `/v1/chat/completions`, `POST /v1/responses`, and `POST /v1/decisions` are instrumented. Embeddings, completions, and image endpoints fall through to the next middleware unchanged.
+- Responses input files and audio parts are not recorded as message contents; they remain in `input.value`. The base64 image limit is fixed at Python's default of 32,000 characters, because the Go `TraceConfig` has no `base64_image_max_length` setting yet. The same limit applies to Decisions request images in `input.value`.
 - For requests with `n > 1`, `llm.finish_reason` is set from the first choice only.
 - Streamed Chat Completions spans capture only request attributes (output and token counts arrive in SSE deltas the middleware does not yet parse). Span duration *does* correctly reflect end-of-stream because the body wrapper ends the span on `Read`-to-EOF or `Close`.

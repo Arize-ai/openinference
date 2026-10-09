@@ -1,9 +1,10 @@
 // Package openai instruments calls made through the official
-// openai/openai-go SDK with OpenInference LLM spans.
+// openai/openai-go SDK with OpenInference spans.
 //
 // Wire it up by passing Middleware as a RequestOption when constructing
 // the client; every /v1/chat/completions and /v1/responses call then
-// emits an LLM-kind span:
+// emits an LLM-kind span, and every /v1/decisions call a DECISION-kind
+// span:
 //
 //	import (
 //	    "github.com/openai/openai-go"
@@ -20,7 +21,8 @@
 // The middleware also works against Azure OpenAI: when the request host
 // matches one of the Azure-hosted patterns (*.openai.azure.com,
 // *.services.ai.azure.com, *.cognitiveservices.azure.com) the span's
-// llm.provider attribute is set to "azure" instead of "openai".
+// llm.provider (or decision.provider) attribute is set to "azure"
+// instead of "openai".
 //
 // Streaming responses (text/event-stream) pass through unchanged, and
 // their spans end when the caller closes or fully reads the response
@@ -63,8 +65,9 @@ type config struct {
 
 // Middleware returns an openai-go option.Middleware that emits an
 // OpenInference LLM span for every /v1/chat/completions and
-// /v1/responses request issued through the client. If tracer is nil, Middleware is a no-op
-// pass-through so callers can wire it in unconditionally.
+// /v1/responses request, and a DECISION span for every /v1/decisions
+// request, issued through the client. If tracer is nil, Middleware is a
+// no-op pass-through so callers can wire it in unconditionally.
 func Middleware(tracer trace.Tracer, opts ...Option) option.Middleware {
 	cfg := config{trace: instrumentation.TraceConfigFromEnv()}
 	for _, o := range opts {
@@ -99,14 +102,10 @@ func (m *middleware) handle(req *http.Request, next option.MiddlewareNext) (*htt
 	ctx, span := m.tracer.Start(req.Context(), op.spanName)
 	req = req.WithContext(ctx)
 
-	span.SetAttributes(
-		attribute.String(semconv.OpenInferenceSpanKind, semconv.SpanKindLLM),
-		attribute.String(semconv.LLMSystem, semconv.LLMSystemOpenAI),
-		attribute.String(semconv.LLMProvider, providerForHost(req.URL.Host)),
-	)
+	span.SetAttributes(op.startAttrs(req.URL.Host)...)
 	// Propagate session.id / user.id / metadata / tag.tags from the
-	// customer's context so the LLM span carries that data without
-	// them having to set the attributes manually.
+	// customer's context so the span carries that data without them
+	// having to set the attributes manually.
 	instrumentation.ApplyContextAttributes(ctx, span)
 
 	reqBody, err := httputil.ReadAndRestore(&req.Body)
@@ -156,13 +155,15 @@ func (m *middleware) handle(req *http.Request, next option.MiddlewareNext) (*htt
 	return resp, nil
 }
 
-// operation describes one instrumented endpoint: the span name and the
-// functions that map its request and response bodies onto span
+// operation describes one instrumented endpoint: the span name, the
+// span kind, system and provider attributes set when the span starts,
+// and the functions that map its request and response bodies onto span
 // attributes. observeStream, when set, hooks into a streaming response
 // body so output attributes and status can be recorded before the span
 // ends; when nil, streams pass through with request attributes only.
 type operation struct {
 	spanName         string
+	startAttrs       func(host string) []attribute.KeyValue
 	setRequestAttrs  func(m *middleware, span trace.Span, body []byte)
 	setResponseAttrs func(m *middleware, span trace.Span, body []byte, statusCode int)
 	observeStream    func(m *middleware, span trace.Span, body *httputil.SpanEndingBody)
@@ -171,17 +172,35 @@ type operation struct {
 var (
 	chatCompletionsOperation = operation{
 		spanName:         "openai.chat.completions.create",
+		startAttrs:       llmStartAttrs,
 		setRequestAttrs:  (*middleware).setRequestAttrs,
 		setResponseAttrs: (*middleware).setResponseAttrs,
 		observeStream:    (*middleware).observeChatCompletionsStream,
 	}
 	responsesOperation = operation{
 		spanName:         "openai.responses.create",
+		startAttrs:       llmStartAttrs,
 		setRequestAttrs:  (*middleware).setResponsesRequestAttrs,
 		setResponseAttrs: (*middleware).setResponsesResponseAttrs,
 		observeStream:    (*middleware).observeResponsesStream,
 	}
+	decisionsOperation = operation{
+		spanName:         "openai.decisions.create",
+		startAttrs:       decisionStartAttrs,
+		setRequestAttrs:  (*middleware).setDecisionsRequestAttrs,
+		setResponseAttrs: (*middleware).setDecisionsResponseAttrs,
+	}
 )
+
+// llmStartAttrs returns the span kind, system and provider attributes
+// of an LLM span.
+func llmStartAttrs(host string) []attribute.KeyValue {
+	return []attribute.KeyValue{
+		attribute.String(semconv.OpenInferenceSpanKind, semconv.SpanKindLLM),
+		attribute.String(semconv.LLMSystem, semconv.LLMSystemOpenAI),
+		attribute.String(semconv.LLMProvider, providerForHost(host)),
+	}
+}
 
 // operationFor returns the operation for req, or false if req is not an
 // instrumented call. Matching on the path suffix covers both
@@ -197,13 +216,17 @@ func operationFor(req *http.Request) (operation, bool) {
 		return chatCompletionsOperation, true
 	case strings.HasSuffix(req.URL.Path, "/responses"):
 		return responsesOperation, true
+	case strings.HasSuffix(req.URL.Path, "/decisions"):
+		return decisionsOperation, true
 	}
 	return operation{}, false
 }
 
 // providerForHost returns the OpenInference llm.provider value for the
 // given request Host. Azure OpenAI hosts are mapped to "azure"; every
-// other host (including api.openai.com) is treated as "openai".
+// other host (including api.openai.com) is treated as "openai". The
+// decision.provider values alias the llm.provider ones, so DECISION
+// spans use the same mapping.
 //
 // Matched on a suffix basis so resource-specific subdomains
 // (e.g. my-resource.openai.azure.com) and regional endpoints are
