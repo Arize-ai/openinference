@@ -3,8 +3,7 @@ from typing import Mapping, cast
 import pytest
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
-from openinference.instrumentation.autogen_agentchat._types import AttributeValue
+from opentelemetry.util.types import AttributeValue
 
 
 class TestAssistantAgent:

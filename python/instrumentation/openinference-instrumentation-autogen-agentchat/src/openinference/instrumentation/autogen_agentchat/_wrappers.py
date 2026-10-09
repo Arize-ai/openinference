@@ -17,7 +17,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    TypeAlias,
     Union,
 )
 
@@ -30,6 +29,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _RUNTIME_CONTEXT
 from opentelemetry.trace.propagation import _SPAN_KEY
+from opentelemetry.util.types import AttributeValue
 
 from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
 from autogen_agentchat.base import Response, TaskResult
@@ -55,20 +55,6 @@ from openinference.semconv.trace import (
 
 if TYPE_CHECKING:
     from autogen_ext.models.openai import BaseOpenAIChatCompletionClient
-
-# `opentelemetry.util.types.AttributeValue` is defined upstream via a chained assignment
-# (`AnyValue = AttributeValue = ...`), which mypy does not recognize as a valid type alias.
-# Declaring our own alias keeps type checking working across opentelemetry-api versions.
-AttributeValue: TypeAlias = Union[
-    str,
-    bool,
-    int,
-    float,
-    Sequence[str],
-    Sequence[bool],
-    Sequence[int],
-    Sequence[float],
-]
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

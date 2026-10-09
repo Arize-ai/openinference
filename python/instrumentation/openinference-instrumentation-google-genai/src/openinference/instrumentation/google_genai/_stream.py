@@ -16,6 +16,7 @@ from typing import (
 )
 
 from opentelemetry import trace as trace_api
+from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig, safe_json_dumps
@@ -28,7 +29,6 @@ from openinference.instrumentation.google_genai._context import (
 from openinference.instrumentation.google_genai._image_utils import (
     redact_images_from_output_value,
 )
-from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _finish_tracing,

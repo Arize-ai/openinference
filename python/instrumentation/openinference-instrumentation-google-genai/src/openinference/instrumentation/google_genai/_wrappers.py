@@ -10,6 +10,7 @@ from typing import Any, Callable, Iterable, Iterator, List, Mapping
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import TraceConfig, get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.google_genai import cache_attributes
@@ -28,7 +29,6 @@ from openinference.instrumentation.google_genai._response_attributes_extractor i
     _ResponseAttributesExtractor,
 )
 from openinference.instrumentation.google_genai._stream import _Stream
-from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import _finish_tracing
 from openinference.instrumentation.google_genai._with_span import _WithSpan
 from openinference.instrumentation.google_genai.interactions_attributes import (

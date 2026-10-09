@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optio
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.portkey._request_attributes_extractor import (
@@ -16,7 +17,6 @@ from openinference.instrumentation.portkey._request_attributes_extractor import 
 from openinference.instrumentation.portkey._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.portkey._types import AttributeValue
 from openinference.instrumentation.portkey._utils import (
     _finish_tracing,
     _materialize_content_iterables,
