@@ -220,10 +220,14 @@ def _agent_run_attributes(
             # await here, so resolving it would break the instrumented run;
             # only resolve a synchronous factory.
             tools = agent.tools
+            resolved_tools: Any = None
             if callable(tools):
-                tools = None if inspect.iscoroutinefunction(tools) else tools()
-            if tools is not None:
-                for tool in tools:
+                if not inspect.iscoroutinefunction(tools):
+                    resolved_tools = tools()
+            else:
+                resolved_tools = tools
+            if resolved_tools is not None:
+                for tool in resolved_tools:
                     if isinstance(tool, Function):
                         tool_names.append(tool.name)
                     elif isinstance(tool, Toolkit):

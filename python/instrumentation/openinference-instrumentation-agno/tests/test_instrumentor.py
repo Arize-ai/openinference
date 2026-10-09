@@ -178,7 +178,7 @@ def test_async_tools_factory_does_not_break_run_attributes() -> None:
     async def tools_factory(run_context: Any = None) -> Any:
         return []
 
-    agent = Agent(name="Test Agent", tools=tools_factory)
+    agent = Agent(name="Test Agent", tools=tools_factory)  # type: ignore[arg-type]
     attributes = dict(_agent_run_attributes(agent))
     assert "agno.tools" not in attributes
 
