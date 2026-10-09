@@ -219,38 +219,42 @@ async def test_query_uses_per_turn_message_usage_instead_of_session_totals(
 
     trace_api.set_tracer_provider(tracer_provider)
     tracer = tracer_provider.get_tracer(__name__)
-    from claude_agent_sdk.types import AssistantMessage, SystemMessage, TextBlock
+    from claude_agent_sdk.types import SystemMessage, TextBlock
 
     messages = [
         SystemMessage(
             subtype="init",
             data={"claude_code_version": "2.1.277", "session_id": "session-1"},
         ),
-        AssistantMessage(
-            content=[TextBlock(text="part 1")],
-            model="claude-test",
-            message_id="message-1",
-            usage={"input_tokens": 10, "output_tokens": 2},
-        ),
-        AssistantMessage(
-            content=[TextBlock(text="part 2")],
-            model="claude-test",
-            message_id="message-1",
-            usage={"input_tokens": 10, "output_tokens": 5},
-        ),
-        AssistantMessage(
-            content=[TextBlock(text="reply")],
-            model="claude-test",
-            message_id="message-2",
-            usage={"input_tokens": 20, "output_tokens": 4, "cache_read_input_tokens": 6},
-        ),
-        AssistantMessage(
-            content=[TextBlock(text="subagent")],
-            model="claude-test",
-            message_id="subagent-message",
-            parent_tool_use_id="task-1",
-            usage={"input_tokens": 1000, "output_tokens": 500},
-        ),
+        {
+            "type": "assistant",
+            "content": [TextBlock(text="part 1")],
+            "model": "claude-test",
+            "message_id": "message-1",
+            "usage": {"input_tokens": 10, "output_tokens": 2},
+        },
+        {
+            "type": "assistant",
+            "content": [TextBlock(text="part 2")],
+            "model": "claude-test",
+            "message_id": "message-1",
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+        },
+        {
+            "type": "assistant",
+            "content": [TextBlock(text="reply")],
+            "model": "claude-test",
+            "message_id": "message-2",
+            "usage": {"input_tokens": 20, "output_tokens": 4, "cache_read_input_tokens": 6},
+        },
+        {
+            "type": "assistant",
+            "content": [TextBlock(text="subagent")],
+            "model": "claude-test",
+            "message_id": "subagent-message",
+            "parent_tool_use_id": "task-1",
+            "usage": {"input_tokens": 1000, "output_tokens": 500},
+        },
         {
             "type": "result",
             "subtype": "success",
