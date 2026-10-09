@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.32...python-openinference-instrumentation-groq-v0.1.33) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.31...python-openinference-instrumentation-groq-v0.1.32) (2026-10-07)
+
+
+### Bug Fixes
+
+* **groq:** record only the parameters the caller passed ([#3782](https://github.com/Arize-ai/openinference/issues/3782)) ([5822d35](https://github.com/Arize-ai/openinference/commit/5822d35d4a83ecadb741f851e5418756bdf3d223))
+
 ## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.30...python-openinference-instrumentation-groq-v0.1.31) (2026-10-01)
 
 

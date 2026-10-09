@@ -426,7 +426,7 @@ jobs:
       - name: Run Claude Code
         id: dependabot-fix
         if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
-        uses: anthropics/claude-code-action@2fee15510437d71399d9139ed60433470484a8fb # v1.0.153
+        uses: anthropics/claude-code-action@ed670b4cf9de2a5a570d130d2f6197b9e543cd64 # v1.0.240
         env:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           CLAUDE_DEPENDABOT_TARGET_MANIFEST: ${{ matrix.manifest }}
@@ -740,6 +740,8 @@ jobs:
             --head "$BRANCH" \
             --title "$PR_TITLE" \
             --body-file "$BODY_FILE")
+          # Auto-merge once a reviewer approves and checks pass.
+          gh pr merge "$PR_URL" --auto --squash || echo "::warning::Could not enable auto-merge on $PR_URL"
           {
             echo "status=pr_opened"
             echo "pr_url=$PR_URL"

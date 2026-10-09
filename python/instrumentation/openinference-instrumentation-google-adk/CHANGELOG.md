@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.0.3...python-openinference-instrumentation-google-adk-v1.0.4) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
+## [1.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.0.2...python-openinference-instrumentation-google-adk-v1.0.3) (2026-10-08)
+
+
+### Bug Fixes
+
+* **google-adk:** forward ADK 2.x invoke_workflow and invoke_node spans ([#3846](https://github.com/Arize-ai/openinference/issues/3846)) ([dde040f](https://github.com/Arize-ai/openinference/commit/dde040f46c5d1372b211df239b66a248a5fabf4c))
+
 ## [1.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.0.1...python-openinference-instrumentation-google-adk-v1.0.2) (2026-10-01)
 
 

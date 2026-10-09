@@ -1,3 +1,4 @@
+import gc
 import json
 from types import AsyncGeneratorType
 from typing import (
@@ -1272,6 +1273,152 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
             prompt_template_variables,
         )
     assert attributes == {}  # test should account for all span attributes
+
+
+def _sse_body(contents: List[str]) -> bytes:
+    events = [
+        {
+            "id": "stream-early-exit",
+            "object": "chat.completion.chunk",
+            "created": 1724786681,
+            "model": "mistral-small-latest",
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"role": "assistant", "content": content},
+                    "finish_reason": "stop" if i == len(contents) - 1 else None,
+                }
+            ],
+        }
+        for i, content in enumerate(contents)
+    ]
+    lines = [f"data: {json.dumps(event)}\n\n" for event in events] + ["data: [DONE]\n\n"]
+    return "".join(lines).encode()
+
+
+def _mock_stream_response(respx_mock: Any) -> None:
+    respx_mock.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            headers={"Content-Type": "text/event-stream"},
+            content=_sse_body(["France", " won", " the", " World", " Cup"]),
+        )
+    )
+
+
+_STREAM_MESSAGES = [{"role": "user", "content": "Who won the World Cup in 2018?"}]
+
+
+def test_synchronous_stream_abandoned_after_partial_iteration_ends_span(
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    _mock_stream_response(respx_mock)
+    stream = mistral_sync_client.chat.stream(
+        model="mistral-small-latest",
+        messages=_STREAM_MESSAGES,  # type: ignore[arg-type]
+    )
+    for i, _ in enumerate(stream):
+        if i == 1:
+            break
+    del stream
+    gc.collect()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes[OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "France won"
+
+
+def test_synchronous_stream_abandoned_before_iteration_ends_span(
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    _mock_stream_response(respx_mock)
+    stream = mistral_sync_client.chat.stream(
+        model="mistral-small-latest",
+        messages=_STREAM_MESSAGES,  # type: ignore[arg-type]
+    )
+    del stream
+    gc.collect()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.UNSET
+
+
+def test_synchronous_stream_used_as_context_manager_is_traced(
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    _mock_stream_response(respx_mock)
+    with mistral_sync_client.chat.stream(
+        model="mistral-small-latest",
+        messages=_STREAM_MESSAGES,  # type: ignore[arg-type]
+    ) as stream:
+        content = "".join(chunk.data.choices[0].delta.content for chunk in stream)
+    assert content == "France won the World Cup"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.is_ok
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "France won the World Cup"
+
+
+def test_synchronous_stream_context_manager_exited_early_ends_span(
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    _mock_stream_response(respx_mock)
+    with mistral_sync_client.chat.stream(
+        model="mistral-small-latest",
+        messages=_STREAM_MESSAGES,  # type: ignore[arg-type]
+    ) as stream:
+        for i, _ in enumerate(stream):
+            if i == 1:
+                break
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "France won"
+
+
+@pytest.mark.asyncio
+async def test_asynchronous_stream_closed_early_ends_span(
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    _mock_stream_response(respx_mock)
+    stream = await mistral_sync_client.chat.stream_async(
+        model="mistral-small-latest",
+        messages=_STREAM_MESSAGES,  # type: ignore[arg-type]
+    )
+    i = 0
+    async for _ in stream:
+        if i == 1:
+            break
+        i += 1
+    await stream.aclose()  # type: ignore[attr-defined]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "France won"
 
 
 @pytest.mark.parametrize(

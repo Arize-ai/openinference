@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.11...python-openinference-instrumentation-google-genai-v1.4.12) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+* **google-genai:** apply base64_image_max_length to output.value ([#3974](https://github.com/Arize-ai/openinference/issues/3974)) ([d69ab8e](https://github.com/Arize-ai/openinference/commit/d69ab8e94a9e78e88f56f69d443b9c2093cbc8b6))
+
+## [1.4.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.10...python-openinference-instrumentation-google-genai-v1.4.11) (2026-10-07)
+
+
+### Bug Fixes
+
+* **google-genai:** record each function_response part as its own tool message ([#3814](https://github.com/Arize-ai/openinference/issues/3814)) ([7ce25b0](https://github.com/Arize-ai/openinference/commit/7ce25b0a137ae55bc9e67606f069c041767f68a4))
+* **openai,google-genai:** end the span when a request is cancelled or interrupted ([#3971](https://github.com/Arize-ai/openinference/issues/3971)) ([b6d18d9](https://github.com/Arize-ai/openinference/commit/b6d18d992a5bc323e550a952a233a196c32dcced))
+
 ## [1.4.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.9...python-openinference-instrumentation-google-genai-v1.4.10) (2026-10-01)
 
 

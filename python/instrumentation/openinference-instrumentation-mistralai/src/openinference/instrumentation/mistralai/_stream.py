@@ -89,6 +89,37 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
     def __aiter__(self) -> AsyncIterator[Any]:
         return self
 
+    def __enter__(self) -> Any:
+        # The SDK's EventStream returns itself from __enter__; return the proxy
+        # instead so iteration inside a `with` block is still traced.
+        obj = self.__wrapped__.__enter__()
+        if obj is self.__wrapped__:
+            return self
+        return obj
+
+    def __exit__(self, *args: Any) -> Any:
+        try:
+            return self.__wrapped__.__exit__(*args)
+        finally:
+            # Exited before exhaustion: leave the span status UNSET to
+            # distinguish a truncated stream from a completed one.
+            self._finish_tracing()
+
+    def close(self) -> None:
+        try:
+            close = getattr(self.__wrapped__, "close", None)
+            if callable(close):
+                close()
+        finally:
+            self._finish_tracing()
+
+    def __del__(self) -> None:
+        # Abandoned (possibly never iterated): the span must still be ended.
+        try:
+            self._finish_tracing()
+        except BaseException:
+            pass
+
     def _process_chunk(self, chunk: Any) -> None:
         if not self._self_iteration_count:
             try:
@@ -106,6 +137,8 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         self,
         status: Optional[trace_api.Status] = None,
     ) -> None:
+        if self._self_is_finished:
+            return
         _finish_tracing(
             status=status,
             with_span=self._self_with_span,
@@ -160,6 +193,10 @@ class _AsyncStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unus
                 self._self_with_span.record_exception(exception)
                 self._finish_tracing(status=status)
                 raise
+            finally:
+                # Closed or abandoned before the final chunk (aclose(), break
+                # followed by garbage collection): end the span with status UNSET.
+                self._finish_tracing()
 
         return generator()
 
@@ -180,6 +217,8 @@ class _AsyncStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unus
         self,
         status: Optional[trace_api.Status] = None,
     ) -> None:
+        if self._self_is_finished:
+            return
         _finish_tracing(
             status=status,
             with_span=self._self_with_span,

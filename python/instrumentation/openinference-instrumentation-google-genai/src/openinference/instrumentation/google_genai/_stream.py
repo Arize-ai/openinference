@@ -18,12 +18,15 @@ from typing import (
 from opentelemetry import trace as trace_api
 from wrapt import ObjectProxy
 
-from openinference.instrumentation import TraceConfig, safe_json_dumps
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig, safe_json_dumps
 from openinference.instrumentation.google_genai._context import (
     CapturedRequestScope,
     get_input_attributes,
     get_llm_invocation_parameters,
     get_tool_attributes,
+)
+from openinference.instrumentation.google_genai._image_utils import (
+    redact_images_from_output_value,
 )
 from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import (
@@ -101,8 +104,9 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
                 yield item
         except GeneratorExit:
             # the caller stopped iterating early (break, close(), or the iterator was
-            # garbage collected), so end the span with the output received so far
-            self._finish_tracing(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
+            # garbage collected); end the span with the output received so far,
+            # leaving the status unset like the anthropic and mistralai instrumentors
+            self._finish_tracing()
             raise
         except BaseException as exception:
             status = trace_api.Status(
@@ -126,8 +130,9 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
                 yield item
         except GeneratorExit:
             # the caller stopped iterating early (break, close(), or the iterator was
-            # garbage collected), so end the span with the output received so far
-            self._finish_tracing(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
+            # garbage collected); end the span with the output received so far,
+            # leaving the status unset like the anthropic and mistralai instrumentors
+            self._finish_tracing()
             raise
         except BaseException as exception:
             status = trace_api.Status(
@@ -147,7 +152,10 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         self,
         status: trace_api.Status | None = None,
     ) -> None:
-        response_extractor = _ResponseExtractor(response_accumulator=self._response_accumulator)
+        response_extractor = _ResponseExtractor(
+            response_accumulator=self._response_accumulator,
+            config=self._config,
+        )
         _finish_tracing(
             with_span=self._with_span,
             attributes=response_extractor.get_attributes(),
@@ -189,21 +197,42 @@ class _ResponseAccumulator:
 
 
 class _ResponseExtractor:
-    __slots__ = ("_response_accumulator",)
+    __slots__ = ("_response_accumulator", "_config")
 
     def __init__(
         self,
         response_accumulator: _ResponseAccumulator,
+        config: TraceConfig | None = None,
     ) -> None:
         self._response_accumulator = response_accumulator
+        self._config = config
 
     def get_attributes(self) -> Iterator[tuple[str, AttributeValue]]:
         if not (result := self._response_accumulator._result()):
             return
-        json_string = safe_json_dumps(result)
-        yield from _as_output_attributes(
-            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
-        )
+        if self._config is None:
+            output_value_and_type = _ValueAndType(
+                safe_json_dumps(result), OpenInferenceMimeTypeValues.JSON
+            )
+        else:
+            try:
+                # Always serialize the walked tree: besides redacting oversized images,
+                # it base64-encodes inline bytes that safe_json_dumps would otherwise
+                # render as a Python bytes repr.
+                redacted, _ = redact_images_from_output_value(
+                    result,
+                    base64_image_max_length=int(self._config.base64_image_max_length or 0),
+                )
+                output_value_and_type = _ValueAndType(
+                    safe_json_dumps(redacted), OpenInferenceMimeTypeValues.JSON
+                )
+            except Exception:
+                # Fail closed: never export an unredacted image after a redaction error.
+                logger.exception("Failed to redact images from output value")
+                output_value_and_type = _ValueAndType(
+                    REDACTED_VALUE, OpenInferenceMimeTypeValues.TEXT
+                )
+        yield from _as_output_attributes(output_value_and_type)
 
         if model_version := result.get("model_version"):
             yield SpanAttributes.LLM_MODEL_NAME, model_version

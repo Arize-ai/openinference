@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.14...python-openinference-instrumentation-agno-v1.0.15) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
+## [1.0.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.13...python-openinference-instrumentation-agno-v1.0.14) (2026-10-07)
+
+
+### Bug Fixes
+
+* **agno:** Mark Failed Agent and Team Runs as Errors ([#3951](https://github.com/Arize-ai/openinference/issues/3951)) ([78c1b1d](https://github.com/Arize-ai/openinference/commit/78c1b1d6ce6d7afe764249943d9e420dbeecbb98))
+* **agno:** Mark Failed Model Spans as Errors ([#3953](https://github.com/Arize-ai/openinference/issues/3953)) ([c3624c8](https://github.com/Arize-ai/openinference/commit/c3624c8417e562c820494229a0206252d078d290))
+
 ## [1.0.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.12...python-openinference-instrumentation-agno-v1.0.13) (2026-10-01)
 
 

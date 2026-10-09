@@ -48,6 +48,7 @@ from workflows.runtime.types.step_function import (
 
 from llama_index.core import QueryBundle
 from llama_index.core.response_synthesizers.base import BaseSynthesizer
+from openinference.instrumentation.llama_index._finish_reason import _extract_finish_reason
 from openinference.instrumentation.llama_index._stream import _ResponseStream
 
 # Conditionally import agent base classes (they may not exist in all versions)
@@ -620,11 +621,15 @@ class _Span(BaseSpan):
         self[LLM_PROMPTS] = [event.prompt]
 
     @_process_event.register
-    def _(self, event: LLMCompletionInProgressEvent) -> None: ...
+    def _(self, event: LLMCompletionInProgressEvent) -> None:
+        if finish_reason := _extract_finish_reason(event.response):
+            self[LLM_FINISH_REASON] = finish_reason
 
     @_process_event.register
     def _(self, event: LLMCompletionEndEvent) -> None:
         self[OUTPUT_VALUE] = event.response.text
+        if finish_reason := _extract_finish_reason(event.response):
+            self[LLM_FINISH_REASON] = finish_reason
         self._extract_token_counts(event.response)
 
     @_process_event.register
@@ -637,13 +642,17 @@ class _Span(BaseSpan):
         )
 
     @_process_event.register
-    def _(self, event: LLMChatInProgressEvent) -> None: ...
+    def _(self, event: LLMChatInProgressEvent) -> None:
+        if finish_reason := _extract_finish_reason(event.response):
+            self[LLM_FINISH_REASON] = finish_reason
 
     @_process_event.register
     def _(self, event: LLMChatEndEvent) -> None:
         if (response := event.response) is None:
             return
         self[OUTPUT_VALUE] = str(response)
+        if finish_reason := _extract_finish_reason(response):
+            self[LLM_FINISH_REASON] = finish_reason
         self._extract_token_counts(response)
         self._process_messages(
             LLM_OUTPUT_MESSAGES,
@@ -1462,6 +1471,7 @@ EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME

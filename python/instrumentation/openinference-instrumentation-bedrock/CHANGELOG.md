@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.58...python-openinference-instrumentation-bedrock-v0.1.59) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
+## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.57...python-openinference-instrumentation-bedrock-v0.1.58) (2026-10-08)
+
+
+### Bug Fixes
+
+* **bedrock:** record every toolResult block of a Converse message ([#3787](https://github.com/Arize-ai/openinference/issues/3787)) ([be777f6](https://github.com/Arize-ai/openinference/commit/be777f681f6a6216e1db40e19918d3ac14af7d30))
+
+## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.56...python-openinference-instrumentation-bedrock-v0.1.57) (2026-10-07)
+
+
+### Bug Fixes
+
+* **bedrock:** record input and output for OpenAI models (GPT-6, GPT-5.x, gpt-oss) on InvokeModel ([#3833](https://github.com/Arize-ai/openinference/issues/3833)) ([f4908d6](https://github.com/Arize-ai/openinference/commit/f4908d6d113255849e7774e62c752cba4db33577))
+* **bedrock:** restore instrumented clients on uninstrument ([#3970](https://github.com/Arize-ai/openinference/issues/3970)) ([641a073](https://github.com/Arize-ai/openinference/commit/641a0737f13cc2e9aae19bc871049dd044aec223))
+
 ## [0.1.56](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.55...python-openinference-instrumentation-bedrock-v0.1.56) (2026-10-01)
 
 

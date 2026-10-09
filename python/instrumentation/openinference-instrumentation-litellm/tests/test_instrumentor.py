@@ -275,6 +275,32 @@ def test_completion_with_parameters(
     assert span.status.status_code == StatusCode.OK
 
 
+def test_completion_does_not_record_proxy_server_request(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        mock_response="Beijing",
+        proxy_server_request={
+            "url": "http://localhost:4000/v1/chat/completions",
+            "method": "POST",
+            "headers": {},
+            "body": {"model": "gpt-3.5-turbo", "messages": input_messages},
+        },
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
+        {"model": "gpt-3.5-turbo", "mock_response": "Beijing"}
+    )
+
+
 def test_completion_with_tool_calls(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
