@@ -161,6 +161,8 @@ class _ChatCompletionAccumulator:
                 lambda: _ValuesAccumulator(
                     message=_ValuesAccumulator(
                         content=_StringAccumulator(),
+                        refusal=_StringAccumulator(),
+                        reasoning_content=_StringAccumulator(),
                         function_call=_ValuesAccumulator(arguments=_StringAccumulator()),
                         tool_calls=_IndexedAccumulator(
                             lambda: _ValuesAccumulator(
