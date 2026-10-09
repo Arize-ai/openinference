@@ -62,10 +62,34 @@ func IsStreaming(resp *http.Response) bool {
 //
 // Non-EOF Read errors are recorded on the span via RecordError but do
 // not end the span — Close still has to fire for that.
+//
+// The optional OnRead and BeforeEnd hooks let a caller observe the
+// stream (for example, to parse SSE events) without buffering ahead of
+// the consumer or changing the bytes it receives. With both nil, the
+// body behaves as a plain pass-through.
 type SpanEndingBody struct {
 	io.ReadCloser
-	Span   trace.Span
-	closed atomic.Bool
+	Span trace.Span
+	// OnRead, if set, receives each chunk the caller reads, in order.
+	// The slice is only valid for the duration of the call.
+	OnRead func(p []byte)
+	// BeforeEnd, if set, runs exactly once just before the span ends.
+	BeforeEnd func(StreamEnd)
+	closed    atomic.Bool
+	eof       atomic.Bool
+	failed    atomic.Bool
+}
+
+// StreamEnd describes how a streaming body finished, for
+// SpanEndingBody.BeforeEnd.
+type StreamEnd struct {
+	// EOF reports whether the caller read the body to io.EOF, rather
+	// than closing it early.
+	EOF bool
+	// Failed reports whether a Read or Close error was recorded on the
+	// span. Hooks use it to avoid overwriting that Error status with OK,
+	// which OTel Go would otherwise allow.
+	Failed bool
 }
 
 // Read forwards to the underlying ReadCloser and ends the span on EOF.
@@ -74,11 +98,16 @@ type SpanEndingBody struct {
 // healthy to any status-based filter on the backend.
 func (b *SpanEndingBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
+	if n > 0 && b.OnRead != nil {
+		b.OnRead(p[:n])
+	}
 	if err != nil && !errors.Is(err, io.EOF) {
+		b.failed.Store(true)
 		b.Span.RecordError(err)
 		b.Span.SetStatus(codes.Error, err.Error())
 	}
 	if errors.Is(err, io.EOF) {
+		b.eof.Store(true)
 		b.endOnce()
 	}
 	return n, err
@@ -90,6 +119,7 @@ func (b *SpanEndingBody) Read(p []byte) (int, error) {
 func (b *SpanEndingBody) Close() error {
 	closeErr := b.ReadCloser.Close()
 	if closeErr != nil {
+		b.failed.Store(true)
 		b.Span.RecordError(closeErr)
 		b.Span.SetStatus(codes.Error, closeErr.Error())
 	}
@@ -99,6 +129,9 @@ func (b *SpanEndingBody) Close() error {
 
 func (b *SpanEndingBody) endOnce() {
 	if !b.closed.Swap(true) {
+		if b.BeforeEnd != nil {
+			b.BeforeEnd(StreamEnd{EOF: b.eof.Load(), Failed: b.failed.Load()})
+		}
 		b.Span.End()
 	}
 }
