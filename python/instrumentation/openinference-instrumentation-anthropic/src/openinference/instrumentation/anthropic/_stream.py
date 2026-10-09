@@ -44,7 +44,7 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
     gives us the complete ParsedMessage at the end.
     """
 
-    __slots__ = ("_self_with_span", "_self_message_stream")
+    __slots__ = ("_self_with_span", "_self_message_stream", "_self_is_exhausted")
 
     def __init__(
         self,
@@ -55,6 +55,9 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
         super().__init__(raw_stream)
         self._self_with_span = with_span
         self._self_message_stream = message_stream
+        # Whether iteration ran to the end of the stream. Leaving the stream early closes this
+        # generator instead, so the SDK snapshot can still hold in-progress values.
+        self._self_is_exhausted = False
 
     def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
         try:
@@ -69,6 +72,7 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
                 )
             )
             raise
+        self._self_is_exhausted = True
         self._finish_tracing(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
 
     async def __aiter__(self) -> AsyncIterator["RawMessageStreamEvent"]:
@@ -84,6 +88,7 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
                 )
             )
             raise
+        self._self_is_exhausted = True
         self._finish_tracing(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
 
     def _finish_tracing(self, status: Optional[trace_api.Status] = None) -> None:
@@ -95,7 +100,7 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
                 pass
         _finish_tracing(
             with_span=self._self_with_span,
-            has_attributes=_MessageExtractor(snapshot),
+            has_attributes=_MessageExtractor(snapshot, is_exhausted=self._self_is_exhausted),
             status=status,
         )
 
@@ -281,12 +286,18 @@ class _MessageExtractor:
     Extracts span attributes from a ParsedMessage (or Message) snapshot.
     Used by both the messages.stream() path (via current_message_snapshot)
     and the messages.create(stream=True) path (via _MessageResponseAccumulator).
+
+    ``is_exhausted`` says whether the stream was read to its end. A stream left early
+    leaves tool input at the empty placeholder the SDK sends in content_block_start,
+    because the arguments are only parsed into the snapshot once the block completes, so
+    that placeholder is not a final value and must not be recorded as one.
     """
 
-    __slots__ = ("_snapshot",)
+    __slots__ = ("_snapshot", "_is_exhausted")
 
-    def __init__(self, snapshot: Any) -> None:
+    def __init__(self, snapshot: Any, is_exhausted: bool = True) -> None:
         self._snapshot = snapshot
+        self._is_exhausted = is_exhausted
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         snapshot = self._snapshot
@@ -350,10 +361,14 @@ class _MessageExtractor:
                     f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                     block.name,
                 )
-                yield (
-                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                    safe_json_dumps(block.input),
-                )
+                # An unfinished stream can leave the tool input at the SDK's empty
+                # placeholder, which the model never sent as final arguments (#3904).
+                arguments = self._tool_arguments(block)
+                if arguments is not None:
+                    yield (
+                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        arguments,
+                    )
                 yield (
                     f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
                     "tool_use",
@@ -366,9 +381,19 @@ class _MessageExtractor:
                     f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                     block.name,
                 )
-                yield (
-                    f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                    safe_json_dumps(block.input),
-                )
+                if arguments is not None:
+                    yield (
+                        f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        arguments,
+                    )
                 tool_idx += 1
         yield from _get_token_counts(snapshot.usage)
+
+    def _tool_arguments(self, block: Any) -> Optional[str]:
+        """
+        Returns the serialized tool arguments, or None if they are an unfinished stream's
+        placeholder rather than a value the model produced.
+        """
+        if not self._is_exhausted and not getattr(block, "input", None):
+            return None
+        return safe_json_dumps(block.input)
