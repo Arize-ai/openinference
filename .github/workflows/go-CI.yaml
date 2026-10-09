@@ -82,6 +82,7 @@ jobs:
                  ./openinference-instrumentation-anthropic-sdk-go/examples/manual-instrumentation/... \
                  ./openinference-instrumentation-openai-go/... \
                  ./openinference-instrumentation-openai-go/examples/auto-instrumentation/... \
+                 ./openinference-instrumentation-openai-go/examples/decisions/... \
                  ./openinference-instrumentation-openai-go/examples/manual-instrumentation/... \
                  ./openinference-instrumentation-openai-go/examples/responses/...
 
@@ -96,6 +97,7 @@ jobs:
             ./openinference-instrumentation-anthropic-sdk-go/examples/manual-instrumentation/... \
             ./openinference-instrumentation-openai-go/... \
             ./openinference-instrumentation-openai-go/examples/auto-instrumentation/... \
+            ./openinference-instrumentation-openai-go/examples/decisions/... \
             ./openinference-instrumentation-openai-go/examples/manual-instrumentation/... \
             ./openinference-instrumentation-openai-go/examples/responses/...
 
