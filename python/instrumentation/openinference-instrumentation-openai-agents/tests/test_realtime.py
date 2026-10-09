@@ -303,6 +303,7 @@ def test_realtime_spans_propagate_metadata_from_context(
 ) -> None:
     """metadata set via using_metadata() must land on every span as a JSON string."""
     import json
+    from typing import cast
 
     metadata = {"env": "prod", "tier": "free"}
     with using_metadata(metadata):
@@ -314,7 +315,7 @@ def test_realtime_spans_propagate_metadata_from_context(
     for span in spans:
         assert span.attributes is not None
         raw = span.attributes[SpanAttributes.METADATA]
-        assert json.loads(raw) == metadata
+        assert json.loads(cast(str, raw)) == metadata
 
 
 def test_realtime_spans_propagate_tags_from_context(
