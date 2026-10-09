@@ -1,7 +1,5 @@
 /* eslint-disable no-console */
 
-import "./instrumentation";
-
 import { createTypeSafeAi } from "@ai-sdk/typesafe-ai";
 import { experimental_decide } from "ai";
 

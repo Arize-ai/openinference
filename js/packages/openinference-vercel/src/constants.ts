@@ -23,7 +23,7 @@ export const VercelSDKFunctionNameToSpanKindMap = new Map([
   ["ai.embedMany", OpenInferenceSpanKind.CHAIN],
   ["ai.embedMany.doEmbed", OpenInferenceSpanKind.EMBEDDING],
   ["ai.toolCall", OpenInferenceSpanKind.TOOL],
-  ["ai.decide", OpenInferenceSpanKind.DECISION],
+  ["ai.decide", OpenInferenceSpanKind.CHAIN],
   ["ai.decide.doDecide", OpenInferenceSpanKind.DECISION],
 ]);
 

@@ -202,7 +202,13 @@ For details on AI SDK v7 telemetry, see the [AI SDK telemetry documentation](htt
 
 ### Decision models
 
-AI SDK `experimental_decide` calls require `ai` 7.0.128 or later and `@ai-sdk/otel` 1.0.128 or later. The SDK emits an outer operation span and a child model-call span. Pass `enrichSpan: enrichSpanWithOpenInference` to `OpenTelemetry` to classify the outer operation as `CHAIN` and the model call as `DECISION`. The [Jev decision example](./examples/ai-sdk-decision.ts) calls TypeSafe's hosted model with `@ai-sdk/typesafe-ai` and requires `TYPESAFE_API_KEY`.
+AI SDK `experimental_decide` calls require `ai` 7.0.128 or later and `@ai-sdk/otel` 1.0.128 or later, with `experimental_decision: true` set on `OpenTelemetry` to record the state, questions, and answers.
+
+The SDK emits an outer operation span and a child model-call span, and both carry the same `gen_ai.operation.name: "decide"`, provider, and model attributes. The processor alone cannot tell them apart, so without `enrichSpan` both spans are exported as `DECISION` spans that each carry the model identity, and the model call's usage is attributed to a second decision. Pass `enrichSpan: enrichSpanWithOpenInference` to `OpenTelemetry` to classify the outer operation as a `CHAIN` span (with the decision input and output) and the model call as a `DECISION` span (with `decision.model_name`, `decision.provider`, `decision.system`, and `decision.token_count.*`).
+
+Decision spans identify the model under `decision.*` rather than `llm.*`. To keep downstream GenAI converters from re-labeling the model as an LLM, the processor removes `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model`, and `gen_ai.usage.*` from decision spans after mapping them. Other exporters attached to the same tracer provider see the span after this removal.
+
+The [Jev decision example](./examples/ai-sdk-decision.ts) calls TypeSafe's hosted model with `@ai-sdk/typesafe-ai` and requires `TYPESAFE_API_KEY`.
 
 For more information on Vercel OpenTelemetry support, see the [Vercel OpenTelemetry guide](https://vercel.com/docs/observability/otel-overview).
 

@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 
-import "./instrumentation";
+import { tracerProvider } from "./instrumentation";
 
 import { openai } from "@ai-sdk/openai";
 import { isStepCount, streamText, tool } from "ai";
@@ -51,8 +51,7 @@ async function main() {
 
   console.log("\n\nDone.");
 
-  // Give exporters a moment to flush.
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  await tracerProvider.forceFlush();
 }
 
 main().catch((error) => {
