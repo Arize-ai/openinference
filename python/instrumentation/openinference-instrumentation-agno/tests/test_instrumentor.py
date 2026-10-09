@@ -166,6 +166,35 @@ def test_agent_no_metadata() -> None:
     assert "metadata" not in attributes
 
 
+def test_async_tools_factory_does_not_break_run_attributes() -> None:
+    """An async `tools` factory must not abort attribute extraction (#3997).
+
+    Resolving it here cannot await the coroutine, and iterating the coroutine
+    the factory returns raised `TypeError: 'coroutine' object is not iterable`,
+    which took down the whole instrumented run.
+    """
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    async def tools_factory(run_context: Any = None) -> Any:
+        return []
+
+    agent = Agent(name="Test Agent", tools=tools_factory)
+    attributes = dict(_agent_run_attributes(agent))
+    assert "agno.tools" not in attributes
+
+
+def test_sync_tools_factory_yields_tool_names() -> None:
+    """A synchronous `tools` factory is still resolved into tool names."""
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    def tools_factory(run_context: Any = None) -> Any:
+        return [DuckDuckGoTools()]
+
+    agent = Agent(name="Test Agent", tools=tools_factory)
+    attributes = dict(_agent_run_attributes(agent))
+    assert attributes["agno.tools"]
+
+
 def test_team_metadata_captured() -> None:
     """Test that Team.metadata dict is captured as a span attribute."""
     import json
