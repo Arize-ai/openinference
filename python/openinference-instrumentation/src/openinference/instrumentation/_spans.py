@@ -2,6 +2,7 @@ from typing import Any, Callable, Dict, Mapping, Optional, Union, cast
 
 import wrapt
 from opentelemetry.trace import Span
+from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
@@ -14,7 +15,7 @@ from ._attributes import (
     get_tool_attributes,
 )
 from ._genai_conversion import get_genai_attributes
-from ._types import AttributeValue, OpenInferenceMimeType
+from ._types import OpenInferenceMimeType
 from .config import (
     TraceConfig,
     mask_without_externalization,

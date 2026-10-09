@@ -15,9 +15,10 @@ from typing import (
     Type,
 )
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
 from openinference.instrumentation.openai._image_utils import image_b64_to_data_url
-from openinference.instrumentation.openai._types import AttributeValue
 from openinference.instrumentation.openai._utils import _get_decision_type, _get_openai_version
 from openinference.semconv.trace import (
     ChoiceAttributes,

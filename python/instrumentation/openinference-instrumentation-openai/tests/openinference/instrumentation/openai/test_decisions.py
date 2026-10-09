@@ -20,6 +20,7 @@ from httpx import Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
 
 from openinference.instrumentation import (
@@ -29,7 +30,6 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.openai import OpenAIInstrumentor
-from openinference.instrumentation.openai._types import AttributeValue
 from openinference.instrumentation.openai._utils import _get_decision_type
 from openinference.semconv.trace import (
     OpenInferenceDecisionProviderValues,

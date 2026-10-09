@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from instructor.utils import is_async
@@ -33,7 +34,6 @@ from openinference.instrumentation import (
     infer_llm_provider_from_host,
     safe_json_dumps,
 )
-from openinference.instrumentation.instructor._types import AttributeValue
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceLLMProviderValues,

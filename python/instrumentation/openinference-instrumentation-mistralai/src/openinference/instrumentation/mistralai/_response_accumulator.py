@@ -16,8 +16,9 @@ from typing import (
     Type,
 )
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.mistralai._types import AttributeValue
 from openinference.instrumentation.mistralai._utils import (
     _as_output_attributes,
     _ValueAndType,

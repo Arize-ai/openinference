@@ -18,10 +18,8 @@ from typing import (
     Mapping,
     Optional,
     OrderedDict,
-    Sequence,
     TypedDict,
     TypeVar,
-    Union,
 )
 
 import wrapt
@@ -38,7 +36,8 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import StatusCode, get_current_span
-from typing_extensions import NotRequired, ParamSpec, TypeAlias
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import NotRequired, ParamSpec
 
 from openinference.instrumentation import (
     get_attributes_from_context,
@@ -62,20 +61,6 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
-# As of opentelemetry-api 1.45.0, `opentelemetry.util.types.AttributeValue` is defined
-# via a chained assignment (`AnyValue = AttributeValue = ...`), which mypy does not treat
-# as a valid type alias. Define our own alias to keep annotations working across versions.
-AttributeValue: TypeAlias = Union[
-    str,
-    bool,
-    int,
-    float,
-    Sequence[str],
-    Sequence[bool],
-    Sequence[int],
-    Sequence[float],
-]
 
 P = ParamSpec("P")
 T = TypeVar("T")

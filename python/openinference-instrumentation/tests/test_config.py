@@ -9,10 +9,10 @@ from opentelemetry.sdk.trace import SpanLimits
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider, use_span
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:ignore[attr-defined]
-from openinference.instrumentation._types import AttributeValue
 from openinference.instrumentation.config import (
     DEFAULT_BASE64_IMAGE_MAX_LENGTH,
     DEFAULT_ENABLE_GENAI_SEMCONV,

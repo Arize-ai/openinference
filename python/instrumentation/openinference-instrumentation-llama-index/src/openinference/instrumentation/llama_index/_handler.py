@@ -68,6 +68,8 @@ try:
     from llama_index.core.base.llms.types import ToolCallBlock  # type: ignore
 except ImportError:
     ToolCallBlock = None  # type: ignore
+from opentelemetry.util.types import AttributeValue
+
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
@@ -147,7 +149,6 @@ from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
 )
-from openinference.instrumentation.llama_index._types import AttributeValue
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,

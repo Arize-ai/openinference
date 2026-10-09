@@ -61,6 +61,8 @@ if TYPE_CHECKING:
         RoutingClassifierModelInvocationOutputTypeDef,
     ]
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import (
     Message,
     ReasoningMessageContent,
@@ -79,7 +81,6 @@ from openinference.instrumentation import (
     get_span_kind_attributes,
     get_tool_attributes,
 )
-from openinference.instrumentation.bedrock._types import AttributeValue
 from openinference.instrumentation.bedrock.utils.json_utils import (
     fix_loose_json_string,
     safe_json_loads,
