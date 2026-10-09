@@ -2972,8 +2972,8 @@ async def test_cancellation_leaving_async_streaming_create_context_is_recorded(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """
-    A task cancelled while awaiting the next event raises CancelledError, which is a
-    BaseException that iteration does not catch, so the context has to record it.
+    A task cancelled while awaiting the next event raises CancelledError, which both iteration
+    and leaving the context see, and which is recorded once.
     """
     first_event_read = asyncio.Event()
 
@@ -3000,6 +3000,85 @@ async def test_cancellation_leaving_async_streaming_create_context_is_recorded(
         await task
 
     _assert_error_span(in_memory_span_exporter, asyncio.CancelledError)
+
+
+async def test_cancellation_iterating_async_streaming_create_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Cancelled while awaiting the next event, without a context, and the stream still held."""
+    first_event_read = asyncio.Event()
+
+    def handler(request: Any) -> Any:
+        async def content() -> Any:
+            yield _event_stream_body().split(b"\n\n", 1)[0] + b"\n\n"
+            await asyncio.Event().wait()  # the next event never arrives
+
+        return httpx2.Response(
+            status_code=200, headers={"content-type": "text/event-stream"}, content=content()
+        )
+
+    client = _mock_async_anthropic_client(handler)
+    stream = await client.messages.create(**_REQUEST_KWARGS, stream=True)
+
+    async def consume() -> None:
+        async for _ in stream:
+            first_event_read.set()
+
+    task = asyncio.create_task(consume())
+    await first_event_read.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    _assert_error_span(in_memory_span_exporter, asyncio.CancelledError)
+    await stream.close()
+
+
+def test_interrupt_iterating_streaming_create_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    class InterruptedStream(httpx2.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            yield _event_stream_body().split(b"\n\n", 1)[0] + b"\n\n"
+            raise KeyboardInterrupt
+
+    def handler(request: Any) -> Any:
+        return httpx2.Response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            stream=InterruptedStream(),
+        )
+
+    client = _mock_anthropic_client(handler)
+    stream = client.messages.create(**_REQUEST_KWARGS, stream=True)
+
+    with pytest.raises(KeyboardInterrupt):
+        for _ in stream:
+            pass
+
+    _assert_error_span(in_memory_span_exporter, KeyboardInterrupt)
+    stream.close()
+
+
+def test_streaming_create_read_again_after_leaving_the_loop_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Leaving a loop early does not end the span, since the rest of the stream can still be read."""
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    stream = client.messages.create(**_REQUEST_KWARGS, stream=True)
+    for _ in stream:
+        break
+    assert not in_memory_span_exporter.get_finished_spans()
+    for _ in stream:
+        pass
+
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert _output_texts(span) == ["hi"]
 
 
 @pytest.mark.parametrize(

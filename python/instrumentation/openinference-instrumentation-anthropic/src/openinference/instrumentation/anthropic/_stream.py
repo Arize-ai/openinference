@@ -213,7 +213,12 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
             for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
                 yield item
-        except Exception as exception:
+        except GeneratorExit:
+            # the loop was left early, and the stream can still be read again, so the span is
+            # finished by close, exiting the context, or dropping the stream
+            raise
+        except BaseException as exception:
+            # e.g. a KeyboardInterrupt or a cancelled task while waiting for the next event
             status = trace_api.Status(
                 status_code=trace_api.StatusCode.ERROR,
                 description=f"{type(exception).__name__}: {exception}",
@@ -232,7 +237,9 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
             async for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
                 yield item
-        except Exception as exception:
+        except GeneratorExit:
+            raise
+        except BaseException as exception:
             status = trace_api.Status(
                 status_code=trace_api.StatusCode.ERROR,
                 description=f"{type(exception).__name__}: {exception}",
