@@ -22,10 +22,12 @@ import {
   extractResultErrorAttributes,
   extractResultSuccessAttributes,
   formatPromptAttributes,
+  hasContextSessionId,
   isAssistantMessage,
   isResultErrorMessage,
   isResultSuccessMessage,
   isSystemInitMessage,
+  withoutSessionId,
 } from "./messageProcessor";
 
 type CreateSessionFn = (options: SDKSessionOptions) => SDKSession;
@@ -57,6 +59,7 @@ export function wrapPrompt({
     }
 
     const inputAttrs = formatPromptAttributes(message);
+    const preserveContextSessionId = hasContextSessionId(activeContext);
     const toolTracker = new ToolSpanTracker(oiTracer);
 
     return oiTracer.startActiveSpan(
@@ -85,10 +88,16 @@ export function wrapPrompt({
           // assistant messages. unstable_v2_prompt() returns only a result, so
           // the finish reason is unavailable for those versions.
           if (isResultSuccessMessage(result)) {
-            span.setAttributes(extractResultSuccessAttributes(result));
+            const attributes = extractResultSuccessAttributes(result);
+            span.setAttributes(
+              preserveContextSessionId ? withoutSessionId(attributes) : attributes,
+            );
             span.setStatus({ code: SpanStatusCode.OK });
           } else if (isResultErrorMessage(result)) {
-            span.setAttributes(extractResultErrorAttributes(result));
+            const attributes = extractResultErrorAttributes(result);
+            span.setAttributes(
+              preserveContextSessionId ? withoutSessionId(attributes) : attributes,
+            );
             span.setStatus({
               code: SpanStatusCode.ERROR,
               message: `Result error: ${result.subtype}`,
@@ -283,6 +292,7 @@ function createSessionProxy(
 ): SDKSession {
   let currentTurnSpan: Span | undefined;
   let currentToolTracker: ToolSpanTracker | undefined;
+  let currentTurnPreservesContextSessionId = false;
   let hasError = false;
 
   return new Proxy(session, {
@@ -305,6 +315,7 @@ function createSessionProxy(
 
           hasError = false;
           const inputAttrs = formatPromptAttributes(message);
+          currentTurnPreservesContextSessionId = hasContextSessionId(activeContext);
           currentToolTracker = new ToolSpanTracker(oiTracer);
 
           currentTurnSpan = oiTracer.startSpan(`ClaudeAgent.turn`, {
@@ -341,6 +352,7 @@ function createSessionProxy(
           const innerGen = target.stream();
           const span = currentTurnSpan;
           const toolTracker = currentToolTracker;
+          const preserveContextSessionId = currentTurnPreservesContextSessionId;
 
           if (!span) {
             return innerGen;
@@ -352,7 +364,7 @@ function createSessionProxy(
             let spanEnded = false;
             try {
               for await (const msg of innerGen) {
-                processSessionMessage(msg, span!);
+                processSessionMessage(msg, span!, preserveContextSessionId);
                 if (isResultErrorMessage(msg)) {
                   hasError = true;
                 }
@@ -426,7 +438,11 @@ function createSessionProxy(
 /**
  * Processes a message from the V2 session stream, setting span attributes.
  */
-function processSessionMessage(msg: SDKMessage, span: Span): void {
+function processSessionMessage(
+  msg: SDKMessage,
+  span: Span,
+  preserveContextSessionId: boolean,
+): void {
   if (isAssistantMessage(msg)) {
     const stopReason = extractAssistantStopReason(msg);
     if (stopReason != null) {
@@ -435,13 +451,15 @@ function processSessionMessage(msg: SDKMessage, span: Span): void {
   } else if (isSystemInitMessage(msg)) {
     const { sessionId, model } = extractInitAttributes(msg);
     span.setAttributes({
-      [SemanticConventions.SESSION_ID]: sessionId,
+      ...(preserveContextSessionId ? {} : { [SemanticConventions.SESSION_ID]: sessionId }),
       [SemanticConventions.LLM_MODEL_NAME]: model,
     });
   } else if (isResultSuccessMessage(msg)) {
-    span.setAttributes(extractResultSuccessAttributes(msg));
+    const attributes = extractResultSuccessAttributes(msg);
+    span.setAttributes(preserveContextSessionId ? withoutSessionId(attributes) : attributes);
   } else if (isResultErrorMessage(msg)) {
-    span.setAttributes(extractResultErrorAttributes(msg));
+    const attributes = extractResultErrorAttributes(msg);
+    span.setAttributes(preserveContextSessionId ? withoutSessionId(attributes) : attributes);
     span.setStatus({
       code: SpanStatusCode.ERROR,
       message: `Result error: ${msg.subtype}`,
