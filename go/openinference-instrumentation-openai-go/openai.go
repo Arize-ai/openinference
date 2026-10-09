@@ -2,8 +2,8 @@
 // openai/openai-go SDK with OpenInference LLM spans.
 //
 // Wire it up by passing Middleware as a RequestOption when constructing
-// the client; every /v1/chat/completions call then emits an LLM-kind
-// span:
+// the client; every /v1/chat/completions and /v1/responses call then
+// emits an LLM-kind span:
 //
 //	import (
 //	    "github.com/openai/openai-go"
@@ -60,8 +60,8 @@ type config struct {
 }
 
 // Middleware returns an openai-go option.Middleware that emits an
-// OpenInference LLM span for every /v1/chat/completions request issued
-// through the client. If tracer is nil, Middleware is a no-op
+// OpenInference LLM span for every /v1/chat/completions and
+// /v1/responses request issued through the client. If tracer is nil, Middleware is a no-op
 // pass-through so callers can wire it in unconditionally.
 func Middleware(tracer trace.Tracer, opts ...Option) option.Middleware {
 	cfg := config{trace: instrumentation.TraceConfigFromEnv()}
@@ -83,7 +83,8 @@ type middleware struct {
 }
 
 func (m *middleware) handle(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-	if !isChatCompletion(req) {
+	op, ok := operationFor(req)
+	if !ok {
 		return next(req)
 	}
 	// Suppression: customer marked this context as off-limits for
@@ -93,7 +94,7 @@ func (m *middleware) handle(req *http.Request, next option.MiddlewareNext) (*htt
 		return next(req)
 	}
 
-	ctx, span := m.tracer.Start(req.Context(), "openai.chat.completions.create")
+	ctx, span := m.tracer.Start(req.Context(), op.spanName)
 	req = req.WithContext(ctx)
 
 	span.SetAttributes(
@@ -115,7 +116,7 @@ func (m *middleware) handle(req *http.Request, next option.MiddlewareNext) (*htt
 		return nil, wrapped
 	}
 	if reqBody != nil {
-		m.setRequestAttrs(span, reqBody)
+		op.setRequestAttrs(m, span, reqBody)
 	}
 
 	resp, err := next(req)
@@ -143,14 +144,50 @@ func (m *middleware) handle(req *http.Request, next option.MiddlewareNext) (*htt
 	if readErr != nil {
 		span.RecordError(fmt.Errorf("read response body: %w", readErr))
 	} else if respBody != nil {
-		m.setResponseAttrs(span, respBody, resp.StatusCode)
+		op.setResponseAttrs(m, span, respBody, resp.StatusCode)
 	}
 	span.End()
 	return resp, nil
 }
 
-func isChatCompletion(req *http.Request) bool {
-	return req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/chat/completions")
+// operation describes one instrumented endpoint: the span name and the
+// functions that map its request and response bodies onto span
+// attributes.
+type operation struct {
+	spanName         string
+	setRequestAttrs  func(m *middleware, span trace.Span, body []byte)
+	setResponseAttrs func(m *middleware, span trace.Span, body []byte, statusCode int)
+}
+
+var (
+	chatCompletionsOperation = operation{
+		spanName:         "openai.chat.completions.create",
+		setRequestAttrs:  (*middleware).setRequestAttrs,
+		setResponseAttrs: (*middleware).setResponseAttrs,
+	}
+	responsesOperation = operation{
+		spanName:         "openai.responses.create",
+		setRequestAttrs:  (*middleware).setResponsesRequestAttrs,
+		setResponseAttrs: (*middleware).setResponsesResponseAttrs,
+	}
+)
+
+// operationFor returns the operation for req, or false if req is not an
+// instrumented call. Matching on the path suffix covers both
+// api.openai.com/v1/... and the Azure path layouts. Only response
+// creation is traced: GET /responses/{id}, /responses/{id}/cancel and
+// the other sub-resources fall through.
+func operationFor(req *http.Request) (operation, bool) {
+	if req.Method != http.MethodPost {
+		return operation{}, false
+	}
+	switch {
+	case strings.HasSuffix(req.URL.Path, "/chat/completions"):
+		return chatCompletionsOperation, true
+	case strings.HasSuffix(req.URL.Path, "/responses"):
+		return responsesOperation, true
+	}
+	return operation{}, false
 }
 
 // providerForHost returns the OpenInference llm.provider value for the
@@ -393,12 +430,7 @@ type responseUsage struct {
 }
 
 func (m *middleware) setResponseAttrs(span trace.Span, body []byte, statusCode int) {
-	if statusCode < 200 || statusCode >= 300 {
-		span.SetStatus(codes.Error, http.StatusText(statusCode))
-		// Do not parse error bodies as success payloads; OpenAI returns
-		// {"error":{...}} which unmarshals into responsePayload with zero
-		// token counts and would pollute the span with misleading "0
-		// tokens" attributes.
+	if setHTTPErrorStatus(span, statusCode) {
 		return
 	}
 
@@ -480,6 +512,19 @@ func (m *middleware) setResponseAttrs(span trace.Span, body []byte, statusCode i
 			}
 		}
 	}
+}
+
+// setHTTPErrorStatus marks span as errored and returns true when
+// statusCode is not 2xx. Callers must not parse error bodies as success
+// payloads: OpenAI returns {"error":{...}}, which would unmarshal into a
+// success payload with zero token counts and pollute the span with
+// misleading "0 tokens" attributes.
+func setHTTPErrorStatus(span trace.Span, statusCode int) bool {
+	if statusCode >= 200 && statusCode < 300 {
+		return false
+	}
+	span.SetStatus(codes.Error, http.StatusText(statusCode))
+	return true
 }
 
 func inputMessageKey(i int, child string) string {
