@@ -109,6 +109,40 @@ describe("V1 query() wrapper", () => {
     expect(attrs[SemanticConventions.LLM_COST_TOTAL]).toBe(0.005);
   });
 
+  it("should fold prompt-cache tokens into prompt and total counts", async () => {
+    // Real usage shape from a Claude Agent SDK run: Claude Code serves almost
+    // all of its system prompt from the prompt cache, so input_tokens alone is
+    // tiny.
+    const mockModule = createMockModule([
+      {
+        type: "result",
+        subtype: "success",
+        result: "Done",
+        usage: {
+          input_tokens: 2,
+          output_tokens: 74,
+          cache_read_input_tokens: 18101,
+          cache_creation_input_tokens: 120,
+        },
+        total_cost_usd: 0.01,
+        session_id: "sess-cache",
+      },
+    ]);
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    for await (const _msg of mockModule.query({ prompt: "test" })) {
+      // drain
+    }
+
+    const attrs = exporter.getFinishedSpans()[0].attributes;
+    expect(attrs[SemanticConventions.LLM_TOKEN_COUNT_PROMPT]).toBe(18223);
+    expect(attrs[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]).toBe(74);
+    expect(attrs[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBe(18297);
+    expect(attrs[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(18101);
+    expect(attrs[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(120);
+  });
+
   it("should handle error result messages", async () => {
     const mockModule = createMockModule([
       {
