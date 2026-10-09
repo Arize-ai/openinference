@@ -302,7 +302,7 @@ class _SyncGenerateContent(_WithTracer):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._request_extractor = _RequestAttributesExtractor()
-        self._response_extractor = _ResponseAttributesExtractor()
+        self._response_extractor = _ResponseAttributesExtractor(config=self._config)
 
     def __call__(
         self,
@@ -505,7 +505,7 @@ class _AsyncGenerateContentWrapper(_WithTracer):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._request_extractor = _RequestAttributesExtractor()
-        self._response_extractor = _ResponseAttributesExtractor()
+        self._response_extractor = _ResponseAttributesExtractor(config=self._config)
 
     async def __call__(
         self,

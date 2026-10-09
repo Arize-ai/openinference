@@ -1,10 +1,14 @@
 import base64
 import logging
+import warnings
 from typing import Any, Iterable, Iterator, Mapping, Optional
 
 from google.genai import types
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig, safe_json_dumps
+from openinference.instrumentation.google_genai._image_utils import (
+    redact_images_from_output_value,
+)
 from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
@@ -13,10 +17,12 @@ from openinference.instrumentation.google_genai._utils import (
     _get_attributes_from_inline_data,
     _get_token_count_attributes_from_usage_metadata,
     _io_value_and_type,
+    _ValueAndType,
 )
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -28,18 +34,43 @@ logger.addHandler(logging.NullHandler())
 
 
 class _ResponseAttributesExtractor:
+    def __init__(self, config: Optional[TraceConfig] = None) -> None:
+        self._config = config
+
     def get_attributes(
         self,
         response: Any,
         request_parameters: Mapping[str, Any],
     ) -> Iterator[tuple[str, AttributeValue]]:
         yield from _as_output_attributes(
-            _io_value_and_type(response),
+            self._get_output_value_and_type(response),
         )
         yield from self._get_attributes_from_generate_content(
             response=response,
             request_parameters=request_parameters,
         )
+
+    def _get_output_value_and_type(self, response: Any) -> _ValueAndType:
+        if self._config is not None and callable(getattr(response, "model_dump", None)):
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    response_tree = response.model_dump(mode="json", exclude_unset=True)
+                redacted, changed = redact_images_from_output_value(
+                    response_tree,
+                    base64_image_max_length=int(self._config.base64_image_max_length or 0),
+                )
+                # Only re-serialize when an image was redacted so that output.value
+                # otherwise stays byte-identical to the SDK's own JSON serialization.
+                if changed:
+                    return _ValueAndType(
+                        safe_json_dumps(redacted), OpenInferenceMimeTypeValues.JSON
+                    )
+            except Exception:
+                # Fail closed: never export an unredacted image after a redaction error.
+                logger.exception("Failed to redact images from output value")
+                return _ValueAndType(REDACTED_VALUE, OpenInferenceMimeTypeValues.TEXT)
+        return _io_value_and_type(response)
 
     def _get_attributes_from_generate_content(
         self,
