@@ -38,6 +38,7 @@ from llama_index.core.callbacks.schema import BASE_TRACE_EVENT
 from llama_index.core.llms import ChatMessage, ChatResponse
 from llama_index.core.tools import ToolMetadata
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.llama_index._finish_reason import _extract_finish_reason
 from openinference.instrumentation.llama_index._types import AttributeValue
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -127,6 +128,8 @@ def payload_to_semantic_attributes(
             attributes[INPUT_VALUE] = _message_payload_to_str(messages[0])
     if response := (payload.get(EventPayload.RESPONSE) or payload.get(EventPayload.COMPLETION)):
         attributes.update(_get_response_output(response))
+        if event_type is CBEventType.LLM and (finish_reason := _extract_finish_reason(response)):
+            attributes[LLM_FINISH_REASON] = finish_reason
         if raw := getattr(response, "raw", None):
             attributes.update(_get_output_messages(raw))
             usage = raw.get("usage") if isinstance(raw, Mapping) else getattr(raw, "usage", None)
@@ -780,6 +783,7 @@ EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
