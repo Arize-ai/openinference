@@ -387,6 +387,128 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
       },
     },
   ],
+  [
+    // eve 0.76+: operation.name is "workflow" and the span name moves to resource.name.
+    "eve 0.76 agent.step span",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "operation.name": "workflow",
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.step",
+        "agent.framework.name": "eve",
+        "agent.name": "eve-agent",
+        "agent.step.index": 0,
+        "agent.model.id": "anthropic/claude-sonnet-4.6",
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+        "gen_ai.generation.id": "gen_01M4HDKFBBK6AHEKX0MEJMZAX4",
+        "gen_ai.usage.cost": 0.01799025,
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+    },
+  ],
+  [
+    "eve 0.76 agent.approval span",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "operation.name": "workflow",
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.approval",
+        "agent.approval.kind": "tool-approval",
+        "agent.approval.outcome": "approved",
+        "agent.step.index": 0,
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+    },
+  ],
+  [
+    // eve 0.75 and earlier set both operation.name and resource.name to the span name.
+    "eve 0.75 agent.step span with resource.name",
+    {
+      vercelFunctionName: "agent.step",
+      vercelAttributes: {
+        "operation.name": "agent.step",
+        "resource.name": "agent.step",
+        "agent.framework.name": "eve",
+        "agent.step.index": 0,
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+      },
+    },
+  ],
+  [
+    // An agent identity keeps the eve map from applying, as it does for operation.name.
+    "eve 0.76-shaped span with an agent identity",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "operation.name": "workflow",
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.step",
+        "gen_ai.agent.name": "researcher",
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+      },
+    },
+  ],
+  [
+    // A recognized gen_ai.operation.name takes precedence over resource.name.
+    "span with resource.name agent.step and gen_ai.operation.name chat",
+    {
+      vercelFunctionName: "custom.operation",
+      vercelAttributes: {
+        "operation.name": "custom.operation",
+        "gen_ai.operation.name": "chat",
+        "resource.name": "agent.step",
+        "gen_ai.request.model": "gpt-4o",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      },
+    },
+  ],
+  [
+    // Without gen_ai.operation.name "workflow", resource.name is not matched against the eve map.
+    "span with resource.name agent.step and no gen_ai.operation.name",
+    {
+      vercelFunctionName: "custom.operation",
+      vercelAttributes: {
+        "operation.name": "custom.operation",
+        "resource.name": "agent.step",
+        "gen_ai.conversation.id": "conversation-1",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      },
+    },
+  ],
+  [
+    // The AI SDK sets resource.name to the functionId; its operation.name kind still applies.
+    "AI SDK span whose functionId is agent.step",
+    {
+      vercelFunctionName: "ai.generateText",
+      vercelAttributes: {
+        "operation.name": "ai.generateText",
+        "resource.name": "agent.step",
+        "ai.telemetry.functionId": "agent.step",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+      },
+    },
+  ],
 ];
 
 /**
@@ -1336,6 +1458,42 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
       expect(spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(spanKind);
       memoryExporter.reset();
     });
+  });
+
+  it("should give eve 0.76 control-flow spans the same attributes as eve 0.75", () => {
+    const tracer = trace.getTracer("test-tracer");
+    // The attributes eve sets on an agent.step span other than its operation names.
+    const shared = {
+      "resource.name": "agent.step",
+      "agent.framework.name": "eve",
+      "agent.name": "eve-agent",
+      "agent.step.index": 0,
+      "agent.model.id": "anthropic/claude-sonnet-4.6",
+      "agent.usage.input_tokens": 4582,
+      "agent.usage.output_tokens": 54,
+      "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      "gen_ai.generation.id": "gen_01M4HDKFBBK6AHEKX0MEJMZAX4",
+      "gen_ai.usage.cost": 0.01799025,
+    };
+    const v075 = tracer.startSpan("agent.step");
+    v075.setAttributes({ ...shared, "operation.name": "agent.step" });
+    v075.end();
+    const v076 = tracer.startSpan("agent.step");
+    v076.setAttributes({
+      ...shared,
+      "operation.name": "workflow",
+      "gen_ai.operation.name": "workflow",
+    });
+    v076.end();
+    const [span075, span076] = memoryExporter.getFinishedSpans();
+    const { "operation.name": _op075, ...rest075 } = span075.attributes;
+    const {
+      "operation.name": _op076,
+      "gen_ai.operation.name": _genAIOp076,
+      ...rest076
+    } = span076.attributes;
+    expect(rest076).toEqual(rest075);
+    expect(rest076[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(OpenInferenceSpanKind.CHAIN);
   });
 
   test.each(generateVercelAttributeTestCases())(
