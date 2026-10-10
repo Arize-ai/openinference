@@ -18,6 +18,7 @@ from openinference.instrumentation import (
     ImageMessageContent,
     Message,
     TextMessageContent,
+    Tool,
     ToolCall,
     ToolCallFunction,
     get_input_attributes,
@@ -88,6 +89,47 @@ def _get_input_messages(content: Any) -> List[Message]:
                     Message(contents=contents, tool_calls=tool_calls, role=message.get("role"))
                 )
     return messages
+
+
+def _get_system_message(system: Any) -> List[Message]:
+    """
+    Convert the request's top-level ``system`` prompt to an OpenInference system Message.
+
+    Anthropic takes the system prompt outside ``messages``, either as a string or as a
+    list of text blocks.
+
+    Args:
+        system: The ``system`` value from the request body
+
+    Returns:
+        A one-element list with the system Message, or an empty list if there is no prompt
+    """
+    if isinstance(system, str):
+        return [Message(content=system, role="system")] if system else []
+    if isinstance(system, list):
+        contents: List[Any] = [
+            TextMessageContent(text=block["text"], type="text")
+            for block in system
+            if isinstance(block, dict) and isinstance(block.get("text"), str)
+        ]
+        if contents:
+            return [Message(contents=contents, role="system")]
+    return []
+
+
+def _get_tools(tools: Any) -> List[Tool]:
+    """
+    Convert the request's tool definitions to OpenInference Tool objects.
+
+    Args:
+        tools: The ``tools`` value from the request body
+
+    Returns:
+        List of Tool objects whose JSON schema is the full tool definition
+    """
+    if not isinstance(tools, list):
+        return []
+    return [Tool(json_schema=tool) for tool in tools if isinstance(tool, dict)]
 
 
 def _get_llm_token_counts(usage: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -239,7 +281,9 @@ def get_llm_input_attributes(request_body: Dict[str, Any], model_id: str) -> Dic
         - Span kind and input attributes
     """
     invocation_parameters = _get_invocation_parameters(request_body)
-    input_messages = _get_input_messages(request_body.get("messages"))
+    input_messages = _get_system_message(request_body.get("system")) + _get_input_messages(
+        request_body.get("messages") or []
+    )
     return {
         **get_llm_attributes(
             model_name=_get_llm_model_name_from_input(model_id),
@@ -247,6 +291,7 @@ def get_llm_input_attributes(request_body: Dict[str, Any], model_id: str) -> Dic
             provider=OpenInferenceLLMProviderValues.AWS.value,
             invocation_parameters=invocation_parameters,
             input_messages=input_messages,
+            tools=_get_tools(request_body.get("tools")),
         ),
         **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
         **get_input_attributes(request_body),
