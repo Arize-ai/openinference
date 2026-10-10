@@ -219,3 +219,43 @@ def test_system_instruction_from_dict_config() -> None:
         role_key: "system",
         content_key: "You are helpful.",
     }
+
+
+def test_contents_as_tuple_is_recorded_as_messages() -> None:
+    """A tuple of contents is accepted by google-genai and must be recorded.
+
+    Its request models coerce a tuple to a list, so the request is sent normally,
+    but the extractor used to pass the raw tuple to ``t_contents`` (which only
+    handles lists) and dropped every message.
+    """
+    extractor = _RequestAttributesExtractor()
+    request_parameters = {"contents": ("hello", "world")}
+    attrs = dict(extractor.get_attributes_from_request(request_parameters))
+    assert attrs == {
+        **_BASE_LLM_SPAN_ATTRS,
+        _im(0, MessageAttributes.MESSAGE_ROLE): "user",
+        _im(
+            0,
+            MessageAttributes.MESSAGE_CONTENTS,
+            "0",
+            MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+        ): "text",
+        _im(
+            0,
+            MessageAttributes.MESSAGE_CONTENTS,
+            "0",
+            MessageContentAttributes.MESSAGE_CONTENT_TEXT,
+        ): "hello",
+        _im(
+            0,
+            MessageAttributes.MESSAGE_CONTENTS,
+            "1",
+            MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+        ): "text",
+        _im(
+            0,
+            MessageAttributes.MESSAGE_CONTENTS,
+            "1",
+            MessageContentAttributes.MESSAGE_CONTENT_TEXT,
+        ): "world",
+    }
