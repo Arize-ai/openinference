@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import threading
 from typing import (
@@ -214,18 +215,28 @@ def _agent_run_attributes(
 
         if agent.tools:
             tool_names = []
-            # Handle both list of tools and callable that returns tools
-            tools = agent.tools() if callable(agent.tools) else agent.tools
-            for tool in tools:
-                if isinstance(tool, Function):
-                    tool_names.append(tool.name)
-                elif isinstance(tool, Toolkit):
-                    tool_names.extend([f for f in tool.functions.keys()])
-                elif callable(tool):
-                    tool_names.append(tool.__name__)
-                else:
-                    tool_names.append(str(tool))
-            yield f"agno{key_suffix}.tools", tool_names
+            # `tools` is either a list or a factory that returns one. An async
+            # factory would hand back a coroutine we can neither iterate nor
+            # await here, so resolving it would break the instrumented run;
+            # only resolve a synchronous factory.
+            tools = agent.tools
+            resolved_tools: Any = None
+            if callable(tools):
+                if not inspect.iscoroutinefunction(tools):
+                    resolved_tools = tools()
+            else:
+                resolved_tools = tools
+            if resolved_tools is not None:
+                for tool in resolved_tools:
+                    if isinstance(tool, Function):
+                        tool_names.append(tool.name)
+                    elif isinstance(tool, Toolkit):
+                        tool_names.extend([f for f in tool.functions.keys()])
+                    elif callable(tool):
+                        tool_names.append(tool.__name__)
+                    else:
+                        tool_names.append(str(tool))
+                yield f"agno{key_suffix}.tools", tool_names
 
 
 def _setup_team_context(
