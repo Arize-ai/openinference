@@ -1427,6 +1427,137 @@ def test_chat_completions_with_image_url_formats_issue_2188(
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
 
 
+def test_chat_completions_records_unsupported_content_part_types_issue_3803(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    completion_usage: Dict[str, Any],
+    model_name: str,
+) -> None:
+    """
+    A content part whose type the instrumentor does not model must still contribute an
+    attribute. Dropping it entirely leaves a positional gap in `message.contents.*` that
+    is indistinguishable from the message having fewer parts, so the type alone is
+    recorded for such a part.
+    """
+    input_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What is in this image?"},
+                {"type": "input_audio", "input_audio": {"data": "ZmFrZQ==", "format": "wav"}},
+                {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+                {"type": "file", "file": {"file_id": "file-abc123"}},
+            ],
+        },
+    ]
+
+    url = "https://api.openai.com/v1/chat/completions"
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "I see a cat."},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "model": model_name,
+                "usage": completion_usage,
+            },
+        )
+    )
+
+    openai = import_module("openai")
+    client = openai.OpenAI(api_key="sk-test")
+    client.chat.completions.create(
+        messages=input_messages, model=model_name  # type: ignore[arg-type]
+    )
+
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
+
+    assert span.status.is_ok
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = "llm.input_messages.0.message.contents"
+    # Every part is represented, including the two the instrumentor does not model.
+    assert attributes.get(f"{prefix}.0.message_content.type") == "text"
+    assert attributes.get(f"{prefix}.0.message_content.text") == "What is in this image?"
+    assert attributes.get(f"{prefix}.1.message_content.type") == "input_audio"
+    assert attributes.get(f"{prefix}.2.message_content.type") == "image"
+    assert (
+        attributes.get(f"{prefix}.2.message_content.image.image.url")
+        == "https://example.com/cat.png"
+    )
+    assert attributes.get(f"{prefix}.3.message_content.type") == "file"
+
+    # The unsupported parts carry no payload.
+    assert f"{prefix}.1.message_content.audio" not in attributes
+    assert f"{prefix}.3.message_content.text" not in attributes
+
+
+def test_chat_completions_with_tuple_valued_content_issue_3803(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    completion_usage: Dict[str, Any],
+    model_name: str,
+) -> None:
+    """
+    Callers may pass message content as a tuple of parts rather than a list. Each part must
+    still be flattened into `message.contents.*` so that no part is lost.
+    """
+    input_messages = [
+        {
+            "role": "user",
+            "content": (
+                {"type": "text", "text": "What's in this image?"},
+                {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+                {"type": "input_audio", "input_audio": {"data": "ZmFrZQ==", "format": "wav"}},
+            ),
+        },
+    ]
+
+    url = "https://api.openai.com/v1/chat/completions"
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "I see a cat."},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "model": model_name,
+                "usage": completion_usage,
+            },
+        )
+    )
+
+    openai = import_module("openai")
+    client = openai.OpenAI(api_key="sk-test")
+    client.chat.completions.create(
+        messages=input_messages, model=model_name  # type: ignore[arg-type]
+    )
+
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
+
+    assert span.status.is_ok
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = "llm.input_messages.0.message.contents"
+    assert attributes.get(f"{prefix}.0.message_content.type") == "text"
+    assert attributes.get(f"{prefix}.0.message_content.text") == "What's in this image?"
+    assert attributes.get(f"{prefix}.1.message_content.type") == "image"
+    assert (
+        attributes.get(f"{prefix}.1.message_content.image.image.url")
+        == "https://example.com/cat.png"
+    )
+    assert attributes.get(f"{prefix}.2.message_content.type") == "input_audio"
+
+
 @pytest.mark.parametrize("hide_outputs", [False, True])
 @pytest.mark.parametrize("hide_output_messages", [False, True])
 @pytest.mark.parametrize("hide_output_text", [False, True])
