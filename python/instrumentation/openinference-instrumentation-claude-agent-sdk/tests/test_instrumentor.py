@@ -208,6 +208,141 @@ async def test_propagated_session_id_not_overwritten_by_sdk_session(
 
 
 @pytest.mark.asyncio
+async def test_query_uses_per_turn_message_usage_instead_of_session_totals(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import SpanAttributes
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+    from claude_agent_sdk.types import SystemMessage, TextBlock
+
+    messages = [
+        SystemMessage(
+            subtype="init",
+            data={"claude_code_version": "2.1.277", "session_id": "session-1"},
+        ),
+        {
+            "type": "assistant",
+            "content": [TextBlock(text="part 1")],
+            "model": "claude-test",
+            "message_id": "message-1",
+            "usage": {"input_tokens": 10, "output_tokens": 2},
+        },
+        {
+            "type": "assistant",
+            "content": [TextBlock(text="part 2")],
+            "model": "claude-test",
+            "message_id": "message-1",
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+        },
+        {
+            "type": "assistant",
+            "content": [TextBlock(text="reply")],
+            "model": "claude-test",
+            "message_id": "message-2",
+            "usage": {"input_tokens": 20, "output_tokens": 4, "cache_read_input_tokens": 6},
+        },
+        {
+            "type": "assistant",
+            "content": [TextBlock(text="subagent")],
+            "model": "claude-test",
+            "message_id": "subagent-message",
+            "parent_tool_use_id": "task-1",
+            "usage": {"input_tokens": 1000, "output_tokens": 500},
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "parent_tool_use_id": "task-1",
+            "result": "subagent done",
+            "usage": {"input_tokens": 1000, "output_tokens": 500},
+            "total_cost_usd": 5.00,
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "done",
+            "usage": {"input_tokens": 1300, "output_tokens": 700},
+            "total_cost_usd": 12.34,
+            "session_id": "session-1",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        del prompt, options
+        for message in messages:
+            yield message
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+        pass
+
+    agent_span = _span_by_name(in_memory_span_exporter.get_finished_spans(), "ClaudeAgentSDK.query")
+    attributes = dict(agent_span.attributes or {})
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 36
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 9
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 45
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 6
+    assert SpanAttributes.LLM_COST_TOTAL not in attributes
+    subagent_span = _span_by_name(
+        in_memory_span_exporter.get_finished_spans(), "ClaudeAgentSDK.Subagent"
+    )
+    subagent_attributes = dict(subagent_span.attributes or {})
+    assert subagent_attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 1000
+    assert SpanAttributes.LLM_COST_TOTAL not in subagent_attributes
+
+
+@pytest.mark.asyncio
+async def test_query_drops_session_totals_when_no_assistant_usage_is_available(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import SpanAttributes
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "claude_code_version": "2.1.277",
+            "session_id": "session-1",
+            "model": "claude-test",
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "done",
+            "usage": {"input_tokens": 100, "output_tokens": 20},
+            "total_cost_usd": 1.25,
+            "session_id": "session-1",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        del prompt, options
+        for message in messages:
+            yield message
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+        pass
+
+    agent_span = _span_by_name(in_memory_span_exporter.get_finished_spans(), "ClaudeAgentSDK.query")
+    attributes = dict(agent_span.attributes or {})
+    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT not in attributes
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION not in attributes
+    assert SpanAttributes.LLM_COST_TOTAL not in attributes
+
+
 async def test_sdk_session_id_set_when_none_propagated(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: Any,
