@@ -18,7 +18,8 @@ class capture_span_context:
     """
     Context manager for capturing OpenInference span context.
 
-    Examples:
+    Examples::
+
         with capture_span_context() as capture:
             response = openai_client.chat.completions.create(...)
             phoenix_client.annotations.add_span_annotation(
