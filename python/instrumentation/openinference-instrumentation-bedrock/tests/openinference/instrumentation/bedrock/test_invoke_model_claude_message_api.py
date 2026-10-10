@@ -9,8 +9,12 @@ import pytest
 from aioresponses import aioresponses
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation.bedrock.utils.anthropic._attributes import (
+    get_llm_input_attributes,
+)
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _attributes_from_image_param,
+    _attributes_from_request,
 )
 
 _CASSETTES_DIR = Path(__file__).resolve().parent / "cassettes"
@@ -23,6 +27,62 @@ def test_file_image_source_emits_no_attributes() -> None:
     }
 
     assert list(_attributes_from_image_param(image_block, "prefix.")) == []
+
+
+_TOOL = {
+    "name": "lookup",
+    "description": "look something up",
+    "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}},
+}
+
+
+@pytest.mark.parametrize(
+    "system",
+    [
+        pytest.param("You are terse.", id="string"),
+        pytest.param([{"type": "text", "text": "You are terse."}], id="text-blocks"),
+    ],
+)
+def test_invoke_model_records_system_prompt_and_tools(system: Any) -> None:
+    body = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 50,
+        "system": system,
+        "tools": [_TOOL],
+        "messages": [{"role": "user", "content": "hello"}],
+    }
+    attributes = get_llm_input_attributes(body, "anthropic.claude-3-haiku-20240307-v1:0")
+
+    assert attributes["llm.input_messages.0.message.role"] == "system"
+    system_text = (
+        attributes["llm.input_messages.0.message.content"]
+        if isinstance(system, str)
+        else attributes["llm.input_messages.0.message.contents.0.message_content.text"]
+    )
+    assert system_text == "You are terse."
+    assert attributes["llm.input_messages.1.message.role"] == "user"
+    assert attributes["llm.input_messages.1.message.content"] == "hello"
+    assert json.loads(attributes["llm.tools.0.tool.json_schema"]) == _TOOL
+
+
+def test_streaming_request_records_system_text_blocks_under_input_messages() -> None:
+    request = {
+        "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+        "body": {
+            "system": [
+                {"type": "text", "text": "You are terse."},
+                {"type": "text", "text": "Answer in English."},
+            ],
+            "messages": [{"role": "user", "content": "hello"}],
+        },
+    }
+    attributes = dict(_attributes_from_request(request))
+
+    prefix = "llm.input_messages.0.message"
+    assert attributes[f"{prefix}.role"] == "system"
+    assert attributes[f"{prefix}.contents.0.message_content.text"] == "You are terse."
+    assert attributes[f"{prefix}.contents.1.message_content.text"] == "Answer in English."
+    assert not any(key.startswith("message.") for key in attributes)
 
 
 def _assert_invoke_model_span_attributes(

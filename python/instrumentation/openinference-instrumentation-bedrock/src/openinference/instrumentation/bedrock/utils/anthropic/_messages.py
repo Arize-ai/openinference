@@ -224,7 +224,7 @@ def _attributes_from_system_message(
         return
     for i, block in enumerate(system):
         try:
-            yield f"{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", block["text"]
+            yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", block["text"]
         except KeyError:
             pass
 
