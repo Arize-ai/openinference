@@ -12,9 +12,9 @@ from typing import Iterator, Tuple
 
 import pytest
 from anthropic.types import Message, TextBlock, Usage
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.anthropic._stream import _MessageExtractor
-from openinference.instrumentation.anthropic._types import AttributeValue
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
