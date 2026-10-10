@@ -6,3 +6,4 @@ openai
 ddgs
 yfinance
 fastapi
+sqlalchemy
