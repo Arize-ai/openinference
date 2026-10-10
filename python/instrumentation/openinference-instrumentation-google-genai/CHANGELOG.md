@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.12...python-openinference-instrumentation-google-genai-v1.4.13) (2026-10-10)
+
+
+### Bug Fixes
+
+* **google-genai:** end the stream span when the caller stops iterating early ([#3961](https://github.com/Arize-ai/openinference/issues/3961)) ([50b1338](https://github.com/Arize-ai/openinference/commit/50b133804a868b83590fbd8999fb047dd765c321))
+
 ## [1.4.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.11...python-openinference-instrumentation-google-genai-v1.4.12) (2026-10-09)
 
 
