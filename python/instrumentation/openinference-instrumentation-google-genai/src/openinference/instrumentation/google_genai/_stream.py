@@ -102,7 +102,13 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
                 self._capture_request_once()
                 self._response_accumulator.process_chunk(item)
                 yield item
-        except Exception as exception:
+        except GeneratorExit:
+            # the caller stopped iterating early (break, close(), or the iterator was
+            # garbage collected); end the span with the output received so far,
+            # leaving the status unset like the anthropic and mistralai instrumentors
+            self._finish_tracing()
+            raise
+        except BaseException as exception:
             status = trace_api.Status(
                 status_code=trace_api.StatusCode.ERROR,
                 description=f"{type(exception).__name__}: {exception}",
@@ -122,7 +128,13 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
                 self._capture_request_once()
                 self._response_accumulator.process_chunk(item)
                 yield item
-        except Exception as exception:
+        except GeneratorExit:
+            # the caller stopped iterating early (break, close(), or the iterator was
+            # garbage collected); end the span with the output received so far,
+            # leaving the status unset like the anthropic and mistralai instrumentors
+            self._finish_tracing()
+            raise
+        except BaseException as exception:
             status = trace_api.Status(
                 status_code=trace_api.StatusCode.ERROR,
                 description=f"{type(exception).__name__}: {exception}",
