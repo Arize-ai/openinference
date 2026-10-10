@@ -1,3 +1,4 @@
+import inspect
 import logging
 from typing import (
     TYPE_CHECKING,
@@ -124,7 +125,14 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         return obj
 
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
-        self.__wrapped__.__exit__(*args, **kwargs)
+        try:
+            self.__wrapped__.__exit__(*args, **kwargs)
+        finally:
+            # Leaving the context manager without exhausting the stream ends the HTTP
+            # response but never raises StopIteration, so finish the span here. The status
+            # stays UNSET to distinguish a truncated stream from a completed one, the same
+            # way the ollama instrumentor reports an abandoned stream.
+            self._finish_tracing(status=None)
 
     async def __aenter__(self) -> Any:
         obj = await self.__wrapped__.__aenter__()
@@ -133,7 +141,45 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         return obj
 
     async def __aexit__(self, *args: Any, **kwargs: Any) -> None:
-        await self.__wrapped__.__aexit__(*args, **kwargs)
+        try:
+            await self.__wrapped__.__aexit__(*args, **kwargs)
+        finally:
+            self._finish_tracing(status=None)
+
+    def close(self) -> Any:
+        close = getattr(self.__wrapped__, "close", None)
+        if not callable(close):
+            self._finish_tracing(status=None)
+            return None
+        result = close()
+        if inspect.isawaitable(result):
+            # `Stream.close` is synchronous while `AsyncStream.close` is a coroutine, so an
+            # awaited close finishes the span once the wrapped close has run.
+            return self._close_and_finish(result)
+        self._finish_tracing(status=None)
+        return result
+
+    async def aclose(self) -> None:
+        try:
+            aclose = getattr(self.__wrapped__, "aclose", None)
+            if callable(aclose):
+                await aclose()
+        finally:
+            self._finish_tracing(status=None)
+
+    async def _close_and_finish(self, awaitable: Any) -> None:
+        try:
+            await awaitable
+        finally:
+            self._finish_tracing(status=None)
+
+    def __del__(self) -> None:
+        # Abandoned without any explicit teardown, possibly never iterated: the span must
+        # still be ended, otherwise the call is missing from the trace entirely.
+        try:
+            self._finish_tracing(status=None)
+        except BaseException:
+            pass
 
     def _process_chunk(self, chunk: Any) -> None:
         if not self._self_iteration_count:
