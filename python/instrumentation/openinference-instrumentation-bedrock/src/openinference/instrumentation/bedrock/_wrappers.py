@@ -28,6 +28,7 @@ from openinference.instrumentation.bedrock.utils._extract_invoke_model_attribute
     _build_nova_input_messages,
     _build_nova_output_messages,
     _build_nova_tools,
+    _nova_prompt_tokens,
     get_openai_output_attributes,
     set_input_attributes,
 )
@@ -144,17 +145,17 @@ class _NovaStreamCallback:
                 self._stop_reason = stop_reason
         if metadata := payload.get("metadata"):
             usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}
-            input_tokens = usage.get("inputTokens") if isinstance(usage, dict) else None
+            prompt_tokens = _nova_prompt_tokens(usage) if isinstance(usage, dict) else None
             output_tokens = usage.get("outputTokens") if isinstance(usage, dict) else None
-            if input_tokens is not None:
-                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
+            if prompt_tokens is not None:
+                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
             if output_tokens is not None:
                 span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
             # Nova streaming metadata omits ``totalTokens``; derive it when possible
             # so consumers don't have to reconstruct the sum themselves.
             total = usage.get("totalTokens") if isinstance(usage, dict) else None
-            if total is None and input_tokens is not None and output_tokens is not None:
-                total = input_tokens + output_tokens
+            if total is None and prompt_tokens is not None and output_tokens is not None:
+                total = prompt_tokens + output_tokens
             if total is not None:
                 span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total)
             if isinstance(usage, dict):
