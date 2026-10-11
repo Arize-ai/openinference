@@ -125,6 +125,8 @@ export interface ConverseStreamEventData {
       inputTokens: number;
       outputTokens: number;
       totalTokens: number;
+      cacheReadInputTokens?: number;
+      cacheWriteInputTokens?: number;
     };
     metrics: {
       latencyMs: number;
@@ -155,6 +157,8 @@ export interface ConverseStreamProcessingState {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
+    cacheReadInputTokens?: number;
+    cacheWriteInputTokens?: number;
   };
   stopReason?: string;
   /** Map of contentBlockIndex -> toolUseId for correlating input chunks */
@@ -474,6 +478,8 @@ export type NormalizedConverseStreamEvent =
         inputTokens?: number;
         outputTokens?: number;
         totalTokens?: number;
+        cacheReadInputTokens?: number;
+        cacheWriteInputTokens?: number;
       };
     };
 
@@ -557,6 +563,8 @@ function toRawWireConverseStreamEvent(
         inputTokens: e.metadata.usage.inputTokens,
         outputTokens: e.metadata.usage.outputTokens,
         totalTokens: e.metadata.usage.totalTokens,
+        cacheReadInputTokens: e.metadata.usage.cacheReadInputTokens,
+        cacheWriteInputTokens: e.metadata.usage.cacheWriteInputTokens,
       },
     };
   }
