@@ -77,7 +77,7 @@ class _RunTrace:
         # Keep completed parents available: buffered child events can arrive later.
         self.tool_contexts: dict[str, Context] = {}
         self.compactions: dict[str, trace_api.Span] = {}
-        self.compaction_details: dict[str, dict[str, Any]] = {}
+        self.compaction_end_times: dict[str, int] = {}
         self.seen_compaction_events: set[tuple[str, str]] = set()
         self.compaction_span_name = f"{type(agent).__name__}.compaction"
         self.status: Optional[str] = None
@@ -137,7 +137,7 @@ class _RunTrace:
                     self._compaction_event(record)
             elif (getattr(value, "warning", None) or {}).get("type") == "retry":
                 self._close_tools("incomplete")
-                self._close_compactions("incomplete")
+                self._close_compactions("incomplete", final=False)
 
     def _compaction_event(self, value: Mapping[str, Any]) -> None:
         identity = value.get("compaction_id")
@@ -146,17 +146,17 @@ class _RunTrace:
             return
         key = (identity, event)
         if key in self.seen_compaction_events:
+            if span := self.compactions.get(identity):
+                self._compaction_payload(span, value)
             return
         self.seen_compaction_events.add(key)
         timestamp = value.get("timestamp_ns")
         if not isinstance(timestamp, int) or timestamp <= 0:
             timestamp = time_ns()
         attributes: dict[str, Any] = {"agno.compaction.id": identity}
-        details = self.compaction_details.setdefault(identity, {})
         for field in ("trigger", "tokens_before", "tokens_after"):
             if value.get(field) is not None:
                 attributes[f"agno.compaction.{field}"] = value[field]
-                details[field] = value[field]
         parent_id = value.get("parent_tool_call_id")
         if parent_id:
             attributes["agno.tool.parent_call_id"] = parent_id
@@ -177,43 +177,36 @@ class _RunTrace:
             self.compactions[identity] = span
         else:
             span.set_attributes(attributes)
-        _content(
-            span,
-            {
-                "operation": "conversation_compaction",
-                **{key: details[key] for key in ("trigger", "tokens_before") if key in details},
-            },
-            output=False,
-        )
+        self._compaction_payload(span, value)
         if event == "CompactionCompleted":
             span.set_attribute("agno.compaction.status", "completed")
-            _content(
-                span,
-                {
-                    "status": "completed",
-                    **(
-                        {"tokens_after": details["tokens_after"]}
-                        if "tokens_after" in details
-                        else {}
-                    ),
-                },
-                output=True,
-            )
             span.set_status(trace_api.StatusCode.OK)
-            span.end(end_time=timestamp)
-            self.compactions.pop(identity, None)
-            self.compaction_details.pop(identity, None)
+            # Transcript writes flush at the end of the SDK query. Keep the span
+            # writable until final run metadata arrives, preserving its actual end time.
+            self.compaction_end_times[identity] = timestamp
 
-    def _close_compactions(self, status: str) -> None:
-        for span in self.compactions.values():
+    @staticmethod
+    def _compaction_payload(span: trace_api.Span, value: Mapping[str, Any]) -> None:
+        if isinstance(context := value.get("recorded_context"), list) and context:
+            _content(span, context, output=False)
+            span.set_attribute("agno.compaction.input_source", "recorded_conversation")
+        if (summary := value.get("summary")) is not None:
+            _content(span, summary, output=True)
+            span.set_attribute("agno.compaction.output_source", "transcript_summary")
+
+    def _close_compactions(self, status: str, *, final: bool = True) -> None:
+        for identity, span in list(self.compactions.items()):
+            end_time = self.compaction_end_times.get(identity)
+            if end_time is not None and not final:
+                continue
             with _ignore_instrumentation_errors():
-                span.set_attribute("agno.compaction.status", status)
-                _content(span, {"status": status, "completion_observed": False}, output=True)
-                if status == "error":
-                    span.set_status(trace_api.StatusCode.ERROR)
-                span.end()
-        self.compactions.clear()
-        self.compaction_details.clear()
+                if end_time is None:
+                    span.set_attribute("agno.compaction.status", status)
+                    if status == "error":
+                        span.set_status(trace_api.StatusCode.ERROR)
+                span.end(end_time=end_time)
+            self.compactions.pop(identity, None)
+            self.compaction_end_times.pop(identity, None)
 
     def set_status(self, status: str) -> None:
         status = status.lower()

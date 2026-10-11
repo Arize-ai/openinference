@@ -609,8 +609,14 @@ async def test_claude_subagent_tree_persisted(
 
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("trigger", ["manual", "auto"])
+@pytest.mark.parametrize("with_content", [False, True])
 async def test_compaction_timing_and_database(
-    instrumentation: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Any, stream: bool, trigger: str
+    instrumentation: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+    stream: bool,
+    trigger: str,
+    with_content: bool,
 ) -> None:
     from time import time_ns
 
@@ -633,6 +639,11 @@ async def test_compaction_timing_and_database(
         tokens_after=256,
     )
     records = [started.to_dict(), completed.to_dict()]
+    context = [{"role": "user", "content": "Remember tangerine"}]
+    summary = "The codename is tangerine."
+    if with_content:
+        # The SDK transcript flushes after streaming the completion event.
+        records[-1].update(recorded_context=context, summary=summary)
 
     async def run(self: Any, *args: Any, **kwargs: Any) -> RunOutput:
         return RunOutput(
@@ -664,22 +675,26 @@ async def test_compaction_timing_and_database(
     assert child.attributes["agno.compaction.trigger"] == trigger
     assert child.attributes["agno.compaction.tokens_before"] == 1024
     assert child.attributes["agno.compaction.tokens_after"] == 256
-    import json
+    if with_content:
+        import json
 
-    assert json.loads(child.attributes["input.value"]) == {
-        "operation": "conversation_compaction",
-        "trigger": trigger,
-        "tokens_before": 1024,
-    }
-    assert json.loads(child.attributes["output.value"]) == {
-        "status": "completed",
-        "tokens_after": 256,
-    }
-    assert child.attributes["input.mime_type"] == "application/json"
-    assert child.attributes["output.mime_type"] == "application/json"
+        assert json.loads(child.attributes["input.value"]) == context
+        assert child.attributes["output.value"] == summary
+        assert child.attributes["input.mime_type"] == "application/json"
+        assert child.attributes["output.mime_type"] == "text/plain"
+        assert child.attributes["agno.compaction.input_source"] == "recorded_conversation"
+        assert child.attributes["agno.compaction.output_source"] == "transcript_summary"
+    else:
+        assert "input.value" not in child.attributes
+        assert "output.value" not in child.attributes
+        assert "input.mime_type" not in child.attributes
+        assert "output.mime_type" not in child.attributes
     assert "llm.token_count.total" not in child.attributes
     record = db.get_trace(run_id="compaction-run")
     assert record is not None and len(db.get_spans(trace_id=record.trace_id)) == 2
+    stored = next(s for s in db.get_spans(trace_id=record.trace_id) if s.parent_span_id)
+    assert stored.attributes.get("input.value") == child.attributes.get("input.value")
+    assert stored.attributes.get("output.value") == child.attributes.get("output.value")
 
 
 @pytest.mark.parametrize(
@@ -727,3 +742,47 @@ def test_compaction_missing_boundaries_cleanup_and_parent(
     assert children["boundary-only"].start_time == children["boundary-only"].end_time
     assert children["boundary-only"].attributes["agno.compaction.duration_unknown"] is True
     assert children["boundary-only"].status.status_code.name == "OK"
+
+
+@pytest.mark.parametrize("hide_inputs", [False, True])
+@pytest.mark.parametrize("hide_outputs", [False, True])
+def test_compaction_late_payload_respects_masking_and_survives_retry(
+    instrumentation: Any, hide_inputs: bool, hide_outputs: bool
+) -> None:
+    from time import time_ns
+
+    from openinference.instrumentation.agno._external import _RunTrace
+
+    provider, exporter, instrumentor = instrumentation
+    instrumentor.uninstrument()
+    instrumentor.instrument(
+        tracer_provider=provider,
+        config=TraceConfig(hide_inputs=hide_inputs, hide_outputs=hide_outputs),
+    )
+    run = _RunTrace(instrumentor._tracer, BaseExternalAgent(), "prompt", {}, True)
+    now = time_ns()
+    run._compaction_event(
+        {"event": "CompactionStarted", "compaction_id": "c1", "timestamp_ns": now}
+    )
+    completed = {"event": "CompactionCompleted", "compaction_id": "c1", "timestamp_ns": now + 100}
+    run._compaction_event(completed)
+    run._close_compactions("incomplete", final=False)
+    assert not exporter.get_finished_spans()
+    run._compaction_event(
+        {
+            **completed,
+            "recorded_context": [{"role": "user", "content": "secret-context"}],
+            "summary": [{"type": "text", "text": "secret-summary"}],
+        }
+    )
+    run.set_status("error")
+    run.finish()
+    spans = exporter.get_finished_spans()
+    assert len(spans) == 2
+    child = next(s for s in spans if s.name.endswith(".compaction"))
+    attrs = dict(child.attributes or {})
+    assert ("secret-context" in str(attrs)) is not hide_inputs
+    assert ("secret-summary" in str(attrs)) is not hide_outputs
+    assert child.start_time == now and child.end_time == now + 100
+    assert attrs["agno.compaction.status"] == "completed"
+    assert child.status.status_code.name == "OK"

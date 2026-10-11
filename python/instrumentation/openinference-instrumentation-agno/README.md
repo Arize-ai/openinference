@@ -115,6 +115,37 @@ AgnoInstrumentor().instrument(
 )
 ```
 
+### External harness compaction
+
+On Agno versions that expose compaction lifecycle records, the instrumenter
+creates a `CHAIN` span named `<AdapterClass>.compaction`. It consumes streamed
+`CompactionStarted`/`CompactionCompleted` events and the matching records in
+`RunOutput.metadata["compaction_events"]` for non-streamed runs, without duplicating
+spans. Explicit observation timestamps preserve timing when events are buffered.
+
+Spans carry `agno.compaction.trigger` (`auto` or `manual` when reported), status,
+and available `tokens_before`/`tokens_after` context sizes. These are not added to
+LLM usage totals. Trigger, context sizes, and lifecycle status are metadata,
+not compaction input/output. When Agno provides transcript-derived
+`recorded_context` and `summary` in completion records, these populate `input.value`
+and `output.value`. Input is the recorded conversation before compaction, not just
+the latest query or the harness's internal summarization prompt. Source attributes
+identify `recorded_conversation` and `transcript_summary`. Standard OpenInference
+input/output masking applies. Custom compaction instructions are not captured.
+
+Claude content capture requires Agno transcript storage and an Agno version that
+correlates transcript content with boundary UUIDs. Missing content remains absent.
+A streamed completion can precede the transcript flush: the instrumenter accepts
+later enrichment from final run metadata and exports the span when the run ends,
+using the original compaction end timestamp. No summary is synthesized.
+
+A completion without a start is represented by a zero-duration marker with
+`agno.compaction.duration_unknown=true`. An unfinished compaction is marked
+incomplete, cancelled, or errored when the run ends. An explicit parent tool-call
+ID attaches the span to that observed tool; otherwise the span belongs to the run.
+Older Agno versions continue to work without compaction spans. No database schema
+change or additional collector is required.
+
 ### Store traces in Agno's database
 
 No additional collector or Arize backend is required. In a fresh process:
