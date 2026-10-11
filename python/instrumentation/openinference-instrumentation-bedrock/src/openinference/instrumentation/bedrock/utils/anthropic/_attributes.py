@@ -257,6 +257,9 @@ def _validate_invocation_parameter(parameter: Any) -> bool:
     excluded_params = (
         "messages",
         "modelId",
+        # recorded as llm.input_messages / llm.tools, where TraceConfig masking applies
+        "system",
+        "tools",
     )
     return parameter not in excluded_params
 

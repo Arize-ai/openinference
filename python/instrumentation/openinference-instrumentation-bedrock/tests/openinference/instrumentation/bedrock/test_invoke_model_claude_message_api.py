@@ -63,6 +63,12 @@ def test_invoke_model_records_system_prompt_and_tools(system: Any) -> None:
     assert attributes["llm.input_messages.1.message.role"] == "user"
     assert attributes["llm.input_messages.1.message.content"] == "hello"
     assert json.loads(attributes["llm.tools.0.tool.json_schema"]) == _TOOL
+    # the system prompt and tools are not duplicated in invocation parameters, where
+    # hide_inputs / hide_input_messages would not mask them
+    assert json.loads(attributes["llm.invocation_parameters"]) == {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 50,
+    }
 
 
 def test_streaming_request_records_system_text_blocks_under_input_messages() -> None:
