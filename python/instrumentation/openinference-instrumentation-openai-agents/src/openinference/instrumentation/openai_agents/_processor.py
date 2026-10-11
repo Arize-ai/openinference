@@ -52,6 +52,17 @@ from openai.types.responses.response_input_item_param import (
     Message,
 )
 from openai.types.responses.response_output_message_param import Content
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry.context import attach, detach
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import (
@@ -65,17 +76,6 @@ from typing_extensions import assert_never
 
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.instrumentation.openai_agents._tool_schemas import get_tool_schema
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +117,7 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         self._root_spans: dict[str, OtelSpan] = {}
         self._otel_spans: dict[str, OtelSpan] = {}
         self._tokens: dict[str, object] = {}
+        self._root_span_errors: dict[str, Status] = {}
         # This captures in flight handoff. Once the handoff is complete, the entry is deleted
         # If the handoff does not complete, the entry stays in the dict.
         # Use an OrderedDict and _MAX_HANDOFFS_IN_FLIGHT to cap the size of the dict
@@ -144,8 +145,12 @@ class OpenInferenceTracingProcessor(TracingProcessor):
             trace: The trace that started.
         """
         root_span = self._root_spans.pop(trace.trace_id, None)
+        error_status = self._root_span_errors.pop(trace.trace_id, None)
         if root_span:
-            root_span.set_status(Status(StatusCode.OK))
+            if error_status is not None:
+                root_span.set_status(error_status)
+            else:
+                root_span.set_status(Status(StatusCode.OK))
             root_span.end()
 
     def on_span_start(self, span: Span[Any]) -> None:
@@ -261,7 +266,14 @@ class OpenInferenceTracingProcessor(TracingProcessor):
                 end_time = _as_utc_nano(datetime.fromisoformat(span.ended_at))
             except ValueError:
                 pass
-        otel_span.set_status(status=_get_span_status(span))
+        status = _get_span_status(span)
+        otel_span.set_status(status=status)
+        if (
+            status.status_code == StatusCode.ERROR
+            and not isinstance(data, FunctionSpanData)
+            and span.trace_id in self._root_spans
+        ):
+            self._root_span_errors[span.trace_id] = status
         otel_span.end(end_time)
 
     def force_flush(self) -> None:
