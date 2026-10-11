@@ -76,6 +76,10 @@ class _RunTrace:
         self.tools: dict[str, trace_api.Span] = {}
         # Keep completed parents available: buffered child events can arrive later.
         self.tool_contexts: dict[str, Context] = {}
+        self.compactions: dict[str, trace_api.Span] = {}
+        self.compaction_details: dict[str, dict[str, Any]] = {}
+        self.seen_compaction_events: set[tuple[str, str]] = set()
+        self.compaction_span_name = f"{type(agent).__name__}.compaction"
         self.status: Optional[str] = None
         node_id = _generate_node_id()
         attrs: dict[str, Any] = {
@@ -117,6 +121,8 @@ class _RunTrace:
                 self._start_tool(value.tool)
             elif event == "ToolCallCompleted":
                 self._end_tool(value.tool)
+            elif event in ("CompactionStarted", "CompactionCompleted"):
+                self._compaction_event(vars(value))
             elif event == "RunError":
                 self.set_status("error")
                 _content(self.span, value.content, output=True)
@@ -127,8 +133,87 @@ class _RunTrace:
                 _content(self.span, getattr(value, "content", None), output=True)
                 self._metrics(getattr(value, "metrics", None))
                 self._tool_records(getattr(value, "tools", None))
+                for record in (getattr(value, "metadata", None) or {}).get("compaction_events", []):
+                    self._compaction_event(record)
             elif (getattr(value, "warning", None) or {}).get("type") == "retry":
                 self._close_tools("incomplete")
+                self._close_compactions("incomplete")
+
+    def _compaction_event(self, value: Mapping[str, Any]) -> None:
+        identity = value.get("compaction_id")
+        event = value.get("event")
+        if not identity or event not in ("CompactionStarted", "CompactionCompleted"):
+            return
+        key = (identity, event)
+        if key in self.seen_compaction_events:
+            return
+        self.seen_compaction_events.add(key)
+        timestamp = value.get("timestamp_ns")
+        if not isinstance(timestamp, int) or timestamp <= 0:
+            timestamp = time_ns()
+        attributes: dict[str, Any] = {"agno.compaction.id": identity}
+        details = self.compaction_details.setdefault(identity, {})
+        for field in ("trigger", "tokens_before", "tokens_after"):
+            if value.get(field) is not None:
+                attributes[f"agno.compaction.{field}"] = value[field]
+                details[field] = value[field]
+        parent_id = value.get("parent_tool_call_id")
+        if parent_id:
+            attributes["agno.tool.parent_call_id"] = parent_id
+        span = self.compactions.get(identity)
+        if span is None:
+            attributes[Span.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.CHAIN.value
+            if event == "CompactionCompleted":
+                # A boundary without a start is an instantaneous completion marker.
+                attributes["agno.compaction.duration_unknown"] = True
+            span = self.tracer.start_span(
+                self.compaction_span_name,
+                context=self.tool_contexts.get(parent_id, self.context)
+                if parent_id
+                else self.context,
+                attributes=attributes,
+                start_time=timestamp,
+            )
+            self.compactions[identity] = span
+        else:
+            span.set_attributes(attributes)
+        _content(
+            span,
+            {
+                "operation": "conversation_compaction",
+                **{key: details[key] for key in ("trigger", "tokens_before") if key in details},
+            },
+            output=False,
+        )
+        if event == "CompactionCompleted":
+            span.set_attribute("agno.compaction.status", "completed")
+            _content(
+                span,
+                {
+                    "status": "completed",
+                    **(
+                        {"tokens_after": details["tokens_after"]}
+                        if "tokens_after" in details
+                        else {}
+                    ),
+                },
+                output=True,
+            )
+            span.set_status(trace_api.StatusCode.OK)
+            span.end(end_time=timestamp)
+            self.compactions.pop(identity, None)
+            self.compaction_details.pop(identity, None)
+
+    def _close_compactions(self, status: str) -> None:
+        for span in self.compactions.values():
+            with _ignore_instrumentation_errors():
+                span.set_attribute("agno.compaction.status", status)
+                _content(span, {"status": status, "completion_observed": False}, output=True)
+                if status == "error":
+                    span.set_status(trace_api.StatusCode.ERROR)
+                span.end()
+        self.compactions.clear()
+        self.compaction_details.clear()
 
     def set_status(self, status: str) -> None:
         status = status.lower()
@@ -231,6 +316,9 @@ class _RunTrace:
                 if self.status is None:
                     self.set_status("cancelled")
                 self._close_tools(self.status or "incomplete")
+                self._close_compactions(
+                    self.status if self.status in ("error", "cancelled") else "incomplete"
+                )
         finally:
             with _ignore_instrumentation_errors():
                 self.span.end(end_time=time_ns())

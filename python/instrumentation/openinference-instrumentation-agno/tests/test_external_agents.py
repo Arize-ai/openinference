@@ -605,3 +605,125 @@ async def test_claude_subagent_tree_persisted(
         assert tools[call_id].parent_span_id == root.span_id
     assert tools["orphan"].attributes["agno.tool.parent_call_id"] == "unobserved-parent"
     assert all(s.status_code == "OK" for s in spans)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("trigger", ["manual", "auto"])
+async def test_compaction_timing_and_database(
+    instrumentation: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Any, stream: bool, trigger: str
+) -> None:
+    from time import time_ns
+
+    from agno.run.agent import CompactionCompletedEvent, CompactionStartedEvent
+
+    if "compaction_id" not in CompactionStartedEvent.__dataclass_fields__:
+        pytest.skip("Requires Agno compaction lifecycle metadata")
+    provider, exporter, _ = instrumentation
+    db = SqliteDb(db_file=str(tmp_path / "compaction.db"))
+    provider.add_span_processor(SimpleSpanProcessor(DatabaseSpanExporter(db)))
+    started_at = time_ns()
+    started = CompactionStartedEvent(
+        compaction_id="compact-1", trigger=trigger, timestamp_ns=started_at
+    )
+    completed = CompactionCompletedEvent(
+        compaction_id="compact-1",
+        trigger=trigger,
+        timestamp_ns=started_at + 100,
+        tokens_before=1024,
+        tokens_after=256,
+    )
+    records = [started.to_dict(), completed.to_dict()]
+
+    async def run(self: Any, *args: Any, **kwargs: Any) -> RunOutput:
+        return RunOutput(
+            run_id="compaction-run", content="done", metadata={"compaction_events": records}
+        )
+
+    async def events(self: Any, *args: Any, **kwargs: Any) -> AsyncIterator[Any]:
+        yield started
+        yield completed
+        yield await run(self)
+
+    # Patch before instrumentation so both wrappers observe the exact final metadata.
+    instrumentor = instrumentation[2]
+    instrumentor.uninstrument()
+    monkeypatch.setattr(BaseExternalAgent, "_arun_non_stream", run)
+    monkeypatch.setattr(BaseExternalAgent, "_arun_stream", events)
+    instrumentor.instrument(tracer_provider=provider)
+    agent: Any = BaseExternalAgent(id="compact-agent")
+    if stream:
+        _ = [e async for e in agent.arun("compact", stream=True)]
+    else:
+        await agent.arun("compact")
+    spans = exporter.get_finished_spans()
+    assert len(spans) == 2  # Streamed events and final metadata must not duplicate spans.
+    root = next(s for s in spans if s.name == "BaseExternalAgent.run")
+    child = next(s for s in spans if s.name == "BaseExternalAgent.compaction")
+    assert child.parent.span_id == root.context.span_id
+    assert child.start_time == started_at and child.end_time == started_at + 100
+    assert child.attributes["agno.compaction.trigger"] == trigger
+    assert child.attributes["agno.compaction.tokens_before"] == 1024
+    assert child.attributes["agno.compaction.tokens_after"] == 256
+    import json
+
+    assert json.loads(child.attributes["input.value"]) == {
+        "operation": "conversation_compaction",
+        "trigger": trigger,
+        "tokens_before": 1024,
+    }
+    assert json.loads(child.attributes["output.value"]) == {
+        "status": "completed",
+        "tokens_after": 256,
+    }
+    assert child.attributes["input.mime_type"] == "application/json"
+    assert child.attributes["output.mime_type"] == "application/json"
+    assert "llm.token_count.total" not in child.attributes
+    record = db.get_trace(run_id="compaction-run")
+    assert record is not None and len(db.get_spans(trace_id=record.trace_id)) == 2
+
+
+@pytest.mark.parametrize(
+    "status, expected",
+    [("cancelled", "cancelled"), ("error", "error"), ("completed", "incomplete")],
+)
+def test_compaction_missing_boundaries_cleanup_and_parent(
+    instrumentation: Any, status: str, expected: str
+) -> None:
+    from time import time_ns
+
+    from openinference.instrumentation.agno._external import _RunTrace
+
+    _, exporter, instrumentor = instrumentation
+    run = _RunTrace(instrumentor._tracer, BaseExternalAgent(), "prompt", {}, True)
+    run._start_tool(SimpleNamespace(tool_call_id="parent", tool_name="Agent", tool_args={}))
+    now = time_ns()
+    run._compaction_event(
+        {
+            "event": "CompactionStarted",
+            "compaction_id": "pending",
+            "timestamp_ns": now,
+            "parent_tool_call_id": "parent",
+        }
+    )
+    run._compaction_event(
+        {
+            "event": "CompactionCompleted",
+            "compaction_id": "boundary-only",
+            "timestamp_ns": now,
+        }
+    )
+    run.set_status(status)
+    run.finish()
+    spans = exporter.get_finished_spans()
+    parent = next(s for s in spans if s.name == "Agent")
+    children = {
+        s.attributes["agno.compaction.id"]: s for s in spans if "agno.compaction.id" in s.attributes
+    }
+    assert children["pending"].parent.span_id == parent.context.span_id
+    assert children["pending"].attributes["agno.compaction.status"] == expected
+    assert children["pending"].status.status_code.name == (
+        "ERROR" if status == "error" else "UNSET"
+    )
+    assert children["boundary-only"].start_time == children["boundary-only"].end_time
+    assert children["boundary-only"].attributes["agno.compaction.duration_unknown"] is True
+    assert children["boundary-only"].status.status_code.name == "OK"
