@@ -1285,3 +1285,57 @@ def test_hidden_file_images_are_redacted() -> None:
         "source": {"type": "file", "file_id": "__REDACTED__"},
     }
     assert not any(key.endswith(MessageContentAttributes.MESSAGE_CONTENT_ID) for key in attributes)
+
+
+@pytest.mark.parametrize(
+    "index, exception, buffered",
+    [
+        (1, ValueError("Unable to parse tool parameter JSON from model."), True),
+        # not the SDK's JSON parse failure
+        (1, RuntimeError("Unexpected event order"), False),
+        # a block that does not track tool input
+        (0, ValueError("Unable to parse tool parameter JSON from model."), False),
+        # no block at the index
+        (5, ValueError("Unable to parse tool parameter JSON from model."), False),
+    ],
+)
+def test_only_failed_tool_input_json_is_buffered(
+    monkeypatch: pytest.MonkeyPatch, index: int, exception: Exception, buffered: bool
+) -> None:
+    from anthropic._models import construct_type
+    from anthropic.lib.streaming import _messages
+    from anthropic.types import RawMessageStreamEvent
+
+    from openinference.instrumentation.anthropic._stream import _MessageResponseAccumulator
+
+    failing_delta = {
+        "type": "content_block_delta",
+        "index": index,
+        "delta": {"type": "input_json_delta", "partial_json": '{"a": '},
+    }
+    original_accumulate_event = _messages.accumulate_event
+
+    def accumulate_event(**kwargs: Any) -> Any:
+        if kwargs["event"].type == "content_block_delta":
+            raise exception
+        return original_accumulate_event(**kwargs)
+
+    monkeypatch.setattr(_messages, "accumulate_event", accumulate_event)
+    accumulator = _MessageResponseAccumulator(is_beta=False, request_headers=httpx2.Headers())
+    for event in [
+        {"type": "message_start", "message": _message_json([])},
+        {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+        {
+            "type": "content_block_start",
+            "index": 1,
+            "content_block": {"type": "tool_use", "id": "toolu_1", "name": "f", "input": {}},
+        },
+        failing_delta,
+    ]:
+        chunk: Any = construct_type(type_=RawMessageStreamEvent, value=event)
+        accumulator.process_chunk(chunk)
+    assert (index in accumulator._json_bufs) is buffered
+    assert (index in accumulator._stale_inputs) is buffered
+    snapshot = accumulator._result()
+    assert snapshot.content[0].text == ""
+    assert snapshot.content[1].input == {}

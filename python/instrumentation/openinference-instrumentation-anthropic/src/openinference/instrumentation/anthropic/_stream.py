@@ -21,6 +21,7 @@ from wrapt import ObjectProxy
 
 from openinference.instrumentation import TraceConfig
 from openinference.instrumentation.anthropic._content import (
+    TOOL_CALL_BLOCK_TYPES,
     _attributes_or_nothing,
     _get_metadata_attributes,
     _get_output_message_attributes,
@@ -328,22 +329,35 @@ class _MessageResponseAccumulator:
                     current_snapshot=self._snapshot,
                     json_bufs=self._json_bufs,
                 )
-        except Exception:
-            # Keep going with the rest of the stream. A failed input_json_delta, e.g. one that
-            # leaves the partial JSON unparseable, is not added to the buffer by the SDK, so it
-            # is added here, or the next delta would be appended to a buffer missing this one
-            # and the tool call's arguments would be silently wrong.
+        except Exception as exception:
+            # Keep going with the rest of the stream. An input_json_delta that leaves the partial
+            # JSON unparseable is not added to the buffer by the SDK, so it is added here, or the
+            # next delta would be appended to a buffer missing this one and the tool call's
+            # arguments would be silently wrong.
             logger.debug("Failed to accumulate a stream event", exc_info=True)
-            self._buffer_failed_input_json_delta(chunk)
+            self._buffer_failed_input_json_delta(chunk, exception)
 
-    def _buffer_failed_input_json_delta(self, chunk: Any) -> None:
+    def _buffer_failed_input_json_delta(self, chunk: Any, exception: Exception) -> None:
+        """
+        Buffers the delta only if the SDK failed to parse the JSON, which it raises as a
+        ValueError, for a block at the delta's index that tracks tool input. Any other failure
+        may have happened before the delta was matched to its block, so buffering it could put
+        the arguments on the wrong block.
+        """
         try:
+            if not isinstance(exception, ValueError):
+                return
             if getattr(chunk, "type", None) != "content_block_delta":
                 return
             delta = chunk.delta
             if getattr(delta, "type", None) != "input_json_delta":
                 return
             index = chunk.index
+            content = getattr(self._snapshot, "content", None) or []
+            if not 0 <= index < len(content):
+                return
+            if getattr(content[index], "type", None) not in TOOL_CALL_BLOCK_TYPES:
+                return
             self._json_bufs[index] = self._json_bufs.get(index, b"") + bytes(
                 delta.partial_json, "utf-8"
             )
