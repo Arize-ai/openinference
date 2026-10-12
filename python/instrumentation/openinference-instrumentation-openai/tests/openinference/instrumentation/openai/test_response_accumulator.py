@@ -3,9 +3,9 @@ from typing import Any, Dict, List, Optional
 
 import pytest
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
-from openinference.semconv.trace import SpanAttributes
 
 from openinference.instrumentation.openai._response_accumulator import _ChatCompletionAccumulator
+from openinference.semconv.trace import SpanAttributes
 
 
 def _chunk(delta: Dict[str, Any], finish_reason: Optional[str] = None) -> ChatCompletionChunk:
