@@ -257,6 +257,7 @@ def _get_output_message_attributes(message: Any) -> Iterator[Tuple[str, Any]]:
 def _get_response_metadata(
     message: Any,
     config: Optional[TraceConfig] = None,
+    request_messages: Any = None,
 ) -> Dict[str, Any]:
     """
     Collects the provider-specific data of a response that has no semantic convention of its own,
@@ -273,6 +274,11 @@ def _get_response_metadata(
     - server_tool_use: the number of server tool requests, e.g. web searches, by tool, when any
     - citations: the citations of each text block, keyed by its index in the output contents
     - mcp_server_names: the MCP server of each MCP tool call, keyed by its tool call id
+    - tool_callers: the caller of each tool call that was not called directly by the model,
+      e.g. by code execution, keyed by its tool call id, from the request's messages and the
+      response, which wins
+    - toolset_names: the toolset of each tool call and tool result, keyed by its tool call id,
+      likewise
 
     The metadata is not masked by the trace config, so the items that quote the input or the
     output are left out here when the config hides it: the citations, which quote the cited
@@ -304,7 +310,55 @@ def _get_response_metadata(
     if not hide_citations:
         add("citations", lambda: _get_citations(message))
     add("mcp_server_names", lambda: _get_mcp_server_names(message))
+    tool_calls = _ToolCallMetadata()
+    tool_calls.add_messages(request_messages)
+    tool_calls.add_blocks(_get(message, "content"))
+    add("tool_callers", lambda: tool_calls.callers)
+    add("toolset_names", lambda: tool_calls.toolset_names)
     return metadata
+
+
+class _ToolCallMetadata:
+    """
+    Collects the callers and toolsets of tool calls, keyed by tool call id. A later block's entry
+    replaces an earlier one's, so the response's win over the request's.
+    """
+
+    def __init__(self) -> None:
+        self.callers: Dict[str, Any] = {}
+        self.toolset_names: Dict[str, Any] = {}
+
+    def add_messages(self, messages: Any) -> None:
+        if isinstance(messages, (str, bytes)) or not isinstance(messages, Iterable):
+            return
+        for message in messages:
+            content = _get(message, "content")
+            if not isinstance(content, str):
+                self.add_blocks(content)
+
+    def add_blocks(self, blocks: Any) -> None:
+        if isinstance(blocks, (str, bytes)) or not isinstance(blocks, Iterable):
+            return
+        for block in blocks:
+            try:
+                self._add_block(block)
+            except Exception:
+                logger.debug("Failed to get the caller or toolset of a block.", exc_info=True)
+
+    def _add_block(self, block: Any) -> None:
+        block_type = _get(block, "type")
+        if block_type in TOOL_CALL_BLOCK_TYPES:
+            tool_call_id = _get(block, "id")
+            caller = _to_jsonable(_get(block, "caller"))
+            # a call made directly by the model, the default, is not recorded
+            if caller and caller != {"type": "direct"}:
+                self.callers[tool_call_id] = caller
+        elif block_type == "tool_result":
+            tool_call_id = _get(block, "tool_use_id")
+        else:
+            return
+        if toolset_name := _get(block, "toolset_name"):
+            self.toolset_names[tool_call_id] = toolset_name
 
 
 def _get_stop_details(message: Any, hide_explanation: bool) -> Any:
@@ -341,12 +395,13 @@ def _get_metadata_attributes(
     message: Any,
     context_metadata: Optional[AttributeValue] = None,
     config: Optional[TraceConfig] = None,
+    request_messages: Any = None,
 ) -> Iterator[Tuple[str, Any]]:
     """
     Yields the span metadata: the response's metadata merged with the metadata from the context
     that the span was started in, which takes precedence, since this replaces it on the span.
     """
-    if not (metadata := _get_response_metadata(message, config)):
+    if not (metadata := _get_response_metadata(message, config, request_messages)):
         return
     if isinstance(context_metadata, str):
         try:

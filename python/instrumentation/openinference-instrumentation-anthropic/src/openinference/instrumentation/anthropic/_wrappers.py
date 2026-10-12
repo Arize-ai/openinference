@@ -106,6 +106,10 @@ class _Params:
     def __iter__(self) -> Iterator[Tuple[str, AttributeValue]]:
         return self._get_attributes(dict(self._kwargs))
 
+    @property
+    def request_messages(self) -> Any:
+        return self._kwargs.get("messages")
+
     def __enter__(self) -> _Params:
         self._token = _params.set(self)
         return self
@@ -968,7 +972,9 @@ def _get_llm_input_message(
 
 @_stop_on_exception
 def _get_metadata(message: Message, span: _WithSpan) -> Iterator[Tuple[str, Any]]:
-    yield from _get_metadata_attributes(message, span.context_metadata, span.config)
+    yield from _get_metadata_attributes(
+        message, span.context_metadata, span.config, span.request_messages
+    )
 
 
 @_stop_on_exception

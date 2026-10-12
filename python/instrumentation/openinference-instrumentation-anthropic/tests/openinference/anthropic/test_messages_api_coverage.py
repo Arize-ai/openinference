@@ -1120,3 +1120,111 @@ def test_output_value_has_the_api_field_names(
     (block,) = json.loads(str(attributes[SpanAttributes.OUTPUT_VALUE]))["content"]
     assert block["from"] == {"model": "claude-fable-5"}
     assert "from_" not in block
+
+
+_CODE_EXECUTION_CALLER = {"type": "code_execution_20250825", "tool_id": "srvtoolu_1"}
+# the request: a call by code execution, which the response's entry for the same id replaces,
+# and its result
+_TOOL_CALL_MESSAGES: List[Dict[str, Any]] = [
+    {"role": "user", "content": "hi"},
+    {
+        "role": "assistant",
+        "content": [
+            {
+                "type": "tool_use",
+                "id": "toolu_1",
+                "name": "f",
+                "input": {},
+                "caller": _CODE_EXECUTION_CALLER,
+                "toolset_name": "old",
+            },
+            {
+                "type": "tool_use",
+                "id": "toolu_2",
+                "name": "f",
+                "input": {},
+                "caller": _CODE_EXECUTION_CALLER,
+            },
+        ],
+    },
+    {
+        "role": "user",
+        "content": [
+            {"type": "tool_result", "tool_use_id": "toolu_2", "toolset_name": "browser"},
+        ],
+    },
+]
+# the response: a direct call, which adds no caller, and the replacement for toolu_1
+_TOOL_CALL_RESPONSE_BLOCKS: List[Dict[str, Any]] = [
+    {
+        "type": "tool_use",
+        "id": "toolu_1",
+        "name": "f",
+        "input": {},
+        "caller": {"type": "code_execution_20260120", "tool_id": "srvtoolu_2"},
+        "toolset_name": "browser",
+    },
+    {
+        "type": "tool_use",
+        "id": "toolu_3",
+        "name": "click",
+        "input": {},
+        "caller": {"type": "direct"},
+    },
+]
+
+
+def _assert_tool_call_metadata(attributes: Dict[str, Any]) -> None:
+    metadata = json.loads(str(attributes[SpanAttributes.METADATA]))
+    assert metadata["tool_callers"] == {
+        "toolu_1": {"type": "code_execution_20260120", "tool_id": "srvtoolu_2"},
+        "toolu_2": _CODE_EXECUTION_CALLER,
+    }
+    assert metadata["toolset_names"] == {"toolu_1": "browser", "toolu_2": "browser"}
+    # the tool call's name is the member's own
+    tool_calls = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}"
+    assert attributes[f"{tool_calls}.0.{TOOL_CALL_FUNCTION_NAME}"] == "f"
+    assert attributes[f"{tool_calls}.1.{TOOL_CALL_FUNCTION_NAME}"] == "click"
+
+
+def test_tool_callers_and_toolsets_are_recorded(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    response = _message_json(_TOOL_CALL_RESPONSE_BLOCKS)
+    client = _mock_anthropic_client(lambda request: httpx2.Response(200, json=response))
+    messages: Any = _TOOL_CALL_MESSAGES
+    client.messages.create(model=MODEL, max_tokens=100, messages=messages)
+    _assert_tool_call_metadata(dict(_get_span(in_memory_span_exporter).attributes or {}))
+
+
+def test_streaming_tool_callers_and_toolsets_are_recorded(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    def handler(request: Any) -> Any:
+        return _event_stream_response(
+            [
+                {"type": "message_start", "message": _message_json([])},
+                *(
+                    event
+                    for index, block in enumerate(_TOOL_CALL_RESPONSE_BLOCKS)
+                    for event in _content_block_events(index, block)
+                ),
+                {
+                    "type": "message_delta",
+                    "delta": {"stop_reason": "tool_use", "stop_sequence": None},
+                    "usage": {"output_tokens": 9},
+                },
+                {"type": "message_stop"},
+            ]
+        )
+
+    client = _mock_anthropic_client(handler)
+    messages: Any = _TOOL_CALL_MESSAGES
+    stream = client.messages.create(model=MODEL, max_tokens=100, messages=messages, stream=True)
+    for _ in stream:
+        pass
+    _assert_tool_call_metadata(dict(_get_span(in_memory_span_exporter).attributes or {}))
