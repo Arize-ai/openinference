@@ -195,10 +195,12 @@ def _extract_model_name_from_usage(model_usage: Any) -> str | None:
     return None
 
 
-def _extract_model_name(msg: Any) -> str | None:
+def _extract_model_name(msg: Any, *, use_model_usage: bool = True) -> str | None:
     raw_name = _get_field(msg, "model") or _get_field(msg, "model_name")
     if raw_name:
         return str(raw_name)
+    if not use_model_usage:
+        return None
     model_usage = _get_field(msg, "modelUsage") or _get_field(msg, "model_usage")
     usage_name = _extract_model_name_from_usage(model_usage)
     if usage_name:
@@ -218,13 +220,22 @@ def _extract_model_name(msg: Any) -> str | None:
     return None
 
 
+def _span_has_model(span: trace_api.Span) -> bool:
+    """Return True if a model name was already recorded on the span."""
+    attributes = getattr(span, "attributes", None)
+    return isinstance(attributes, MappingABC) and attributes.get(LLM_MODEL_NAME) is not None
+
+
 def _maybe_set_model(span: trace_api.Span, msg: Any) -> None:
     if not span.is_recording():
         return
-    model = _extract_model_name(msg)
+    # `modelUsage` on a result message covers the whole session, so once an
+    # assistant message has named the model for this span it must not win.
+    use_model_usage = not _span_has_model(span)
+    model = _extract_model_name(msg, use_model_usage=use_model_usage)
     if not model:
         inner = _get_field(msg, "message")
-        model = _extract_model_name(inner)
+        model = _extract_model_name(inner, use_model_usage=use_model_usage)
     if model:
         span.set_attribute(LLM_MODEL_NAME, model)
 
@@ -277,9 +288,9 @@ def _is_result_error_message(msg: Any) -> bool:
     )
 
 
-def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
+def _extract_usage_and_cost_attributes(msg: Any, *, use_model_usage: bool = True) -> dict[str, Any]:
     attributes: dict[str, Any] = {}
-    if model := _extract_model_name(msg):
+    if model := _extract_model_name(msg, use_model_usage=use_model_usage):
         attributes[LLM_MODEL_NAME] = model
     usage = _coerce_usage(_get_field(msg, "usage"))
     input_tokens = _safe_int(usage.get("input_tokens"))
@@ -308,24 +319,25 @@ def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
     return attributes
 
 
-def _extract_result_success_attributes(msg: Any) -> dict[str, Any]:
+def _extract_result_success_attributes(msg: Any, *, use_model_usage: bool = True) -> dict[str, Any]:
     attributes: dict[str, Any] = {}
     if (result := _get_field(msg, "result")) is not None:
         attributes.update(get_output_attributes(result))
-    attributes.update(_extract_usage_and_cost_attributes(msg))
+    attributes.update(_extract_usage_and_cost_attributes(msg, use_model_usage=use_model_usage))
     return attributes
 
 
-def _extract_result_error_attributes(msg: Any) -> dict[str, Any]:
+def _extract_result_error_attributes(msg: Any, *, use_model_usage: bool = True) -> dict[str, Any]:
     attributes: dict[str, Any] = {}
     errors = _get_field(msg, "errors")
     if errors:
         attributes.update(get_output_attributes(safe_json_dumps(errors), mime_type=JSON))
-    attributes.update(_extract_usage_and_cost_attributes(msg))
+    attributes.update(_extract_usage_and_cost_attributes(msg, use_model_usage=use_model_usage))
     return attributes
 
 
 def _process_message(msg: Any, span: trace_api.Span) -> bool:
+    use_model_usage = not _span_has_model(span)
     _maybe_set_model(span, msg)
     if stop_reason := _extract_stop_reason(msg):
         if span.is_recording():
@@ -337,14 +349,14 @@ def _process_message(msg: Any, span: trace_api.Span) -> bool:
         span.set_attributes(attrs)
         return False
     if _is_result_success_message(msg):
-        attrs = _extract_result_success_attributes(msg)
+        attrs = _extract_result_success_attributes(msg, use_model_usage=use_model_usage)
         if not _has_existing_session_id(span):
             if session_id := _get_field(msg, "session_id"):
                 attrs[SESSION_ID] = session_id
         span.set_attributes(attrs)
         return False
     if _is_result_error_message(msg):
-        attrs = _extract_result_error_attributes(msg)
+        attrs = _extract_result_error_attributes(msg, use_model_usage=use_model_usage)
         if not _has_existing_session_id(span):
             if session_id := _get_field(msg, "session_id"):
                 attrs[SESSION_ID] = session_id
