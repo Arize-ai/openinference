@@ -19,18 +19,18 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.anthropic._content import (
+    _attributes_or_nothing,
+    _get_output_message_attributes,
+)
 from openinference.instrumentation.anthropic._utils import (
     _finish_tracing,
     _get_token_counts,
 )
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (
-    MessageAttributes,
-    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     SpanAttributes,
-    ToolCallAttributes,
 )
 
 if TYPE_CHECKING:
@@ -373,80 +373,7 @@ class _MessageExtractor:
         if model_name := getattr(snapshot, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model_name
             yield SpanAttributes.LLM_RESPONSE_MODEL_NAME, model_name
-        yield (
-            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}",
-            snapshot.role,
-        )
-        if stop_reason := getattr(snapshot, "stop_reason", None):
-            yield SpanAttributes.LLM_FINISH_REASON, stop_reason
-        tool_idx = 0
-        for block_idx, block in enumerate(snapshot.content):
-            content_prefix = (
-                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
-                f"{MessageAttributes.MESSAGE_CONTENTS}.{block_idx}"
-            )
-            if block.type == "text":
-                yield (
-                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
-                    "text",
-                )
-                yield (
-                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
-                    block.text,
-                )
-            elif block.type == "thinking":
-                yield (
-                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
-                    "reasoning",
-                )
-                yield (
-                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
-                    block.thinking,
-                )
-                if signature := block.signature:
-                    yield (
-                        f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
-                        signature,
-                    )
-            elif block.type == "redacted_thinking":
-                yield (
-                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
-                    "reasoning",
-                )
-                yield (
-                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_DATA}",
-                    block.data,
-                )
-            elif block.type == "tool_use":
-                yield (
-                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_ID}",
-                    block.id,
-                )
-                yield (
-                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
-                    block.name,
-                )
-                yield (
-                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                    safe_json_dumps(block.input),
-                )
-                yield (
-                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
-                    "tool_use",
-                )
-                yield (
-                    f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_ID}",
-                    block.id,
-                )
-                yield (
-                    f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
-                    block.name,
-                )
-                yield (
-                    f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                    safe_json_dumps(block.input),
-                )
-                tool_idx += 1
+        yield from _attributes_or_nothing(_get_output_message_attributes, snapshot)
         # Token counts come from a usage snapshot that can be partial or
         # delta-shaped while streaming. Contain any failure here (the same
         # @_stop_on_exception treatment the non-streaming path gives
