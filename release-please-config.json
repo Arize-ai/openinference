@@ -70,6 +70,10 @@
             "package-name": "python-openinference-instrumentation-litellm",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-livekit": {
+            "package-name": "python-openinference-instrumentation-livekit",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-groq": {
             "package-name": "python-openinference-instrumentation-groq",
             "release-type": "python"

@@ -13,6 +13,7 @@
     "python/instrumentation/openinference-instrumentation-crewai": "1.1.21",
     "python/instrumentation/openinference-instrumentation-haystack": "0.1.46",
     "python/instrumentation/openinference-instrumentation-litellm": "0.1.50",
+    "python/instrumentation/openinference-instrumentation-livekit": "0.1.0",
     "python/instrumentation/openinference-instrumentation-groq": "0.1.33",
     "python/instrumentation/openinference-instrumentation-cohere": "0.1.15",
     "python/instrumentation/openinference-instrumentation-ollama": "0.1.12",
