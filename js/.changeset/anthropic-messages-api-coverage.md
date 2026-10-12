@@ -4,10 +4,18 @@
 
 Support the current Anthropic Messages API (stable and beta, `@anthropic-ai/sdk` 0.133)
 
-- Streams are observed through the caller's own iterator instead of a tee, so a mid-stream error no longer causes an unhandled rejection, `break` still aborts the request, and the span ends OK, unset (left early or aborted) or ERROR. The streamed `output.value` is now the rebuilt message as JSON, like the non-streaming path.
+Behavior changes to note:
+
+- A streamed response's `output.value` is now the message rebuilt from the stream as JSON (`output.mime_type` `application/json`, previously the concatenated text as `text/plain`), the same as for a non-streaming response.
+- The top-level `system` prompt is now recorded as input message 0, so the conversation's messages start at index 1 when a system prompt is set.
+
+Changes:
+
+- Streams are observed through the caller's own iterator instead of a tee, so a mid-stream error no longer causes an unhandled rejection, `break` still aborts the request, nothing is buffered, and the span ends OK, unset (left early or aborted) or ERROR. Streamed tool input is parsed once per block.
 - Attribute extraction can no longer throw into the caller.
-- Server and MCP tool calls are recorded as tool calls; compaction blocks as text; every other content block (tool results, MCP listings, container uploads, unknown types) as its type and JSON. Citations, MCP server names, `stop_details`, cache miss reasons, the container id, context management, input transformations, iteration usage and server tool usage go to span metadata, merged with the context metadata.
-- The top-level `system` prompt is recorded as the first input message; images record URLs, file ids and base64 data URIs; `llm.tools` records `tool.name`, `tool.description` and inline `tool_addition` tools.
+- Server and MCP tool calls are recorded as tool calls; compaction blocks as text; every other content block (tool results, documents, MCP listings, container uploads, unknown types) as its type and JSON, with embedded base64 data replaced by a placeholder and nested images hidden by `hideInputImages`.
+- Citations, MCP server names, `stop_details`, cache miss reasons, the container id, context management edits, input transformations, iteration usage and server tool usage go to span metadata, merged with the context metadata. A citation's `cited_text` is left out when inputs, outputs or output text are hidden, and a refusal's `explanation` when outputs or output text are hidden.
+- Images record URLs, file ids and base64 data URIs; `llm.tools` records `tool.name`, `tool.description` and inline `tool_addition` tools.
 - Thinking tokens are recorded as `llm.token_count.completion_details.reasoning`.
 - `llm.provider` is `aws`, `google` or `azure` for the Bedrock, Vertex and Foundry clients.
-- `messages.countTokens` / `beta.messages.countTokens` are traced, and `beta.messages.toolRunner` runs under a CHAIN span parenting its LLM spans and a TOOL span per tool run.
+- `messages.countTokens` / `beta.messages.countTokens` are traced, and each run of `beta.messages.toolRunner` runs under a CHAIN span parenting its LLM spans and a TOOL span per tool run, including tools added with `addTools()` or `setMessagesParams()`.
