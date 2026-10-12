@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaTool } from "@anthropic-ai/sdk/helpers/beta/json-schema";
 import type { BetaRunnableTool } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
+import { BetaToolRunner } from "@anthropic-ai/sdk/lib/tools/BetaToolRunner";
 import { SpanStatusCode } from "@opentelemetry/api";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
@@ -226,6 +227,40 @@ describe("AnthropicInstrumentation - other Messages methods", () => {
       expect(toolSpan.attributes[INPUT_VALUE]).toBe(JSON.stringify({ city: "Paris" }));
       expect(toolSpan.attributes[OUTPUT_VALUE]).toBe("sunny");
       expect(toolSpan.attributes[OUTPUT_MIME_TYPE]).toBe(MimeType.TEXT);
+    });
+
+    it("keeps the CHAIN span on an SDK whose runner has no addTools()", async () => {
+      // SDKs before 0.133 have no addTools().
+      const addTools = Object.getOwnPropertyDescriptor(BetaToolRunner.prototype, "addTools");
+      Reflect.deleteProperty(BetaToolRunner.prototype, "addTools");
+      try {
+        const client = new Anthropic({
+          apiKey: "fake-api-key",
+          fetch: sequenceFetch([
+            () => jsonResponse(toolUseMessage),
+            () => jsonResponse(finalMessage),
+          ]),
+        });
+        await client.beta.messages.toolRunner({
+          ...request,
+          tools: [weatherTool(() => "sunny")],
+        });
+      } finally {
+        if (addTools != null) {
+          Object.defineProperty(BetaToolRunner.prototype, "addTools", addTools);
+        }
+      }
+
+      await waitForSpans(4);
+      const spans = memoryExporter.getFinishedSpans();
+      const [chain] = byKind(spans, OpenInferenceSpanKind.CHAIN);
+      expect(chain.status.code).toBe(SpanStatusCode.OK);
+      for (const span of [
+        ...byKind(spans, OpenInferenceSpanKind.LLM),
+        ...byKind(spans, OpenInferenceSpanKind.TOOL),
+      ]) {
+        expect(span.parentSpanId).toBe(chain.spanContext().spanId);
+      }
     });
 
     it("records a failing tool, which the runner reports to the model", async () => {
