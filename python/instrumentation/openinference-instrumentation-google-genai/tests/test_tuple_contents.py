@@ -48,8 +48,8 @@ async def _call(client: genai.Client, asynchronous: bool, streaming: bool, **kwa
             response = await client.aio.models.generate_content(**kwargs)
             assert response.text == "reply"
     elif streaming:
-        chunks = client.models.generate_content_stream(**kwargs)
-        assert [chunk.text for chunk in chunks] == ["reply"]
+        sync_stream = client.models.generate_content_stream(**kwargs)
+        assert [chunk.text for chunk in sync_stream] == ["reply"]
     else:
         assert client.models.generate_content(**kwargs).text == "reply"
 
@@ -107,6 +107,7 @@ async def test_tuple_contents_across_call_paths(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_google_genai_instrumentation: None,
 ) -> None:
+    """Tuple contents retain their wire form and input messages on every call path."""
     client, requests = mock_client
     try:
         await _call(client, asynchronous, streaming, model="gemini-2.0-flash", contents=contents)
@@ -129,6 +130,7 @@ async def test_empty_tuple_contents_across_call_paths(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_google_genai_instrumentation: None,
 ) -> None:
+    """Empty tuple contents produce no input messages when the SDK rejects them."""
     client, requests = mock_client
     with pytest.raises(ValueError, match="contents are required"):
         await _call(client, asynchronous, streaming, model="gemini-2.0-flash", contents=())
@@ -163,6 +165,7 @@ async def test_tuple_system_instruction_across_call_paths(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_google_genai_instrumentation: None,
 ) -> None:
+    """Tuple system instructions preserve message order on every call path."""
     client, requests = mock_client
     kwargs = {
         "model": "gemini-2.0-flash",

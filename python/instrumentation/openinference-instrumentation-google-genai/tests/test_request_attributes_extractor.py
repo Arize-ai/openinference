@@ -222,6 +222,7 @@ def test_system_instruction_from_dict_config() -> None:
 
 
 def test_contents_as_tuple_is_recorded_as_messages() -> None:
+    """Tuple contents are extracted as user messages."""
     extractor = _RequestAttributesExtractor()
     request_parameters = {"contents": ("hello", "world")}
     attrs = dict(extractor.get_attributes_from_request(request_parameters))
