@@ -163,3 +163,75 @@ async def test_root_span_is_ok_when_tool_raises_but_run_succeeds(
     assert root.status.status_code == StatusCode.OK, (
         f"root span status should be OK for non-fatal tool error, got {root.status.status_code}"
     )
+
+
+class _ScriptedModel(Model):
+    """Model that returns the given outputs, one turn at a time."""
+
+    def __init__(self, *turns: list[Any]) -> None:
+        self._turns = list(turns)
+
+    async def get_response(self, *args: Any, **kwargs: Any) -> ModelResponse:
+        return ModelResponse(output=self._turns.pop(0), usage=Usage(), response_id=None)
+
+    def stream_response(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+
+def _message(text: str) -> ResponseOutputMessage:
+    return ResponseOutputMessage(
+        id="m1",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[ResponseOutputText(type="output_text", text=text, annotations=[])],
+    )
+
+
+def _tool_call(name: str, call_id: str = "call-1", arguments: str = "{}") -> Any:
+    return ResponseFunctionToolCall(
+        type="function_call", call_id=call_id, name=name, arguments=arguments
+    )
+
+
+async def test_root_span_is_ok_when_agent_tool_fails_but_run_succeeds(
+    exporter: InMemorySpanExporter,
+) -> None:
+    """A sub-agent run as a tool that fails is a tool error: the outer run still finishes."""
+    sub_agent = Agent(name="sub", model=_LoopForeverModel(), tools=[get_weather])
+    agent = Agent(
+        name="helper",
+        model=_ScriptedModel(
+            [_tool_call("sub_tool", arguments='{"input": "hi"}')], [_message("Done.")]
+        ),
+        tools=[sub_agent.as_tool(tool_name="sub_tool", tool_description="sub", max_turns=1)],
+    )
+    result = await Runner.run(agent, "hi")
+    assert result.final_output == "Done."
+
+    spans = list(exporter.get_finished_spans())
+    sub_span = next(s for s in spans if s.name == "sub")
+    assert sub_span.status.status_code == StatusCode.ERROR
+    assert _root_span(spans).status.status_code == StatusCode.OK
+
+
+async def test_root_span_is_ok_when_multiple_handoffs_requested(
+    exporter: InMemorySpanExporter,
+) -> None:
+    """The SDK takes the first of several requested handoffs, and the run finishes."""
+    first = Agent(name="first", model=_SuccessModel())
+    second = Agent(name="second", model=_SuccessModel())
+    agent = Agent(
+        name="triage",
+        model=_ScriptedModel(
+            [
+                _tool_call("transfer_to_first", call_id="call-1"),
+                _tool_call("transfer_to_second", call_id="call-2"),
+            ]
+        ),
+        handoffs=[first, second],
+    )
+    result = await Runner.run(agent, "hi")
+    assert result.final_output == "Hello!"
+
+    assert _root_span(list(exporter.get_finished_spans())).status.status_code == StatusCode.OK
