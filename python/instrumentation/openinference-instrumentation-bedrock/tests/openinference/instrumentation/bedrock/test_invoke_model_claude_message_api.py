@@ -1,19 +1,126 @@
 import base64
+import io
 import json
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, cast
+from unittest.mock import MagicMock
 
 import aioboto3
 import boto3
 import pytest
 from aioresponses import aioresponses
+from botocore.eventstream import EventStream
+from botocore.response import StreamingBody
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import Tracer
 
+from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.bedrock import _model_invocation_wrapper
+from openinference.instrumentation.bedrock._wrappers import _InvokeModelWithResponseStream
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _attributes_from_image_param,
 )
 
 _CASSETTES_DIR = Path(__file__).resolve().parent / "cassettes"
+
+_SECRET = "SECRET-SYSTEM"
+_CLAUDE_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["invoke_model", "stream"])
+@pytest.mark.parametrize(
+    "system",
+    [_SECRET, [{"type": "text", "text": _SECRET}]],
+    ids=["string", "blocks"],
+)
+def test_hide_inputs_redacts_system_prompt(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    system: Any,
+    stream: bool,
+) -> None:
+    tracer = cast(
+        Tracer,
+        OITracer(tracer_provider.get_tracer(__name__), config=TraceConfig(hide_inputs=True)),
+    )
+    kwargs = {
+        "modelId": _CLAUDE_MODEL_ID,
+        "body": json.dumps(
+            {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 10,
+                "system": system,
+                "messages": [{"role": "user", "content": "hi"}],
+            }
+        ),
+    }
+    if stream:
+        chunks: Tuple[Dict[str, Any], ...] = (
+            {
+                "type": "message_start",
+                "message": {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": _CLAUDE_MODEL_ID,
+                    "content": [],
+                    "stop_reason": None,
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 5, "output_tokens": 1},
+                },
+            },
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""},
+            },
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": "hello"},
+            },
+            {"type": "content_block_stop", "index": 0},
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                "usage": {"output_tokens": 1},
+            },
+            {"type": "message_stop"},
+        )
+        event_stream = MagicMock(spec=EventStream)
+        event_stream.__iter__.return_value = iter(
+            [{"chunk": {"bytes": json.dumps(c).encode()}} for c in chunks]
+        )
+        response = {"body": event_stream}
+        _InvokeModelWithResponseStream(tracer)._sync_call(lambda **_: response, (), kwargs)
+        for _ in response["body"]:
+            pass
+    else:
+        payload = json.dumps(
+            {
+                "id": "msg_1",
+                "type": "message",
+                "role": "assistant",
+                "model": _CLAUDE_MODEL_ID,
+                "content": [{"type": "text", "text": "hello"}],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 5, "output_tokens": 1},
+            }
+        ).encode()
+        client = MagicMock()
+        client._unwrapped_invoke_model.return_value = {
+            "body": StreamingBody(io.BytesIO(payload), len(payload))
+        }
+        _model_invocation_wrapper(tracer)(client)(**kwargs)
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.is_ok
+    attributes = dict(span.attributes or {})
+    assert attributes
+    leaked = {key: value for key, value in attributes.items() if _SECRET in str(value)}
+    assert leaked == {}
 
 
 def test_invoke_model_system_message_is_not_a_recorded_invocation_parameter() -> None:

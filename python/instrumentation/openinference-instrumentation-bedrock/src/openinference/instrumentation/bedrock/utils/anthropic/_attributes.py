@@ -11,12 +11,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, Tuple
 
-from openinference.semconv.trace import (
-    OpenInferenceLLMProviderValues,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry.trace import Span
 
 from openinference.instrumentation import (
@@ -32,6 +26,12 @@ from openinference.instrumentation import (
     get_llm_output_message_attributes,
     get_output_attributes,
     get_span_kind_attributes,
+)
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
 
 

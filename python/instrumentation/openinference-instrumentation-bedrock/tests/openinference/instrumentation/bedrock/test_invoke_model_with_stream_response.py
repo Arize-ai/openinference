@@ -397,7 +397,7 @@ TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 USER_ID = SpanAttributes.USER_ID
 
 
-def test_system_message_block_attributes_include_message_prefix():
+def test_system_message_block_attributes_include_message_prefix() -> None:
     from openinference.instrumentation.bedrock.utils.anthropic._messages import (
         _attributes_from_system_message,
     )

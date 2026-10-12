@@ -18,16 +18,6 @@ from typing import (
 )
 
 from dacite import from_dict
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry.trace import Span
 from typing_extensions import assert_never
 
@@ -48,6 +38,16 @@ from openinference.instrumentation.bedrock.__generated__.anthropic._types import
 )
 from openinference.instrumentation.bedrock._types import AttributeValue
 from openinference.instrumentation.bedrock.utils import _finish
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 
 if TYPE_CHECKING:
     from anthropic.types import (
