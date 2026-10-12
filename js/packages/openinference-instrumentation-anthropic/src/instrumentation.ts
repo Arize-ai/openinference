@@ -265,7 +265,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
-              [SemanticConventions.LLM_PROVIDER]: LLMProvider.ANTHROPIC,
+              [SemanticConventions.LLM_PROVIDER]: getAnthropicProvider(this),
               ...safelyGetAttributes(() => getAnthropicRequestAttributes(body)),
             },
           });
@@ -439,6 +439,37 @@ function hasThenUnwrap<T>(promise: PromiseLike<T>): promise is APIPromise<T> {
 }
 
 /**
+ * Identifies the cloud serving a request from the client the patched resource
+ * belongs to: the Bedrock (including Mantle), Vertex and Foundry SDK clients
+ * reuse this SDK's `Messages` resource, so the same patch traces them.
+ * Detected by class name (AWS / Google Cloud named clients included), and by
+ * the fields the Bedrock and Vertex clients carry for when a bundler renames
+ * classes.
+ */
+function getAnthropicProvider(resource: unknown): LLMProvider {
+  try {
+    const client: unknown =
+      resource != null && typeof resource === "object" ? Reflect.get(resource, "_client") : null;
+    if (client == null || typeof client !== "object") {
+      return LLMProvider.ANTHROPIC;
+    }
+    const name = client.constructor?.name ?? "";
+    if (/Bedrock|AWS/.test(name) || "awsRegion" in client) {
+      return LLMProvider.AWS;
+    }
+    if (/Vertex|GoogleCloud/.test(name) || "projectId" in client) {
+      return LLMProvider.GOOGLE;
+    }
+    if (/Foundry|Azure/.test(name)) {
+      return LLMProvider.AZURE;
+    }
+  } catch (error) {
+    diag.debug(`Failed to identify the ${MODULE_NAME} client's provider`, error);
+  }
+  return LLMProvider.ANTHROPIC;
+}
+
+/**
  * Runs an attribute extractor so that a malformed request or response can never
  * make the instrumentation throw into the caller's code. A failure costs the
  * attributes it would have produced, and is reported through `diag`.
@@ -499,8 +530,9 @@ function getAnthropicResponseAttributes(result: Message, contextMetadata?: Metad
     ...getAnthropicFinishReasonAttributes(result.stop_reason),
     ...getAnthropicOutputMessagesAttributes(result),
     ...getAnthropicUsageAttributes(result.usage ?? {}),
+    ...getAnthropicReasoningTokenAttributes(result.usage ?? {}),
     ...getAnthropicMetadataAttributes({
-      metadata: getAnthropicResponseMetadata(result.content),
+      metadata: getAnthropicResponseMetadata(result),
       contextMetadata,
     }),
   };
@@ -912,11 +944,24 @@ function getAnthropicOutputMessagesAttributes(message: OutputMessage): Attribute
  * Collects the response details that have no semantic convention of their
  * own, for the span's `metadata`:
  *
+ * - `stop_details`: why the model stopped, e.g. the category of a refusal;
+ * - `cache_miss_reason`: why the prompt cache was not read;
+ * - `container_id`: the container a code execution tool ran in;
+ * - `context_management`: the context edits applied to the request;
+ * - `input_transformations`: the input blocks the API dropped or let through;
+ * - `usage_iterations`: the usage of each sampling iteration. A compaction
+ *   iteration's tokens are not part of the top-level usage, so they are not
+ *   added to the token counts either;
+ * - `server_tool_use`: the number of server tool requests by tool;
  * - `citations`: the citations of each text block, by content index;
  * - `mcp_server_names`: the MCP server of each `mcp_tool_use` call, by id.
  */
-function getAnthropicResponseMetadata(content: ContentBlock[]): Metadata {
-  const metadata: Metadata = {};
+function getAnthropicResponseMetadata(message: AnthropicResponseDetails): Metadata {
+  const metadata: Metadata = {
+    ...getAnthropicResponseDetailsMetadata(message),
+    ...getAnthropicUsageMetadata(message.usage),
+  };
+  const { content } = message;
   const citations: Record<string, unknown> = {};
   const mcpServerNames: Record<string, string> = {};
   content.forEach((block, index) => {
@@ -931,6 +976,63 @@ function getAnthropicResponseMetadata(content: ContentBlock[]): Metadata {
   }
   if (Object.keys(mcpServerNames).length > 0) {
     metadata.mcp_server_names = mcpServerNames;
+  }
+  return metadata;
+}
+
+/**
+ * The response fields metadata is read from, shared by a parsed message and
+ * one rebuilt from a stream, whose fields are only known once they arrive.
+ */
+type AnthropicResponseDetails = { content: ContentBlock[]; usage?: unknown } & Partial<
+  Record<
+    "stop_details" | "diagnostics" | "container" | "context_management" | "input_transformations",
+    unknown
+  >
+>;
+
+function getAnthropicResponseDetailsMetadata(message: AnthropicResponseDetails): Metadata {
+  const metadata: Metadata = {};
+  if (message.stop_details != null) {
+    metadata.stop_details = message.stop_details;
+  }
+  const diagnostics = message.diagnostics;
+  if (
+    diagnostics != null &&
+    typeof diagnostics === "object" &&
+    "cache_miss_reason" in diagnostics &&
+    diagnostics.cache_miss_reason != null
+  ) {
+    metadata.cache_miss_reason = diagnostics.cache_miss_reason;
+  }
+  const container = message.container;
+  if (
+    container != null &&
+    typeof container === "object" &&
+    "id" in container &&
+    typeof container.id === "string"
+  ) {
+    metadata.container_id = container.id;
+  }
+  if (message.context_management != null) {
+    metadata.context_management = message.context_management;
+  }
+  if (Array.isArray(message.input_transformations) && message.input_transformations.length > 0) {
+    metadata.input_transformations = message.input_transformations;
+  }
+  return metadata;
+}
+
+function getAnthropicUsageMetadata(usage: unknown): Metadata {
+  const metadata: Metadata = {};
+  if (usage == null || typeof usage !== "object") {
+    return metadata;
+  }
+  if ("iterations" in usage && usage.iterations != null) {
+    metadata.usage_iterations = usage.iterations;
+  }
+  if ("server_tool_use" in usage && usage.server_tool_use != null) {
+    metadata.server_tool_use = usage.server_tool_use;
   }
   return metadata;
 }
@@ -1086,6 +1188,26 @@ function getAnthropicUsageAttributes(usage: MessageUsageCounts): Attributes {
     attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cacheReadTokens;
   }
   return attributes;
+}
+
+/**
+ * Records the output tokens spent on extended thinking, which Anthropic
+ * reports as a breakdown of (and so included in) `output_tokens`.
+ */
+function getAnthropicReasoningTokenAttributes(usage: object): Attributes {
+  const details: unknown =
+    "output_tokens_details" in usage ? usage.output_tokens_details : undefined;
+  if (
+    details != null &&
+    typeof details === "object" &&
+    "thinking_tokens" in details &&
+    typeof details.thinking_tokens === "number"
+  ) {
+    return {
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]: details.thinking_tokens,
+    };
+  }
+  return {};
 }
 
 /**
@@ -1277,15 +1399,19 @@ function getAnthropicStreamAttributes(
   contextMetadata?: Metadata,
 ): Attributes {
   const content = state.content.filter((block) => block != null);
+  const message = getAnthropicStreamMessage(state);
   const attributes: Attributes = {
     ...getAnthropicOutputMessagesAttributes({ role: state.message?.role ?? "assistant", content }),
     ...getAnthropicMetadataAttributes({
-      metadata: getAnthropicResponseMetadata(content),
+      metadata: getAnthropicResponseMetadata({ ...message, content }),
       contextMetadata,
     }),
   };
+  if (message.usage != null && typeof message.usage === "object") {
+    Object.assign(attributes, getAnthropicReasoningTokenAttributes(message.usage));
+  }
 
-  const output = safelyJSONStringify(getAnthropicStreamMessage(state));
+  const output = safelyJSONStringify(message);
   if (output != null) {
     attributes[SemanticConventions.OUTPUT_VALUE] = output;
     attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
