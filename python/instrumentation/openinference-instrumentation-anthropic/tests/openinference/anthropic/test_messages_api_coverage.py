@@ -2,7 +2,7 @@
 whose events fail to accumulate, and every content block type in input and output messages."""
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, Iterator, List
 
 import httpx2
 import pytest
@@ -931,3 +931,155 @@ def test_uninstrumentation_restores_count_tokens_and_platform_beta_messages(
         AnthropicInstrumentor().uninstrument()
     for cls, method in wrapped:
         assert cls.__dict__[method] is originals[(cls, method)]
+
+
+@pytest.fixture()
+def instrument_with_config(tracer_provider: TracerProvider) -> Iterator[Callable[..., None]]:
+    from openinference.instrumentation import TraceConfig
+    from openinference.instrumentation.anthropic import AnthropicInstrumentor
+
+    def instrument(**config: Any) -> None:
+        AnthropicInstrumentor().instrument(
+            tracer_provider=tracer_provider, config=TraceConfig(**config)
+        )
+
+    yield instrument
+    AnthropicInstrumentor().uninstrument()
+
+
+@pytest.mark.parametrize(
+    "config, hides_citations, hides_explanation",
+    [
+        ({}, False, False),
+        ({"hide_inputs": True}, True, False),
+        ({"hide_outputs": True}, True, True),
+        ({"hide_output_text": True}, True, True),
+    ],
+)
+@pytest.mark.parametrize("streaming", [False, True])
+def test_metadata_respects_trace_config(
+    in_memory_span_exporter: InMemorySpanExporter,
+    instrument_with_config: Callable[..., None],
+    config: Dict[str, Any],
+    hides_citations: bool,
+    hides_explanation: bool,
+    streaming: bool,
+) -> None:
+    instrument_with_config(**config)
+    if streaming:
+        client = _mock_anthropic_client(_response_metadata_stream_handler)
+        stream = client.beta.messages.create(
+            model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "hi"}], stream=True
+        )
+        for _ in stream:
+            pass
+    else:
+        response = _message_json(_RESPONSE_CONTENT, **_RESPONSE_DATA, usage=_RESPONSE_USAGE)
+        client = _mock_anthropic_client(lambda request: httpx2.Response(200, json=response))
+        client.beta.messages.create(
+            model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "hi"}]
+        )
+    metadata = json.loads(
+        str(dict(_get_span(in_memory_span_exporter).attributes or {})[SpanAttributes.METADATA])
+    )
+    # the citations quote the input, and the explanation describes the output
+    assert ("citations" in metadata) is not hides_citations
+    assert ("explanation" in metadata["stop_details"]) is not hides_explanation
+    assert metadata["stop_details"]["category"] == "cyber"
+    assert metadata["container_id"] == "container_1"
+
+
+_IMAGE_DATA = "IMAGE" * 100
+_PDF_DATA = "PDF" * 100
+
+
+def _blocks_with_nested_data() -> List[Dict[str, Any]]:
+    image = {"type": "base64", "media_type": "image/png", "data": _IMAGE_DATA}
+    return [
+        {
+            "type": "document",
+            "source": {"type": "base64", "media_type": "application/pdf", "data": _PDF_DATA},
+        },
+        {
+            "type": "document",
+            "source": {
+                "type": "content",
+                "content": [
+                    {"type": "image", "source": image},
+                    {"type": "image", "source": {"type": "url", "url": "https://e.com/a.png"}},
+                ],
+            },
+        },
+        {
+            "type": "tool_result",
+            "tool_use_id": "toolu_1",
+            "content": [{"type": "image", "source": image}],
+        },
+    ]
+
+
+@pytest.mark.parametrize("hide_images", [False, True])
+def test_blocks_recorded_as_json_redact_their_data(hide_images: bool) -> None:
+    attributes = dict(
+        _get_llm_input_messages(
+            [{"role": "user", "content": _blocks_with_nested_data()}], hide_images=hide_images
+        )
+    )
+    contents = f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}"
+    redacted = "__REDACTED__"
+    # base64 data is always redacted, keeping the type and media type
+    assert json.loads(str(attributes[f"{contents}.0.{MESSAGE_CONTENT_TEXT}"]))["source"] == {
+        "type": "base64",
+        "media_type": "application/pdf",
+        "data": redacted,
+    }
+    nested = json.loads(str(attributes[f"{contents}.1.{MESSAGE_CONTENT_TEXT}"]))
+    base64_image, url_image = nested["source"]["content"]
+    assert base64_image["source"] == {"type": "base64", "media_type": "image/png", "data": redacted}
+    # other images are redacted only if images are hidden
+    assert url_image["source"] == {
+        "type": "url",
+        "url": redacted if hide_images else "https://e.com/a.png",
+    }
+    tool_result = json.loads(str(attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"]))
+    assert tool_result[0]["source"]["data"] == redacted
+    for value in attributes.values():
+        assert _IMAGE_DATA not in str(value) and _PDF_DATA not in str(value)
+
+
+def test_trace_config_hides_images_nested_in_input_blocks(
+    in_memory_span_exporter: InMemorySpanExporter,
+    instrument_with_config: Callable[..., None],
+) -> None:
+    instrument_with_config(hide_input_images=True)
+    client = _mock_anthropic_client(_text_message_handler)
+    messages: Any = [{"role": "user", "content": _blocks_with_nested_data()}]
+    client.messages.create(model=MODEL, max_tokens=100, messages=messages)
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    nested = json.loads(
+        str(attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"])
+    )
+    assert nested["source"]["content"][1]["source"]["url"] == "__REDACTED__"
+
+
+def test_models_are_dumped_without_pydantic_v2_arguments() -> None:
+    from openinference.instrumentation.anthropic._content import _to_jsonable
+
+    class V1Model:
+        # like the SDK's shim of model_dump on Pydantic v1, which rejects `warnings`
+        def model_dump(self, **kwargs: Any) -> Dict[str, Any]:
+            if "warnings" in kwargs:
+                raise ValueError("warnings is only supported in Pydantic v2")
+            return {"type": "text", "text": "hi"}
+
+    assert _to_jsonable([V1Model()]) == [{"type": "text", "text": "hi"}]
+
+
+def test_bad_block_is_logged_at_debug_level(caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
+    with caplog.at_level(logging.DEBUG):
+        dict(_get_llm_input_messages([{"role": "user", "content": [{"type": "text"}]}]))
+    records = [record for record in caplog.records if record.msg == "Failed to get attributes."]
+    assert records and all(record.levelno == logging.DEBUG for record in records)
+    assert all(record.exc_info for record in records)

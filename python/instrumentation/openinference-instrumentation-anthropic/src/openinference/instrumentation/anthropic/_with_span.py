@@ -7,6 +7,8 @@ from typing import Dict, Iterable, Optional, Tuple, Union
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import Attributes, AttributeValue
 
+from openinference.instrumentation import TraceConfig
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -17,6 +19,7 @@ class _WithSpan:
         "_is_finished",
         "_params",
         "_context_metadata",
+        "_config",
     )
 
     def __init__(
@@ -24,11 +27,14 @@ class _WithSpan:
         span: trace_api.Span,
         params: Iterable[Tuple[str, AttributeValue]] = (),
         context_metadata: Optional[AttributeValue] = None,
+        config: Optional[TraceConfig] = None,
     ) -> None:
         self._span = span
         self._params = params
         # the metadata from the context the span was started in, to merge the response's into
         self._context_metadata = context_metadata
+        # the trace config, for the attributes that the tracer's masking does not cover
+        self._config = config
         try:
             self._is_finished = not self._span.is_recording()
         except Exception:
@@ -42,6 +48,10 @@ class _WithSpan:
     @property
     def context_metadata(self) -> Optional[AttributeValue]:
         return self._context_metadata
+
+    @property
+    def config(self) -> Optional[TraceConfig]:
+        return self._config
 
     def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
         self._span.set_attributes(attributes)

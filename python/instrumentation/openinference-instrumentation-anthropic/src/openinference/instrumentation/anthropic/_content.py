@@ -8,11 +8,13 @@ response models (e.g. a response passed back as input), so both are read with `_
 
 import json
 import logging
+import warnings
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import TraceConfig, safe_json_dumps
+from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -52,12 +54,50 @@ def _to_jsonable(obj: Any) -> Any:
     if hasattr(obj, "model_dump"):
         # by_alias, so e.g. a fallback block's `from_` is recorded as the API's `from`, and
         # without warnings, which the SDK's stand-in model for an unknown block type would raise
-        return obj.model_dump(mode="json", by_alias=True, exclude_none=True, warnings=False)
+        try:
+            return obj.model_dump(mode="json", by_alias=True, exclude_none=True, warnings=False)
+        except (TypeError, ValueError):
+            # Pydantic v1, whose model_dump (the SDK's shim) does not take `warnings`
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                return obj.model_dump(mode="json", by_alias=True, exclude_none=True)
     return obj
 
 
-def _to_json(obj: Any) -> str:
-    return safe_json_dumps(_to_jsonable(obj))
+def _redact_sources(obj: Any, hide_images: bool) -> Any:
+    """
+    Redacts the nested sources that hold data, so that recording a block as JSON neither copies
+    base64 images and documents, e.g. whole PDFs, nor bypasses the trace config's image settings:
+    every base64 source, and every image source if images are hidden. A source keeps its type and
+    media type.
+    """
+    if isinstance(obj, list):
+        return [_redact_sources(item, hide_images) for item in obj]
+    if not isinstance(obj, dict):
+        return obj
+    return {
+        key: _redacted_source(value)
+        if key == "source"
+        and isinstance(value, dict)
+        and (value.get("type") == "base64" or (hide_images and obj.get("type") == "image"))
+        else _redact_sources(value, hide_images)
+        for key, value in obj.items()
+    }
+
+
+def _redacted_source(source: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        key: value if key in ("type", "media_type") else REDACTED_VALUE
+        for key, value in source.items()
+    }
+
+
+def _to_json(obj: Any, hide_images: bool = False) -> str:
+    return safe_json_dumps(_redact_sources(_to_jsonable(obj), hide_images))
+
+
+def _hides_input_images(config: Optional[TraceConfig]) -> bool:
+    return bool(config and (config.hide_inputs or config.hide_input_images))
 
 
 def _attributes_or_nothing(
@@ -71,29 +111,32 @@ def _attributes_or_nothing(
     try:
         return list(get_attributes(*args))
     except Exception:
-        logger.exception("Failed to get attributes.")
+        logger.debug("Failed to get attributes.", exc_info=True)
         return []
 
 
 def _get_message_contents_attributes(
     message_prefix: str,
     blocks: Iterable[Any],
+    hide_images: bool = False,
 ) -> Iterator[Tuple[str, Any]]:
     """
     Yields the attributes of each content block of the message at `message_prefix`, e.g.
     `llm.output_messages.0`. Content indices follow the block indices, and a block that cannot be
     mapped is recorded generically, so no index is skipped and no block is silently dropped.
+    `hide_images` redacts the images nested in blocks that are recorded as JSON.
     """
     tool_index = 0
     for j, block in enumerate(blocks):
         attributes = _attributes_or_nothing(
-            _get_content_block_attributes, message_prefix, j, tool_index, block
+            _get_content_block_attributes, message_prefix, j, tool_index, block, hide_images
         )
         if not attributes:
             attributes = _attributes_or_nothing(
                 _get_generic_content_block_attributes,
                 f"{message_prefix}.{MESSAGE_CONTENTS}.{j}",
                 block,
+                hide_images,
             )
         elif _get(block, "type") in TOOL_CALL_BLOCK_TYPES:
             tool_index += 1
@@ -105,6 +148,7 @@ def _get_content_block_attributes(
     j: int,
     tool_index: int,
     block: Any,
+    hide_images: bool = False,
 ) -> Iterator[Tuple[str, Any]]:
     block_type = _require(block, "type")
     prefix = f"{message_prefix}.{MESSAGE_CONTENTS}.{j}"
@@ -141,7 +185,7 @@ def _get_content_block_attributes(
                 f"{message_prefix}.{MESSAGE_CONTENT}",
                 tool_result_content
                 if isinstance(tool_result_content, str)
-                else _to_json(tool_result_content),
+                else _to_json(tool_result_content, hide_images),
             )
     elif block_type == "image":
         yield from _get_image_attributes(prefix, _require(block, "source"))
@@ -157,7 +201,7 @@ def _get_content_block_attributes(
         # e.g. server tool results, MCP tool results and listings, container uploads, fallback
         # boundaries, documents, search results, tool additions and removals, and types newer
         # than this instrumentation
-        yield from _get_generic_content_block_attributes(prefix, block)
+        yield from _get_generic_content_block_attributes(prefix, block, hide_images)
 
 
 def _get_image_attributes(prefix: str, source: Any) -> Iterator[Tuple[str, Any]]:
@@ -177,10 +221,14 @@ def _get_image_attributes(prefix: str, source: Any) -> Iterator[Tuple[str, Any]]
     yield f"{prefix}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", url
 
 
-def _get_generic_content_block_attributes(prefix: str, block: Any) -> Iterator[Tuple[str, Any]]:
-    """Records a block's type and, as its text, the block as JSON."""
+def _get_generic_content_block_attributes(
+    prefix: str,
+    block: Any,
+    hide_images: bool = False,
+) -> Iterator[Tuple[str, Any]]:
+    """Records a block's type and, as its text, the block as JSON, its data sources redacted."""
     yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", str(_get(block, "type") or "unknown")
-    yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", _to_json(block)
+    yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", _to_json(block, hide_images)
 
 
 def _get_output_message_attributes(message: Any) -> Iterator[Tuple[str, Any]]:
@@ -190,7 +238,10 @@ def _get_output_message_attributes(message: Any) -> Iterator[Tuple[str, Any]]:
     yield from _get_message_contents_attributes(f"{LLM_OUTPUT_MESSAGES}.0", message.content)
 
 
-def _get_response_metadata(message: Any) -> Dict[str, Any]:
+def _get_response_metadata(
+    message: Any,
+    config: Optional[TraceConfig] = None,
+) -> Dict[str, Any]:
     """
     Collects the provider-specific data of a response that has no semantic convention of its own,
     to be recorded in the span metadata. Each item is guarded, so one cannot lose the others.
@@ -206,8 +257,14 @@ def _get_response_metadata(message: Any) -> Dict[str, Any]:
     - server_tool_use: the number of server tool requests, e.g. web searches, by tool
     - citations: the citations of each text block, keyed by its index in the output contents
     - mcp_server_names: the MCP server of each MCP tool call, keyed by its tool call id
+
+    The metadata is not masked by the trace config, so the items that quote the input or the
+    output are left out here when the config hides it: the citations, which quote the cited
+    input, and the explanation in the stop details, which describes the output.
     """
     metadata: Dict[str, Any] = {}
+    hide_output_text = bool(config and (config.hide_outputs or config.hide_output_text))
+    hide_citations = hide_output_text or bool(config and config.hide_inputs)
 
     def add(key: str, get_value: Callable[[], Any]) -> None:
         try:
@@ -216,7 +273,7 @@ def _get_response_metadata(message: Any) -> Dict[str, Any]:
         except Exception:
             logger.exception("Failed to get the %s of the response.", key)
 
-    add("stop_details", lambda: _get(message, "stop_details"))
+    add("stop_details", lambda: _get_stop_details(message, hide_output_text))
     add("cache_miss_reason", lambda: _get(_get(message, "diagnostics"), "cache_miss_reason"))
     add("container_id", lambda: _get(_get(message, "container"), "id"))
     add(
@@ -226,9 +283,18 @@ def _get_response_metadata(message: Any) -> Dict[str, Any]:
     add("input_transformations", lambda: _get(message, "input_transformations"))
     add("usage_iterations", lambda: _get(_get(message, "usage"), "iterations"))
     add("server_tool_use", lambda: _get(_get(message, "usage"), "server_tool_use"))
-    add("citations", lambda: _get_citations(message))
+    if not hide_citations:
+        add("citations", lambda: _get_citations(message))
     add("mcp_server_names", lambda: _get_mcp_server_names(message))
     return metadata
+
+
+def _get_stop_details(message: Any, hide_explanation: bool) -> Any:
+    if not (stop_details := _to_jsonable(_get(message, "stop_details"))):
+        return None
+    if hide_explanation and isinstance(stop_details, dict):
+        stop_details.pop("explanation", None)
+    return stop_details
 
 
 def _get_citations(message: Any) -> Dict[str, Any]:
@@ -250,12 +316,13 @@ def _get_mcp_server_names(message: Any) -> Dict[str, Any]:
 def _get_metadata_attributes(
     message: Any,
     context_metadata: Optional[AttributeValue] = None,
+    config: Optional[TraceConfig] = None,
 ) -> Iterator[Tuple[str, Any]]:
     """
     Yields the span metadata: the response's metadata merged with the metadata from the context
     that the span was started in, which takes precedence, since this replaces it on the span.
     """
-    if not (metadata := _get_response_metadata(message)):
+    if not (metadata := _get_response_metadata(message, config)):
         return
     if isinstance(context_metadata, str):
         try:

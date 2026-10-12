@@ -24,13 +24,18 @@ from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    TraceConfig,
+    get_attributes_from_context,
+    safe_json_dumps,
+)
 from openinference.instrumentation.anthropic._content import (
     _attributes_or_nothing,
     _get_inline_tool_definitions,
     _get_message_contents_attributes,
     _get_metadata_attributes,
     _get_output_message_attributes,
+    _hides_input_images,
     _require,
 )
 from openinference.instrumentation.anthropic._stream import (
@@ -178,6 +183,14 @@ class _WithTracer(ABC):
         super().__init__(*args, **kwargs)
         self._tracer = tracer
         self._span_name = span_name
+        # the OITracer's trace config, for the attributes that its masking does not cover
+        config = getattr(tracer, "_self_config", None)
+        self._config = config if isinstance(config, TraceConfig) else None
+
+    def _get_attributes_from_request(
+        self, kwargs: Mapping[str, Any]
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        return _get_attributes_from_messages_create(kwargs, config=self._config)
 
     @contextmanager
     def _start_as_current_span(
@@ -207,12 +220,14 @@ class _WithTracer(ABC):
                 span=span,
                 params=stack.enter_context(params),
                 context_metadata=(attributes or {}).get(METADATA),
+                config=self._config,
             )
 
 
 @_stop_on_exception
 def _get_attributes_from_messages_create(
     kwargs: MessageCreateParamsBase,
+    config: Optional[TraceConfig] = None,
 ) -> Iterator[Tuple[str, AttributeValue]]:
     yield from _get_llm_model_name_from_input(kwargs)
     invocation_parameters = dict(kwargs)
@@ -223,7 +238,7 @@ def _get_attributes_from_messages_create(
     messages = invocation_parameters.pop("messages", None)
     # a list, because the messages are read twice
     messages = list(messages) if isinstance(messages, Iterable) else []
-    yield from _get_llm_input_messages(messages, system)
+    yield from _get_llm_input_messages(messages, system, _hides_input_images(config))
     tools = invocation_parameters.pop("tools", None)
     tools = list(tools) if isinstance(tools, Iterable) else []
     # tools defined inline in the messages are offered to the model as well
@@ -250,7 +265,7 @@ class _MessagesWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
@@ -297,7 +312,7 @@ class _AsyncMessagesWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
@@ -337,7 +352,7 @@ def _finish_message_tracing(span: _WithSpan, message: Any) -> None:
             chain(
                 _get_llm_model_name_from_response(message),
                 _get_output_messages(message),
-                _get_metadata(message, span.context_metadata),
+                _get_metadata(message, span),
                 _get_llm_token_counts_from_response(message),
                 _get_outputs(message),
             )
@@ -362,7 +377,7 @@ class _CountTokensWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
@@ -405,7 +420,7 @@ class _AsyncCountTokensWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
@@ -542,7 +557,7 @@ class _MessagesStreamWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        params = _Params(kwargs, get_attributes=_get_attributes_from_messages_create)
+        params = _Params(kwargs, get_attributes=self._get_attributes_from_request)
         with self._start_as_current_span(
             params=params,
             attributes=dict(
@@ -585,7 +600,7 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        params = _Params(kwargs, get_attributes=_get_attributes_from_messages_create)
+        params = _Params(kwargs, get_attributes=self._get_attributes_from_request)
         with self._start_as_current_span(
             params=params,
             attributes=dict(
@@ -901,6 +916,7 @@ def _get_llm_model_name_from_response(message: "Message") -> Iterator[Tuple[str,
 def _get_llm_input_messages(
     messages: Iterable[MessageParam],
     system: str | Iterable[TextBlockParam] | None = None,
+    hide_images: bool = False,
 ) -> Iterator[Tuple[str, Any]]:
     """
     Extracts the messages from the chat response.
@@ -914,37 +930,40 @@ def _get_llm_input_messages(
     one message keeps the indices of, and does not drop, the others.
     """
     if system:
-        yield from _attributes_or_nothing(_get_llm_input_system_message, system)
+        yield from _attributes_or_nothing(_get_llm_input_system_message, system, hide_images)
     start = 1 if system else 0
     for i, message in enumerate(messages, start=start):
-        yield from _attributes_or_nothing(_get_llm_input_message, i, message)
+        yield from _attributes_or_nothing(_get_llm_input_message, i, message, hide_images)
 
 
 def _get_llm_input_system_message(
     system: str | Iterable[TextBlockParam],
+    hide_images: bool = False,
 ) -> Iterator[Tuple[str, Any]]:
     yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "system"
     if isinstance(system, str):
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", system
         return
-    yield from _get_message_contents_attributes(f"{LLM_INPUT_MESSAGES}.0", system)
+    yield from _get_message_contents_attributes(f"{LLM_INPUT_MESSAGES}.0", system, hide_images)
 
 
-def _get_llm_input_message(i: int, message: MessageParam) -> Iterator[Tuple[str, Any]]:
+def _get_llm_input_message(
+    i: int, message: MessageParam, hide_images: bool = False
+) -> Iterator[Tuple[str, Any]]:
     if role := _require(message, "role"):
         yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
     if content := _require(message, "content"):
         if isinstance(content, str):
             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
             return
-        yield from _get_message_contents_attributes(f"{LLM_INPUT_MESSAGES}.{i}", content)
+        yield from _get_message_contents_attributes(
+            f"{LLM_INPUT_MESSAGES}.{i}", content, hide_images
+        )
 
 
 @_stop_on_exception
-def _get_metadata(
-    message: Message, context_metadata: Optional[AttributeValue]
-) -> Iterator[Tuple[str, Any]]:
-    yield from _get_metadata_attributes(message, context_metadata)
+def _get_metadata(message: Message, span: _WithSpan) -> Iterator[Tuple[str, Any]]:
+    yield from _get_metadata_attributes(message, span.context_metadata, span.config)
 
 
 @_stop_on_exception
