@@ -8,6 +8,15 @@ from collections.abc import Mapping as MappingABC
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Tuple
 
 import opentelemetry.context as context_api
+from opentelemetry import trace as trace_api
+
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    get_input_attributes,
+    get_output_attributes,
+    get_tool_attributes,
+    safe_json_dumps,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -17,15 +26,6 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
-)
-from opentelemetry import trace as trace_api
-
-from openinference.instrumentation import (
-    get_attributes_from_context,
-    get_input_attributes,
-    get_output_attributes,
-    get_tool_attributes,
-    safe_json_dumps,
 )
 
 if TYPE_CHECKING:
@@ -339,12 +339,10 @@ class _TurnUsageAccumulator:
         self._usage_by_message_id: dict[str, Mapping[str, Any]] = {}
         self._cli_version: tuple[int, ...] | None = None
         self._parent_tool_use_id = parent_tool_use_id
-        self._has_init_message = False
 
     def add(self, message: Any) -> None:
         subtype = _get_field(message, "subtype")
         if subtype == "init":
-            self._has_init_message = True
             data = _get_field(message, "data", {})
             version = _get_field(data, "claude_code_version")
             if version is None:
