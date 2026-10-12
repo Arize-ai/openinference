@@ -499,6 +499,56 @@ describe("AnthropicInstrumentation - content blocks", () => {
     expect(span.attributes[input(1, MESSAGE_ROLE)]).toBe("user");
     expect(span.attributes[input(1, MESSAGE_CONTENT)]).toBe("What is the capital of France?");
   });
+
+  it.each([{ system: "" }, { system: [] }])(
+    "adds no system message for an empty system prompt ($system)",
+    async ({ system }) => {
+      const client = new Anthropic({ apiKey: "fake-api-key", fetch: jsonFetch(responseMessage) });
+      await client.messages.create({ ...request, system });
+
+      await waitForSpans(1);
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.attributes[input(0, MESSAGE_ROLE)]).toBe("user");
+      expect(span.attributes[input(0, MESSAGE_CONTENT)]).toBe("What is the capital of France?");
+      expect(span.attributes[input(1, MESSAGE_ROLE)]).toBeUndefined();
+    },
+  );
+
+  it("keeps the other request attributes when a message or block is malformed", async () => {
+    const client = new Anthropic({ apiKey: "fake-api-key", fetch: jsonFetch(responseMessage) });
+    const malformed = [
+      { role: "user", content: null },
+      {
+        role: "user",
+        content: [
+          { type: "tool_addition" },
+          { type: "image" },
+          { type: "text", text: "still here" },
+        ],
+      },
+      { role: "user", content: "last" },
+    ] as unknown as Anthropic.Beta.BetaMessageParam[];
+    await client.beta.messages.create({ ...request, system: "Be brief.", messages: malformed });
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    const attributes = span.attributes;
+    expect(attributes[SemanticConventions.LLM_MODEL_NAME]).toBe("claude-sonnet-4-6");
+    expect(attributes[SemanticConventions.INPUT_VALUE]).toEqual(expect.any(String));
+    expect(attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS]).toBe(
+      JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 100 }),
+    );
+    expect(attributes[input(0, MESSAGE_CONTENT)]).toBe("Be brief.");
+    expect(attributes[input(1, MESSAGE_ROLE)]).toBe("user");
+    // Malformed blocks keep their index as their type and JSON.
+    expect(attributes[inputContent(2, 0, MESSAGE_CONTENT_TYPE)]).toBe("tool_addition");
+    expect(attributes[inputContent(2, 1, MESSAGE_CONTENT_TYPE)]).toBe("image");
+    expect(attributes[inputContent(2, 1, MESSAGE_CONTENT_TEXT)]).toBe(
+      JSON.stringify({ type: "image" }),
+    );
+    expect(attributes[inputContent(2, 2, MESSAGE_CONTENT_TEXT)]).toBe("still here");
+    expect(attributes[input(3, MESSAGE_CONTENT)]).toBe("last");
+  });
 });
 
 /** Gives the streamed message the id of the non-streaming one. */
