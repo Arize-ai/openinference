@@ -746,7 +746,7 @@ class TestWorkflowBackgroundRuns:
 
         captured_run_id = attrs.get("agno.run.id")
         assert captured_run_id is not None
-        assert re.match(r"^[0-9a-f-]{36}$", captured_run_id), captured_run_id  # type: ignore[call-overload]
+        assert re.match(r"^[0-9a-f-]{36}$", str(captured_run_id)), captured_run_id
 
         # Span should have real, non-trivial duration.
         assert execute_span.start_time is not None
@@ -1065,7 +1065,7 @@ class TestWorkflowBackgroundRuns:
         execute_attrs = dict(execute_spans[0].attributes or {})
         captured_run_id = execute_attrs.get("agno.run.id")
         assert captured_run_id is not None
-        assert re.match(r"^[0-9a-f-]{36}$", captured_run_id), (  # type: ignore[call-overload]
+        assert re.match(r"^[0-9a-f-]{36}$", str(captured_run_id)), (
             f"agno.run.id should be a UUID, got {captured_run_id!r}"
         )
 

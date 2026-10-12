@@ -10,6 +10,10 @@ Checkout the [instrumentation.ts](./instrumentation.ts) file to see how to auto-
 
 Checkout the [chat.ts](./chat.ts) file to see how to send a simple message to OpenAI with langchain.
 
+## Multimodal
+
+Checkout the [multimodal.ts](./multimodal.ts) file to see how a message made of text and image content blocks is recorded on the LLM span under `llm.input_messages.0.message.contents.*`.
+
 ## Instructions
 
 Please use node version >= 18 to run this example.

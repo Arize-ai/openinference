@@ -5,10 +5,7 @@ from itertools import chain
 from typing import Dict, Iterable, Optional, Tuple, Union
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import (
-    Attributes,
-    AttributeValue,
-)
+from opentelemetry.util.types import Attributes, AttributeValue
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -41,7 +38,7 @@ class _WithSpan:
     def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
         self._span.set_attributes(attributes)
 
-    def record_exception(self, exception: Exception) -> None:
+    def record_exception(self, exception: BaseException) -> None:
         if self._is_finished:
             return
         try:

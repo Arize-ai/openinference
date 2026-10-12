@@ -55,6 +55,7 @@ jobs:
             sed -i 's/"openinference-instrumentation>=.*"/"openinference-instrumentation>='"$NEW_VERSION"'"/' {} +
 
       - name: Create pull request
+        id: cpr
         if: steps.version.outputs.version
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
@@ -68,3 +69,12 @@ jobs:
             Triggered by release [`${{ github.event.release.tag_name }}`](${{ github.event.release.html_url }}).
           branch: "bump-oi-instrumentation-${{ steps.version.outputs.version }}"
           base: main
+
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+        # Lets a reviewer merge with a single approval; a failure here should
+        # not fail the run since the PR itself was opened successfully.
+        run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash || echo "::warning::Could not enable auto-merge on #$PR_NUMBER"

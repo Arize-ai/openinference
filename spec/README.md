@@ -49,6 +49,7 @@ The `openinference.span.kind` attribute classifies what an operation does, enabl
 | `GUARDRAIL` | An input or output moderation check. |
 | `EVALUATOR` | An automated evaluation of a model response (e.g., LLM-as-judge). |
 | `PROMPT` | A named prompt template invocation. |
+| `DECISION` | A call to a decision model that scores or selects among candidate options (e.g., routing, judging a condition, rubric scoring), such as [TypeSafe AI's Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev). See [Decision Spans](./decision_spans.md). |
 
 ### Attributes
 
@@ -70,6 +71,7 @@ The [Semantic Conventions](./semantic_conventions.md) document is the authoritat
 
 - [LLM Spans](./llm_spans.md) — Attributes for language model calls: messages, token counts, model parameters, and tool definitions
 - [Embedding Spans](./embedding_spans.md) — Attributes for vector embedding generation
+- [Decision Spans](./decision_spans.md) — Attributes for decision model calls: model, system, and provider identification
 
 ### Attribute Conventions
 

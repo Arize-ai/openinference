@@ -2,7 +2,11 @@ name: Python Canary Cron
 
 on:
   schedule:
-    - cron: "0 18 * * 1-5"
+    # Weekdays at 18:15 UTC. Scheduled workflows run as the user who last
+    # modified this cron expression, so if that account is suspended or
+    # removed from the org the schedule silently stops firing. Re-authoring
+    # this line (not just a comment) under an active maintainer restores it.
+    - cron: "15 18 * * 1-5"
   workflow_dispatch:
 
 # Serialize runs so an in-flight auto-fix can't race a second run (e.g. a
@@ -258,7 +262,7 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
 
-      - uses: anthropics/claude-code-action@2fee15510437d71399d9139ed60433470484a8fb # v1.0.153
+      - uses: anthropics/claude-code-action@ed670b4cf9de2a5a570d130d2f6197b9e543cd64 # v1.0.240
         id: auto-fix
         if: ${{ steps.preflight.outputs.skip != 'true' }}
         env:
@@ -394,6 +398,8 @@ jobs:
             --head "$BRANCH" \
             --title "$PR_TITLE" \
             --body-file "$BODY_FILE")
+          # Auto-merge once a reviewer approves and checks pass.
+          gh pr merge "$PR_URL" --auto --squash || echo "::warning::Could not enable auto-merge on $PR_URL"
           {
             echo "status=pr_opened"
             echo "pr_url=$PR_URL"

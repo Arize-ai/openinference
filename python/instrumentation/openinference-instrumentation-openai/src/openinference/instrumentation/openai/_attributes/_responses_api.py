@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, Mapping, Tuple, Union
 
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.openai._image_utils import image_b64_to_data_url
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -131,22 +132,48 @@ class _ResponsesApiAttributes:
     def _get_attributes_from_response(
         cls,
         obj: responses.response.Response,
+        request_parameters: Mapping[str, Any] | None = None,
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.LLM_MODEL_NAME, obj.model
         if obj.usage:
             yield from cls._get_attributes_from_response_usage(obj.usage)
         if isinstance(obj.output, Iterable):
+            image_index = 0
+            image_format = cls._get_image_generation_output_format(request_parameters)
             for i, item in enumerate(obj.output):
                 yield from cls._get_attributes_from_response_output_item(
                     item,
                     f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{i}.",
+                    image_index=image_index,
+                    image_format=image_format,
                 )
+                if (
+                    item.type == "image_generation_call"
+                    and getattr(item, "result", None) is not None
+                ):
+                    image_index += 1
         if isinstance(obj.tools, Iterable):
             for i, tool in enumerate(obj.tools):
                 yield from cls._get_attributes_from_response_tool(
                     tool,
                     f"{SpanAttributes.LLM_TOOLS}.{i}.",
                 )
+
+    @classmethod
+    def _get_image_generation_output_format(
+        cls, request_parameters: Mapping[str, Any] | None
+    ) -> str | None:
+        if not request_parameters:
+            return None
+        tools = request_parameters.get("tools")
+        if not isinstance(tools, Iterable) or isinstance(tools, (str, bytes)):
+            return None
+        for tool in tools:
+            if isinstance(tool, Mapping) and tool.get("type") == "image_generation":
+                output_format = tool.get("output_format")
+                if isinstance(output_format, str):
+                    return output_format
+        return None
 
     @classmethod
     @stop_on_exception
@@ -554,6 +581,8 @@ class _ResponsesApiAttributes:
         cls,
         obj: responses.response_output_item.ResponseOutputItem,
         prefix: str = "",
+        image_index: int = 0,
+        image_format: str | None = None,
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if obj.type == "message":
             yield from cls._get_attributes_from_response_output_message(obj, prefix)
@@ -591,8 +620,12 @@ class _ResponsesApiAttributes:
                 f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
             )
         elif obj.type == "image_generation_call":
-            # TODO: Handle image generation call
-            pass
+            if (result := obj.result) is not None:
+                output_format = getattr(obj, "output_format", None) or image_format
+                yield (
+                    f"{SpanAttributes.OUTPUT_IMAGES}.{image_index}.{ImageAttributes.IMAGE_URL}",
+                    image_b64_to_data_url(result, output_format),
+                )
         elif obj.type == "code_interpreter_call":
             # TODO: Handle code interpreter call
             pass
