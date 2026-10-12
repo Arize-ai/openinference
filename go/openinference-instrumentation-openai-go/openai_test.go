@@ -4,17 +4,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	openaisdk "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/shared"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
@@ -82,6 +85,10 @@ func TestMiddleware_HappyPath(t *testing.T) {
 	spans := recorder.Ended()
 	if len(spans) != 1 {
 		t.Fatalf("expected 1 span, got %d", len(spans))
+	}
+	// Successful calls are marked OK, as in Python and JS.
+	if got := spans[0].Status().Code; got != codes.Ok {
+		t.Errorf("span status: got %s want Ok", got)
 	}
 	attrs := attrMap(spans[0].Attributes())
 
@@ -277,7 +284,7 @@ func TestMiddleware_ErrorResponseDoesNotPolluteTokenCounts(t *testing.T) {
 	if _, present := attrs[semconv.OutputValue]; present {
 		t.Error("error response should not set output.value")
 	}
-	if status := spans[0].Status(); status.Code.String() != "Error" {
+	if status := spans[0].Status(); status.Code != codes.Error {
 		t.Errorf("expected span status Error, got %s", status.Code)
 	}
 }
@@ -330,6 +337,71 @@ func TestMiddleware_StreamingSpanEndsOnBodyClose(t *testing.T) {
 	if _, present := attrs[semconv.OutputValue]; present {
 		t.Errorf("streaming span should not set output.value")
 	}
+	// Read to EOF without an error: OK, as Python does at StopIteration.
+	if got := recorder.Ended()[0].Status().Code; got != codes.Ok {
+		t.Errorf("span status: got %s want Ok", got)
+	}
+}
+
+// chatStream sends a streaming chat request through the middleware with
+// body as the SSE response body.
+func chatStream(t *testing.T, body io.Reader) (*http.Response, *tracetest.SpanRecorder) {
+	t.Helper()
+	recorder := tracetest.NewSpanRecorder()
+	tp := trace.NewTracerProvider(trace.WithSpanProcessor(recorder))
+	mw := openaiotel.Middleware(tp.Tracer("test"))
+
+	req, err := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/chat/completions",
+		strings.NewReader(`{"model":"gpt-4o","stream":true,"messages":[{"role":"user","content":"hi"}]}`))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	resp, err := mw(req, func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(body),
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("middleware: %v", err)
+	}
+	return resp, recorder
+}
+
+const chatSSE = "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\ndata: [DONE]\n\n"
+
+func TestMiddleware_StreamingClosedEarlyStaysUnset(t *testing.T) {
+	resp, recorder := chatStream(t, strings.NewReader(chatSSE))
+	if _, err := io.ReadFull(resp.Body, make([]byte, 10)); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("closing the body should end the span, got %d ended", len(spans))
+	}
+	if got := spans[0].Status().Code; got != codes.Unset {
+		t.Errorf("a stream closed before EOF should stay Unset, got %s", got)
+	}
+}
+
+func TestMiddleware_StreamingReadErrorKeepsError(t *testing.T) {
+	body := io.MultiReader(strings.NewReader(chatSSE), iotest.ErrReader(errors.New("connection reset")))
+	resp, recorder := chatStream(t, body)
+	if _, err := io.ReadAll(resp.Body); err == nil {
+		t.Fatal("expected the read error to reach the caller")
+	}
+	_ = resp.Body.Close()
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("expected 1 ended span, got %d", len(spans))
+	}
+	if got := spans[0].Status(); got.Code != codes.Error || got.Description != "connection reset" {
+		t.Errorf("span status: got %+v want Error/connection reset", got)
+	}
 }
 
 func TestMiddleware_ResponseParseFailureRecordsError(t *testing.T) {
@@ -363,6 +435,10 @@ func TestMiddleware_ResponseParseFailureRecordsError(t *testing.T) {
 	}
 	if !foundException {
 		t.Errorf("expected exception event for parse failure, got events: %+v", spans[0].Events())
+	}
+	// An unparseable 2xx body is not marked OK.
+	if got := spans[0].Status().Code; got != codes.Unset {
+		t.Errorf("span status: got %s want Unset", got)
 	}
 }
 
@@ -823,6 +899,30 @@ func TestMiddleware_InvocationParamsCaptureForwardCompatibleFields(t *testing.T)
 		if _, present := got[k]; present {
 			t.Errorf("%q should not be in invocation_parameters; it's surfaced elsewhere", k)
 		}
+	}
+}
+
+func TestChatCompletions_SpanNameUnchanged(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(okResponse))
+	}))
+	defer server.Close()
+
+	recorder := tracetest.NewSpanRecorder()
+	tp := trace.NewTracerProvider(trace.WithSpanProcessor(recorder))
+	client := newClient(t, server.URL, tp)
+
+	_, err := client.Chat.Completions.New(context.Background(), openaisdk.ChatCompletionNewParams{
+		Model:    shared.ChatModelGPT4o,
+		Messages: []openaisdk.ChatCompletionMessageParamUnion{openaisdk.UserMessage("hi")},
+	})
+	if err != nil {
+		t.Fatalf("Chat.Completions.New: %v", err)
+	}
+	_ = tp.ForceFlush(context.Background())
+	if got := recorder.Ended()[0].Name(); got != "openai.chat.completions.create" {
+		t.Errorf("chat span name: got %q", got)
 	}
 }
 

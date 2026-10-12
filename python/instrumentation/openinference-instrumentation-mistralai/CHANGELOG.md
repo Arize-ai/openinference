@@ -1,5 +1,50 @@
 # Changelog
 
+## [2.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.1...python-openinference-instrumentation-mistralai-v2.2.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+* **mistralai:** end the LLM span when a stream is closed, abandoned, or used as a context manager ([#3989](https://github.com/Arize-ai/openinference/issues/3989)) ([12f2cc0](https://github.com/Arize-ai/openinference/commit/12f2cc035edfb00b60b656d977f07abfb7a69900))
+
+## [2.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.0...python-openinference-instrumentation-mistralai-v2.2.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.69 ([#3911](https://github.com/Arize-ai/openinference/issues/3911)) ([ac30a8f](https://github.com/Arize-ai/openinference/commit/ac30a8f3df9da1c0fb00f923a5281ad5cec94674))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.41 ([#3907](https://github.com/Arize-ai/openinference/issues/3907)) ([04fe33f](https://github.com/Arize-ai/openinference/commit/04fe33f2b10147ec4481983f725d89a9ca42fc5f))
+
+## [2.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.1.7...python-openinference-instrumentation-mistralai-v2.2.0) (2026-10-01)
+
+
+### Features
+
+* add decision span decorators and attribute helpers (JS + Python) ([#3897](https://github.com/Arize-ai/openinference/issues/3897)) ([0d26a59](https://github.com/Arize-ai/openinference/commit/0d26a5983cd8ba3f9c0afcadd102b15887887795))
+
+## [2.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.1.6...python-openinference-instrumentation-mistralai-v2.1.7) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+
+## [2.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.1.5...python-openinference-instrumentation-mistralai-v2.1.6) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [2.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.1.4...python-openinference-instrumentation-mistralai-v2.1.5) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
 ## [2.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.1.3...python-openinference-instrumentation-mistralai-v2.1.4) (2026-09-04)
 
 

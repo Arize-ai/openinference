@@ -471,7 +471,6 @@ class _ModelWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -503,6 +502,10 @@ class _ModelWrapper:
                         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
+                if (cost := getattr(metrics, "cost", None)) is not None:
+                    span.set_attribute(LLM_COST_TOTAL, cost)
+
+            span.set_status(trace_api.StatusCode.OK)
             return response
 
     def run_stream(
@@ -530,7 +533,6 @@ class _ModelWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -577,6 +579,11 @@ class _ModelWrapper:
                         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
+                if (cost := getattr(metrics, "cost", None)) is not None:
+                    span.set_attribute(LLM_COST_TOTAL, cost)
+
+            span.set_status(trace_api.StatusCode.OK)
+
     async def arun(
         self,
         wrapped: Callable[..., Awaitable[Any]],
@@ -603,7 +610,6 @@ class _ModelWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -637,7 +643,11 @@ class _ModelWrapper:
                         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
+                if (cost := getattr(metrics, "cost", None)) is not None:
+                    span.set_attribute(LLM_COST_TOTAL, cost)
+
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
+            span.set_status(trace_api.StatusCode.OK)
             return response
 
     async def arun_stream(
@@ -668,7 +678,6 @@ class _ModelWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -715,6 +724,11 @@ class _ModelWrapper:
                         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
+                if (cost := getattr(metrics, "cost", None)) is not None:
+                    span.set_attribute(LLM_COST_TOTAL, cost)
+
+            span.set_status(trace_api.StatusCode.OK)
+
 
 # span attributes
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
@@ -728,6 +742,7 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_COST_TOTAL = SpanAttributes.LLM_COST_TOTAL
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL

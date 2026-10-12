@@ -1,0 +1,4 @@
+typesafe-sdk==0.6.0
+httpx2
+opentelemetry-sdk
+pytest-asyncio

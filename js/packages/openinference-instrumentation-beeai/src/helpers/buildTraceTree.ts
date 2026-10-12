@@ -130,6 +130,7 @@ function buildLLMMainSpanData(data: BuiltTraceTreeProps["data"]) {
     ...(successBeeeaiSpan && {
       [SemanticConventions.OUTPUT_MIME_TYPE]: successData?.[SemanticConventions.OUTPUT_MIME_TYPE],
       [SemanticConventions.OUTPUT_VALUE]: successData?.[SemanticConventions.OUTPUT_VALUE],
+      [SemanticConventions.LLM_FINISH_REASON]: successData?.[SemanticConventions.LLM_FINISH_REASON],
     }),
     ...(provider && { [SemanticConventions.LLM_PROVIDER]: provider }),
     ...(modelName && { [SemanticConventions.LLM_MODEL_NAME]: modelName }),

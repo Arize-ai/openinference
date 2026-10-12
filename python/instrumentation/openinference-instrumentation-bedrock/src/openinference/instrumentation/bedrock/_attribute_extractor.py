@@ -829,8 +829,7 @@ class AttributeExtractor:
         Identifies the type of trace event from the provided trace data.
 
         Args:
-            trace_event str: The trace event type.
-            trace_event_data (Dict[str, Any]): The trace data containing information
+              trace_event_data (Dict[str, Any]): The trace data containing information
             about the chunk.
 
         Returns:

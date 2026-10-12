@@ -4,7 +4,7 @@ import random
 import string
 from importlib import import_module
 from importlib.metadata import version
-from typing import Tuple, cast
+from typing import List, Tuple, cast
 
 import pytest
 from opentelemetry import trace as trace_api
@@ -203,7 +203,7 @@ def test_cached_tokens(
         in str((span.attributes or {}).get(SpanAttributes.INPUT_VALUE, ""))
     )
     assert len(spans) == 2
-    cache_reads = []
+    cache_reads: List[int] = []
     for span in spans:
         cache_read = dict(span.attributes or {}).get("llm.token_count.prompt_details.cache_read")
         assert isinstance(cache_read, int)

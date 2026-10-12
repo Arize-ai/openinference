@@ -21,6 +21,7 @@ from opentelemetry.context import (
 from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
+    DocumentAttributes,
     EmbeddingAttributes,
     ImageAttributes,
     MessageAttributes,
@@ -46,13 +47,17 @@ class suppress_tracing:
         with suppress_tracing():
             # No tracing will occur within this block
             ...
+
+        async with suppress_tracing():
+            # No tracing will occur within this block
+            ...
     """
 
     def __enter__(self) -> "suppress_tracing":
         self._token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
         return self
 
-    def __aenter__(self) -> "suppress_tracing":
+    async def __aenter__(self) -> "suppress_tracing":
         self._token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
         return self
 
@@ -64,7 +69,7 @@ class suppress_tracing:
     ) -> None:
         detach(self._token)
 
-    def __aexit__(
+    async def __aexit__(
         self,
         exc_type: Optional[Type[BaseException]],
         exc_value: Optional[BaseException],
@@ -77,15 +82,15 @@ OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS = "OPENINFERENCE_HIDE_LLM_INVOCATIO
 OPENINFERENCE_HIDE_LLM_TOOLS = "OPENINFERENCE_HIDE_LLM_TOOLS"
 # Hides the tool definitions advertised to the LLM
 OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS"
-# Hides input value & messages
+# Hides input value, input images & messages
 OPENINFERENCE_HIDE_OUTPUTS = "OPENINFERENCE_HIDE_OUTPUTS"
-# Hides output value & messages
+# Hides output value, output images & messages
 OPENINFERENCE_HIDE_INPUT_MESSAGES = "OPENINFERENCE_HIDE_INPUT_MESSAGES"
 # Hides all input messages
 OPENINFERENCE_HIDE_OUTPUT_MESSAGES = "OPENINFERENCE_HIDE_OUTPUT_MESSAGES"
 # Hides all output messages
 OPENINFERENCE_HIDE_INPUT_IMAGES = "OPENINFERENCE_HIDE_INPUT_IMAGES"
-# Hides images from input messages
+# Hides images from input messages and the span-level input.images
 OPENINFERENCE_HIDE_INPUT_TEXT = "OPENINFERENCE_HIDE_INPUT_TEXT"
 # Hides text from input messages
 OPENINFERENCE_HIDE_OUTPUT_TEXT = "OPENINFERENCE_HIDE_OUTPUT_TEXT"
@@ -107,6 +112,8 @@ OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS"
 # Hides LLM prompts (completions API)
 OPENINFERENCE_HIDE_CHOICES = "OPENINFERENCE_HIDE_CHOICES"
 # Hides LLM choices (completions API outputs)
+OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS = "OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS"
+# Hides the content (and metadata) of documents returned on RETRIEVER spans
 OPENINFERENCE_ENABLE_GENAI_SEMCONV = "OPENINFERENCE_ENABLE_GENAI_SEMCONV"
 # Emits OTel GenAI semantic conventions alongside OpenInference attributes
 REDACTED_VALUE = "__REDACTED__"
@@ -116,6 +123,7 @@ DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS = False
 DEFAULT_HIDE_LLM_TOOLS = False
 DEFAULT_HIDE_PROMPTS = False
 DEFAULT_HIDE_CHOICES = False
+DEFAULT_HIDE_RETRIEVAL_DOCUMENTS = False
 DEFAULT_ENABLE_GENAI_SEMCONV = False
 DEFAULT_HIDE_INPUTS = False
 DEFAULT_HIDE_OUTPUTS = False
@@ -168,7 +176,7 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_INPUTS,
         },
     )
-    """Hides input value & messages"""
+    """Hides input value, input images & messages"""
     hide_outputs: Optional[bool] = field(
         default=None,
         metadata={
@@ -176,7 +184,7 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_OUTPUTS,
         },
     )
-    """Hides output value & messages"""
+    """Hides output value, output images & messages"""
     hide_input_messages: Optional[bool] = field(
         default=None,
         metadata={
@@ -200,7 +208,7 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_INPUT_IMAGES,
         },
     )
-    """Hides images from input messages"""
+    """Hides images from input messages and the span-level input.images"""
     hide_input_text: Optional[bool] = field(
         default=None,
         metadata={
@@ -257,6 +265,17 @@ class TraceConfig:
         },
     )
     """Hides LLM choices (completions API outputs)"""
+    hide_retrieval_documents: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS,
+            "default_value": DEFAULT_HIDE_RETRIEVAL_DOCUMENTS,
+        },
+    )
+    """Redacts the content and metadata of documents on RETRIEVER spans
+    (``retrieval.documents.*.document.content`` /
+    ``retrieval.documents.*.document.metadata``). ``hide_outputs`` implies
+    this, mirroring how it already redacts ``reranker.output_documents.*``."""
     enable_genai_semconv: Optional[bool] = field(
         default=None,
         metadata={
@@ -349,20 +368,18 @@ class TraceConfig:
             return None
         elif self.hide_inputs and key == RerankerAttributes.RERANKER_QUERY:
             value = REDACTED_VALUE
-        elif self.hide_inputs and (
-            key == RerankerAttributes.RERANKER_INPUT_DOCUMENTS
-            or key.startswith(f"{RerankerAttributes.RERANKER_INPUT_DOCUMENTS}.")
-        ):
+        elif self.hide_inputs and _is_within(key, RerankerAttributes.RERANKER_INPUT_DOCUMENTS):
             return None
         elif self.hide_outputs and key == SpanAttributes.OUTPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_outputs and key == SpanAttributes.OUTPUT_MIME_TYPE:
             return None
-        elif self.hide_outputs and (
-            key == RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
-            or key.startswith(f"{RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS}.")
-        ):
+        elif self.hide_outputs and _is_within(key, RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS):
             return None
+        elif (
+            self.hide_retrieval_documents or self.hide_outputs
+        ) and _is_retrieval_document_content(key):
+            value = REDACTED_VALUE
         elif (
             self.hide_inputs or self.hide_input_messages
         ) and SpanAttributes.LLM_INPUT_MESSAGES in key:
@@ -401,29 +418,20 @@ class TraceConfig:
             and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
         ):
             value = REDACTED_VALUE
-        elif (
-            self.hide_input_images
-            and SpanAttributes.LLM_INPUT_MESSAGES in key
-            and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
-        ):
+        # The hide checks must precede the size/externalize branch below so a
+        # hidden image never reaches the blob uploader.
+        elif (self.hide_inputs or self.hide_input_images) and _is_input_image(key):
             return None
-        elif (
-            (SpanAttributes.LLM_INPUT_MESSAGES in key or SpanAttributes.LLM_OUTPUT_MESSAGES in key)
-            and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
-            and key.endswith(ImageAttributes.IMAGE_URL)
-        ):
+        elif self.hide_outputs and _is_output_image(key):
+            return None
+        elif _is_image_url(key):
             # Resolve lazy values before the size check so an oversized image
             # cannot bypass the budget by arriving as a callable.
             value = value() if callable(value) else value
             if (
-                is_base64_url(value)  # type:ignore
-                and len(value) > self.base64_image_max_length  # type:ignore
+                is_base64_url(value) and len(value) > self.base64_image_max_length  # type:ignore
             ):
-                value = (
-                    self._externalize_or_redact(key, value)  # type:ignore
-                    if externalize
-                    else REDACTED_VALUE
-                )
+                value = self._externalize_or_redact(key, value) if externalize else REDACTED_VALUE  # type:ignore
         elif (
             (self.hide_embedding_vectors or self.hide_embeddings_vectors)
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key
@@ -508,7 +516,7 @@ class TraceConfig:
                 return True
             if isinstance(value, str) and value.lower() == "false":
                 return False
-            raise
+            raise ValueError(f"Cannot cast {value!r} to bool.")
         else:
             return cast_to(value)
 
@@ -539,6 +547,47 @@ def mask_without_externalization(
     if _mask_supports_externalize(type(config)):
         return config.mask(key, value, externalize=False)
     return config.mask(key, value)
+
+
+def _is_within(key: str, namespace: str) -> bool:
+    """True for the namespace itself and anything indexed under it."""
+    return key == namespace or key.startswith(f"{namespace}.")
+
+
+def _is_retrieval_document_content(key: str) -> bool:
+    """True for the content or metadata leaf of a retrieval document, e.g.
+    ``retrieval.documents.0.document.content`` /
+    ``retrieval.documents.0.document.metadata``."""
+    return _is_within(key, SpanAttributes.RETRIEVAL_DOCUMENTS) and (
+        key.endswith(DocumentAttributes.DOCUMENT_CONTENT)
+        or key.endswith(DocumentAttributes.DOCUMENT_METADATA)
+    )
+
+
+def _is_input_image(key: str) -> bool:
+    """True for an image nested under an input message content item and for the
+    span-level input.images namespace."""
+    return (
+        SpanAttributes.LLM_INPUT_MESSAGES in key
+        and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
+    ) or _is_within(key, SpanAttributes.INPUT_IMAGES)
+
+
+def _is_output_image(key: str) -> bool:
+    """True for an image nested under an output message content item and for the
+    span-level output.images namespace."""
+    return (
+        SpanAttributes.LLM_OUTPUT_MESSAGES in key
+        and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
+    ) or _is_within(key, SpanAttributes.OUTPUT_IMAGES)
+
+
+def _is_image_url(key: str) -> bool:
+    """True for the image.url leaf of any image, whether nested under a message
+    content item or recorded at the span level."""
+    return key.endswith(ImageAttributes.IMAGE_URL) and (
+        _is_input_image(key) or _is_output_image(key)
+    )
 
 
 def is_base64_url(url: str) -> bool:

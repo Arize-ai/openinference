@@ -19,9 +19,11 @@ from anthropic.types import (
 )
 from anthropic.types.message_create_params import MessageCreateParamsBase
 from botocore.eventstream import EventStream
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from typing_extensions import assert_never
 
+from openinference.instrumentation.bedrock._wrappers import _InvokeModelWithResponseStream
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -336,6 +338,30 @@ def _assert_invoke_stream_span(span: Any, data: dict[str, Any]) -> None:
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert attributes.pop(LLM_MODEL_NAME) == model_id
     assert attributes.pop(LLM_FINISH_REASON) == "tool_use"
+    assert not attributes
+
+
+def test_unhandled_model_request_body_is_serialized(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Models without a stream callback still get their request body as JSON strings."""
+    request_body = {"prompt": "Hello", "max_gen_len": 64}
+    span = tracer_provider.get_tracer(__name__).start_span(
+        "bedrock.invoke_model_with_response_stream"
+    )
+    _InvokeModelWithResponseStream.handle_response(
+        {"body": None},
+        {"modelId": "us.meta.llama3-3-70b-instruct-v1:0", "body": json.dumps(request_body)},
+        span,
+    )
+
+    (span_data,) = in_memory_span_exporter.get_finished_spans()
+    attributes = dict(span_data.attributes or {})
+    assert attributes.pop(INPUT_VALUE) == json.dumps(request_body)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON.value
+    assert attributes.pop(LLM_INVOCATION_PARAMETERS) == json.dumps(request_body)
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert not attributes
 
 

@@ -255,15 +255,18 @@ function getLLMEventAttributes({
   creator: ChatModel;
 }) {
   const event = isObjectWithStringKeys(dataObject) ? dataObject : {};
-  const value = isObjectWithStringKeys(event.value) ? event.value : undefined;
+  const value = isObjectWithStringKeys(event.value) ? event.value : {};
   const input = isObjectWithStringKeys(event.input) ? event.input : undefined;
-  const usage = value && isObjectWithStringKeys(value.usage) ? value.usage : undefined;
+  const usage = isObjectWithStringKeys(value.usage) ? value.usage : undefined;
   const inputMessages = input && Array.isArray(input.messages) ? input.messages : [];
-  const outputMessages = value && Array.isArray(value.messages) ? value.messages : [];
+  const outputMessages = Array.isArray(value.messages) ? value.messages : [];
   const error = event.error instanceof Error ? event.error : undefined;
 
   return {
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+    ...(typeof value.finishReason === "string" && {
+      [SemanticConventions.LLM_FINISH_REASON]: value.finishReason,
+    }),
     ...(typeof usage?.completionTokens === "number" && {
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: usage.completionTokens,
     }),

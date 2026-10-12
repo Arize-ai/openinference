@@ -1,0 +1,46 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+// The OpenInference ADK instrumentation is a `-javaagent`, so it is not a compile-time dependency
+// of the application: the fat `-all` shadow jar is resolved here and passed to the JVM at launch.
+configurations {
+    openinferenceAgent {
+        canBeConsumed = false
+        canBeResolved = true
+    }
+}
+
+dependencies {
+    openinferenceAgent project(path: ':instrumentation:openinference-instrumentation-adk-java', configuration: 'shadowRuntimeElements')
+
+    // Google ADK for Java (pulls in google-genai and RxJava)
+    implementation "com.google.adk:google-adk:0.4.0"
+
+    // OpenTelemetry
+    implementation platform("io.opentelemetry:opentelemetry-bom:${openTelemetryVersion}")
+    implementation "io.opentelemetry:opentelemetry-sdk"
+    implementation "io.opentelemetry:opentelemetry-exporter-otlp"
+
+    // OpenInference resource attribute names (openinference.project.name)
+    implementation project(path: ':openinference-semantic-conventions')
+
+    // Logging
+    implementation "org.slf4j:slf4j-simple:${slf4jVersion}"
+}
+
+application {
+    mainClass = 'com.arize.examples.adk.WeatherToolExample'
+}
+
+tasks.named('run') {
+    dependsOn configurations.openinferenceAgent
+    doFirst {
+        jvmArgs "-javaagent:${configurations.openinferenceAgent.singleFile}"
+    }
+}

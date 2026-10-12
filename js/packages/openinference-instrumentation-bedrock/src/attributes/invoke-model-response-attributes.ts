@@ -19,6 +19,7 @@ import type { BedrockMessage } from "../types/bedrock-types";
 import { isTextContent, isToolUseContent } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
 import {
+  extractFinishReason,
   isSimpleTextResponse,
   normalizeResponseContentBlocks,
   normalizeUsageAttributes,
@@ -221,6 +222,11 @@ export const extractInvokeModelResponseAttributes = withSafety({
     const outputValue = JSON.stringify(responseBody);
     setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, outputValue);
     setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_FINISH_REASON,
+      extractFinishReason({ responseBody }),
+    );
 
     // Normalize the response body to a standard BedrockMessage format
     const normalizedMessage = normalizeResponseContentBlocks(responseBody, modelType);

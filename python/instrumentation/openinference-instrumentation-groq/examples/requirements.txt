@@ -1,0 +1,4 @@
+groq>=0.9.0
+openinference-instrumentation-groq
+opentelemetry-exporter-otlp
+opentelemetry-sdk

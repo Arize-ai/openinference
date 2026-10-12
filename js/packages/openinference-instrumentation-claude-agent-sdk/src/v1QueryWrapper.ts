@@ -15,10 +15,12 @@ import {
 
 import { ToolSpanTracker, mergeHooks } from "./hookInjector";
 import {
+  extractAssistantStopReason,
   extractInitAttributes,
   extractResultErrorAttributes,
   extractResultSuccessAttributes,
   formatPromptAttributes,
+  isAssistantMessage,
   isResultErrorMessage,
   isResultSuccessMessage,
   isSystemInitMessage,
@@ -166,7 +168,12 @@ export function wrapQuery({
  * based on message type.
  */
 function processMessage(msg: SDKMessage, span: Span): void {
-  if (isSystemInitMessage(msg)) {
+  if (isAssistantMessage(msg)) {
+    const stopReason = extractAssistantStopReason(msg);
+    if (stopReason != null) {
+      span.setAttribute(SemanticConventions.LLM_FINISH_REASON, stopReason);
+    }
+  } else if (isSystemInitMessage(msg)) {
     const { sessionId, model } = extractInitAttributes(msg);
     span.setAttributes({
       [SemanticConventions.SESSION_ID]: sessionId,

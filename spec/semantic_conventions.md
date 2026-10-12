@@ -19,6 +19,7 @@ The `openinference.span.kind` attribute is **required** for all OpenInference sp
 | `GUARDRAIL`     | A span that represents calls to a component to protect against jailbreak user input prompts by taking action to modify or reject an LLM's response if it contains undesirable content. For example, a Guardrail span could involve checking if an LLM's output response contains inappropriate language, via a custom or external guardrail library, and then amending the LLM response to remove references to the inappropriate language. |
 | `EVALUATOR`     | A span that represents a call to a function or process performing an evaluation of the language model's outputs. Examples include assessing the relevance, correctness, or helpfulness of the language model's answers.                                                                                                                                                                                                                     |
 | `PROMPT`        | A span that represents the rendering of a prompt template. For example, a Prompt span could be used to represent the rendering a template with variables.                                                                                                                                                                                                                                                                                   |
+| `DECISION`      | A span that represents a call to a decision model, which scores or selects among candidate options provided in the request rather than generating free-form text. For example, a Decision span could represent choosing a route, judging a condition, or scoring an item against a rubric. Decision models include [TypeSafe AI's Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev). See [Decision Spans](./decision_spans.md).                                                                                                                                                  |
 
 ## Reserved Attributes
 
@@ -36,6 +37,13 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `annotations`                                  | List of objects<sup>†</sup> | `[{"annotation.name": "hallucination", "annotation.label": "hallucinated"}]`                                                | Feedback using annotation terminology, flattened as `annotations.0.annotation.*`. See [Annotations and Evaluations](./annotations.md)                                            |
 | `trace.annotations`                            | List of objects<sup>†</sup> | `[{"annotation.name": "retrieval_quality", "annotation.score": 0.92}]`                                                       | Trace-scoped feedback using annotation terminology, flattened as `trace.annotations.0.annotation.*`                                                                               |
 | `session.annotations`                          | List of objects<sup>†</sup> | `[{"annotation.name": "conversational_coherence", "annotation.label": "coherent"}]`                                        | Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id`                                                    |
+| `decision.model_name`                          | String                      | `"jev-1.13.0"`                                                                                                                | The name of the decision model being utilized. Mirrors `llm.model_name` for `DECISION` spans.                                                                                       |
+| `decision.provider`                            | String                      | `typesafe`                                                                                                                    | The hosting provider of the decision model: who runs the hardware that answered, e.g. `typesafe` when calling TypeSafe directly, `openai` for the OpenAI Decisions API, or the cloud or self-hosting provider for a model served elsewhere. Distinct from `decision.system`, which names the API shape. See the [well-known values](#decision-system-and-provider-values), which alias the matching `llm.provider` values. |
+| `decision.request.model_name`                  | String                      | `"jev-latest"`                                                                                                                | The decision model requested by the caller, as sent in the request. May differ from `decision.response.model_name` when the provider resolves an alias or routes the request.      |
+| `decision.response.model_name`                 | String                      | `"jev-1.13.0"`                                                                                                                | The decision model that actually produced the response, as reported by the provider. May differ from `decision.request.model_name`.                                                 |
+| `decision.system`                              | String                      | `typesafe`                                                                                                                    | The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks, as identified by the client or server instrumentation: `typesafe` for the TypeSafe System One / Jev API, `openai` for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible `/v1/systemone` shape is still `typesafe`. Distinct from `decision.provider`, which says who hosts the model. See the [well-known values](#decision-system-and-provider-values), which alias the matching `llm.system` values. |
+| `decision.token_count.input`                   | Integer                     | `412`                                                                                                                         | The number of input tokens consumed by a decision model call: the state, questions, and candidate options. Maps to `usage.input_tokens` in TypeSafe System One responses.          |
+| `decision.token_count.output`                  | Integer                     | `2`                                                                                                                           | The number of output tokens produced by a decision model call. Decision models emit typed answers rather than text, so this is typically small. Maps to `usage.output_tokens` in TypeSafe System One responses. |
 | `document.content`                             | String                      | `"This is a sample document content."`                                                                                        | The content of a retrieved document                                                                                                                                                 |
 | `document.id`                                  | String/Integer              | `"1234"` or `1`                                                                                                               | Unique identifier for a document                                                                                                                                                    |
 | `document.metadata`                            | JSON String                 | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                                                                              | Metadata associated with a document                                                                                                                                                 |
@@ -60,6 +68,7 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `exception.stacktrace`                         | String                      | `"at app.main(app.java:16)"`                                                                                                  | The stack trace of the exception                                                                                                                                                    |
 | `exception.type`                               | String                      | `"NullPointerException"`                                                                                                      | The type of exception that was thrown                                                                                                                                               |
 | `image.url`                                    | String                      | `"https://sample-link-to-image.jpg"`                                                                                          | The link to the image or its base64 encoding                                                                                                                                        |
+| `input.images`                                 | List of objects<sup>†</sup> | `[{"image.url": "https://sample-link-to-image.jpg"}]`                                                                         | Image inputs to an operation, independent of span kind. Uses flattened attributes with indexed prefixes (e.g., `input.images.0.image.url`). See [Multimodal Attributes](./multimodal_attributes.md#span-kind-independent-images) |
 | `input.mime_type`                              | String                      | `"text/plain"` or `"application/json"`                                                                                        | MIME type representing the format of `input.value`                                                                                                                                  |
 | `input.value`                                  | String                      | `"{'query': 'What is the weather today?'}"`                                                                                   | The input value to an operation                                                                                                                                                     |
 | `llm.prompts`                                  | List of objects<sup>†</sup> | `[{"prompt.text": "def fib(n):..."}]`                                                                                         | Prompts provided to a completions API                                                                                                                                               |
@@ -82,7 +91,7 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `llm.token_count.completion_details.audio`     | Integer                     | `10`                                                                                                                          | The number of audio input tokens generated by the model                                                                                                                             |
 | `llm.token_count.prompt`                       | Integer                     | `10`                                                                                                                          | The number of tokens in the prompt                                                                                                                                                  |
 | `llm.token_count.prompt_details.cache_read`    | Integer                     | `5`                                                                                                                           | The number of prompt tokens successfully retrieved from cache (cache hits). Maps to `cached_tokens` in OpenAI responses                                                             |
-| `llm.token_count.prompt_details.cache_write`   | Integer                     | `0`                                                                                                                           | The number of prompt tokens not found in cache that were written to cache (cache misses). Specific to Anthropic Claude                                                              |
+| `llm.token_count.prompt_details.cache_write`   | Integer                     | `0`                                                                                                                           | The number of prompt tokens not found in cache that were written to cache (cache misses). Maps to `cache_write_tokens` in OpenAI responses                                          |
 | `llm.token_count.prompt_details.audio`         | Integer                     | `10`                                                                                                                          | The number of audio input tokens presented in the prompt                                                                                                                            |
 | `llm.token_count.total`                        | Integer                     | `20`                                                                                                                          | Total number of tokens, including prompt and completion                                                                                                                             |
 | `llm.cost.prompt`                              | Float                       | `0.0021`                                                                                                                      | Total cost of all input tokens sent to the LLM in USD                                                                                                                               |
@@ -105,15 +114,18 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `message.tool_call_id`                         | String                      | `"call_62136355"`                                                                                                             | Tool call result identifier corresponding to `tool_call.id`                                                                                                                         |
 | `message.role`                                 | String                      | `"user"` or `"system"`                                                                                                        | Role of the entity in a message (e.g., user, system)                                                                                                                                |
 | `message.tool_calls`                           | List of objects<sup>†</sup> | `[{"tool_call.function.name": "get_current_weather"}]`                                                                        | List of tool calls (e.g. function calls) generated by the LLM. When in output messages, uses flattened attributes (e.g., `llm.output_messages.0.message.tool_calls.0.tool_call.id`) |
-| `message_content.type`                         | String                      | `"text"`, `"image"`, `"audio"`, `"reasoning"`, or `"tool_use"`                                                                | The type of the content. Use `"reasoning"` for reasoning/thinking content, including Anthropic `redacted_thinking` blocks. Use `"tool_use"` when a provider returns a tool call as an ordered content part. |
+| `message_content.type`                         | String                      | `"text"`, `"image"`, `"audio"`, `"video"`, `"reasoning"`, or `"tool_use"`                                                      | The type of the content. Use `"reasoning"` for reasoning/thinking content, including Anthropic `redacted_thinking` blocks. Use `"tool_use"` when a provider returns a tool call as an ordered content part. Use `"video"` for video parts. |
 | `message_content.text`                         | String                      | `"This is a sample text"`                                                                                                     | The text content of the message. Used when `message_content.type` is `"text"` or `"reasoning"` (visible reasoning or summary text). For OpenAI `summary_text` arrays, concatenate the array items into this single text value for now. |
 | `message_content.image`                        | Image Object                | `{"image.url": "https://sample-link-to-image.jpg"}`                                                                           | The image content of the message, if the type is "image".                                                                                                                           |
+| `message_content.audio`                        | Audio Object                | `{"audio.url": "https://example.com/audio.mp3"}`                                                                             | The audio content of the message, if the type is "audio". Nested leaves are `audio.url` and `audio.transcript`.                                                                   |
+| `message_content.video`                        | Video Object                | `{"video.url": "gs://bucket/clip.mp4"}`                                                                                       | The video content of the message, if the type is "video". The nested leaf is `video.url`. Consumers infer MIME type from the URL path extension or a data URI prefix.              |
 | `message_content.id`                           | String                      | `"rs_abc123"`                                                                                                                 | Provider-assigned identifier for this message content item. For OpenAI Responses reasoning items, this maps to `ResponseReasoningItem.id` and should be preserved for stateless replay. |
 | `message_content.signature`                    | String                      | `"EuYBCkQYAiJA..."`                                                                                                           | Opaque vendor-issued signature captured verbatim. Maps to provider `signature` fields, and to Gemini `thoughtSignature` fields when the signature is attached to a non-tool content part such as text. |
 | `message_content.data`                         | String                      | `"EmwKAhgBEgy3..."`                                                                                                           | Opaque vendor-issued data captured verbatim. Maps to Anthropic `redacted_thinking.data`.                                                                                            |
 | `message_content.encrypted_content`            | String                      | `"gAAAAA...=="`                                                                                                               | OpenAI `encrypted_content` captured verbatim.                                                                                                                                       |
 | `metadata`                                     | JSON String                 | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                                                                              | Metadata associated with a span                                                                                                                                                     |
-| `openinference.span.kind`                      | String                      | `"LLM"`, `"EMBEDDING"`, `"CHAIN"`, `"RETRIEVER"`, `"RERANKER"`, `"TOOL"`, `"AGENT"`, `"GUARDRAIL"`, `"EVALUATOR"`, `"PROMPT"` | Required for all OpenInference spans. Identifies the type of operation. See [Span Kinds](#span-kinds) for detailed descriptions of each kind.                                       |
+| `openinference.span.kind`                      | String                      | `"LLM"`, `"EMBEDDING"`, `"CHAIN"`, `"RETRIEVER"`, `"RERANKER"`, `"TOOL"`, `"AGENT"`, `"GUARDRAIL"`, `"EVALUATOR"`, `"PROMPT"`, `"DECISION"` | Required for all OpenInference spans. Identifies the type of operation. See [Span Kinds](#span-kinds) for detailed descriptions of each kind.                                       |
+| `output.images`                                | List of objects<sup>†</sup> | `[{"image.url": "data:image/png;base64,iVBORw0KGgo..."}]`                                                                     | Image outputs of an operation, independent of span kind. Uses flattened attributes with indexed prefixes (e.g., `output.images.0.image.url`). See [Multimodal Attributes](./multimodal_attributes.md#span-kind-independent-images) |
 | `output.mime_type`                             | String                      | `"text/plain"` or `"application/json"`                                                                                        | MIME type representing the format of `output.value`                                                                                                                                 |
 | `output.value`                                 | String                      | `"Hello, World!"`                                                                                                             | The output value of an operation                                                                                                                                                    |
 | `reranker.input_documents`                     | List of objects<sup>†</sup> | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]`                                                    | List of documents as input to the reranker                                                                                                                                          |
@@ -134,9 +146,10 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `tool_call.id`                                 | string                      | `"call_62136355"`                                                                                                             | The id of the a tool call (useful when there are more than one call at the same time)                                                                                               |
 | `tool_call.reasoning_signature`                | String                      | `"CiQB..."`                                                                                                                   | Opaque vendor-issued reasoning echo token attached to a tool call. Used by Gemini, which puts `thoughtSignature` on `functionCall` parts rather than on the reasoning summary.      |
 | `user.id`                                      | String                      | `"9328ae73-7141-4f45-a044-8e06192aa465"`                                                                                      | Unique identifier for a user                                                                                                                                                        |
-| `audio.url`                                    | String                      | `https://storage.com/buckets/1/file.wav`                                                                                      | The url to an audio file (e.x. cloud storage)                                                                                                                                       |
-| `audio.mime_type`                              | String                      | `audio/mpeg`                                                                                                                  | The mime type of the audio file (e.x. `audio/mpeg`, `audio/wav` )                                                                                                                   |
+| `audio.url`                                    | String                      | `https://storage.com/buckets/1/file.wav`                                                                                      | The url to an audio file (e.x. cloud storage). Also composed under `message_content.audio`.                                  |
+| `audio.mime_type`                              | String                      | `audio/mpeg`                                                                                                                  | Legacy. Infer the type from `audio.url` instead; new instrumentors should not emit this.                                                                                                                   |
 | `audio.transcript`                             | String                      | `"Hello, how are you?"`                                                                                                       | The transcript of the audio file (e.x. whisper transcription)                                                                                                                       |
+| `video.url`                                    | String                      | `"gs://bucket/clip.mp4"`                                                                                                      | The URL, object-store URI, or base64 data URI of a video. Consumers infer MIME type from the path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix. |
 | `prompt.vendor`                                | String                      | `"langchain"`                                                                                                                 | The vendor or origin of the prompt, (e.x. 'langsmith', 'portkey' 'arize-phoenix', etc)                                                                                              |
 | `prompt.id`                                    | String                      | `"1234"`                                                                                                                      | A vendor-specific id used to identify the prompt.                                                                                                                                   |
 | `prompt.url`                                   | String                      | `https://smith.langchain.com/prompts/naive-prompt`                                                                            | A vendor-specific URL used to locate the prompt via the web                                                                                                                         |
@@ -163,6 +176,7 @@ used; otherwise, a custom value MAY be used.
 | `amazon`    | Amazon Bedrock native |
 | `meta`      | Meta (Llama)          |
 | `ai21`      | AI21 Labs             |
+| `typesafe`  | TypeSafe AI           |
 
 `llm.provider` has the following list of well-known values. If one of them applies, then the respective value MUST be
 used; otherwise, a custom value MAY be used.
@@ -188,17 +202,47 @@ used; otherwise, a custom value MAY be used.
 | `meta`       | Meta AI         |
 | `zai`        | Z.ai (GLM)      |
 | `minimax`    | MiniMax         |
+| `typesafe`   | TypeSafe AI     |
+| `oracle`     | Oracle (OCI Generative AI) |
+
+### Decision System and Provider Values
+
+`decision.system` and `decision.provider` draw from the same identifier space as `llm.system` and `llm.provider`: the
+same string names the same vendor in both attribute families, and the semantic convention packages expose the
+decision values as aliases of the matching LLM values (for example `OpenInferenceDecisionSystemValues.TYPESAFE` is
+`OpenInferenceLLMSystemValues.TYPESAFE`). The decision lists are the subset of vendors currently known to offer a
+decision API. If one of them applies, then the respective value MUST be used; otherwise, a custom value MAY be used.
+
+`decision.system` has the following list of well-known values:
+
+| Value      | Description                                                                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `typesafe` | [TypeSafe AI System One / Jev API](https://typesafe.ai/blog/introducing-system-one-models-and-jev), including Jev-compatible servers such as vLLM's `/v1/systemone` |
+| `openai`   | [OpenAI Decisions API](https://openai.com/index/devday-2026-recap/)                                                                           |
+
+`decision.provider` has the following list of well-known values:
+
+| Value      | Description |
+| ---------- | ----------- |
+| `typesafe` | TypeSafe AI |
+| `openai`   | OpenAI      |
+
+vLLM's native `/v1/decisions` API ([RFC](https://github.com/vllm-project/vllm/issues/59365)) does not yet have a
+well-known value; a custom value MAY be used until it is added.
 
 ### Token Count Details
 
 `llm.token_count.prompt_details.cache_read` and `llm.token_count.prompt_details.cache_write` provide granular token count information for cache operations, enabling detailed API usage tracking and cost analysis.
 
 - `cache_read` represents the number of prompt tokens successfully retrieved from cache (cache hits). For OpenAI, this
-  corresponds to the `usage.prompt_tokens_details.cached_tokens` field in completion API responses. For Anthropic, when
+  corresponds to `usage.prompt_tokens_details.cached_tokens` in Chat Completions API responses and
+  `usage.input_tokens_details.cached_tokens` in Responses API responses. For Anthropic, when
   using a cache_control block, this maps to the `cache_read_input_tokens` field in Messages API responses.
 - `cache_write` represents the number of prompt tokens not found in cache (cache misses) that were subsequently written
-  to cache. This metric is specific to Anthropic and corresponds to the `cache_creation_input_tokens` field in their
-  Messages API responses.
+  to cache. For OpenAI, this corresponds to the `usage.prompt_tokens_details.cache_write_tokens` field in Chat
+  Completions API responses and the `usage.input_tokens_details.cache_write_tokens` field in Responses API responses.
+  For Anthropic, when using a cache_control block, this maps to the `cache_creation_input_tokens` field in Messages API
+  responses.
 
 The `prompt_details.*` values are sub-counts of `llm.token_count.prompt`: they are already included in it, so
 `llm.token_count.prompt` is expected to be greater than or equal to their sum. For providers whose reported input
@@ -239,6 +283,24 @@ record both values as distinct, queryable attributes when it can tell them apart
 - `llm.model_name` keeps its existing meaning and remains required where applicable: it should equal
   `llm.response.model_name` when known, falling back to `llm.request.model_name` otherwise. This keeps
   `llm.model_name` backward compatible for consumers that don't yet read the new attributes.
+
+**For decision operations (`openinference.span.kind: "DECISION"`):**
+
+- `llm.*` identification attributes **should not be used** on new decision spans; decision models are not language
+  models. Existing instrumentations that predate these conventions may still emit them during a transition period;
+  see [Decision Spans](./decision_spans.md#transition-note)
+- Use `decision.system`, `decision.provider`, and `decision.model_name` in place of `llm.system`, `llm.provider`,
+  and `llm.model_name`. They carry the same meanings and the same well-known values: `decision.system` names the
+  decision API ecosystem the call conforms to (TypeSafe's System One / Jev API, the OpenAI Decisions API, and
+  vLLM's `/v1/decisions` API are different systems), while `decision.provider` names who hosts the model.
+- Use `decision.token_count.input` and `decision.token_count.output` in place of `llm.token_count.prompt` and
+  `llm.token_count.completion`; decision models have no prompt/completion split, only the tokens sent and the
+  tokens that make up the typed answers.
+- `decision.request.model_name` and `decision.response.model_name` follow the same rules as
+  `llm.request.model_name` and `llm.response.model_name`: set them when the response distinguishes the requested
+  model (e.g. an alias such as `jev-latest`) from the model that served it (e.g. `jev-1.13.0`), and keep
+  `decision.model_name` equal to the response model when known, falling back to the requested model otherwise.
+- See the [Decision Spans](./decision_spans.md) specification for the full attribute set
 
 **For embedding operations (`openinference.span.kind: "EMBEDDING"`):**
 
@@ -314,11 +376,14 @@ These attributes use a nested indexed format with discriminated union structure,
 
 #### Message Content Arrays (Multimodal)
 
-For messages containing multiple content items (text, images, audio, reasoning, or provider-native tool-use parts):
+For messages containing multiple content items (text, images, audio, video, reasoning, or provider-native tool-use parts):
 
-- `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.type` - Content type (`"text"`, `"image"`, `"audio"`, `"reasoning"`, or `"tool_use"`)
+- `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.type` - Content type (`"text"`, `"image"`, `"audio"`, `"video"`, `"reasoning"`, or `"tool_use"`)
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.text` - Text content item; OpenAI `summary_text` arrays are concatenated into this value for now
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.image.image.url` - Image URL or base64 data
+- `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.audio.audio.url` - Audio URL or base64 data URI
+- `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.audio.audio.transcript` - Transcript for this audio part, when present
+- `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.video.video.url` - Video URL, object-store URI, or base64 data URI. Infer MIME type from the path extension or data URI prefix. There is no video MIME type attribute.
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.id` - Provider-assigned content identifier, such as OpenAI `ResponseReasoningItem.id`
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.signature` - Provider signature attached to this content item, such as Anthropic `signature` or Gemini `thoughtSignature` on a text part
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.data` - Anthropic `redacted_thinking.data`
@@ -327,6 +392,12 @@ For messages containing multiple content items (text, images, audio, reasoning, 
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.tool_call.function.name` - Tool function name for an ordered `"tool_use"` content item
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.tool_call.function.arguments` - Tool function arguments JSON for an ordered `"tool_use"` content item
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.tool_call.reasoning_signature` - Provider reasoning signature attached to an ordered `"tool_use"` content item, such as Gemini `thoughtSignature` on a `functionCall` part
+
+#### Span-Kind-Independent Images
+
+Images attached to a span of any kind, outside the LLM message structure. See [Multimodal Attributes](./multimodal_attributes.md#span-kind-independent-images).
+
+- `<input|output>.images.<imageIndex>.image.url` - Image URI or base64 data
 
 #### Tool Calls in Output Messages
 

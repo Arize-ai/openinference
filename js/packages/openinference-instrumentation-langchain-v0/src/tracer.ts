@@ -9,6 +9,7 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 
 import {
   safelyFlattenAttributes,
+  safelyFormatFinishReason,
   safelyFormatFunctionCalls,
   safelyFormatInputMessages,
   safelyFormatIO,
@@ -128,6 +129,7 @@ export class LangChainTracer extends BaseTracer {
       ...safelyFormatLLMParams(run.extra),
       ...safelyFormatPromptTemplate(run),
       ...safelyFormatTokenCounts(run.outputs),
+      ...safelyFormatFinishReason(run.outputs),
       ...safelyFormatFunctionCalls(run.outputs),
       ...safelyFormatToolCalls(run),
       ...safelyFormatMetadata(run),

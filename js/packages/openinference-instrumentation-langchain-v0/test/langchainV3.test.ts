@@ -43,6 +43,7 @@ const {
   OPENINFERENCE_SPAN_KIND,
   LLM_MODEL_NAME,
   LLM_INVOCATION_PARAMETERS,
+  LLM_FINISH_REASON,
   LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_TOTAL,
@@ -112,6 +113,7 @@ const expectedSpanAttributes = {
   [LLM_TOKEN_COUNT_COMPLETION]: 5,
   [LLM_TOKEN_COUNT_PROMPT]: 12,
   [LLM_TOKEN_COUNT_TOTAL]: 17,
+  [LLM_FINISH_REASON]: "stop",
   [OUTPUT_MIME_TYPE]: "application/json",
   [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
   [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
@@ -256,7 +258,7 @@ describe("LangChainInstrumentation", () => {
       new Stream(async function* iterator() {
         yield { choices: [{ delta: { content: "This is " } }] };
         yield { choices: [{ delta: { content: "a test stream." } }] };
-        yield { choices: [{ delta: { finish_reason: "stop" } }] };
+        yield { choices: [{ delta: {}, finish_reason: "stop" }] };
       }, new AbortController()),
     );
 
@@ -284,6 +286,8 @@ describe("LangChainInstrumentation", () => {
     const actualAttributes = { ...span.attributes };
     const output = JSON.parse(String(actualAttributes[OUTPUT_VALUE]));
     delete output.generations[0][0].message.kwargs.id;
+    delete output.generations[0][0].generationInfo.finish_reason;
+    delete output.generations[0][0].message.kwargs.response_metadata.finish_reason;
     const newOutputValue = JSON.stringify(output);
     actualAttributes[OUTPUT_VALUE] = newOutputValue;
 
@@ -446,6 +450,7 @@ describe("LangChainInstrumentation", () => {
     expect(attributes).toStrictEqual({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
       [LLM_MODEL_NAME]: "gpt-3.5-turbo",
+      [LLM_FINISH_REASON]: "function_call",
       [LLM_FUNCTION_CALL]:
         '{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}',
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
@@ -558,6 +563,7 @@ describe("LangChainInstrumentation", () => {
     expect(attributes).toMatchInlineSnapshot(`
       {
         "input.mime_type": "application/json",
+        "llm.finish_reason": "stop",
         "llm.input_messages.0.message.content": "hello, this is a test",
         "llm.input_messages.0.message.role": "user",
         "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}",

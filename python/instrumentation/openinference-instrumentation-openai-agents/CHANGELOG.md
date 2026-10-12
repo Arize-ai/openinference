@@ -1,5 +1,64 @@
 # Changelog
 
+## [2.5.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.5.2...python-openinference-instrumentation-openai-agents-v2.5.3) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
+## [2.5.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.5.1...python-openinference-instrumentation-openai-agents-v2.5.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.69 ([#3911](https://github.com/Arize-ai/openinference/issues/3911)) ([ac30a8f](https://github.com/Arize-ai/openinference/commit/ac30a8f3df9da1c0fb00f923a5281ad5cec94674))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.41 ([#3907](https://github.com/Arize-ai/openinference/issues/3907)) ([04fe33f](https://github.com/Arize-ai/openinference/commit/04fe33f2b10147ec4481983f725d89a9ca42fc5f))
+
+## [2.5.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.5.0...python-openinference-instrumentation-openai-agents-v2.5.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+
+## [2.5.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.4.1...python-openinference-instrumentation-openai-agents-v2.5.0) (2026-09-24)
+
+
+### Features
+
+* **openai:** capture cache write and read token usage ([#3382](https://github.com/Arize-ai/openinference/issues/3382)) ([7feb0c4](https://github.com/Arize-ai/openinference/commit/7feb0c4ba2fd77cb76036712e21d06ff15a2be22))
+
+## [2.4.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.4.0...python-openinference-instrumentation-openai-agents-v2.4.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [2.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.3.0...python-openinference-instrumentation-openai-agents-v2.4.0) (2026-09-09)
+
+
+### Features
+
+* **openai_agents:** record file_search and web_search tool calls ([#1726](https://github.com/Arize-ai/openinference/issues/1726)) ([#3684](https://github.com/Arize-ai/openinference/issues/3684)) ([adaf9e7](https://github.com/Arize-ai/openinference/commit/adaf9e7e653748ce97ed093182e4ff6dc07a0443))
+
+## [2.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.2.2...python-openinference-instrumentation-openai-agents-v2.3.0) (2026-09-09)
+
+
+### Features
+
+* **openai_agents:** record computer_call and computer_call_output ([#1726](https://github.com/Arize-ai/openinference/issues/1726)) ([#3685](https://github.com/Arize-ai/openinference/issues/3685)) ([971e3db](https://github.com/Arize-ai/openinference/commit/971e3db8cf5e69bf6691b0e5ea1add5393161ab3))
+
+## [2.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.2.1...python-openinference-instrumentation-openai-agents-v2.2.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+* **openai_agents:** handle new configuration_update response input item type ([#3699](https://github.com/Arize-ai/openinference/issues/3699)) ([e9ab122](https://github.com/Arize-ai/openinference/commit/e9ab1229a523b4e356ef0baab7e917e7aeaee272))
+
 ## [2.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.2.0...python-openinference-instrumentation-openai-agents-v2.2.1) (2026-09-04)
 
 

@@ -128,6 +128,23 @@ See [`examples/async_context_attribute_decorators.py`](examples/async_context_at
 
 You can read more about this in our [docs](https://docs.arize.com/phoenix/tracing/how-to-tracing/customize-spans).
 
+## Suppressing Tracing
+
+`suppress_tracing` turns off span creation for everything inside its block. It works as a
+regular context manager and as an async one:
+
+```python
+from openinference.instrumentation import suppress_tracing
+
+with suppress_tracing():
+    ...  # no spans are created here
+
+async with suppress_tracing():
+    ...  # nor here, including across awaits
+```
+
+See [`examples/suppress_tracing_sync_async.py`](examples/suppress_tracing_sync_async.py) for a runnable example that exports to a local Phoenix server and shows both forms.
+
 ## Tracing Configuration
 
 This package contains the central `TraceConfig` class, which lets you specify a tracing configuration that lets you control settings like data privacy and payload sizes. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.

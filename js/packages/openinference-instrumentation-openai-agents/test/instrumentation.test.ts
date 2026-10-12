@@ -11,6 +11,7 @@ import {
   GRAPH_NODE_ID,
   GRAPH_NODE_PARENT_ID,
   INPUT_VALUE,
+  LLM_FINISH_REASON,
   LLM_INPUT_MESSAGES,
   LLM_INVOCATION_PARAMETERS,
   LLM_MODEL_NAME,
@@ -21,6 +22,7 @@ import {
   LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+  LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
   LLM_TOKEN_COUNT_TOTAL,
   OUTPUT_VALUE,
   SemanticConventions,
@@ -291,6 +293,33 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(llmSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.0.message.role`]).toBe("assistant");
   });
 
+  it("extracts cache read and write token counts from generation usage details", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const generationData = {
+      type: "generation" as const,
+      model: "gpt-5.6-luna",
+      model_config: {},
+      input: [{ role: "user", content: "Hello" }],
+      output: [{ role: "assistant", content: "Hi there!" }],
+      usage: {
+        input_tokens: 10,
+        output_tokens: 20,
+        details: { cached_tokens: 6, cache_write_tokens: 4 },
+      },
+    };
+    const span = makeSpan("span-gen-cache", "trace-1", generationData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const llmSpan = exporter.getFinishedSpans().find((s) => s.name === "generation");
+    expect(llmSpan).toBeDefined();
+    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(6);
+    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(4);
+  });
+
   it("records LLM invocation parameters", async () => {
     const trace = makeTrace();
     await processor.onTraceStart(trace);
@@ -535,7 +564,7 @@ describe("OpenInferenceTracingProcessor", () => {
             prompt_tokens: 10,
             completion_tokens: 5,
             total_tokens: 15,
-            prompt_tokens_details: { cached_tokens: 3 },
+            prompt_tokens_details: { cached_tokens: 3, cache_write_tokens: 7 },
           },
         },
       ],
@@ -553,6 +582,7 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(5);
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(15);
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(3);
+    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(7);
   });
 
   it("extracts output messages from chat completion choices", async () => {
@@ -589,6 +619,7 @@ describe("OpenInferenceTracingProcessor", () => {
     const llmSpan = exporter.getFinishedSpans().find((s) => s.name === "generation");
     expect(llmSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.0.message.role`]).toBe("assistant");
     expect(llmSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.0.message.content`]).toBe("Hello there!");
+    expect(llmSpan!.attributes[LLM_FINISH_REASON]).toBe("stop");
   });
 
   it("indexes tool calls from each message starting at zero", async () => {
@@ -684,6 +715,7 @@ describe("OpenInferenceTracingProcessor", () => {
         `${LLM_OUTPUT_MESSAGES}.0.message.tool_calls.0.tool_call.function.arguments`
       ],
     ).toBe('{"city":"Tokyo"}');
+    expect(llmSpan!.attributes[LLM_FINISH_REASON]).toBe("tool_calls");
   });
 
   it("accumulates token counts across multiple chat completion responses", async () => {
@@ -729,6 +761,7 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT]).toBe(18); // 10 + 8
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(11); // 5 + 6
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(50); // 20 + 30
+    expect(llmSpan!.attributes[LLM_FINISH_REASON]).toBe("stop");
   });
 
   it("extracts reasoning token count from completion_tokens_details", async () => {
@@ -784,7 +817,7 @@ describe("OpenInferenceTracingProcessor", () => {
           input_tokens: 12,
           output_tokens: 3,
           total_tokens: 15,
-          input_tokens_details: { cached_tokens: 4 },
+          input_tokens_details: { cached_tokens: 4, cache_write_tokens: 2 },
           output_tokens_details: { reasoning_tokens: 1 },
         },
         output: [
@@ -817,6 +850,7 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(3);
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(15);
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(4);
+    expect(respSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(2);
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]).toBe(1);
     // System instructions become input message 0
     expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.0.message.role`]).toBe("system");
@@ -1390,6 +1424,98 @@ describe("OpenInferenceTracingProcessor", () => {
         `${LLM_OUTPUT_MESSAGES}.0.message.tool_calls.0.tool_call.function.arguments`
       ],
     ).toBe("{}");
+  });
+
+  // ─── Finish reason (Responses API) ───────────────────────────────────────────
+
+  it("maps a completed Responses API status to finish_reason 'stop'", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _response: { model: "gpt-4o", status: "completed", output: [] },
+    };
+    const span = makeSpan("span-fr-completed", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[LLM_FINISH_REASON]).toBe("stop");
+  });
+
+  it("maps a failed Responses API status to finish_reason 'error'", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _response: { model: "gpt-4o", status: "failed", output: [] },
+    };
+    const span = makeSpan("span-fr-failed", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[LLM_FINISH_REASON]).toBe("error");
+  });
+
+  it("prefers incomplete_details.reason over status, mapping max_output_tokens to 'length'", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _response: {
+        model: "gpt-4o",
+        status: "incomplete",
+        incomplete_details: { reason: "max_output_tokens" },
+        output: [],
+      },
+    };
+    const span = makeSpan("span-fr-incomplete", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[LLM_FINISH_REASON]).toBe("length");
+  });
+
+  it("falls back to status when incomplete_details.reason is absent", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _response: { model: "gpt-4o", status: "incomplete", output: [] },
+    };
+    const span = makeSpan("span-fr-incomplete-no-reason", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[LLM_FINISH_REASON]).toBe("incomplete");
+  });
+
+  it("omits finish_reason when the Responses API status is absent", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _response: { model: "gpt-4o", output: [] },
+    };
+    const span = makeSpan("span-fr-none", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes).not.toHaveProperty(LLM_FINISH_REASON);
   });
 });
 
