@@ -1,3 +1,4 @@
+import asyncio
 import gc
 import json
 from typing import Any, Iterator
@@ -292,6 +293,47 @@ def test_chat_error_records_model_name(in_memory_span_exporter: InMemorySpanExpo
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "nonexistent-model:latest"
+
+
+def test_chat_keyboard_interrupt_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _interrupted(self: Any, *a: Any, **k: Any) -> Any:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(Client, "_request", _interrupted)
+
+    with pytest.raises(KeyboardInterrupt):
+        ollama.chat(model=MODEL, messages=[{"role": "user", "content": "hi"}])
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert [event.name for event in span.events] == ["exception"]
+    assert dict(span.attributes or {})[SpanAttributes.LLM_MODEL_NAME] == MODEL
+
+
+async def test_async_chat_cancelled_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _cancelled(self: Any, *a: Any, **k: Any) -> Any:
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(AsyncClient, "_request", _cancelled)
+
+    with pytest.raises(asyncio.CancelledError):
+        await AsyncClient().chat(model=MODEL, messages=[{"role": "user", "content": "hi"}])
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "AsyncChat"
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert [event.name for event in span.events] == ["exception"]
 
 
 @pytest.mark.vcr
