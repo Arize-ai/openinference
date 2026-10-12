@@ -1744,9 +1744,20 @@ function parseToolInput(partialInput: string): unknown {
  * Rebuilds the message a stream delivered, as far as it was read.
  */
 function getAnthropicStreamMessage(state: AnthropicStreamState): Record<string, unknown> {
-  // On a server-side fallback stream the serving hop's usage replaces
-  // message_start's, which belongs to the attempt that declined.
-  const startUsage = state.servingUsage ?? state.message?.usage ?? {};
+  // On a server-side fallback stream the serving hop's token counts replace
+  // message_start's, which belong to the attempt that declined. Only the
+  // counts are taken from the iteration, not its `type` and `model`, and the
+  // other usage fields (service tier, cache creation...) are kept.
+  const servingCounts =
+    state.servingUsage != null
+      ? withoutNullValues({
+          input_tokens: state.servingUsage.input_tokens,
+          output_tokens: state.servingUsage.output_tokens,
+          cache_creation_input_tokens: state.servingUsage.cache_creation_input_tokens,
+          cache_read_input_tokens: state.servingUsage.cache_read_input_tokens,
+        })
+      : {};
+  const startUsage = { ...state.message?.usage, ...servingCounts };
   return {
     ...state.message,
     ...(state.responseModel != null && { model: state.responseModel }),
