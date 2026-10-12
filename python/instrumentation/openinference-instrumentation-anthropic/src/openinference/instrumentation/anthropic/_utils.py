@@ -2,10 +2,9 @@ import logging
 from typing import TYPE_CHECKING, Any, Iterator, NamedTuple, Optional, Protocol, Tuple
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import Attributes
+from opentelemetry.util.types import Attributes, AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.anthropic._types import AttributeValue
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 

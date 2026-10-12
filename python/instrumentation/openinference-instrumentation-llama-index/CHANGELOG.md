@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.6.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.5.4...python-openinference-instrumentation-llama-index-v4.6.0) (2026-10-09)
+
+
+### Features
+
+* **llama_index:** Add Finish Reason Attribute ([#3986](https://github.com/Arize-ai/openinference/issues/3986)) ([197f7e7](https://github.com/Arize-ai/openinference/commit/197f7e7fe8b49f4da6cc9e92cc449a4553c4c15c))
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
 ## [4.5.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.5.3...python-openinference-instrumentation-llama-index-v4.5.4) (2026-10-01)
 
 

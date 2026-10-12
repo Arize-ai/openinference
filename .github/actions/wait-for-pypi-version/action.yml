@@ -21,9 +21,12 @@ inputs:
   settle-seconds:
     description: >-
       Extra wait after the version first appears, so CDN edges that have not yet
-      picked up the new index are given a chance to catch up.
+      picked up the new index are given a chance to catch up. Other runners can
+      hit edges that lag the one polled here by well over a minute (CI on the
+      0.1.71 bump PR still saw a stale index ~60s after this step saw the new
+      version), so keep this comfortably above that.
     required: false
-    default: "15"
+    default: "300"
 
 runs:
   using: composite

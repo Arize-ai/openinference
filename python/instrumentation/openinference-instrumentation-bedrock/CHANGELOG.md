@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.60](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.59...python-openinference-instrumentation-bedrock-v0.1.60) (2026-10-10)
+
+
+### Bug Fixes
+
+* **bedrock:** include cache tokens in Converse prompt token count ([#3855](https://github.com/Arize-ai/openinference/issues/3855)) ([279c238](https://github.com/Arize-ai/openinference/commit/279c2385f46f29f7e823d77a4c0a2ecb34344d94))
+
+## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.58...python-openinference-instrumentation-bedrock-v0.1.59) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
 ## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.57...python-openinference-instrumentation-bedrock-v0.1.58) (2026-10-08)
 
 

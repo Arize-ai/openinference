@@ -1,9 +1,9 @@
 import pytest
 from openai.types.responses import ResponseUsage
 from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
-from openinference.instrumentation.openai._types import AttributeValue
 
 
 class TestResponseUsage:

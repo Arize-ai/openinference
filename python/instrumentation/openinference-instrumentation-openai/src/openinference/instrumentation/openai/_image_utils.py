@@ -4,9 +4,10 @@ import mimetypes
 import os
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, Union
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import REDACTED_VALUE
 from openinference.instrumentation.config import is_base64_url
-from openinference.instrumentation.openai._types import AttributeValue
 from openinference.semconv.trace import ImageAttributes, SpanAttributes
 
 

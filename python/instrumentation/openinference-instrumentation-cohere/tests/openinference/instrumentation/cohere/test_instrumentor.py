@@ -5,7 +5,7 @@ import json
 import struct
 from contextlib import asynccontextmanager, contextmanager
 from types import SimpleNamespace
-from typing import Any, Dict, Iterator, List, Sequence
+from typing import Any, Dict, Iterator, List, Sequence, cast
 
 import cohere
 import pytest
@@ -415,7 +415,7 @@ def test_context_attributes_propagation(
     assert attrs[SpanAttributes.SESSION_ID] == "my-session"
     assert attrs[SpanAttributes.USER_ID] == "my-user"
     assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
-    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]
+    assert list(cast(Sequence[str], attrs[SpanAttributes.TAG_TAGS])) == ["tag-1", "tag-2"]
 
 
 def test_trace_config_masking(
@@ -1342,7 +1342,7 @@ def test_rerank(
     assert attrs.pop(SpanAttributes.SESSION_ID) == "rerank-session"
     assert attrs.pop(SpanAttributes.USER_ID) == "rerank-user"
     assert json.loads(str(attrs.pop(SpanAttributes.METADATA))) == {"env": "test"}
-    assert list(attrs.pop(SpanAttributes.TAG_TAGS)) == ["rerank"]
+    assert list(cast(Sequence[str], attrs.pop(SpanAttributes.TAG_TAGS))) == ["rerank"]
     assert not attrs
 
 

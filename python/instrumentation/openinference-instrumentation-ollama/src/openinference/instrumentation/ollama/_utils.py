@@ -2,9 +2,9 @@ import logging
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 from opentelemetry import trace as trace_api
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.ollama._types import AttributeValue
 from openinference.instrumentation.ollama._with_span import _WithSpan
 
 logger = logging.getLogger(__name__)

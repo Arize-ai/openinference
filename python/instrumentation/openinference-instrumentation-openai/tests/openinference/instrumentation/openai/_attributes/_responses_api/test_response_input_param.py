@@ -17,11 +17,11 @@ from openai.types.responses.response_input_param import (
 )
 from openai.types.responses.response_input_text_param import ResponseInputTextParam
 from openai.types.responses.response_reasoning_item_param import Summary
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openai._attributes._responses_api import (
     _ResponsesApiAttributes,
 )
-from openinference.instrumentation.openai._types import AttributeValue
 
 
 class TestResponseInputItemParam:
