@@ -290,7 +290,10 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       <CreateType extends AnyMessagesCreateType>(original: CreateType): any => {
         return function patchedCreate(this: unknown, ...args: Parameters<CreateType>) {
           const body = args[0];
-          const contextMetadata = getMetadata(context.active());
+          const metadataSources: MetadataSources = {
+            context: getMetadata(context.active()),
+            requestToolCalls: safelyGetToolCallMetadata(body),
+          };
           const span = instrumentation.oiTracer.startSpan(`Anthropic Messages`, {
             kind: SpanKind.INTERNAL,
             attributes: {
@@ -313,7 +316,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                   safelyGetAttributes(() =>
                     getAnthropicResponseAttributes(
                       result,
-                      contextMetadata,
+                      metadataSources,
                       instrumentation.resolvedTraceConfig,
                     ),
                   ),
@@ -329,7 +332,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                   span,
                   endSpan,
                   recordError,
-                  contextMetadata,
+                  metadataSources,
                   traceConfig: instrumentation.resolvedTraceConfig,
                 });
               } else {
@@ -697,7 +700,7 @@ function getAnthropicRequestAttributes(
  */
 function getAnthropicResponseAttributes(
   result: Message,
-  contextMetadata: Metadata | undefined,
+  metadataSources: MetadataSources,
   traceConfig: TraceConfig,
 ): Attributes {
   const attributes: Attributes = {
@@ -709,8 +712,8 @@ function getAnthropicResponseAttributes(
     ...getAnthropicUsageAttributes(result.usage ?? {}),
     ...getAnthropicReasoningTokenAttributes(result.usage ?? {}),
     ...getAnthropicMetadataAttributes({
-      metadata: getAnthropicResponseMetadata(result, traceConfig),
-      contextMetadata,
+      metadata: getAnthropicResponseMetadata(result, traceConfig, metadataSources.requestToolCalls),
+      contextMetadata: metadataSources.context,
     }),
   };
   Object.assign(attributes, getOutputAttributes(toJSONOutput(result)));
@@ -739,20 +742,20 @@ function instrumentAnthropicStream({
   span,
   endSpan,
   recordError,
-  contextMetadata,
+  metadataSources,
   traceConfig,
 }: {
   stream: Stream<RawMessageStreamEvent>;
   span: Span;
   endSpan: () => void;
   recordError: (error: unknown) => void;
-  contextMetadata?: Metadata;
+  metadataSources: MetadataSources;
   traceConfig: TraceConfig;
 }) {
   const state = createAnthropicStreamState();
   const recordStreamAttributes = () => {
     span.setAttributes(
-      safelyGetAttributes(() => getAnthropicStreamAttributes(state, contextMetadata, traceConfig)),
+      safelyGetAttributes(() => getAnthropicStreamAttributes(state, metadataSources, traceConfig)),
     );
   };
   const observer: AnthropicStreamObserver = {
@@ -1222,9 +1225,108 @@ function mapAnthropicContentBlock({
  *   added to the token counts either;
  * - `server_tool_use`: the number of server tool requests by tool;
  * - `citations`: the citations of each text block, by content index;
- * - `mcp_server_names`: the MCP server of each `mcp_tool_use` call, by id.
+ * - `mcp_server_names`: the MCP server of each `mcp_tool_use` call, by id;
+ * - `tool_callers` and `toolset_names`: the caller (unless the default direct
+ *   one) and toolset of each tool call, by id, from the request's messages and
+ *   the response, whose entries win.
  */
 function getAnthropicResponseMetadata(
+  message: AnthropicResponseDetails,
+  traceConfig: TraceConfig,
+  requestToolCalls: ToolCallMetadata = createToolCallMetadata(),
+): Metadata {
+  const toolCalls = createToolCallMetadata();
+  for (const block of message.content) {
+    collectToolCallMetadata(block, toolCalls);
+  }
+  const toolCallers = { ...requestToolCalls.tool_callers, ...toolCalls.tool_callers };
+  const toolsetNames = { ...requestToolCalls.toolset_names, ...toolCalls.toolset_names };
+  return {
+    ...getAnthropicContentMetadata(message, traceConfig),
+    ...(Object.keys(toolCallers).length > 0 && { tool_callers: toolCallers }),
+    ...(Object.keys(toolsetNames).length > 0 && { toolset_names: toolsetNames }),
+  };
+}
+
+/**
+ * What a response's metadata is merged with: the metadata set on the context
+ * (whose keys win) and the tool call details read from the request.
+ */
+interface MetadataSources {
+  context?: Metadata;
+  requestToolCalls: ToolCallMetadata;
+}
+
+function safelyGetToolCallMetadata(body: MessageRequestParams): ToolCallMetadata {
+  try {
+    return getAnthropicRequestToolCallMetadata(body);
+  } catch (error) {
+    diag.debug(`Failed to read a ${MODULE_NAME} request's tool calls`, error);
+    return createToolCallMetadata();
+  }
+}
+
+/**
+ * The caller and toolset of each tool call, by tool call id.
+ */
+interface ToolCallMetadata {
+  tool_callers: Record<string, unknown>;
+  toolset_names: Record<string, string>;
+}
+
+function createToolCallMetadata(): ToolCallMetadata {
+  return { tool_callers: {}, toolset_names: {} };
+}
+
+/**
+ * Records the caller and toolset of a tool call block, and the toolset of a
+ * tool result. The default `{"type": "direct"}` caller is left out.
+ */
+function collectToolCallMetadata(block: ContentBlock | ContentBlockParam, into: ToolCallMetadata) {
+  if (block == null || typeof block !== "object") {
+    return;
+  }
+  let id: string | undefined;
+  if (isToolUseContentBlock(block)) {
+    id = block.id;
+    const caller: unknown = "caller" in block ? block.caller : undefined;
+    const isDirect =
+      caller != null && typeof caller === "object" && "type" in caller && caller.type === "direct";
+    if (caller != null && !isDirect) {
+      into.tool_callers[id] = caller;
+    }
+  } else if (block.type === "tool_result") {
+    id = block.tool_use_id;
+  }
+  const toolsetName: unknown = "toolset_name" in block ? block.toolset_name : undefined;
+  if (id != null && typeof toolsetName === "string") {
+    into.toolset_names[id] = toolsetName;
+  }
+}
+
+/**
+ * Collects the caller and toolset of each tool call and tool result in a
+ * request's messages.
+ */
+function getAnthropicRequestToolCallMetadata(body: MessageRequestParams): ToolCallMetadata {
+  const toolCalls = createToolCallMetadata();
+  const messages = Array.isArray(body?.messages) ? body.messages : [];
+  for (const message of messages) {
+    if (!Array.isArray(message?.content)) {
+      continue;
+    }
+    for (const block of message.content) {
+      try {
+        collectToolCallMetadata(block, toolCalls);
+      } catch (error) {
+        diag.debug(`Failed to read a ${MODULE_NAME} tool call's metadata`, error);
+      }
+    }
+  }
+  return toolCalls;
+}
+
+function getAnthropicContentMetadata(
   message: AnthropicResponseDetails,
   traceConfig: TraceConfig,
 ): Metadata {
@@ -1792,7 +1894,7 @@ function getAnthropicStreamMessage(state: AnthropicStreamState): Record<string, 
  */
 function getAnthropicStreamAttributes(
   state: AnthropicStreamState,
-  contextMetadata: Metadata | undefined,
+  metadataSources: MetadataSources,
   traceConfig: TraceConfig,
 ): Attributes {
   settleAnthropicToolInputs(state);
@@ -1804,8 +1906,12 @@ function getAnthropicStreamAttributes(
       traceConfig,
     ),
     ...getAnthropicMetadataAttributes({
-      metadata: getAnthropicResponseMetadata({ ...message, content }, traceConfig),
-      contextMetadata,
+      metadata: getAnthropicResponseMetadata(
+        { ...message, content },
+        traceConfig,
+        metadataSources.requestToolCalls,
+      ),
+      contextMetadata: metadataSources.context,
     }),
   };
   if (message.usage != null && typeof message.usage === "object") {
