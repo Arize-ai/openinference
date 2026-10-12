@@ -14,8 +14,13 @@ import {
   safeExecuteInTheMiddle,
 } from "@opentelemetry/instrumentation";
 
-import type { TraceConfigOptions } from "@arizeai/openinference-core";
-import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
+import type { Metadata, TraceConfigOptions } from "@arizeai/openinference-core";
+import {
+  getMetadata,
+  getMetadataAttributes,
+  OITracer,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
 import {
   LLMProvider,
   LLMSystem,
@@ -37,6 +42,23 @@ type MessageCreateParams =
   | Parameters<typeof Anthropic.Beta.Messages.prototype.create>[0];
 type MessageParam = Anthropic.Messages.MessageParam | Anthropic.Beta.Messages.BetaMessageParam;
 type Message = Anthropic.Messages.Message | Anthropic.Beta.Messages.BetaMessage;
+type ContentBlock = Anthropic.Messages.ContentBlock | Anthropic.Beta.Messages.BetaContentBlock;
+type ContentBlockParam =
+  | Anthropic.Messages.ContentBlockParam
+  | Anthropic.Beta.Messages.BetaContentBlockParam;
+type ToolUseContentBlock = Extract<
+  ContentBlock | ContentBlockParam,
+  { type: "tool_use" | "server_tool_use" | "mcp_tool_use" }
+>;
+type ImageBlockParam =
+  | Anthropic.Messages.ImageBlockParam
+  | Anthropic.Beta.Messages.BetaImageBlockParam;
+type ToolDefinition = NonNullable<MessageCreateParams["tools"]>[number];
+/**
+ * The parts of a message the output attributes are read from, shared by a
+ * parsed message and one rebuilt from a stream.
+ */
+type OutputMessage = Pick<Message, "role"> & { content: ContentBlock[] };
 type RawMessageStreamEvent =
   | Anthropic.Messages.RawMessageStreamEvent
   | Anthropic.Beta.Messages.BetaRawMessageStreamEvent;
@@ -237,6 +259,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       <CreateType extends AnyMessagesCreateType>(original: CreateType): any => {
         return function patchedCreate(this: unknown, ...args: Parameters<CreateType>) {
           const body = args[0];
+          const contextMetadata = getMetadata(context.active());
           const span = instrumentation.oiTracer.startSpan(`Anthropic Messages`, {
             kind: SpanKind.INTERNAL,
             attributes: {
@@ -289,14 +312,22 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
           const wrappedPromiseThen = (result: Message | Stream<RawMessageStreamEvent>) => {
             if (isAnthropicMessageResponse(result)) {
               // Record the results
-              span.setAttributes(safelyGetAttributes(() => getAnthropicResponseAttributes(result)));
+              span.setAttributes(
+                safelyGetAttributes(() => getAnthropicResponseAttributes(result, contextMetadata)),
+              );
               span.setStatus({ code: SpanStatusCode.OK });
               endSpan();
             } else if (isAnthropicStream(result)) {
               // Observe the events as the caller reads them, so the caller's
               // stream keeps its own iterator (break / abort still cancel the
               // request) and nothing is read ahead or buffered on its behalf.
-              instrumentAnthropicStream({ stream: result, span, endSpan, recordError });
+              instrumentAnthropicStream({
+                stream: result,
+                span,
+                endSpan,
+                recordError,
+                contextMetadata,
+              });
             } else {
               endSpan();
             }
@@ -460,7 +491,7 @@ function getAnthropicRequestAttributes(body: MessageCreateParams): Attributes {
 /**
  * Builds the response attributes of a non-streaming Anthropic message.
  */
-function getAnthropicResponseAttributes(result: Message): Attributes {
+function getAnthropicResponseAttributes(result: Message, contextMetadata?: Metadata): Attributes {
   const attributes: Attributes = {
     // Override the model from the value sent by the server
     [SemanticConventions.LLM_MODEL_NAME]: result.model,
@@ -468,6 +499,10 @@ function getAnthropicResponseAttributes(result: Message): Attributes {
     ...getAnthropicFinishReasonAttributes(result.stop_reason),
     ...getAnthropicOutputMessagesAttributes(result),
     ...getAnthropicUsageAttributes(result.usage ?? {}),
+    ...getAnthropicMetadataAttributes({
+      metadata: getAnthropicResponseMetadata(result.content),
+      contextMetadata,
+    }),
   };
   const output = safelyJSONStringify(result);
   if (output != null) {
@@ -499,15 +534,19 @@ function instrumentAnthropicStream({
   span,
   endSpan,
   recordError,
+  contextMetadata,
 }: {
   stream: Stream<RawMessageStreamEvent>;
   span: Span;
   endSpan: () => void;
   recordError: (error: unknown) => void;
+  contextMetadata?: Metadata;
 }) {
   const state = createAnthropicStreamState();
   const recordStreamAttributes = () => {
-    span.setAttributes(safelyGetAttributes(() => getAnthropicStreamAttributes(state)));
+    span.setAttributes(
+      safelyGetAttributes(() => getAnthropicStreamAttributes(state, contextMetadata)),
+    );
   };
   const observer: AnthropicStreamObserver = {
     onEvent: (event) => {
@@ -684,8 +723,13 @@ function getAnthropicFallbackContentAttributes(
  * Converts the body of an Anthropic messages request to LLM input messages
  */
 function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attributes {
-  return body.messages.reduce<Attributes>((acc, message, index) => {
-    const messageAttributes = getAnthropicInputMessageAttributes(message);
+  // The top-level system prompt is the first input message, ahead of the
+  // conversation, so the prompt the model saw is recorded in order.
+  const messagesAttributes = [
+    ...(body.system != null ? [getAnthropicSystemMessageAttributes(body.system)] : []),
+    ...(body.messages ?? []).map((message) => getAnthropicInputMessageAttributes(message)),
+  ];
+  return messagesAttributes.reduce<Attributes>((acc, messageAttributes, index) => {
     const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
     // Flatten the attributes on the index prefix
     for (const [key, value] of Object.entries(messageAttributes)) {
@@ -696,18 +740,60 @@ function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attribu
 }
 
 /**
- * Converts each tool definition into a json schema
+ * Converts the top-level `system` request param, a string or a list of text
+ * blocks, to a message with the system role.
+ */
+function getAnthropicSystemMessageAttributes(
+  system: NonNullable<MessageCreateParams["system"]>,
+): Attributes {
+  const attributes: Attributes = { [SemanticConventions.MESSAGE_ROLE]: "system" };
+  if (typeof system === "string") {
+    attributes[SemanticConventions.MESSAGE_CONTENT] = system;
+    return attributes;
+  }
+  system.forEach((block, index) => {
+    const contentsIndexPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${index}.`;
+    attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+    attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = block.text;
+  });
+  return attributes;
+}
+
+/**
+ * Lists the tool definitions of a request: the `tools` param, followed by the
+ * tools a `tool_addition` block of a beta request defines inline.
+ */
+function getAnthropicToolDefinitions(body: MessageCreateParams): ToolDefinition[] {
+  const tools: ToolDefinition[] = [...(body.tools ?? [])];
+  for (const message of body.messages ?? []) {
+    if (typeof message.content === "string") {
+      continue;
+    }
+    for (const part of message.content) {
+      if (part.type === "tool_addition" && part.tool.type === "tool_definition") {
+        tools.push(part.tool.definition);
+      }
+    }
+  }
+  return tools;
+}
+
+/**
+ * Converts each tool definition into the `llm.tools` attributes: its JSON
+ * schema, plus the name and description the spec defines next to it.
  */
 function getAnthropicToolsJSONSchema(body: MessageCreateParams): Attributes {
-  if (!body.tools) {
-    // If tools is undefined, return an empty object
-    return {};
-  }
-  return body.tools.reduce((acc: Attributes, tool, index) => {
+  return getAnthropicToolDefinitions(body).reduce((acc: Attributes, tool, index) => {
+    const toolPrefix = `${SemanticConventions.LLM_TOOLS}.${index}.`;
     const toolJsonSchema = safelyJSONStringify(tool);
-    const key = `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`;
     if (toolJsonSchema) {
-      acc[key] = toolJsonSchema;
+      acc[`${toolPrefix}${SemanticConventions.TOOL_JSON_SCHEMA}`] = toolJsonSchema;
+    }
+    if ("name" in tool && typeof tool.name === "string" && tool.name) {
+      acc[`${toolPrefix}${SemanticConventions.TOOL_NAME}`] = tool.name;
+    }
+    if ("description" in tool && typeof tool.description === "string" && tool.description) {
+      acc[`${toolPrefix}${SemanticConventions.TOOL_DESCRIPTION}`] = tool.description;
     }
     return acc;
   }, {});
@@ -730,31 +816,16 @@ function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
         attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
         attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = part.text;
       } else if (part.type === "image") {
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "image";
-        if (part.source.type === "base64") {
-          // For base64 images, we don't store the actual data but indicate it's base64
-          attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.type`] =
-            "base64";
-          attributes[
-            `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.media_type`
-          ] = part.source.media_type;
-        }
-      } else if (part.type === "tool_use") {
-        const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
-        attributes[`${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`] = part.id;
-        attributes[`${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-          part.name;
-        attributes[
-          `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] = JSON.stringify(part.input);
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
-          "tool_use";
-        attributes[`${contentsIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`] = part.id;
-        attributes[`${contentsIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-          part.name;
-        attributes[
-          `${contentsIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] = JSON.stringify(part.input);
+        Object.assign(attributes, getAnthropicImageContentAttributes(contentsIndexPrefix, part));
+      } else if (isToolUseContentBlock(part)) {
+        Object.assign(
+          attributes,
+          getAnthropicToolUseContentAttributes({
+            block: part,
+            contentPrefix: contentsIndexPrefix,
+            toolCallPrefix: `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`,
+          }),
+        );
         toolIndex++;
       } else if (part.type === "tool_result") {
         attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = part.tool_use_id;
@@ -780,6 +851,8 @@ function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
       } else if (part.type === "fallback") {
         // A prior turn's fallback boundary echoed back to the API
         Object.assign(attributes, getAnthropicFallbackContentAttributes(contentsIndexPrefix, part));
+      } else {
+        Object.assign(attributes, getAnthropicOtherContentAttributes(contentsIndexPrefix, part));
       }
     });
   }
@@ -790,7 +863,7 @@ function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
 /**
  * Converts the Anthropic message result to LLM output attributes
  */
-function getAnthropicOutputMessagesAttributes(message: Message): Attributes {
+function getAnthropicOutputMessagesAttributes(message: OutputMessage): Attributes {
   const attributes: Attributes = {};
   const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
@@ -803,18 +876,17 @@ function getAnthropicOutputMessagesAttributes(message: Message): Attributes {
     if (content.type === "text") {
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.text;
-    } else if (content.type === "tool_use") {
-      const toolCallPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
-      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = content.id;
-      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
-      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
-        JSON.stringify(content.input);
-
-      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "tool_use";
-      attributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_ID}`] = content.id;
-      attributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
-      attributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
-        JSON.stringify(content.input);
+    } else if (isToolUseContentBlock(content)) {
+      // Server and MCP tool calls are recorded as tool calls too, so every
+      // call the model made is visible, whoever ran it.
+      Object.assign(
+        attributes,
+        getAnthropicToolUseContentAttributes({
+          block: content,
+          contentPrefix,
+          toolCallPrefix: `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`,
+        }),
+      );
       toolIndex++;
     } else if (content.type === "thinking") {
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
@@ -828,9 +900,153 @@ function getAnthropicOutputMessagesAttributes(message: Message): Attributes {
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = content.data;
     } else if (content.type === "fallback") {
       Object.assign(attributes, getAnthropicFallbackContentAttributes(contentPrefix, content));
+    } else {
+      Object.assign(attributes, getAnthropicOtherContentAttributes(contentPrefix, content));
     }
   });
 
+  return attributes;
+}
+
+/**
+ * Collects the response details that have no semantic convention of their
+ * own, for the span's `metadata`:
+ *
+ * - `citations`: the citations of each text block, by content index;
+ * - `mcp_server_names`: the MCP server of each `mcp_tool_use` call, by id.
+ */
+function getAnthropicResponseMetadata(content: ContentBlock[]): Metadata {
+  const metadata: Metadata = {};
+  const citations: Record<string, unknown> = {};
+  const mcpServerNames: Record<string, string> = {};
+  content.forEach((block, index) => {
+    if (block.type === "text" && block.citations != null && block.citations.length > 0) {
+      citations[String(index)] = block.citations;
+    } else if (block.type === "mcp_tool_use") {
+      mcpServerNames[block.id] = block.server_name;
+    }
+  });
+  if (Object.keys(citations).length > 0) {
+    metadata.citations = citations;
+  }
+  if (Object.keys(mcpServerNames).length > 0) {
+    metadata.mcp_server_names = mcpServerNames;
+  }
+  return metadata;
+}
+
+/**
+ * Records response metadata merged into the metadata set on the context, so
+ * setting `metadata` again does not drop it. Keys the caller set win.
+ */
+function getAnthropicMetadataAttributes({
+  metadata,
+  contextMetadata,
+}: {
+  metadata: Metadata;
+  contextMetadata?: Metadata;
+}): Attributes {
+  if (Object.keys(metadata).length === 0) {
+    return {};
+  }
+  return getMetadataAttributes({ ...metadata, ...contextMetadata });
+}
+
+/**
+ * type-guard for the content blocks that call a tool: a client tool
+ * (`tool_use`), a server tool (`server_tool_use`) or an MCP tool
+ * (`mcp_tool_use`).
+ */
+function isToolUseContentBlock(
+  block: ContentBlock | ContentBlockParam,
+): block is ToolUseContentBlock {
+  return (
+    block.type === "tool_use" || block.type === "server_tool_use" || block.type === "mcp_tool_use"
+  );
+}
+
+/**
+ * Records a tool call both as a `tool_use` content item and as an entry of
+ * `message.tool_calls`. Streamed input is kept as the raw JSON received when
+ * it could not be parsed, as for a stream the caller left early.
+ */
+function getAnthropicToolUseContentAttributes({
+  block,
+  contentPrefix,
+  toolCallPrefix,
+}: {
+  block: ToolUseContentBlock;
+  contentPrefix: string;
+  toolCallPrefix: string;
+}): Attributes {
+  const input: unknown = block.input;
+  const argumentsJSON = typeof input === "string" ? input : (safelyJSONStringify(input) ?? "");
+  return {
+    [`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`]: block.id,
+    [`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]: block.name,
+    [`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]: argumentsJSON,
+    [`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: "tool_use",
+    [`${contentPrefix}${SemanticConventions.TOOL_CALL_ID}`]: block.id,
+    [`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]: block.name,
+    [`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]: argumentsJSON,
+  };
+}
+
+/**
+ * Records an image input. A base64 image becomes a data URI (which trace
+ * config can truncate or hide), a URL image its URL, and a Files API image the
+ * file id, as there is no URL for it.
+ */
+function getAnthropicImageContentAttributes(prefix: string, block: ImageBlockParam): Attributes {
+  const imagePrefix = `${prefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.`;
+  const attributes: Attributes = {
+    [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: "image",
+  };
+  const source = block.source;
+  if (source.type === "base64") {
+    attributes[`${imagePrefix}type`] = "base64";
+    attributes[`${imagePrefix}media_type`] = source.media_type;
+    attributes[`${imagePrefix}${SemanticConventions.IMAGE_URL}`] =
+      `data:${source.media_type};base64,${source.data}`;
+  } else if (source.type === "url") {
+    attributes[`${imagePrefix}${SemanticConventions.IMAGE_URL}`] = source.url;
+  } else if (source.type === "file") {
+    attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT_ID}`] = source.file_id;
+  }
+  return attributes;
+}
+
+/**
+ * Records a content block without a dedicated mapping. A compaction summary
+ * is text the model reads in place of the conversation it replaced. Any other
+ * block (server tool results, MCP results and listings, container uploads,
+ * documents, tool changes, and types this version does not know) is recorded
+ * as its type and its JSON, so it still occupies its index in the contents
+ * list rather than leaving a hole.
+ */
+function getAnthropicOtherContentAttributes(
+  prefix: string,
+  block: ContentBlock | ContentBlockParam,
+): Attributes {
+  if (block.type === "compaction") {
+    const attributes: Attributes = {
+      [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: "text",
+    };
+    if (block.content != null) {
+      attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = block.content;
+    }
+    if (block.signature != null) {
+      attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] = block.signature;
+    }
+    return attributes;
+  }
+  const attributes: Attributes = {
+    [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: String(block.type),
+  };
+  const blockJSON = safelyJSONStringify(block);
+  if (blockJSON != null) {
+    attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = blockJSON;
+  }
   return attributes;
 }
 
@@ -893,27 +1109,31 @@ function mergeAnthropicUsage(
 /**
  * Mutable state accumulated while consuming an Anthropic message stream.
  *
+ * The message is rebuilt from the events as the SDK's own `MessageStream`
+ * does, so a stream is recorded with the same attributes and the same JSON
+ * output as the message a non-streaming request returns.
+ *
  * Usage is reported per attempt: message_start describes the first attempt,
  * which on a server-side fallback stream is the one that declined. Each source
  * is captured on its own so the precedence between them is stated once, where
  * they are merged in {@link getAnthropicStreamAttributes}.
  */
 interface AnthropicStreamState {
-  streamResponse: string;
-  toolCallAttributes: Attributes;
-  contentAttributes: Attributes;
+  /** The message of `message_start`, without its content */
+  message?: Omit<Message, "content">;
+  /** The content blocks, by their stream `index` */
+  content: ContentBlock[];
+  /** The raw JSON streamed so far for the input of each tool call, by block index */
+  partialInputs: Map<number, string>;
+  /** The fields `message_delta` events set on the message */
+  messageDelta: Record<string, unknown>;
+  /** Every usage field reported by `message_delta` events, latest first */
+  deltaUsageReport: Record<string, unknown>;
   startUsage: MessageUsageCounts;
   deltaUsage: MessageUsageCounts;
   servingUsage?: MessageUsageCounts;
   responseModel?: string;
   finishReason?: string;
-  toolIndex: number;
-  /**
-   * The `message.tool_calls` index of each tool_use content block, by the
-   * block's stream `index`, so `input_json_delta` events are appended to the
-   * tool call they belong to rather than to the latest one.
-   */
-  toolCallIndexByBlock: Map<number, number>;
 }
 
 /**
@@ -927,14 +1147,23 @@ function applyAnthropicMessageDelta({
   chunk: Extract<RawMessageStreamEvent, { type: "message_delta" }>;
   state: AnthropicStreamState;
 }) {
-  state.deltaUsage = mergeAnthropicUsage(state.deltaUsage, chunk.usage);
-  if (chunk.delta.stop_reason != null) {
+  const usage = chunk.usage ?? {};
+  state.deltaUsage = mergeAnthropicUsage(state.deltaUsage, usage);
+  state.deltaUsageReport = { ...state.deltaUsageReport, ...withoutNullValues(usage) };
+  state.messageDelta = { ...state.messageDelta, ...withoutNullValues(chunk.delta ?? {}) };
+  if ("context_management" in chunk && chunk.context_management != null) {
+    state.messageDelta.context_management = chunk.context_management;
+  }
+  if ("input_transformations" in chunk && chunk.input_transformations != null) {
+    state.messageDelta.input_transformations = chunk.input_transformations;
+  }
+  if (chunk.delta?.stop_reason != null) {
     state.finishReason = chunk.delta.stop_reason;
   }
-  if (!("iterations" in chunk.usage) || chunk.usage.iterations == null) {
+  if (!("iterations" in usage) || usage.iterations == null) {
     return;
   }
-  for (const iteration of chunk.usage.iterations) {
+  for (const iteration of usage.iterations) {
     if (iteration.type === "fallback_message") {
       state.responseModel = iteration.model;
       state.servingUsage = iteration;
@@ -943,8 +1172,16 @@ function applyAnthropicMessageDelta({
 }
 
 /**
- * Applies a `content_block_start` event, recording the content block's type and
- * any tool call it starts.
+ * Drops the fields of a delta that are null, which a stream sends for the
+ * fields an event leaves unchanged.
+ */
+function withoutNullValues(record: object): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value != null));
+}
+
+/**
+ * Applies a `content_block_start` event, adding a copy of the block, so the
+ * events the caller receives are never modified.
  */
 function applyAnthropicContentBlockStart({
   chunk,
@@ -954,44 +1191,16 @@ function applyAnthropicContentBlockStart({
   state: AnthropicStreamState;
 }) {
   const contentBlock = chunk.content_block;
-  const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${chunk.index}.`;
-  const { contentAttributes, toolCallAttributes } = state;
-
-  if (contentBlock.type === "tool_use") {
-    state.toolIndex++;
-    state.toolCallIndexByBlock.set(chunk.index, state.toolIndex);
-    const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${state.toolIndex}.`;
-    toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = contentBlock.id;
-    toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-      contentBlock.name;
-    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "tool_use";
-    contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_ID}`] = contentBlock.id;
-    contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-      contentBlock.name;
-  } else if (contentBlock.type === "text") {
-    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
-    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-      contentBlock.text;
-  } else if (contentBlock.type === "thinking") {
-    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
-    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-      contentBlock.thinking;
-  } else if (contentBlock.type === "redacted_thinking") {
-    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
-    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
-      contentBlock.data;
-  } else if (contentBlock.type === "fallback") {
+  state.content[chunk.index] = { ...contentBlock };
+  if (contentBlock.type === "fallback") {
     state.responseModel = contentBlock.to?.model ?? state.responseModel;
-    Object.assign(
-      contentAttributes,
-      getAnthropicFallbackContentAttributes(contentPrefix, contentBlock),
-    );
   }
 }
 
 /**
- * Applies a `content_block_delta` event, accumulating streamed text, reasoning
- * and tool call arguments.
+ * Applies a `content_block_delta` event to the block it belongs to,
+ * accumulating streamed text, reasoning, citations, compaction summaries and
+ * tool call arguments.
  */
 function applyAnthropicContentBlockDelta({
   chunk,
@@ -1000,42 +1209,87 @@ function applyAnthropicContentBlockDelta({
   chunk: Extract<RawMessageStreamEvent, { type: "content_block_delta" }>;
   state: AnthropicStreamState;
 }) {
-  const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${chunk.index}.`;
-  const { contentAttributes, toolCallAttributes } = state;
-  const textKey = `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`;
+  const block = state.content[chunk.index];
+  const delta = chunk.delta;
+  if (block == null) {
+    return;
+  }
+  if (delta.type === "text_delta" && block.type === "text") {
+    block.text += delta.text;
+  } else if (delta.type === "citations_delta" && block.type === "text") {
+    Object.assign(block, { citations: [...(block.citations ?? []), delta.citation] });
+  } else if (delta.type === "thinking_delta" && block.type === "thinking") {
+    block.thinking += delta.thinking;
+  } else if (delta.type === "signature_delta") {
+    Object.assign(block, { signature: delta.signature });
+  } else if (delta.type === "compaction_delta" && block.type === "compaction") {
+    applyAnthropicCompactionDelta(block, delta);
+  } else if (delta.type === "input_json_delta" && isToolUseContentBlock(block)) {
+    const partialInput = (state.partialInputs.get(chunk.index) ?? "") + delta.partial_json;
+    state.partialInputs.set(chunk.index, partialInput);
+    // Kept as the raw JSON until it parses, which it may never do when the
+    // caller leaves the stream early.
+    Object.assign(block, { input: parseToolInput(partialInput) });
+  }
+}
 
-  if (chunk.delta.type === "text_delta") {
-    state.streamResponse += chunk.delta.text;
-    contentAttributes[textKey] = (contentAttributes[textKey] || "") + chunk.delta.text;
-  } else if (chunk.delta.type === "thinking_delta") {
-    contentAttributes[textKey] = (contentAttributes[textKey] || "") + chunk.delta.thinking;
-  } else if (chunk.delta.type === "signature_delta") {
-    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
-      chunk.delta.signature;
-  } else if (chunk.delta.type === "input_json_delta") {
-    const argumentsKey = `${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`;
-    const updatedArgs = (contentAttributes[argumentsKey] || "") + chunk.delta.partial_json;
-    contentAttributes[argumentsKey] = updatedArgs;
-    const toolCallIndex = state.toolCallIndexByBlock.get(chunk.index);
-    if (toolCallIndex != null) {
-      toolCallAttributes[
-        `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-      ] = updatedArgs;
-    }
+function applyAnthropicCompactionDelta(
+  block: Extract<ContentBlock, { type: "compaction" }>,
+  delta: Anthropic.Beta.Messages.BetaCompactionContentBlockDelta,
+) {
+  if (delta.content != null) {
+    block.content = (block.content ?? "") + delta.content;
+  }
+  if (delta.encrypted_content != null) {
+    block.encrypted_content = delta.encrypted_content;
+  }
+}
+
+function parseToolInput(partialInput: string): unknown {
+  try {
+    return JSON.parse(partialInput);
+  } catch {
+    return partialInput;
   }
 }
 
 /**
- * Builds the span attributes for a fully consumed Anthropic message stream.
+ * Rebuilds the message a stream delivered, as far as it was read.
  */
-function getAnthropicStreamAttributes(state: AnthropicStreamState): Attributes {
-  const messageIndexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
-
-  const attributes: Attributes = {
-    [SemanticConventions.OUTPUT_VALUE]: state.streamResponse,
-    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
-    [`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
+function getAnthropicStreamMessage(state: AnthropicStreamState): Record<string, unknown> {
+  // On a server-side fallback stream the serving hop's usage replaces
+  // message_start's, which belongs to the attempt that declined.
+  const startUsage = state.servingUsage ?? state.message?.usage ?? {};
+  return {
+    ...state.message,
+    ...(state.responseModel != null && { model: state.responseModel }),
+    content: state.content.filter((block) => block != null),
+    ...state.messageDelta,
+    usage: { ...startUsage, ...state.deltaUsageReport },
   };
+}
+
+/**
+ * Builds the span attributes for a consumed Anthropic message stream.
+ */
+function getAnthropicStreamAttributes(
+  state: AnthropicStreamState,
+  contextMetadata?: Metadata,
+): Attributes {
+  const content = state.content.filter((block) => block != null);
+  const attributes: Attributes = {
+    ...getAnthropicOutputMessagesAttributes({ role: state.message?.role ?? "assistant", content }),
+    ...getAnthropicMetadataAttributes({
+      metadata: getAnthropicResponseMetadata(content),
+      contextMetadata,
+    }),
+  };
+
+  const output = safelyJSONStringify(getAnthropicStreamMessage(state));
+  if (output != null) {
+    attributes[SemanticConventions.OUTPUT_VALUE] = output;
+    attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+  }
 
   if (state.responseModel != null) {
     // Override the model from the value sent by the server
@@ -1045,16 +1299,6 @@ function getAnthropicStreamAttributes(state: AnthropicStreamState): Attributes {
 
   if (state.finishReason != null) {
     attributes[SemanticConventions.LLM_FINISH_REASON] = state.finishReason;
-  }
-
-  // Add the content block attributes
-  for (const [key, value] of Object.entries(state.contentAttributes)) {
-    attributes[`${messageIndexPrefix}${key}`] = value;
-  }
-
-  // Add the tool call attributes
-  for (const [key, value] of Object.entries(state.toolCallAttributes)) {
-    attributes[`${messageIndexPrefix}${key}`] = value;
   }
 
   // On a server-side fallback stream the serving hop's usage replaces
@@ -1073,13 +1317,12 @@ function getAnthropicStreamAttributes(state: AnthropicStreamState): Attributes {
  */
 function createAnthropicStreamState(): AnthropicStreamState {
   return {
-    streamResponse: "",
-    toolCallAttributes: {},
-    contentAttributes: {},
+    content: [],
+    partialInputs: new Map(),
+    messageDelta: {},
+    deltaUsageReport: {},
     startUsage: {},
     deltaUsage: {},
-    toolIndex: -1,
-    toolCallIndexByBlock: new Map(),
   };
 }
 
@@ -1094,6 +1337,8 @@ function applyAnthropicStreamEvent({
   state: AnthropicStreamState;
 }) {
   if (chunk.type === "message_start") {
+    const { content: _content, ...message } = chunk.message;
+    state.message = message;
     state.responseModel = chunk.message.model;
     state.startUsage = chunk.message.usage ?? {};
   } else if (chunk.type === "message_delta") {

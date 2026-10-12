@@ -46,7 +46,9 @@ const {
   TOOL_CALL_FUNCTION_NAME,
   TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
   LLM_TOOLS,
+  TOOL_DESCRIPTION,
   TOOL_JSON_SCHEMA,
+  TOOL_NAME,
 } = SemanticConventions;
 
 const memoryExporter = new InMemorySpanExporter();
@@ -214,7 +216,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     const outputValue = pop(attributes, OUTPUT_VALUE);
     expect(outputValue).toEqual(expect.any(String));
     expect(outputValue as string).toMatch(/27 × 453/);
-    expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.TEXT);
+    expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
 
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
@@ -369,8 +371,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     );
 
     const outputValue = pop(attributes, OUTPUT_VALUE);
-    expect(outputValue).toBe("42");
-    expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.TEXT);
+    expect(JSON.parse(outputValue as string).content.at(-1).text).toBe("42");
+    expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
 
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
@@ -648,6 +650,10 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, `${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`)).toBe(
       JSON.stringify(requestBody.tools[0]),
     );
+    expect(pop(attributes, `${LLM_TOOLS}.0.${TOOL_NAME}`)).toBe("get_weather");
+    expect(pop(attributes, `${LLM_TOOLS}.0.${TOOL_DESCRIPTION}`)).toBe(
+      requestBody.tools[0].description,
+    );
 
     expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(596);
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(99);
@@ -719,11 +725,19 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       "What is the weather in San Francisco?",
     );
 
-    // model streamed a visible text block before the tool call
-    expect(pop(attributes, OUTPUT_VALUE)).toBe(
-      "Sure! Let me check the weather in San Francisco for you!",
-    );
-    expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.TEXT);
+    // The output is the message rebuilt from the stream, as for a
+    // non-streaming request: every block, tool calls included.
+    const output = JSON.parse(pop(attributes, OUTPUT_VALUE) as string);
+    expect(output.content.map((block: { type: string }) => block.type)).toEqual([
+      "thinking",
+      "text",
+      "tool_use",
+    ]);
+    expect(output.content[1].text).toBe("Sure! Let me check the weather in San Francisco for you!");
+    expect(output.content[2].input).toEqual({ location: "San Francisco" });
+    expect(output.stop_reason).toBe("tool_use");
+    expect(output.usage.output_tokens).toBe(99);
+    expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
 
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
@@ -764,7 +778,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
         attributes,
         `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.0.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
       ),
-    ).toBe('{"location": "San Francisco"}');
+    ).toBe(JSON.stringify({ location: "San Francisco" }));
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.2.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("tool_use");
@@ -779,10 +793,14 @@ describe("AnthropicInstrumentation - reasoning content", () => {
         attributes,
         `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.2.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
       ),
-    ).toBe('{"location": "San Francisco"}');
+    ).toBe(JSON.stringify({ location: "San Francisco" }));
 
     expect(pop(attributes, `${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`)).toBe(
       JSON.stringify(requestBody.tools[0]),
+    );
+    expect(pop(attributes, `${LLM_TOOLS}.0.${TOOL_NAME}`)).toBe("get_weather");
+    expect(pop(attributes, `${LLM_TOOLS}.0.${TOOL_DESCRIPTION}`)).toBe(
+      requestBody.tools[0].description,
     );
 
     expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(596);
