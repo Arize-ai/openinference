@@ -18,4 +18,4 @@ Changes:
 - Images record URLs, file ids and base64 data URIs; `llm.tools` records `tool.name`, `tool.description` and inline `tool_addition` tools.
 - Thinking tokens are recorded as `llm.token_count.completion_details.reasoning`.
 - `llm.provider` is `aws`, `google` or `azure` for the Bedrock, Vertex and Foundry clients.
-- `messages.countTokens` / `beta.messages.countTokens` are traced, and each run of `beta.messages.toolRunner` runs under a CHAIN span parenting its LLM spans and a TOOL span per tool run, including tools added with `addTools()` or `setMessagesParams()`.
+- `messages.countTokens` / `beta.messages.countTokens` are traced, and each run of `beta.messages.toolRunner` runs under a `beta.messages.tool_runner` CHAIN span (the naming proposed for the Python instrumentation in PR #3531) parenting its LLM spans and a TOOL span per tool run, including tools added with `addTools()` or `setMessagesParams()`.
