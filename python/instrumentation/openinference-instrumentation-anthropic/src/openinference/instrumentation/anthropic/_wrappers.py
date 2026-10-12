@@ -29,6 +29,7 @@ from openinference.instrumentation.anthropic._content import (
     _attributes_or_nothing,
     _get_inline_tool_definitions,
     _get_message_contents_attributes,
+    _get_metadata_attributes,
     _get_output_message_attributes,
     _require,
 )
@@ -202,7 +203,11 @@ class _WithTracer(ABC):
                     set_status_on_exception=False,
                 )
             )
-            yield _WithSpan(span=span, params=stack.enter_context(params))
+            yield _WithSpan(
+                span=span,
+                params=stack.enter_context(params),
+                context_metadata=(attributes or {}).get(METADATA),
+            )
 
 
 @_stop_on_exception
@@ -249,7 +254,7 @@ class _MessagesWrapper(_WithTracer):
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_provider(),
+                    _get_llm_provider(instance),
                     _get_llm_system(),
                     _get_llm_span_kind(),
                     _get_inputs(kwargs),
@@ -296,7 +301,7 @@ class _AsyncMessagesWrapper(_WithTracer):
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_provider(),
+                    _get_llm_provider(instance),
                     _get_llm_system(),
                     _get_llm_span_kind(),
                     _get_inputs(kwargs),
@@ -332,6 +337,7 @@ def _finish_message_tracing(span: _WithSpan, message: Any) -> None:
             chain(
                 _get_llm_model_name_from_response(message),
                 _get_output_messages(message),
+                _get_metadata(message, span.context_metadata),
                 _get_llm_token_counts_from_response(message),
                 _get_outputs(message),
             )
@@ -434,7 +440,7 @@ class _MessagesStreamWrapper(_WithTracer):
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_provider(),
+                    _get_llm_provider(instance),
                     _get_llm_system(),
                     _get_llm_span_kind(),
                     _get_inputs(kwargs),
@@ -477,7 +483,7 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_provider(),
+                    _get_llm_provider(instance),
                     _get_llm_system(),
                     _get_llm_span_kind(),
                     _get_inputs(kwargs),
@@ -726,8 +732,31 @@ def _get_llm_span_kind() -> Iterator[Tuple[str, Any]]:
     yield OPENINFERENCE_SPAN_KIND, LLM
 
 
+# The base classes of the clients of the platforms that host Claude, by name, so that none of
+# their modules, some of which need optional dependencies, has to be imported to check them.
+_PLATFORM_CLIENT_PROVIDERS = {
+    "BaseBedrockClient": OpenInferenceLLMProviderValues.AWS.value,
+    "BaseMantleClient": OpenInferenceLLMProviderValues.AWS.value,  # Bedrock Mantle
+    "AnthropicAWS": OpenInferenceLLMProviderValues.AWS.value,  # Claude Platform on AWS
+    "AsyncAnthropicAWS": OpenInferenceLLMProviderValues.AWS.value,
+    "BaseVertexClient": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "BaseGoogleCloudClient": OpenInferenceLLMProviderValues.GOOGLE.value,  # on Google Cloud
+    "BaseFoundryClient": OpenInferenceLLMProviderValues.AZURE.value,  # Microsoft Foundry
+}
+
+
 @_stop_on_exception
-def _get_llm_provider() -> Iterator[Tuple[str, Any]]:
+def _get_llm_provider(instance: Any = None) -> Iterator[Tuple[str, Any]]:
+    """
+    The provider hosting the model, from the client the resource `instance` belongs to.
+    """
+    client = getattr(instance, "_client", None)
+    for cls in type(client).__mro__:
+        if (provider := _PLATFORM_CLIENT_PROVIDERS.get(cls.__name__)) and cls.__module__.startswith(
+            "anthropic."
+        ):
+            yield LLM_PROVIDER, provider
+            return
     yield LLM_PROVIDER, LLM_PROVIDER_ANTHROPIC
 
 
@@ -801,6 +830,13 @@ def _get_llm_input_message(i: int, message: MessageParam) -> Iterator[Tuple[str,
             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
             return
         yield from _get_message_contents_attributes(f"{LLM_INPUT_MESSAGES}.{i}", content)
+
+
+@_stop_on_exception
+def _get_metadata(
+    message: Message, context_metadata: Optional[AttributeValue]
+) -> Iterator[Tuple[str, Any]]:
+    yield from _get_metadata_attributes(message, context_metadata)
 
 
 @_stop_on_exception

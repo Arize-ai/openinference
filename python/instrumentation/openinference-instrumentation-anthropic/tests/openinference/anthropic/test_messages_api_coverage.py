@@ -469,3 +469,254 @@ def test_inline_tool_definitions_are_recorded_as_tools(
     assert json.loads(str(attributes.pop(f"{contents}.0.{MESSAGE_CONTENT_TEXT}"))) == (
         tool_addition
     )
+
+
+_CITATION = {
+    "type": "web_search_result_location",
+    "cited_text": "Sunny.",
+    "url": "https://example.com/paris",
+    "title": "Paris weather",
+    "encrypted_index": "abc",
+}
+_ITERATIONS = [
+    {
+        "type": "compaction",
+        "input_tokens": 1000,
+        "output_tokens": 50,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    },
+    {
+        "type": "message",
+        "input_tokens": 60,
+        "output_tokens": 20,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    },
+]
+# Provider-specific data with no semantic convention of its own, which is recorded as metadata.
+_RESPONSE_DATA: Dict[str, Any] = {
+    "stop_details": {"type": "refusal", "category": "cyber", "explanation": "No."},
+    "diagnostics": {"cache_miss_reason": {"type": "system_changed"}},
+    "container": {"id": "container_1", "expires_at": "2026-10-12T00:00:00Z"},
+    "context_management": {
+        "applied_edits": [
+            {
+                "type": "clear_tool_uses_20250919",
+                "cleared_input_tokens": 100,
+                "cleared_tool_uses": 2,
+            }
+        ]
+    },
+    "input_transformations": [
+        {
+            "type": "thinking_dropped",
+            "path": "messages.1.content.0",
+            "reason": "model_binding_mismatch",
+        }
+    ],
+}
+_RESPONSE_CONTENT: List[Dict[str, Any]] = [
+    {"type": "thinking", "thinking": "Hmm.", "signature": "sig"},
+    {"type": "text", "text": "Sunny.", "citations": [_CITATION]},
+    {
+        "type": "mcp_tool_use",
+        "id": "mcptoolu_1",
+        "name": "echo",
+        "server_name": "echo-server",
+        "input": {},
+    },
+]
+_RESPONSE_USAGE: Dict[str, Any] = {
+    "input_tokens": 60,
+    "output_tokens": 20,
+    "output_tokens_details": {"thinking_tokens": 7},
+    "iterations": _ITERATIONS,
+}
+
+
+def _assert_response_metadata_and_usage(attributes: Dict[str, Any]) -> None:
+    assert json.loads(str(attributes[SpanAttributes.METADATA])) == {
+        # the context's metadata is kept
+        "user_key": "user_value",
+        "stop_details": _RESPONSE_DATA["stop_details"],
+        "cache_miss_reason": {"type": "system_changed"},
+        "container_id": "container_1",
+        "context_management_applied_edits": _RESPONSE_DATA["context_management"]["applied_edits"],
+        "input_transformations": _RESPONSE_DATA["input_transformations"],
+        "usage_iterations": _ITERATIONS,
+        "citations": {"1": [_CITATION]},
+        "mcp_server_names": {"mcptoolu_1": "echo-server"},
+    }
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] == 7
+    # a compaction iteration's tokens are not in the top-level usage, so not in the counts
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 60
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 20
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 80
+
+
+def test_response_metadata_and_usage(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    from openinference.instrumentation import using_metadata
+
+    response = _message_json(_RESPONSE_CONTENT, **_RESPONSE_DATA, usage=_RESPONSE_USAGE)
+    client = _mock_anthropic_client(lambda request: httpx2.Response(200, json=response))
+    with using_metadata({"user_key": "user_value"}):
+        client.beta.messages.create(
+            model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "weather?"}]
+        )
+    _assert_response_metadata_and_usage(dict(_get_span(in_memory_span_exporter).attributes or {}))
+
+
+def _response_metadata_stream_handler(request: Any) -> Any:
+    return _event_stream_response(
+        [
+            {
+                "type": "message_start",
+                "message": _message_json(
+                    [],
+                    diagnostics=_RESPONSE_DATA["diagnostics"],
+                    input_transformations=_RESPONSE_DATA["input_transformations"],
+                ),
+            },
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+            },
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "thinking_delta", "thinking": "Hmm."},
+            },
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "signature_delta", "signature": "sig"},
+            },
+            {"type": "content_block_stop", "index": 0},
+            {
+                "type": "content_block_start",
+                "index": 1,
+                "content_block": {"type": "text", "text": ""},
+            },
+            {
+                "type": "content_block_delta",
+                "index": 1,
+                "delta": {"type": "text_delta", "text": "Sunny."},
+            },
+            {
+                "type": "content_block_delta",
+                "index": 1,
+                "delta": {"type": "citations_delta", "citation": _CITATION},
+            },
+            {"type": "content_block_stop", "index": 1},
+            *_content_block_events(2, _RESPONSE_CONTENT[2]),
+            {
+                "type": "message_delta",
+                "delta": {
+                    "stop_reason": "refusal",
+                    "stop_sequence": None,
+                    "stop_details": _RESPONSE_DATA["stop_details"],
+                    "container": _RESPONSE_DATA["container"],
+                },
+                "context_management": _RESPONSE_DATA["context_management"],
+                "usage": _RESPONSE_USAGE,
+            },
+            {"type": "message_stop"},
+        ]
+    )
+
+
+def test_streaming_response_metadata_and_usage(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    from openinference.instrumentation import using_metadata
+
+    client = _mock_anthropic_client(_response_metadata_stream_handler)
+    with using_metadata({"user_key": "user_value"}):
+        stream = client.beta.messages.create(
+            model=MODEL,
+            max_tokens=100,
+            messages=[{"role": "user", "content": "weather?"}],
+            stream=True,
+        )
+    # finished outside of the context the span was started in
+    for _ in stream:
+        pass
+    _assert_response_metadata_and_usage(dict(_get_span(in_memory_span_exporter).attributes or {}))
+
+
+def test_streaming_manager_response_metadata_and_usage(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    from openinference.instrumentation import using_metadata
+
+    client = _mock_anthropic_client(_response_metadata_stream_handler)
+    with using_metadata({"user_key": "user_value"}):
+        manager = client.beta.messages.stream(
+            model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "weather?"}]
+        )
+    with manager as stream:
+        stream.until_done()
+    _assert_response_metadata_and_usage(dict(_get_span(in_memory_span_exporter).attributes or {}))
+
+
+def test_no_metadata_without_response_data(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    from openinference.instrumentation import using_metadata
+
+    client = _mock_anthropic_client(
+        lambda request: httpx2.Response(200, json=_message_json([{"type": "text", "text": "ok"}]))
+    )
+    with using_metadata({"user_key": "user_value"}):
+        client.messages.create(
+            model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "hi"}]
+        )
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    assert json.loads(str(attributes[SpanAttributes.METADATA])) == {"user_key": "user_value"}
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING not in attributes
+
+
+def _platform_clients(handler: Any) -> Dict[str, Any]:
+    from anthropic import AnthropicBedrock, AnthropicFoundry, AnthropicVertex
+
+    def http_client() -> Any:
+        return httpx2.Client(transport=httpx2.MockTransport(handler))
+
+    return {
+        "anthropic": _mock_anthropic_client(handler),
+        "aws": AnthropicBedrock(api_key="k", aws_region="us-east-1", http_client=http_client()),
+        "google": AnthropicVertex(
+            region="us-east5", project_id="p", access_token="t", http_client=http_client()
+        ),
+        "azure": AnthropicFoundry(api_key="k", resource="r", http_client=http_client()),
+    }
+
+
+@pytest.mark.parametrize("provider", ["anthropic", "aws", "google", "azure"])
+def test_provider_is_the_platform_hosting_the_model(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+    provider: str,
+) -> None:
+    client = _platform_clients(
+        lambda request: httpx2.Response(200, json=_message_json([{"type": "text", "text": "ok"}]))
+    )[provider]
+    client.messages.create(
+        model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "hi"}]
+    )
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    assert attributes[SpanAttributes.LLM_PROVIDER] == provider
+    assert attributes[SpanAttributes.LLM_SYSTEM] == "anthropic"

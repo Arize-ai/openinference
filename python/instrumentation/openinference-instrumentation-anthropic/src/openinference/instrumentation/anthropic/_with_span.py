@@ -16,15 +16,19 @@ class _WithSpan:
         "_span",
         "_is_finished",
         "_params",
+        "_context_metadata",
     )
 
     def __init__(
         self,
         span: trace_api.Span,
         params: Iterable[Tuple[str, AttributeValue]] = (),
+        context_metadata: Optional[AttributeValue] = None,
     ) -> None:
         self._span = span
         self._params = params
+        # the metadata from the context the span was started in, to merge the response's into
+        self._context_metadata = context_metadata
         try:
             self._is_finished = not self._span.is_recording()
         except Exception:
@@ -34,6 +38,10 @@ class _WithSpan:
     @property
     def is_finished(self) -> bool:
         return self._is_finished
+
+    @property
+    def context_metadata(self) -> Optional[AttributeValue]:
+        return self._context_metadata
 
     def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
         self._span.set_attributes(attributes)

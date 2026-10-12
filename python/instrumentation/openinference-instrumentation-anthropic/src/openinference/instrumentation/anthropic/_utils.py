@@ -24,6 +24,10 @@ def _get_token_counts(usage: "Usage") -> Iterator[Tuple[str, AttributeValue]]:
     - cache_creation_input_tokens: Number of tokens written to the cache when creating a new entry.
     - cache_read_input_tokens: Number of tokens retrieved from the cache for this request.
     - input_tokens: Number of input tokens which were not read from or used to create a cache.
+
+    The breakdown of cache_creation by TTL has no semantic convention, so it is not recorded, and
+    the tokens of compaction iterations, which are not in the top-level usage, are recorded only
+    in the span metadata.
     """
     prompt_tokens = (
         usage.input_tokens
@@ -44,6 +48,11 @@ def _get_token_counts(usage: "Usage") -> Iterator[Tuple[str, AttributeValue]]:
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
             usage.cache_creation_input_tokens,
         )
+    # The thinking tokens are part of, not in addition to, the output tokens.
+    if (output_tokens_details := getattr(usage, "output_tokens_details", None)) and (
+        thinking_tokens := getattr(output_tokens_details, "thinking_tokens", None)
+    ):
+        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thinking_tokens
     # Anthropic's Usage has no total field, so derive it from prompt + completion.
     if total_tokens := prompt_tokens + (usage.output_tokens or 0):
         yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens

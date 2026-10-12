@@ -6,8 +6,11 @@ so that every path maps every block type the same way. Blocks can be request par
 response models (e.g. a response passed back as input), so both are read with `_get`.
 """
 
+import json
 import logging
-from typing import Any, Callable, Iterable, Iterator, List, Mapping, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
+
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import (
@@ -42,6 +45,10 @@ def _require(obj: Any, key: str) -> Any:
 
 
 def _to_jsonable(obj: Any) -> Any:
+    if isinstance(obj, (list, tuple)):
+        return [_to_jsonable(item) for item in obj]
+    if isinstance(obj, Mapping):
+        return {key: _to_jsonable(value) for key, value in obj.items()}
     if hasattr(obj, "model_dump"):
         # by_alias, so e.g. a fallback block's `from_` is recorded as the API's `from`, and
         # without warnings, which the SDK's stand-in model for an unknown block type would raise
@@ -183,6 +190,83 @@ def _get_output_message_attributes(message: Any) -> Iterator[Tuple[str, Any]]:
     yield from _get_message_contents_attributes(f"{LLM_OUTPUT_MESSAGES}.0", message.content)
 
 
+def _get_response_metadata(message: Any) -> Dict[str, Any]:
+    """
+    Collects the provider-specific data of a response that has no semantic convention of its own,
+    to be recorded in the span metadata. Each item is guarded, so one cannot lose the others.
+
+    - stop_details: why the output stopped, e.g. the category of a refusal
+    - cache_miss_reason: why the prompt cache could not reuse a previous request's prefix
+    - container_id: the container that a container tool, e.g. code execution, ran in
+    - context_management_applied_edits: the context management edits that were applied
+    - input_transformations: the changes the API made to the request's input
+    - usage_iterations: the token usage of each sampling and compaction iteration. A compaction
+      iteration's tokens are not included in the top-level usage, so they are not included in
+      the token counts either.
+    - citations: the citations of each text block, keyed by its index in the output contents
+    - mcp_server_names: the MCP server of each MCP tool call, keyed by its tool call id
+    """
+    metadata: Dict[str, Any] = {}
+
+    def add(key: str, get_value: Callable[[], Any]) -> None:
+        try:
+            if value := get_value():
+                metadata[key] = _to_jsonable(value)
+        except Exception:
+            logger.exception("Failed to get the %s of the response.", key)
+
+    add("stop_details", lambda: _get(message, "stop_details"))
+    add("cache_miss_reason", lambda: _get(_get(message, "diagnostics"), "cache_miss_reason"))
+    add("container_id", lambda: _get(_get(message, "container"), "id"))
+    add(
+        "context_management_applied_edits",
+        lambda: _get(_get(message, "context_management"), "applied_edits"),
+    )
+    add("input_transformations", lambda: _get(message, "input_transformations"))
+    add("usage_iterations", lambda: _get(_get(message, "usage"), "iterations"))
+    add("citations", lambda: _get_citations(message))
+    add("mcp_server_names", lambda: _get_mcp_server_names(message))
+    return metadata
+
+
+def _get_citations(message: Any) -> Dict[str, Any]:
+    return {
+        str(j): citations
+        for j, block in enumerate(_get(message, "content") or ())
+        if _get(block, "type") == "text" and (citations := _get(block, "citations"))
+    }
+
+
+def _get_mcp_server_names(message: Any) -> Dict[str, Any]:
+    return {
+        _get(block, "id"): _get(block, "server_name")
+        for block in _get(message, "content") or ()
+        if _get(block, "type") == "mcp_tool_use"
+    }
+
+
+def _get_metadata_attributes(
+    message: Any,
+    context_metadata: Optional[AttributeValue] = None,
+) -> Iterator[Tuple[str, Any]]:
+    """
+    Yields the span metadata: the response's metadata merged with the metadata from the context
+    that the span was started in, which takes precedence, since this replaces it on the span.
+    """
+    if not (metadata := _get_response_metadata(message)):
+        return
+    if isinstance(context_metadata, str):
+        try:
+            parsed = json.loads(context_metadata)
+        except Exception:
+            parsed = None
+        if not isinstance(parsed, dict):
+            # the context's metadata cannot be merged, so it is kept as it is
+            return
+        metadata.update(parsed)
+    yield METADATA, safe_json_dumps(metadata)
+
+
 def _get_inline_tool_definitions(messages: Iterable[Any]) -> Iterator[Any]:
     """
     Yields the tools defined inline in the messages by `tool_addition` blocks, which make them
@@ -209,6 +293,7 @@ def _get_inline_tool_definitions(messages: Iterable[Any]) -> Iterator[Any]:
 IMAGE_URL = ImageAttributes.IMAGE_URL
 LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+METADATA = SpanAttributes.METADATA
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE

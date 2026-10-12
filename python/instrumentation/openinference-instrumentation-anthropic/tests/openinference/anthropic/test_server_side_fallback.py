@@ -341,6 +341,11 @@ def test_anthropic_instrumentation_beta_messages_streaming_fallback(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 42
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 128
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 170
+    # the fallback that served the response is in the metadata, among the usage iterations
+    assert_json_contains(
+        json.loads(str(attributes.pop(SpanAttributes.METADATA))),
+        {"usage_iterations": [{"type": "fallback_message", "model": FALLBACK_MODEL}]},
+    )
 
     assert attributes.pop(LLM_REQUEST_MODEL_NAME) == REQUESTED_MODEL
     assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == FALLBACK_MODEL

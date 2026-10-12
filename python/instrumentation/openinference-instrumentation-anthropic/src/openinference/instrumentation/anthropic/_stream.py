@@ -21,6 +21,7 @@ from wrapt import ObjectProxy
 
 from openinference.instrumentation.anthropic._content import (
     _attributes_or_nothing,
+    _get_metadata_attributes,
     _get_output_message_attributes,
 )
 from openinference.instrumentation.anthropic._utils import (
@@ -104,7 +105,9 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
                 pass
         _finish_tracing(
             with_span=self._self_with_span,
-            has_attributes=_MessageExtractor(snapshot),
+            has_attributes=_MessageExtractor(
+                snapshot, context_metadata=self._self_with_span.context_metadata
+            ),
             status=status,
         )
 
@@ -266,7 +269,10 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
     ) -> None:
         _finish_tracing(
             with_span=self._with_span,
-            has_attributes=_MessageExtractor(self._response_accumulator._result()),
+            has_attributes=_MessageExtractor(
+                self._response_accumulator._result(),
+                context_metadata=self._with_span.context_metadata,
+            ),
             status=status,
         )
 
@@ -359,10 +365,11 @@ class _MessageExtractor:
     and the messages.create(stream=True) path (via _MessageResponseAccumulator).
     """
 
-    __slots__ = ("_snapshot",)
+    __slots__ = ("_snapshot", "_context_metadata")
 
-    def __init__(self, snapshot: Any) -> None:
+    def __init__(self, snapshot: Any, context_metadata: Optional[AttributeValue] = None) -> None:
         self._snapshot = snapshot
+        self._context_metadata = context_metadata
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         snapshot = self._snapshot
@@ -374,6 +381,9 @@ class _MessageExtractor:
             yield SpanAttributes.LLM_MODEL_NAME, model_name
             yield SpanAttributes.LLM_RESPONSE_MODEL_NAME, model_name
         yield from _attributes_or_nothing(_get_output_message_attributes, snapshot)
+        yield from _attributes_or_nothing(
+            _get_metadata_attributes, snapshot, self._context_metadata
+        )
         # Token counts come from a usage snapshot that can be partial or
         # delta-shaped while streaming. Contain any failure here (the same
         # @_stop_on_exception treatment the non-streaming path gives
