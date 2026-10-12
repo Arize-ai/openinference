@@ -40,10 +40,61 @@ def test_hide_inputs_redacts_system_prompt(
     system: Any,
     stream: bool,
 ) -> None:
-    tracer = cast(
-        Tracer,
-        OITracer(tracer_provider.get_tracer(__name__), config=TraceConfig(hide_inputs=True)),
+    _invoke_with_system(tracer_provider, TraceConfig(hide_inputs=True), system, stream)
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.is_ok
+    attributes = dict(span.attributes or {})
+    assert attributes
+    leaked = {key: value for key, value in attributes.items() if _SECRET in str(value)}
+    assert leaked == {}
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["invoke_model", "stream"])
+@pytest.mark.parametrize(
+    "system, texts",
+    [
+        (_SECRET, [_SECRET]),
+        (
+            [{"type": "text", "text": "first"}, {"type": "text", "text": "second"}],
+            ["first", "second"],
+        ),
+    ],
+    ids=["string", "blocks"],
+)
+def test_system_prompt_is_first_input_message(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    system: Any,
+    texts: list[str],
+    stream: bool,
+) -> None:
+    _invoke_with_system(tracer_provider, TraceConfig(), system, stream)
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.is_ok
+    attributes = dict(span.attributes or {})
+    assert attributes.pop("llm.input_messages.0.message.role") == "system"
+    for i, text in enumerate(texts):
+        assert (
+            attributes.pop(f"llm.input_messages.0.message.contents.{i}.message_content.text")
+            == text
+        )
+    assert attributes.pop("llm.input_messages.1.message.role") == "user"
+    assert not any(
+        key.startswith("llm.input_messages.0.") and not key.endswith(".message_content.type")
+        for key in attributes
     )
+    assert _SECRET not in str(attributes.get("llm.invocation_parameters"))
+
+
+def _invoke_with_system(
+    tracer_provider: TracerProvider,
+    config: TraceConfig,
+    system: Any,
+    stream: bool,
+) -> None:
+    tracer = cast(Tracer, OITracer(tracer_provider.get_tracer(__name__), config=config))
     kwargs = {
         "modelId": _CLAUDE_MODEL_ID,
         "body": json.dumps(
@@ -114,13 +165,6 @@ def test_hide_inputs_redacts_system_prompt(
             "body": StreamingBody(io.BytesIO(payload), len(payload))
         }
         _model_invocation_wrapper(tracer)(client)(**kwargs)
-
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.status.is_ok
-    attributes = dict(span.attributes or {})
-    assert attributes
-    leaked = {key: value for key, value in attributes.items() if _SECRET in str(value)}
-    assert leaked == {}
 
 
 def test_invoke_model_system_message_is_not_a_recorded_invocation_parameter() -> None:
