@@ -1,0 +1,3 @@
+openinference-instrumentation-livekit
+opentelemetry-sdk
+opentelemetry-exporter-otlp

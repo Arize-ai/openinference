@@ -1,0 +1,89 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-livekit"
+dynamic = ["version"]
+description = "OpenInference LiveKit Instrumentation"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10, <3.15"
+authors = [
+    { name = "OpenInference Authors", email = "oss@arize.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "opentelemetry-api",
+    "opentelemetry-instrumentation",
+    "openinference-instrumentation>=0.1.69",
+    "openinference-semantic-conventions>=0.1.41",
+    "wrapt",
+]
+
+[project.optional-dependencies]
+instruments = [
+    "livekit",
+    "livekit-api",
+]
+
+[project.entry-points.opentelemetry_instrumentor]
+livekit = "openinference.instrumentation.livekit:LiveKitInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+livekit = "openinference.instrumentation.livekit:LiveKitInstrumentor"
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-livekit"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/livekit/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+    "tests",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+    "examples",
+    "dist",
+    "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+    "wrapt",
+    "livekit.*",
+    "_stubs",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

@@ -1,0 +1,2 @@
+opentelemetry-sdk
+pytest-asyncio
