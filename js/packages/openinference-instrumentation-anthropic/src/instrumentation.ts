@@ -1684,8 +1684,9 @@ function applyAnthropicContentBlockDelta({
     Object.assign(block, { citations: [...(block.citations ?? []), delta.citation] });
   } else if (delta.type === "thinking_delta" && block.type === "thinking") {
     block.thinking += delta.thinking;
-  } else if (delta.type === "signature_delta") {
-    Object.assign(block, { signature: delta.signature });
+  } else if (delta.type === "signature_delta" && block.type === "thinking") {
+    // As the SDK's message stream, only a thinking block takes a signature.
+    block.signature = delta.signature;
   } else if (delta.type === "compaction_delta" && block.type === "compaction") {
     applyAnthropicCompactionDelta(block, delta);
   } else if (delta.type === "input_json_delta" && isToolUseContentBlock(block)) {
@@ -1722,10 +1723,11 @@ function applyAnthropicCompactionDelta(
   block: Extract<ContentBlock, { type: "compaction" }>,
   delta: Anthropic.Beta.Messages.BetaCompactionContentBlockDelta,
 ) {
-  if (delta.content != null) {
-    block.content = (block.content ?? "") + delta.content;
-  }
-  if (delta.encrypted_content != null) {
+  // As the SDK's message stream: the delta carries the block's final value
+  // (null content is a failed compaction), so it replaces rather than appends,
+  // and encrypted_content is copied only when the server sent it.
+  block.content = delta.content;
+  if ("encrypted_content" in delta) {
     block.encrypted_content = delta.encrypted_content;
   }
 }

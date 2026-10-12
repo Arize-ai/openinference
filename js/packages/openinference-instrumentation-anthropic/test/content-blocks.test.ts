@@ -128,12 +128,11 @@ function contentBlockEvents(): StreamEvent[] {
     {
       type: "content_block_delta",
       index: 0,
-      delta: { type: "compaction_delta", content: "Summary of ", encrypted_content: null },
-    },
-    {
-      type: "content_block_delta",
-      index: 0,
-      delta: { type: "compaction_delta", content: "earlier turns", encrypted_content: null },
+      delta: {
+        type: "compaction_delta",
+        content: "Summary of earlier turns",
+        encrypted_content: null,
+      },
     },
     { type: "content_block_stop", index: 0 },
     {
@@ -314,6 +313,63 @@ describe("AnthropicInstrumentation - content blocks", () => {
     await waitForSpans(1);
     const [span] = memoryExporter.getFinishedSpans();
     expectContentBlockAttributes(span.attributes);
+  });
+
+  it("applies compaction and signature deltas as the SDK's message stream does", async () => {
+    const client = new Anthropic({
+      apiKey: "fake-api-key",
+      fetch: sseFetch([
+        messageStart(),
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "compaction", content: null, encrypted_content: null },
+        },
+        // Each compaction delta carries the block's final value.
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "compaction_delta", content: "First draft", encrypted_content: null },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "compaction_delta", content: "Final summary", encrypted_content: "enc" },
+        },
+        { type: "content_block_stop", index: 0 },
+        {
+          type: "content_block_start",
+          index: 1,
+          content_block: { type: "text", text: "", citations: null },
+        },
+        { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Hi" } },
+        // Only a thinking block takes a signature.
+        {
+          type: "content_block_delta",
+          index: 1,
+          delta: { type: "signature_delta", signature: "s" },
+        },
+        { type: "content_block_stop", index: 1 },
+        messageDelta(),
+        { type: "message_stop" },
+      ]),
+    });
+    const stream = await client.beta.messages.create({ ...request, stream: true });
+    for await (const _event of stream) {
+      // drain
+    }
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    expect(span.attributes[outputContent(0, MESSAGE_CONTENT_TEXT)]).toBe("Final summary");
+    expect(span.attributes[outputContent(1, MESSAGE_CONTENT_SIGNATURE)]).toBeUndefined();
+    const outputMessage = JSON.parse(span.attributes[OUTPUT_VALUE] as string);
+    expect(outputMessage.content[0]).toEqual({
+      type: "compaction",
+      content: "Final summary",
+      encrypted_content: "enc",
+    });
+    expect(outputMessage.content[1].signature).toBeUndefined();
   });
 
   it("does not modify the events the caller receives", async () => {
