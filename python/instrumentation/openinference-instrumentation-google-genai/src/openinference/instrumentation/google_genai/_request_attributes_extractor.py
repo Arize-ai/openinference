@@ -37,14 +37,8 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def _as_content_list(contents: Any) -> Any:
-    """Normalize a tuple of contents to a list.
-
-    ``google.genai`` accepts a tuple wherever it accepts a list of contents (its
-    request models coerce one into the other), but ``t_contents`` only treats a
-    ``list`` as a sequence of contents and would otherwise hand the whole tuple
-    to ``t_content``, which rejects it. Converting keeps tuple inputs working.
-    """
+def _normalize_tuple_contents(contents: Any) -> Any:
+    """Match the SDK's tuple-to-list request validation before calling t_contents."""
     return list(contents) if isinstance(contents, tuple) else contents
 
 
@@ -78,7 +72,7 @@ class _RequestAttributesExtractor:
             # System instruction as the first message
             if config and (system_instruction := config.system_instruction):
                 try:
-                    for content in t_contents(_as_content_list(system_instruction)):
+                    for content in t_contents(_normalize_tuple_contents(system_instruction)):
                         for attr, value in self._get_attributes_from_content(content):
                             yield (
                                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
@@ -95,7 +89,7 @@ class _RequestAttributesExtractor:
 
         if input_contents := request_parameters.get("contents"):
             try:
-                for content in t_contents(_as_content_list(input_contents)):
+                for content in t_contents(_normalize_tuple_contents(input_contents)):
                     for message_attributes in self._iter_messages_from_content(content):
                         for attr, value in message_attributes:
                             yield (
