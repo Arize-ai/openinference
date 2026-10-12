@@ -1259,7 +1259,13 @@ function getAnthropicUsageMetadata(usage: unknown): Metadata {
   if ("iterations" in usage && usage.iterations != null) {
     metadata.usage_iterations = usage.iterations;
   }
-  if ("server_tool_use" in usage && usage.server_tool_use != null) {
+  // only when a server tool was used, since the API returns zero counts on most responses
+  if (
+    "server_tool_use" in usage &&
+    usage.server_tool_use != null &&
+    typeof usage.server_tool_use === "object" &&
+    Object.values(usage.server_tool_use).some((count) => typeof count === "number" && count > 0)
+  ) {
     metadata.server_tool_use = usage.server_tool_use;
   }
   return metadata;
