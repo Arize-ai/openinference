@@ -335,7 +335,23 @@ class _MessageResponseAccumulator:
             # next delta would be appended to a buffer missing this one and the tool call's
             # arguments would be silently wrong.
             logger.debug("Failed to accumulate a stream event", exc_info=True)
+            self._keep_failed_content_block_start(chunk)
             self._buffer_failed_input_json_delta(chunk, exception)
+
+    def _keep_failed_content_block_start(self, chunk: Any) -> None:
+        """
+        Adds the block of a content_block_start that the SDK failed to accumulate, e.g. a block
+        type unknown to the SDK under Pydantic v1, as the event carries it, so that the block is
+        recorded and the blocks after it keep their indices, which their deltas refer to.
+        """
+        try:
+            if getattr(chunk, "type", None) != "content_block_start":
+                return
+            content = getattr(self._snapshot, "content", None)
+            if isinstance(content, list) and chunk.index == len(content):
+                content.append(chunk.content_block)
+        except Exception:
+            logger.debug("Failed to keep a content block", exc_info=True)
 
     def _buffer_failed_input_json_delta(self, chunk: Any, exception: Exception) -> None:
         """
