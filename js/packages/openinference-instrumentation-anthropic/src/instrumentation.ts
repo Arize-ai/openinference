@@ -1034,7 +1034,9 @@ function pushInlineToolDefinition(
 
 /**
  * Converts each tool definition into the `llm.tools` attributes: its JSON
- * schema, plus the name and description the spec defines next to it.
+ * schema, plus the name and description the spec defines next to it. Built
+ * here rather than with core's `getLLMAttributes({ tools })`, which records
+ * only the JSON schema.
  */
 function getAnthropicToolsJSONSchema(body: MessageRequestParams): Attributes {
   return getAnthropicToolDefinitions(body).reduce((acc: Attributes, tool, index) => {
@@ -2175,16 +2177,14 @@ function getRunnableToolAttributes({
       ? tool.description
       : undefined;
   const inputSchema: unknown = "input_schema" in tool ? tool.input_schema : undefined;
-  const toolAttributes = getToolAttributes({
-    name: tool.name,
-    description,
-    parameters: isStringRecord(inputSchema) ? inputSchema : {},
-  });
-  if (!isStringRecord(inputSchema)) {
-    // A tool without a schema of its own (e.g. a typed client tool) has no
-    // parameters to record.
-    delete toolAttributes[SemanticConventions.TOOL_PARAMETERS];
-  }
+  // A tool without a schema of its own (e.g. a typed client tool) has no
+  // parameters to record, which the core helper always records.
+  const toolAttributes: Attributes = isStringRecord(inputSchema)
+    ? getToolAttributes({ name: tool.name, description, parameters: inputSchema })
+    : {
+        [SemanticConventions.TOOL_NAME]: tool.name,
+        ...(description != null && { [SemanticConventions.TOOL_DESCRIPTION]: description }),
+      };
   return { ...toolAttributes, ...getInputAttributes(toJSONOutput(args)) };
 }
 
