@@ -47,8 +47,9 @@ const MODULE_NAME = "@anthropic-ai/sdk";
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-anthropic";
 
 /**
- * The name of the span of a `beta.messages.toolRunner()` run, the same as the
- * Python instrumentation's for `beta.messages.tool_runner()`.
+ * The name of the span of a `beta.messages.toolRunner()` run. The Python
+ * instrumentation has no tool runner span yet; this follows the naming
+ * proposed for it in PR #3531 (`beta.messages.tool_runner`).
  */
 const TOOL_RUNNER_SPAN_NAME = "beta.messages.tool_runner";
 
@@ -1024,22 +1025,7 @@ function getAnthropicInputMessageAttributes(
     let toolIndex = 0;
     message.content.forEach((part, index) => {
       const contentsIndexPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${index}.`;
-      if (part.type === "text") {
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = part.text;
-      } else if (part.type === "image") {
-        Object.assign(attributes, getAnthropicImageContentAttributes(contentsIndexPrefix, part));
-      } else if (isToolUseContentBlock(part)) {
-        Object.assign(
-          attributes,
-          getAnthropicToolUseContentAttributes({
-            block: part,
-            contentPrefix: contentsIndexPrefix,
-            toolCallPrefix: `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`,
-          }),
-        );
-        toolIndex++;
-      } else if (part.type === "tool_result") {
+      if (part.type === "tool_result") {
         attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = part.tool_use_id;
         if (typeof part.content === "string") {
           attributes[SemanticConventions.MESSAGE_CONTENT] = part.content;
@@ -1050,27 +1036,17 @@ function getAnthropicInputMessageAttributes(
             attributes[SemanticConventions.MESSAGE_CONTENT] = contentJSON;
           }
         }
-      } else if (part.type === "thinking") {
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
-          "reasoning";
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-          part.thinking;
-        if (part.signature) {
-          attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
-            part.signature;
-        }
-      } else if (part.type === "redacted_thinking") {
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
-          "reasoning";
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = part.data;
-      } else if (part.type === "fallback") {
-        // A prior turn's fallback boundary echoed back to the API
-        Object.assign(attributes, getAnthropicFallbackContentAttributes(contentsIndexPrefix, part));
-      } else {
-        Object.assign(
-          attributes,
-          getAnthropicOtherContentAttributes(contentsIndexPrefix, part, traceConfig),
-        );
+        return;
+      }
+      const block = getAnthropicContentBlockAttributes({
+        block: part,
+        contentPrefix: contentsIndexPrefix,
+        toolCallPrefix: `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`,
+        traceConfig,
+      });
+      Object.assign(attributes, block.attributes);
+      if (block.isToolCall) {
+        toolIndex++;
       }
     });
   }
@@ -1092,44 +1068,70 @@ function getAnthropicOutputMessagesAttributes(
   let toolIndex = 0;
   // Handle content array
   message.content.forEach((content, contentIndex) => {
-    const contentPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
-
-    if (content.type === "text") {
-      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
-      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.text;
-    } else if (isToolUseContentBlock(content)) {
-      // Server and MCP tool calls are recorded as tool calls too, so every
-      // call the model made is visible, whoever ran it.
-      Object.assign(
-        attributes,
-        getAnthropicToolUseContentAttributes({
-          block: content,
-          contentPrefix,
-          toolCallPrefix: `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`,
-        }),
-      );
+    const block = getAnthropicContentBlockAttributes({
+      block: content,
+      contentPrefix: `${indexPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`,
+      toolCallPrefix: `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`,
+      traceConfig,
+    });
+    Object.assign(attributes, block.attributes);
+    if (block.isToolCall) {
       toolIndex++;
-    } else if (content.type === "thinking") {
-      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
-      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.thinking;
-      if (content.signature) {
-        attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
-          content.signature;
-      }
-    } else if (content.type === "redacted_thinking") {
-      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
-      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = content.data;
-    } else if (content.type === "fallback") {
-      Object.assign(attributes, getAnthropicFallbackContentAttributes(contentPrefix, content));
-    } else {
-      Object.assign(
-        attributes,
-        getAnthropicOtherContentAttributes(contentPrefix, content, traceConfig),
-      );
     }
   });
 
   return attributes;
+}
+
+/**
+ * Maps one content block, of a request or of a response, to its
+ * `message_content` attributes, and a tool call to its `message.tool_calls`
+ * entry too. Server and MCP tool calls are recorded as tool calls, so every
+ * call the model made is visible, whoever ran it.
+ */
+function getAnthropicContentBlockAttributes({
+  block,
+  contentPrefix,
+  toolCallPrefix,
+  traceConfig,
+}: {
+  block: ContentBlock | ContentBlockParam;
+  contentPrefix: string;
+  toolCallPrefix: string;
+  traceConfig: TraceConfig;
+}): { attributes: Attributes; isToolCall: boolean } {
+  if (isToolUseContentBlock(block)) {
+    return {
+      attributes: getAnthropicToolUseContentAttributes({ block, contentPrefix, toolCallPrefix }),
+      isToolCall: true,
+    };
+  }
+  const attributes: Attributes = {};
+  if (block.type === "text") {
+    attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+    attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = block.text;
+  } else if (block.type === "image") {
+    Object.assign(attributes, getAnthropicImageContentAttributes(contentPrefix, block));
+  } else if (block.type === "thinking") {
+    attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+    attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = block.thinking;
+    if (block.signature) {
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
+        block.signature;
+    }
+  } else if (block.type === "redacted_thinking") {
+    attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+    attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = block.data;
+  } else if (block.type === "fallback") {
+    // On input, a prior turn's fallback boundary echoed back to the API
+    Object.assign(attributes, getAnthropicFallbackContentAttributes(contentPrefix, block));
+  } else {
+    Object.assign(
+      attributes,
+      getAnthropicOtherContentAttributes(contentPrefix, block, traceConfig),
+    );
+  }
+  return { attributes, isToolCall: false };
 }
 
 /**
