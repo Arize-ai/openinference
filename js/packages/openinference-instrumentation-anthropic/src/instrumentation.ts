@@ -237,20 +237,13 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       <CreateType extends AnyMessagesCreateType>(original: CreateType): any => {
         return function patchedCreate(this: unknown, ...args: Parameters<CreateType>) {
           const body = args[0];
-          const { messages: _messages, ...invocationParameters } = body;
           const span = instrumentation.oiTracer.startSpan(`Anthropic Messages`, {
             kind: SpanKind.INTERNAL,
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-              [SemanticConventions.LLM_MODEL_NAME]: body.model,
-              [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
-              [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
-              [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-              [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
               [SemanticConventions.LLM_PROVIDER]: LLMProvider.ANTHROPIC,
-              ...getAnthropicInputMessagesAttributes(body),
-              ...getAnthropicToolsJSONSchema(body),
+              ...safelyGetAttributes(() => getAnthropicRequestAttributes(body)),
             },
           });
           const execContext = getExecContext(span);
@@ -285,40 +278,27 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             span.end();
           };
 
-          const recordError = (error: Error) => {
+          const recordError = (error: unknown) => {
             if (spanEnded) {
               return;
             }
-            span.recordException(error);
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: error.message,
-            });
+            recordSpanError(span, error);
             endSpan();
           };
 
           const wrappedPromiseThen = (result: Message | Stream<RawMessageStreamEvent>) => {
             if (isAnthropicMessageResponse(result)) {
               // Record the results
-              span.setAttributes({
-                [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
-                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                // Override the model from the value sent by the server
-                [SemanticConventions.LLM_MODEL_NAME]: result.model,
-                [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
-                ...getAnthropicFinishReasonAttributes(result.stop_reason),
-                ...getAnthropicOutputMessagesAttributes(result),
-                ...getAnthropicUsageAttributes(result.usage),
-              });
+              span.setAttributes(safelyGetAttributes(() => getAnthropicResponseAttributes(result)));
               span.setStatus({ code: SpanStatusCode.OK });
               endSpan();
             } else if (isAnthropicStream(result)) {
-              // This is a streaming response
-              // handle the chunks and add them to the span
-              // First split the stream via tee
-              const [leftStream, rightStream] = result.tee();
-              void consumeAnthropicStreamChunks(rightStream, span);
-              result = leftStream;
+              // Observe the events as the caller reads them, so the caller's
+              // stream keeps its own iterator (break / abort still cancel the
+              // request) and nothing is read ahead or buffered on its behalf.
+              instrumentAnthropicStream({ stream: result, span, endSpan, recordError });
+            } else {
+              endSpan();
             }
 
             return result;
@@ -364,7 +344,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             return context.bind(execContext, wrappedPromise);
           }
 
-          const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error: Error) => {
+          const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error: unknown) => {
             recordError(error);
             throw error;
           });
@@ -428,6 +408,223 @@ function hasThenUnwrap<T>(promise: PromiseLike<T>): promise is APIPromise<T> {
 }
 
 /**
+ * Runs an attribute extractor so that a malformed request or response can never
+ * make the instrumentation throw into the caller's code. A failure costs the
+ * attributes it would have produced, and is reported through `diag`.
+ */
+function safelyGetAttributes(getAttributes: () => Attributes): Attributes {
+  try {
+    return getAttributes();
+  } catch (error) {
+    diag.warn(`Failed to extract ${MODULE_NAME} span attributes`, error);
+    return {};
+  }
+}
+
+/**
+ * Records an error on the span and sets its status, without ending it.
+ */
+function recordSpanError(span: Span, error: unknown) {
+  if (error instanceof Error) {
+    span.recordException(error);
+    span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+  } else {
+    span.recordException(String(error));
+    span.setStatus({ code: SpanStatusCode.ERROR, message: String(error) });
+  }
+}
+
+/**
+ * Builds the request attributes of an Anthropic messages request.
+ */
+function getAnthropicRequestAttributes(body: MessageCreateParams): Attributes {
+  const { messages: _messages, ...invocationParameters } = body;
+  const attributes: Attributes = {
+    [SemanticConventions.LLM_MODEL_NAME]: body.model,
+    [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
+    ...getAnthropicInputMessagesAttributes(body),
+    ...getAnthropicToolsJSONSchema(body),
+  };
+  const input = safelyJSONStringify(body);
+  if (input != null) {
+    attributes[SemanticConventions.INPUT_VALUE] = input;
+    attributes[SemanticConventions.INPUT_MIME_TYPE] = MimeType.JSON;
+  }
+  const invocationParametersJSON = safelyJSONStringify(invocationParameters);
+  if (invocationParametersJSON != null) {
+    attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] = invocationParametersJSON;
+  }
+  return attributes;
+}
+
+/**
+ * Builds the response attributes of a non-streaming Anthropic message.
+ */
+function getAnthropicResponseAttributes(result: Message): Attributes {
+  const attributes: Attributes = {
+    // Override the model from the value sent by the server
+    [SemanticConventions.LLM_MODEL_NAME]: result.model,
+    [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
+    ...getAnthropicFinishReasonAttributes(result.stop_reason),
+    ...getAnthropicOutputMessagesAttributes(result),
+    ...getAnthropicUsageAttributes(result.usage ?? {}),
+  };
+  const output = safelyJSONStringify(result);
+  if (output != null) {
+    attributes[SemanticConventions.OUTPUT_VALUE] = output;
+    attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+  }
+  return attributes;
+}
+
+/**
+ * Observes an Anthropic stream through the iterator its caller reads, and ends
+ * the span when the caller is done with it:
+ *
+ * - read to the end: the span ends with status OK;
+ * - left early (`break`, `return()`, `toReadableStream()` cancel) or aborted
+ *   through `stream.controller`: the span ends with what was read so far and
+ *   the status left unset, as the request did not run to completion;
+ * - failed (a network error or an `error` event): the error is recorded on
+ *   the span, which ends with status ERROR, and the error still reaches the
+ *   caller.
+ *
+ * The SDK `Stream` builds every iterator it hands out (`for await`, `tee()`,
+ * `toReadableStream()`) from its `iterator` factory, so wrapping that factory
+ * observes all of them while leaving the stream's own controller, early-exit
+ * abort and helpers untouched.
+ */
+function instrumentAnthropicStream({
+  stream,
+  span,
+  endSpan,
+  recordError,
+}: {
+  stream: Stream<RawMessageStreamEvent>;
+  span: Span;
+  endSpan: () => void;
+  recordError: (error: unknown) => void;
+}) {
+  const state = createAnthropicStreamState();
+  const recordStreamAttributes = () => {
+    span.setAttributes(safelyGetAttributes(() => getAnthropicStreamAttributes(state)));
+  };
+  const observer: AnthropicStreamObserver = {
+    onEvent: (event) => {
+      try {
+        applyAnthropicStreamEvent({ chunk: event, state });
+      } catch (error) {
+        diag.warn(`Failed to record a ${MODULE_NAME} stream event`, error);
+      }
+    },
+    onDone: () => {
+      recordStreamAttributes();
+      if (!stream.controller.signal.aborted) {
+        span.setStatus({ code: SpanStatusCode.OK });
+      }
+      endSpan();
+    },
+    onReturn: () => {
+      recordStreamAttributes();
+      endSpan();
+    },
+    onError: (error) => {
+      recordStreamAttributes();
+      recordError(error);
+    },
+  };
+
+  const iteratorFactory: unknown = Reflect.get(stream, "iterator");
+  if (typeof iteratorFactory === "function") {
+    Reflect.set(stream, "iterator", () =>
+      wrapAnthropicStreamIterator({
+        iterator: getAsyncIterator(Reflect.apply(iteratorFactory, stream, [])),
+        observer,
+      }),
+    );
+    return;
+  }
+  // Fall back to the async iterator protocol should the SDK stop building its
+  // iterators from `iterator`.
+  const asyncIterator = stream[Symbol.asyncIterator].bind(stream);
+  Object.defineProperty(stream, Symbol.asyncIterator, {
+    configurable: true,
+    writable: true,
+    value: () => wrapAnthropicStreamIterator({ iterator: asyncIterator(), observer }),
+  });
+}
+
+/**
+ * Narrows the value returned by the SDK stream's iterator factory.
+ */
+function getAsyncIterator(value: unknown): AsyncIterator<RawMessageStreamEvent> {
+  if (isAsyncIterator(value)) {
+    return value;
+  }
+  throw new TypeError(`${MODULE_NAME} stream iterator factory did not return an iterator`);
+}
+
+function isAsyncIterator(value: unknown): value is AsyncIterator<RawMessageStreamEvent> {
+  return (
+    value != null &&
+    typeof value === "object" &&
+    "next" in value &&
+    typeof value.next === "function"
+  );
+}
+
+interface AnthropicStreamObserver {
+  onEvent: (event: RawMessageStreamEvent) => void;
+  onDone: () => void;
+  onReturn: () => void;
+  onError: (error: unknown) => void;
+}
+
+/**
+ * Wraps a stream iterator so that each event, the end of the stream, an early
+ * return and a failure are reported to the observer. Calls are forwarded to the
+ * SDK iterator unchanged, so its `return()` still aborts the HTTP request when
+ * the caller leaves the loop early.
+ */
+function wrapAnthropicStreamIterator({
+  iterator,
+  observer,
+}: {
+  iterator: AsyncIterator<RawMessageStreamEvent>;
+  observer: AnthropicStreamObserver;
+}): AsyncIterator<RawMessageStreamEvent> {
+  return {
+    async next() {
+      let result: IteratorResult<RawMessageStreamEvent>;
+      try {
+        result = await iterator.next();
+      } catch (error) {
+        observer.onError(error);
+        throw error;
+      }
+      if (result.done) {
+        observer.onDone();
+      } else {
+        observer.onEvent(result.value);
+      }
+      return result;
+    },
+    async return(value?: unknown) {
+      try {
+        const result: IteratorResult<RawMessageStreamEvent> = iterator.return
+          ? await iterator.return(value)
+          : { done: true, value };
+        observer.onReturn();
+        return result;
+      } catch (error) {
+        observer.onError(error);
+        throw error;
+      }
+    },
+  };
+}
+
+/**
  * type-guard that checks if the response is an Anthropic message response
  */
 function isAnthropicMessageResponse(response: unknown): response is Message {
@@ -479,7 +676,7 @@ function getAnthropicFallbackContentAttributes(
   const reason = typeof category === "string" ? ` (refusal: ${category})` : "";
   return {
     [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: "fallback",
-    [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`]: `${block.from.model} -> ${block.to.model}${reason}`,
+    [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`]: `${block.from?.model} -> ${block.to?.model}${reason}`,
   };
 }
 
@@ -711,6 +908,12 @@ interface AnthropicStreamState {
   responseModel?: string;
   finishReason?: string;
   toolIndex: number;
+  /**
+   * The `message.tool_calls` index of each tool_use content block, by the
+   * block's stream `index`, so `input_json_delta` events are appended to the
+   * tool call they belong to rather than to the latest one.
+   */
+  toolCallIndexByBlock: Map<number, number>;
 }
 
 /**
@@ -756,6 +959,7 @@ function applyAnthropicContentBlockStart({
 
   if (contentBlock.type === "tool_use") {
     state.toolIndex++;
+    state.toolCallIndexByBlock.set(chunk.index, state.toolIndex);
     const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${state.toolIndex}.`;
     toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = contentBlock.id;
     toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
@@ -777,7 +981,7 @@ function applyAnthropicContentBlockStart({
     contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
       contentBlock.data;
   } else if (contentBlock.type === "fallback") {
-    state.responseModel = contentBlock.to.model;
+    state.responseModel = contentBlock.to?.model ?? state.responseModel;
     Object.assign(
       contentAttributes,
       getAnthropicFallbackContentAttributes(contentPrefix, contentBlock),
@@ -809,12 +1013,15 @@ function applyAnthropicContentBlockDelta({
     contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
       chunk.delta.signature;
   } else if (chunk.delta.type === "input_json_delta") {
-    const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${state.toolIndex}.`;
-    const argumentsKey = `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`;
-    const updatedArgs = (toolCallAttributes[argumentsKey] || "") + chunk.delta.partial_json;
-    toolCallAttributes[argumentsKey] = updatedArgs;
-    contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
-      updatedArgs;
+    const argumentsKey = `${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`;
+    const updatedArgs = (contentAttributes[argumentsKey] || "") + chunk.delta.partial_json;
+    contentAttributes[argumentsKey] = updatedArgs;
+    const toolCallIndex = state.toolCallIndexByBlock.get(chunk.index);
+    if (toolCallIndex != null) {
+      toolCallAttributes[
+        `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+      ] = updatedArgs;
+    }
   }
 }
 
@@ -862,32 +1069,38 @@ function getAnthropicStreamAttributes(state: AnthropicStreamState): Attributes {
 }
 
 /**
- * Consumes the stream chunks and adds them to the span
+ * Creates the empty state a stream's events are accumulated into.
  */
-async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent>, span: Span) {
-  const state: AnthropicStreamState = {
+function createAnthropicStreamState(): AnthropicStreamState {
+  return {
     streamResponse: "",
     toolCallAttributes: {},
     contentAttributes: {},
     startUsage: {},
     deltaUsage: {},
     toolIndex: -1,
+    toolCallIndexByBlock: new Map(),
   };
+}
 
-  for await (const chunk of stream) {
-    if (chunk.type === "message_start") {
-      state.responseModel = chunk.message.model;
-      state.startUsage = chunk.message.usage;
-    } else if (chunk.type === "message_delta") {
-      applyAnthropicMessageDelta({ chunk, state });
-    } else if (chunk.type === "content_block_start") {
-      applyAnthropicContentBlockStart({ chunk, state });
-    } else if (chunk.type === "content_block_delta") {
-      applyAnthropicContentBlockDelta({ chunk, state });
-    }
+/**
+ * Applies one stream event to the accumulated state.
+ */
+function applyAnthropicStreamEvent({
+  chunk,
+  state,
+}: {
+  chunk: RawMessageStreamEvent;
+  state: AnthropicStreamState;
+}) {
+  if (chunk.type === "message_start") {
+    state.responseModel = chunk.message.model;
+    state.startUsage = chunk.message.usage ?? {};
+  } else if (chunk.type === "message_delta") {
+    applyAnthropicMessageDelta({ chunk, state });
+  } else if (chunk.type === "content_block_start") {
+    applyAnthropicContentBlockStart({ chunk, state });
+  } else if (chunk.type === "content_block_delta") {
+    applyAnthropicContentBlockDelta({ chunk, state });
   }
-
-  span.setAttributes(getAnthropicStreamAttributes(state));
-  span.setStatus({ code: SpanStatusCode.OK });
-  span.end();
 }
