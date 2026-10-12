@@ -1,4 +1,5 @@
 import inspect
+import json
 import logging
 from types import TracebackType
 from typing import (
@@ -9,6 +10,7 @@ from typing import (
     Dict,
     Iterator,
     Optional,
+    Set,
     Tuple,
     Type,
 )
@@ -272,7 +274,7 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
 class _MessageResponseAccumulator:
     """Accumulates raw SSE events into a ParsedMessage using the SDK's own accumulate_event."""
 
-    __slots__ = ("_is_beta", "_request_headers", "_snapshot", "_json_bufs")
+    __slots__ = ("_is_beta", "_request_headers", "_snapshot", "_json_bufs", "_stale_inputs")
 
     def __init__(
         self,
@@ -286,39 +288,68 @@ class _MessageResponseAccumulator:
         # Buffers partial tool-use input JSON across events, keyed by content block
         # index.
         self._json_bufs: Dict[int, bytes] = {}
+        # Indices of content blocks whose tool-use input could not be updated from a
+        # delta, so their input must be parsed again from the buffer at the end.
+        self._stale_inputs: Set[int] = set()
 
     def process_chunk(self, chunk: "RawMessageStreamEvent") -> None:
         # Beta and stable chunks need their matching accumulate_event; beta's
         # raises on stable chunks and vice versa silently drops updates.
-        if self._is_beta:
-            from anthropic.lib.streaming._beta_messages import (
-                accumulate_event as accumulate_beta_event,
-            )
+        try:
+            if self._is_beta:
+                from anthropic.lib.streaming._beta_messages import (
+                    accumulate_event as accumulate_beta_event,
+                )
 
-            beta_kwargs: Dict[str, Any] = dict(
-                event=chunk,
-                current_snapshot=self._snapshot,
-                request_headers=self._request_headers,
-                json_bufs=self._json_bufs,
-            )
-            try:
+                beta_kwargs: Dict[str, Any] = dict(
+                    event=chunk,
+                    current_snapshot=self._snapshot,
+                    request_headers=self._request_headers,
+                    json_bufs=self._json_bufs,
+                )
                 self._snapshot = accumulate_beta_event(**beta_kwargs)
-            except Exception:
-                pass
-        else:
-            from anthropic.lib.streaming._messages import accumulate_event
+            else:
+                from anthropic.lib.streaming._messages import accumulate_event
 
-            try:
                 self._snapshot = accumulate_event(
                     event=chunk,
                     current_snapshot=self._snapshot,
                     json_bufs=self._json_bufs,
                 )
-            except Exception:
-                pass
+        except Exception:
+            # Keep going with the rest of the stream. A failed input_json_delta, e.g. one that
+            # leaves the partial JSON unparseable, is not added to the buffer by the SDK, so it
+            # is added here, or the next delta would be appended to a buffer missing this one
+            # and the tool call's arguments would be silently wrong.
+            logger.debug("Failed to accumulate a stream event", exc_info=True)
+            self._buffer_failed_input_json_delta(chunk)
+
+    def _buffer_failed_input_json_delta(self, chunk: Any) -> None:
+        try:
+            if getattr(chunk, "type", None) != "content_block_delta":
+                return
+            delta = chunk.delta
+            if getattr(delta, "type", None) != "input_json_delta":
+                return
+            index = chunk.index
+            self._json_bufs[index] = self._json_bufs.get(index, b"") + bytes(
+                delta.partial_json, "utf-8"
+            )
+            self._stale_inputs.add(index)
+        except Exception:
+            logger.debug("Failed to buffer a tool-use input delta", exc_info=True)
 
     def _result(self) -> Any:
-        return self._snapshot
+        snapshot = self._snapshot
+        for index in self._stale_inputs:
+            # The arguments are recorded only if the complete JSON parses, otherwise the last
+            # partial parse is kept.
+            try:
+                snapshot.content[index].input = json.loads(self._json_bufs[index])
+            except Exception:
+                logger.debug("Failed to parse tool-use input JSON", exc_info=True)
+        self._stale_inputs.clear()
+        return snapshot
 
 
 class _MessageExtractor:
