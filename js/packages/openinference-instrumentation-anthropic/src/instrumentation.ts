@@ -1968,8 +1968,22 @@ function applyAnthropicStreamEvent({
   state: AnthropicStreamState;
 }) {
   if (chunk.type === "message_start") {
-    const { content: _content, ...message } = chunk.message;
+    const { content, ...message } = chunk.message;
     state.message = message;
+    // A message can start with content and a stop reason already in it: the
+    // stream resuming a programmatic tool call sends its tool_use there, with
+    // no block or message_delta events. The SDK's MessageStream keeps them, so
+    // they seed the message here too.
+    if (Array.isArray(content)) {
+      content.forEach((block, index) => {
+        if (block != null && typeof block === "object") {
+          state.content[index] = { ...block };
+        }
+      });
+    }
+    if (chunk.message.stop_reason != null) {
+      state.finishReason = chunk.message.stop_reason;
+    }
     state.responseModel = chunk.message.model;
     state.startUsage = chunk.message.usage ?? {};
   } else if (chunk.type === "message_delta") {
