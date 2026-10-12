@@ -1,4 +1,4 @@
-import { context } from "@opentelemetry/api";
+import { context, SpanStatusCode } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
@@ -1145,6 +1145,106 @@ describe("OpenAIInstrumentation", () => {
         "output.value": "{"id":"chatcmpl-parseTest","object":"chat.completion","created":1706000000,"model":"gpt-4o-2024-08-06","choices":[{"index":0,"message":{"role":"assistant","content":"{\\"name\\":\\"science fair\\",\\"date\\":\\"Friday\\",\\"participants\\":[\\"Alice\\",\\"Bob\\"]}"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":10,"total_tokens":30}}",
       }
     `);
+  });
+  // https://github.com/Arize-ai/openinference/issues/3845: a rejected create() must
+  // still end its span, otherwise failed calls vanish from traces.
+  describe("rejected create() (#3845)", () => {
+    const rejectPost = (reason: unknown) =>
+      vi
+        .spyOn(openai, "post")
+        .mockImplementation(
+          () => new APIPromise(openai, Promise.reject(reason), () => undefined as never),
+        );
+
+    it.each([
+      [
+        "chat.completions",
+        "OpenAI Chat Completions",
+        () =>
+          openai.chat.completions.create({
+            messages: [{ role: "user", content: "boom" }],
+            model: "gpt-3.5-turbo",
+          }),
+      ],
+      [
+        "streaming chat.completions",
+        "OpenAI Chat Completions",
+        () =>
+          openai.chat.completions.create({
+            messages: [{ role: "user", content: "boom" }],
+            model: "gpt-3.5-turbo",
+            stream: true,
+          }),
+      ],
+      [
+        "completions",
+        "OpenAI Completions",
+        () => openai.completions.create({ prompt: "boom", model: "gpt-3.5-turbo-instruct" }),
+      ],
+      [
+        "embeddings",
+        "OpenAI Embeddings",
+        () => openai.embeddings.create({ input: "boom", model: "text-embedding-ada-002" }),
+      ],
+      [
+        "responses",
+        "OpenAI Responses",
+        () => openai.responses.create({ input: "boom", model: "gpt-4o" }),
+      ],
+    ])(
+      "ends the span with an ERROR status when %s.create() rejects",
+      async (_, spanName, create) => {
+        rejectPost(new Error("request failed"));
+
+        await expect(create()).rejects.toThrow("request failed");
+
+        const spans = memoryExporter.getFinishedSpans();
+        expect(spans.length).toBe(1);
+        expect(spans[0].name).toBe(spanName);
+        expect(spans[0].status).toEqual({ code: SpanStatusCode.ERROR, message: "request failed" });
+        expect(spans[0].events.map((event) => event.name)).toEqual(["exception"]);
+      },
+    );
+
+    it("ends the span when create() rejects with a non-Error value", async () => {
+      rejectPost("plain string rejection");
+
+      await expect(
+        openai.chat.completions.create({
+          messages: [{ role: "user", content: "boom" }],
+          model: "gpt-3.5-turbo",
+        }),
+      ).rejects.toBe("plain string rejection");
+
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(spans[0].status).toEqual({
+        code: SpanStatusCode.ERROR,
+        message: "plain string rejection",
+      });
+      expect(spans[0].events.map((event) => event.name)).toEqual(["exception"]);
+    });
+
+    it("leaves the body readable for callers of asResponse()", async () => {
+      // Observing the rejection must not parse the response: that would consume the
+      // body before a caller of asResponse() could read it.
+      const completion = { id: "chatcmpl-1", object: "chat.completion", choices: [] };
+      // A stub fetch, not a post mock: a vi.spyOn mock awaits the returned
+      // APIPromise to record its result, which would itself consume the body.
+      const client = new OpenAI({
+        apiKey: "fake-api-key",
+        fetch: async () =>
+          new Response(JSON.stringify(completion), {
+            headers: { "content-type": "application/json" },
+          }),
+      });
+
+      const response = await client.chat.completions
+        .create({ messages: [{ role: "user", content: "hi" }], model: "gpt-3.5-turbo" })
+        .asResponse();
+
+      expect(await response.json()).toEqual(completion);
+    });
   });
 });
 

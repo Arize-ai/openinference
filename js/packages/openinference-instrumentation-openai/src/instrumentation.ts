@@ -327,6 +327,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             },
           });
           const execContext = getExecContext(span);
+          const recordError = (error: unknown) => endSpanWithError(span, error);
           const execPromise = safeExecuteInTheMiddle(
             () => {
               return context.with(trace.setSpan(execContext, span), () => {
@@ -336,12 +337,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             (error) => {
               // Push the error to the span
               if (error) {
-                span.recordException(error);
-                span.setStatus({
-                  code: SpanStatusCode.ERROR,
-                  message: error.message,
-                });
-                span.end();
+                recordError(error);
               }
             },
           );
@@ -375,6 +371,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
 
             return result;
           };
+          observeRejection(execPromise, recordError);
           const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
           return context.bind(execContext, wrappedPromise);
         };
@@ -404,7 +401,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             },
           });
           const execContext = getExecContext(span);
-
+          const recordError = (error: unknown) => endSpanWithError(span, error);
           const execPromise = safeExecuteInTheMiddle(
             () => {
               return context.with(trace.setSpan(execContext, span), () => {
@@ -414,12 +411,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             (error) => {
               // Push the error to the span
               if (error) {
-                span.recordException(error);
-                span.setStatus({
-                  code: SpanStatusCode.ERROR,
-                  message: error.message,
-                });
-                span.end();
+                recordError(error);
               }
             },
           );
@@ -439,6 +431,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             }
             return result;
           };
+          observeRejection(execPromise, recordError);
           const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
           return context.bind(execContext, wrappedPromise);
         };
@@ -472,6 +465,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             },
           });
           const execContext = getExecContext(span);
+          const recordError = (error: unknown) => endSpanWithError(span, error);
           const execPromise = safeExecuteInTheMiddle(
             () => {
               return context.with(trace.setSpan(execContext, span), () => {
@@ -481,12 +475,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             (error) => {
               // Push the error to the span
               if (error) {
-                span.recordException(error);
-                span.setStatus({
-                  code: SpanStatusCode.ERROR,
-                  message: error.message,
-                });
-                span.end();
+                recordError(error);
               }
             },
           );
@@ -502,6 +491,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             span.end();
             return result;
           };
+          observeRejection(execPromise, recordError);
           const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
           return context.bind(execContext, wrappedPromise);
         };
@@ -536,6 +526,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               },
             });
             const execContext = getExecContext(span);
+            const recordError = (error: unknown) => endSpanWithError(span, error);
             const execPromise = safeExecuteInTheMiddle(
               () => {
                 return context.with(trace.setSpan(execContext, span), () => {
@@ -545,12 +536,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               (error) => {
                 // Push the error to the span
                 if (error) {
-                  span.recordException(error);
-                  span.setStatus({
-                    code: SpanStatusCode.ERROR,
-                    message: error.message,
-                  });
-                  span.end();
+                  recordError(error);
                 }
               },
             );
@@ -588,6 +574,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
 
               return result;
             };
+            observeRejection(execPromise, recordError);
             const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
             return context.bind(execContext, wrappedPromise);
           };
@@ -616,14 +603,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               },
             });
             const execContext = getExecContext(span);
-            const recordError = (error: unknown) => {
-              span.recordException(error instanceof Error ? error : String(error));
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: error instanceof Error ? error.message : String(error),
-              });
-              span.end();
-            };
+            const recordError = (error: unknown) => endSpanWithError(span, error);
             const execPromise = safeExecuteInTheMiddle(
               () => {
                 return context.with(trace.setSpan(execContext, span), () => {
@@ -1114,7 +1094,8 @@ function isAPIPromise<T>(promise: unknown): promise is APIPromise<T> {
  * failed request would leave its span open. For an APIPromise the rejection is
  * observed through `asResponse()`, which settles with the underlying HTTP
  * promise and never parses the body: parsing it here as well would consume the
- * body before the caller reads it.
+ * body before the caller reads it. So only a failed request is observed, not a
+ * response body that fails to parse.
  *
  * @param promise - The value returned by the original SDK method
  * @param onRejected - Called with the rejection reason
@@ -1125,6 +1106,24 @@ function observeRejection(promise: unknown, onRejected: (error: unknown) => void
   } else if (promise instanceof Promise) {
     void promise.then(undefined, onRejected);
   }
+}
+
+/**
+ * Records the error on the span, sets its status to ERROR, and ends it.
+ *
+ * Used both when the SDK method throws synchronously and, through
+ * {@link observeRejection}, when its promise rejects (#3845).
+ *
+ * @param span - The span to end
+ * @param error - The thrown or rejected value, which need not be an Error
+ */
+function endSpanWithError(span: Span, error: unknown): void {
+  span.recordException(error instanceof Error ? error : String(error));
+  span.setStatus({
+    code: SpanStatusCode.ERROR,
+    message: error instanceof Error ? error.message : String(error),
+  });
+  span.end();
 }
 
 /**

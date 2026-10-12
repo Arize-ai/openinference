@@ -324,7 +324,7 @@ def test_context_attributes_propagation(in_memory_span_exporter: InMemorySpanExp
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    attrs = dict(span.attributes or {})
+    attrs: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "Chat"
     assert span.status.status_code == trace_api.StatusCode.OK
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value

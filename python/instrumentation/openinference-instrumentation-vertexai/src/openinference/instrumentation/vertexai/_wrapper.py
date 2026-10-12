@@ -30,6 +30,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, use_span
+from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -40,7 +41,6 @@ from openinference.instrumentation.vertexai._accumulator import (
     _PartsAccumulator,
 )
 from openinference.instrumentation.vertexai._proxy import _proxy
-from openinference.instrumentation.vertexai._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,

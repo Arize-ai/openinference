@@ -18,6 +18,7 @@ from opentelemetry.context import (
     detach,
     set_value,
 )
+from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -35,7 +36,6 @@ from ._blob_upload import (
     is_valid_reference_uri,
     load_blob_uploader,
 )
-from ._types import AttributeValue
 from .logging import logger
 
 

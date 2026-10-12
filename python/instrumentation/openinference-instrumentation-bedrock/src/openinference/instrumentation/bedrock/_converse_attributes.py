@@ -223,15 +223,19 @@ def get_token_counts(output_params: ConverseResponseTypeDef) -> TokenCount | Non
     if "usage" not in output_params:
         return None
     usage = output_params["usage"]
+    cache_read = usage.get("cacheReadInputTokens")
+    cache_write = usage.get("cacheWriteInputTokens")
+    # inputTokens excludes cache reads and writes, while totalTokens includes them. Fold the
+    # cache tokens into the prompt count so that prompt + completion matches the total.
     token_count = TokenCount(
-        prompt=usage["inputTokens"],
+        prompt=usage["inputTokens"] + (cache_read or 0) + (cache_write or 0),
         completion=usage["outputTokens"],
         total=usage["totalTokens"],
     )
     prompt_details: PromptDetails = {}
-    if (cache_read := usage.get("cacheReadInputTokens")) is not None:
+    if cache_read is not None:
         prompt_details["cache_read"] = cache_read
-    if (cache_write := usage.get("cacheWriteInputTokens")) is not None:
+    if cache_write is not None:
         prompt_details["cache_write"] = cache_write
     if prompt_details:
         token_count["prompt_details"] = prompt_details

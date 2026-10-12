@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.1...python-openinference-instrumentation-mistralai-v2.2.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+* **mistralai:** end the LLM span when a stream is closed, abandoned, or used as a context manager ([#3989](https://github.com/Arize-ai/openinference/issues/3989)) ([12f2cc0](https://github.com/Arize-ai/openinference/commit/12f2cc035edfb00b60b656d977f07abfb7a69900))
+
 ## [2.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.0...python-openinference-instrumentation-mistralai-v2.2.1) (2026-10-01)
 
 
