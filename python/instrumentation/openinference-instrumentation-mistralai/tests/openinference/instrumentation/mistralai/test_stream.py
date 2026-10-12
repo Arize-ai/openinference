@@ -48,10 +48,6 @@ async def test_async_stream_tolerates_empty_choices_chunk(
     exactly what this repo's instrumentation contract forbids. Every other
     `choices` access in this package already guards against an empty list;
     this one didn't.
-
-    A stream that ends without any chunk carrying a `finish_reason` is out of
-    scope here: `stream_async_with_accumulator` has no `finally`, so its span
-    is never ended (0 spans exported) both before and after this fix.
     """
     usage_only_chunk = SimpleNamespace(
         data=SimpleNamespace(choices=[], usage=SimpleNamespace(total_tokens=10))
@@ -73,6 +69,34 @@ async def test_async_stream_tolerates_empty_choices_chunk(
         received.append(event)
 
     assert received == [normal_chunk, usage_only_chunk]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.UNSET
+    assert not any(event.name == "exception" for event in spans[0].events)
+
+
+@pytest.mark.asyncio
+async def test_async_stream_without_finish_reason_still_exports_span(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """A stream made only of empty-`choices` chunks never reports a
+    `finish_reason`; the generator's `finally` must still end the span."""
+    usage_only_chunk = SimpleNamespace(
+        data=SimpleNamespace(choices=[], usage=SimpleNamespace(total_tokens=10))
+    )
+
+    with_span = _make_with_span(tracer_provider)
+    async_stream = _AsyncStream(
+        stream=_FakeAsyncEventStream([usage_only_chunk]),
+        with_span=with_span,
+    )
+
+    received = []
+    async for event in await async_stream.stream_async_with_accumulator():
+        received.append(event)
+
+    assert received == [usage_only_chunk]
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].status.status_code == trace_api.StatusCode.UNSET
