@@ -534,6 +534,40 @@ describe("AnthropicInstrumentation - content blocks", () => {
     });
   });
 
+  it("records the content and stop reason a stream's message_start already carries", async () => {
+    // The stream resuming a programmatic tool call sends the next tool_use in
+    // message_start, with no block or message_delta events.
+    const toolUse = {
+      type: "tool_use",
+      id: "toolu_pear",
+      name: "get_price",
+      input: { fruit: "pear" },
+      caller: { type: "code_execution_20260120", tool_id: "srvtoolu_1" },
+    };
+    const client = new Anthropic({
+      apiKey: "fake-api-key",
+      fetch: sseFetch([
+        messageStart({ content: [toolUse], stop_reason: "tool_use" }),
+        { type: "message_stop" },
+      ]),
+    });
+    const stream = await client.beta.messages.create({ ...request, stream: true });
+    for await (const _event of stream) {
+      // drain
+    }
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    expect(span.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("tool_use");
+    expect(span.attributes[outputToolCall(0, TOOL_CALL_ID)]).toBe("toolu_pear");
+    expect(span.attributes[outputToolCall(0, TOOL_CALL_FUNCTION_ARGUMENTS_JSON)]).toBe(
+      JSON.stringify({ fruit: "pear" }),
+    );
+    expect(JSON.parse(span.attributes[OUTPUT_VALUE] as string).content).toEqual([toolUse]);
+    const metadata = JSON.parse(span.attributes[METADATA] as string);
+    expect(metadata.tool_callers).toEqual({ toolu_pear: toolUse.caller });
+  });
+
   it("does not modify the events the caller receives", async () => {
     const client = new Anthropic({
       apiKey: "fake-api-key",
