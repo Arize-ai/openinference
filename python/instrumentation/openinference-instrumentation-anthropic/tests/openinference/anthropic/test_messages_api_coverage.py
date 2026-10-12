@@ -1095,3 +1095,28 @@ def test_zero_server_tool_counts_are_not_recorded() -> None:
         "server_tool_use": {"web_search_requests": 0, "web_fetch_requests": 0},
     }
     assert "server_tool_use" not in _get_response_metadata({"usage": usage})
+
+
+_FALLBACK_BLOCK: Dict[str, Any] = {
+    "type": "fallback",
+    "from": {"model": "claude-fable-5"},
+    "to": {"model": "claude-opus-4-8"},
+    "trigger": {"type": "refusal", "category": "cyber"},
+}
+
+
+def test_output_value_has_the_api_field_names(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(
+        lambda request: httpx2.Response(200, json=_message_json([_FALLBACK_BLOCK]))
+    )
+    client.beta.messages.create(
+        model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "hi"}]
+    )
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    (block,) = json.loads(str(attributes[SpanAttributes.OUTPUT_VALUE]))["content"]
+    assert block["from"] == {"model": "claude-fable-5"}
+    assert "from_" not in block

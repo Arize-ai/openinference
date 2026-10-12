@@ -201,7 +201,7 @@ def _assert_fallback_content_block_span(span: Any) -> None:
                 {"type": "text", "text": "Partial response"},
                 {
                     "type": "fallback",
-                    "from_": {"model": REQUESTED_MODEL},
+                    "from": {"model": REQUESTED_MODEL},
                     "to": {"model": FALLBACK_MODEL},
                     "trigger": {"type": "refusal", "category": "reasoning_extraction"},
                 },

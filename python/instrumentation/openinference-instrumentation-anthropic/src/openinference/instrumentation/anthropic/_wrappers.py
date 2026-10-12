@@ -844,7 +844,8 @@ def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
 
 @_stop_on_exception
 def _get_outputs(response: "BaseModel") -> Iterator[Tuple[str, Any]]:
-    yield OUTPUT_VALUE, response.model_dump_json()
+    # by_alias, so the fields have the API's names, e.g. a fallback block's `from`
+    yield OUTPUT_VALUE, response.model_dump_json(by_alias=True)
     yield OUTPUT_MIME_TYPE, JSON
 
 

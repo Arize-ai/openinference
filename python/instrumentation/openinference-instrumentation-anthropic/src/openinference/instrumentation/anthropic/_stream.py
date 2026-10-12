@@ -385,7 +385,8 @@ class _MessageExtractor:
         snapshot = self._snapshot
         if snapshot is None:
             return
-        yield SpanAttributes.OUTPUT_VALUE, snapshot.model_dump_json()
+        # by_alias, so the fields have the API's names, e.g. a fallback block's `from`
+        yield SpanAttributes.OUTPUT_VALUE, snapshot.model_dump_json(by_alias=True)
         yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
         if model_name := getattr(snapshot, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model_name
