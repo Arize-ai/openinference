@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Tracer
 
-from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation import REDACTED_VALUE, OITracer, TraceConfig
 from openinference.instrumentation.bedrock import _model_invocation_wrapper
 from openinference.instrumentation.bedrock._wrappers import _InvokeModelWithResponseStream
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
@@ -45,9 +45,13 @@ def test_hide_inputs_redacts_system_prompt(
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.status.is_ok
     attributes = dict(span.attributes or {})
-    assert attributes
-    leaked = {key: value for key, value in attributes.items() if _SECRET in str(value)}
-    assert leaked == {}
+    assert attributes.pop("input.value") == REDACTED_VALUE
+    assert json.loads(str(attributes.pop("llm.invocation_parameters"))) == _invocation_parameters(
+        stream
+    )
+    assert not [key for key in attributes if key.startswith("llm.input_messages.")]
+    _pop_response_attributes(attributes, stream)
+    assert not attributes
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["invoke_model", "stream"])
@@ -74,18 +78,51 @@ def test_system_prompt_is_first_input_message(
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.status.is_ok
     attributes = dict(span.attributes or {})
+    assert json.loads(str(attributes.pop("input.value")))["system"] == system
+    assert attributes.pop("input.mime_type") == "application/json"
+    assert json.loads(str(attributes.pop("llm.invocation_parameters"))) == _invocation_parameters(
+        stream
+    )
     assert attributes.pop("llm.input_messages.0.message.role") == "system"
     for i, text in enumerate(texts):
-        assert (
-            attributes.pop(f"llm.input_messages.0.message.contents.{i}.message_content.text")
-            == text
-        )
+        prefix = f"llm.input_messages.0.message.contents.{i}.message_content"
+        assert attributes.pop(f"{prefix}.text") == text
+        if not stream:
+            assert attributes.pop(f"{prefix}.type") == "text"
     assert attributes.pop("llm.input_messages.1.message.role") == "user"
-    assert not any(
-        key.startswith("llm.input_messages.0.") and not key.endswith(".message_content.type")
-        for key in attributes
-    )
-    assert _SECRET not in str(attributes.get("llm.invocation_parameters"))
+    if stream:
+        assert (
+            attributes.pop("llm.input_messages.1.message.contents.0.message_content.text") == "hi"
+        )
+    else:
+        assert attributes.pop("llm.input_messages.1.message.content") == "hi"
+    _pop_response_attributes(attributes, stream)
+    assert not attributes
+
+
+def _invocation_parameters(stream: bool) -> Dict[str, Any]:
+    # The streaming path also leaves anthropic_version out of the invocation parameters.
+    if stream:
+        return {"max_tokens": 10}
+    return {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 10}
+
+
+def _pop_response_attributes(attributes: Dict[str, Any], stream: bool) -> None:
+    assert attributes.pop("openinference.span.kind") == "LLM"
+    assert attributes.pop("llm.model_name") == _CLAUDE_MODEL_ID
+    assert attributes.pop("llm.finish_reason") == "end_turn"
+    assert attributes.pop("llm.token_count.prompt") == 5
+    assert attributes.pop("llm.token_count.completion") == 1
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    if stream:
+        output_text_key = "llm.output_messages.0.message.contents.0.message_content.text"
+    else:
+        output_text_key = "llm.output_messages.0.message.content"
+        assert attributes.pop("llm.provider") == "aws"
+        assert attributes.pop("llm.system") == "anthropic"
+    assert attributes.pop(output_text_key) == "hello"
+    assert attributes.pop("output.mime_type") == "application/json"
+    assert json.loads(attributes.pop("output.value"))["content"][0]["text"] == "hello"
 
 
 def _invoke_with_system(
