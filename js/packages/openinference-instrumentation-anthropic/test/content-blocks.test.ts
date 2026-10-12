@@ -474,7 +474,12 @@ describe("AnthropicInstrumentation - content blocks", () => {
       attributes[inputContent(2, index, `${MESSAGE_CONTENT_IMAGE}.${postfix}`)];
     expect(attributes[inputContent(2, 0, MESSAGE_CONTENT_TYPE)]).toBe("image");
     expect(image(0, IMAGE_URL)).toBe("https://example.com/cat.png");
-    expect(attributes[inputContent(2, 1, MESSAGE_CONTENT_ID)]).toBe("file_image");
+    // A Files API image has no URL, so it is recorded as its JSON.
+    expect(attributes[inputContent(2, 1, MESSAGE_CONTENT_TYPE)]).toBe("image");
+    expect(attributes[inputContent(2, 1, MESSAGE_CONTENT_TEXT)]).toBe(
+      JSON.stringify({ type: "image", source: { type: "file", file_id: "file_image" } }),
+    );
+    expect(attributes[inputContent(2, 1, MESSAGE_CONTENT_ID)]).toBeUndefined();
     expect(image(1, IMAGE_URL)).toBeUndefined();
     expect(image(2, IMAGE_URL)).toBe("data:image/png;base64,iVBOR");
     expect(image(2, "media_type")).toBe("image/png");

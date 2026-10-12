@@ -15,7 +15,7 @@ Changes:
 - Attribute extraction can no longer throw into the caller.
 - Server and MCP tool calls are recorded as tool calls; compaction blocks as text; every other content block (tool results, documents, MCP listings, container uploads, unknown types) as its type and JSON, with embedded base64 data replaced by a placeholder and nested images hidden by `hideInputImages`.
 - Citations, MCP server names, `stop_details`, cache miss reasons, the container id, context management edits, input transformations, iteration usage and server tool usage go to span metadata, merged with the context metadata. A citation's `cited_text` is left out when inputs, input messages, input text, outputs or output text are hidden, and a refusal's `explanation` when outputs or output text are hidden.
-- Images record URLs, file ids and base64 data URIs; `llm.tools` records `tool.name`, `tool.description` and inline `tool_addition` tools.
+- Images record URLs and base64 data URIs (Files API images are recorded as their JSON); `llm.tools` records `tool.name`, `tool.description` and inline `tool_addition` tools.
 - Thinking tokens are recorded as `llm.token_count.completion_details.reasoning`.
 - `llm.provider` is `aws`, `google` or `azure` for the Bedrock, Vertex and Foundry clients.
 - `messages.countTokens` / `beta.messages.countTokens` are traced, and each run of `beta.messages.toolRunner` runs under a `beta.messages.tool_runner` CHAIN span (the naming proposed for the Python instrumentation in PR #3531) parenting its LLM spans and a TOOL span per tool run, including tools added with `addTools()` or `setMessagesParams()`.
