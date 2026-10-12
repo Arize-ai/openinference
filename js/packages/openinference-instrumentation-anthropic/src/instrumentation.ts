@@ -1867,7 +1867,7 @@ function isRunnableTool(tool: ToolRunnerParams["tools"][number]): tool is Runnab
  *
  * The runner calls `tool.run()` from module-private code, on the tools of its
  * private params, so the only place to trace a run from is the tool object
- * itself. Each runnable tool is therefore handed to the runner as a proxy that
+ * itself. Each runnable tool is therefore handed to the runner as a wrapper that
  * traces `run`, and the runner's public surface maps between the two:
  * `params` and the `setMessagesParams()` mutator show the caller's tools, and
  * the tools passed to `setMessagesParams()` and `addTools()` are traced too.
@@ -1878,21 +1878,21 @@ class RunnableToolTracer {
 
   constructor(private readonly oiTracer: OITracer) {}
 
-  /** The traced proxy of a runnable tool, the same one each time */
+  /** The traced wrapper of a runnable tool, the same one each time */
   trace<Tool extends ToolRunnerParams["tools"][number]>(tool: Tool): Tool | RunnableTool {
     if (!isRunnableTool(tool) || this.originals.has(tool)) {
       return tool;
     }
-    let proxy = this.traced.get(tool);
-    if (proxy == null) {
-      proxy = traceRunnableTool({ tool, oiTracer: this.oiTracer });
-      this.traced.set(tool, proxy);
-      this.originals.set(proxy, tool);
+    let wrapper = this.traced.get(tool);
+    if (wrapper == null) {
+      wrapper = traceRunnableTool({ tool, oiTracer: this.oiTracer });
+      this.traced.set(tool, wrapper);
+      this.originals.set(wrapper, tool);
     }
-    return proxy;
+    return wrapper;
   }
 
-  /** The caller's tool behind a traced proxy */
+  /** The caller's tool behind a traced wrapper */
   original<Tool extends ToolRunnerParams["tools"][number]>(tool: Tool): Tool | RunnableTool {
     return (tool != null && typeof tool === "object" && this.originals.get(tool)) || tool;
   }
@@ -1918,10 +1918,10 @@ class RunnableToolTracer {
 }
 
 /**
- * Wraps a runnable tool in a proxy whose `run` is a TOOL span, a child of the
- * span active when the runner calls it. Everything else is read from the tool
- * itself, with its methods bound to it, so a class tool keeps working with
- * private (`#`) fields.
+ * Wraps a runnable tool in an object whose `run` is a TOOL span, a child of the
+ * span active when the runner calls it. Every other property is read from the
+ * tool itself, with its methods bound to it, so a class tool keeps working with
+ * private (`#`) fields, and a frozen tool can be wrapped too.
  */
 function traceRunnableTool({
   tool,
@@ -1965,24 +1965,54 @@ function traceRunnableTool({
       },
     );
   };
+  // A plain object rather than a Proxy: a Proxy must return a frozen tool's
+  // own `run` and methods unchanged, so it cannot trace a frozen tool.
+  const wrapper: RunnableTool = Object.create(Object.getPrototypeOf(tool));
   const boundMethods = new Map<unknown, unknown>();
-  return new Proxy(tool, {
-    get(target, property) {
-      if (property === "run") {
-        return tracedRun;
-      }
-      const value: unknown = Reflect.get(target, property, target);
-      if (typeof value !== "function") {
-        return value;
-      }
-      let bound = boundMethods.get(value);
-      if (bound == null) {
-        bound = value.bind(target);
-        boundMethods.set(value, bound);
-      }
-      return bound;
-    },
+  for (const [property, descriptor] of getToolProperties(tool)) {
+    Object.defineProperty(wrapper, property, {
+      configurable: true,
+      enumerable: descriptor.enumerable ?? false,
+      get: () => {
+        const value: unknown = Reflect.get(tool, property, tool);
+        if (typeof value !== "function") {
+          return value;
+        }
+        let bound = boundMethods.get(value);
+        if (bound == null) {
+          bound = value.bind(tool);
+          boundMethods.set(value, bound);
+        }
+        return bound;
+      },
+    });
+  }
+  Object.defineProperty(wrapper, "run", {
+    configurable: true,
+    enumerable: Object.getOwnPropertyDescriptor(tool, "run")?.enumerable ?? false,
+    writable: true,
+    value: tracedRun,
   });
+  return wrapper;
+}
+
+/**
+ * The properties of a tool, its own and those of its classes, each with the
+ * descriptor seen first, as `tool.property` resolves them.
+ */
+function getToolProperties(tool: object): Map<PropertyKey, PropertyDescriptor> {
+  const properties = new Map<PropertyKey, PropertyDescriptor>();
+  let current: object | null = tool;
+  while (current != null && current !== Object.prototype) {
+    for (const property of Reflect.ownKeys(current)) {
+      const descriptor = Object.getOwnPropertyDescriptor(current, property);
+      if (property !== "constructor" && descriptor != null && !properties.has(property)) {
+        properties.set(property, descriptor);
+      }
+    }
+    current = Object.getPrototypeOf(current);
+  }
+  return properties;
 }
 
 /**
