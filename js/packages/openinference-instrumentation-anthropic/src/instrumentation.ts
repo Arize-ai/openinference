@@ -1339,16 +1339,20 @@ function getAnthropicContentMetadata(
   const { content } = message;
   const citations: Record<string, unknown> = {};
   const mcpServerNames: Record<string, string> = {};
-  // A citation's cited_text quotes the prompt's documents and is part of the
-  // output text, so it is left out when either the input text or the output
-  // text is hidden.
+  // Citations name and quote the cited sources, so they are left out when all
+  // of the input or output is hidden. A citation's cited_text quotes the
+  // prompt's documents and is part of the output text, so it alone is left out
+  // when just the input text or the output text is hidden.
+  const hideCitations = traceConfig.hideInputs || traceConfig.hideOutputs;
   const hideCitedText =
-    traceConfig.hideInputs ||
-    traceConfig.hideInputText ||
-    traceConfig.hideInputMessages ||
-    hidesOutputText(traceConfig);
+    traceConfig.hideInputText || traceConfig.hideInputMessages || hidesOutputText(traceConfig);
   content.forEach((block, index) => {
-    if (block.type === "text" && block.citations != null && block.citations.length > 0) {
+    if (
+      !hideCitations &&
+      block.type === "text" &&
+      block.citations != null &&
+      block.citations.length > 0
+    ) {
       citations[String(index)] = hideCitedText
         ? block.citations.map((citation) => omitKey(citation, "cited_text"))
         : block.citations;

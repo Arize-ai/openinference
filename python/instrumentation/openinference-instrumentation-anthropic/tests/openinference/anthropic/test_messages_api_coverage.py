@@ -960,14 +960,14 @@ def instrument_with_config(tracer_provider: TracerProvider) -> Iterator[Callable
 
 
 @pytest.mark.parametrize(
-    "config, hides_cited_text, hides_explanation",
+    "config, hides_citations, hides_cited_text, hides_explanation",
     [
-        ({}, False, False),
-        ({"hide_inputs": True}, True, False),
-        ({"hide_input_messages": True}, True, False),
-        ({"hide_input_text": True}, True, False),
-        ({"hide_outputs": True}, True, True),
-        ({"hide_output_text": True}, True, True),
+        ({}, False, False, False),
+        ({"hide_inputs": True}, True, True, False),
+        ({"hide_input_messages": True}, False, True, False),
+        ({"hide_input_text": True}, False, True, False),
+        ({"hide_outputs": True}, True, True, True),
+        ({"hide_output_text": True}, False, True, True),
     ],
 )
 @pytest.mark.parametrize("streaming", [False, True])
@@ -975,6 +975,7 @@ def test_metadata_respects_trace_config(
     in_memory_span_exporter: InMemorySpanExporter,
     instrument_with_config: Callable[..., None],
     config: Dict[str, Any],
+    hides_citations: bool,
     hides_cited_text: bool,
     hides_explanation: bool,
     streaming: bool,
@@ -996,15 +997,20 @@ def test_metadata_respects_trace_config(
     metadata = json.loads(
         str(dict(_get_span(in_memory_span_exporter).attributes or {})[SpanAttributes.METADATA])
     )
-    # the cited text quotes the input, and the explanation describes the output
-    (citation,) = metadata["citations"]["1"]
-    assert ("cited_text" in citation) is not hides_cited_text
-    # the citation's other fields are kept
-    assert citation == {
-        key: value
-        for key, value in _CITATION.items()
-        if not (hides_cited_text and key == "cited_text")
-    }
+    # the citations name and quote the sources, so they are left out when all of the input or
+    # output is hidden, and otherwise only their cited text is when the input or output text is
+    if hides_citations:
+        assert "citations" not in metadata
+    else:
+        (citation,) = metadata["citations"]["1"]
+        assert ("cited_text" in citation) is not hides_cited_text
+        # the citation's other fields are kept
+        assert citation == {
+            key: value
+            for key, value in _CITATION.items()
+            if not (hides_cited_text and key == "cited_text")
+        }
+    # the explanation describes the output
     assert ("explanation" in metadata["stop_details"]) is not hides_explanation
     assert metadata["stop_details"]["category"] == "cyber"
     assert metadata["container_id"] == "container_1"

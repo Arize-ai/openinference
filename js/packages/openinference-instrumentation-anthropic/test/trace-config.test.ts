@@ -128,19 +128,32 @@ describe("AnthropicInstrumentation - trace config", () => {
     expect(metadata.stop_details.explanation).toBe("SECRET EXPLANATION");
   });
 
-  it.each([{ hideOutputs: true }, { hideOutputText: true }])(
-    "drops cited text and the refusal explanation with %o",
-    async (traceConfig) => {
-      instrument(traceConfig);
-      const attributes = await traceRequest();
-      expect(attributes[METADATA]).not.toContain("SECRET");
-      const metadata = JSON.parse(attributes[METADATA] as string);
-      expect(metadata.citations["0"][0]).toEqual({ ...citation, cited_text: undefined });
-      expect(metadata.stop_details).toEqual({ type: "refusal", category: "cyber" });
-    },
-  );
+  it("drops the citations and the refusal explanation with hideOutputs", async () => {
+    instrument({ hideOutputs: true });
+    const attributes = await traceRequest();
+    expect(attributes[METADATA]).not.toContain("SECRET");
+    const metadata = JSON.parse(attributes[METADATA] as string);
+    expect(metadata.citations).toBeUndefined();
+    expect(metadata.stop_details).toEqual({ type: "refusal", category: "cyber" });
+  });
 
-  it.each([{ hideInputs: true }, { hideInputText: true }, { hideInputMessages: true }])(
+  it("drops the citations with hideInputs, as they name and quote the sources", async () => {
+    instrument({ hideInputs: true });
+    const metadata = JSON.parse((await traceRequest())[METADATA] as string);
+    expect(metadata.citations).toBeUndefined();
+    expect(metadata.stop_details.explanation).toBe("SECRET EXPLANATION");
+  });
+
+  it("drops cited text and the refusal explanation with hideOutputText", async () => {
+    instrument({ hideOutputText: true });
+    const attributes = await traceRequest();
+    expect(attributes[METADATA]).not.toContain("SECRET");
+    const metadata = JSON.parse(attributes[METADATA] as string);
+    expect(metadata.citations["0"][0]).toEqual({ ...citation, cited_text: undefined });
+    expect(metadata.stop_details).toEqual({ type: "refusal", category: "cyber" });
+  });
+
+  it.each([{ hideInputText: true }, { hideInputMessages: true }])(
     "drops cited text with %o, as it quotes the prompt",
     async (traceConfig) => {
       instrument(traceConfig);
