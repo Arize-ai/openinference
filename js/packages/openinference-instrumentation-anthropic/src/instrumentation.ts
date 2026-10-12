@@ -1304,7 +1304,8 @@ function getAnthropicResponseDetailsMetadata(
     contextManagement != null &&
     typeof contextManagement === "object" &&
     "applied_edits" in contextManagement &&
-    contextManagement.applied_edits != null
+    Array.isArray(contextManagement.applied_edits) &&
+    contextManagement.applied_edits.length > 0
   ) {
     // The same key as the Python instrumentation
     metadata.context_management_applied_edits = contextManagement.applied_edits;

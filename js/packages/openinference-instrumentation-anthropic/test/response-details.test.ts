@@ -189,6 +189,23 @@ describe("AnthropicInstrumentation - response details", () => {
     expect(metadata.server_tool_use).toBeUndefined();
   });
 
+  it("records no context management edits when none were applied", async () => {
+    const client = new Anthropic({
+      apiKey: "fake-api-key",
+      fetch: jsonFetch({
+        ...responseMessage,
+        context_management: { applied_edits: [] },
+      }),
+    });
+    await client.beta.messages.create(request);
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    const metadata = JSON.parse(span.attributes[METADATA] as string);
+    expect(metadata).not.toHaveProperty("context_management_applied_edits");
+    expect(metadata.container_id).toBe("container_1");
+  });
+
   it("leaves token counts out when the usage has none", async () => {
     const client = new Anthropic({
       apiKey: "fake-api-key",
