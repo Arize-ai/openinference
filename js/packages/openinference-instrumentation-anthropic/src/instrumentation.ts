@@ -1696,7 +1696,9 @@ function settleAnthropicToolInputs(state: AnthropicStreamState, index?: number) 
     }
     const block = state.content[blockIndex];
     if (block != null) {
-      Object.assign(block, { input: parseToolInput(chunks.join("")) });
+      // No input JSON is an empty input, as in the SDK's own accumulation.
+      const json = chunks.join("");
+      Object.assign(block, { input: json === "" ? {} : parseToolInput(json) });
     }
     state.partialInputs.delete(blockIndex);
   }
