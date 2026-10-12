@@ -280,7 +280,9 @@ def _get_response_metadata(
     """
     metadata: Dict[str, Any] = {}
     hide_output_text = bool(config and (config.hide_outputs or config.hide_output_text))
-    hide_citations = hide_output_text or bool(config and config.hide_inputs)
+    hide_citations = hide_output_text or bool(
+        config and (config.hide_inputs or config.hide_input_messages or config.hide_input_text)
+    )
 
     def add(key: str, get_value: Callable[[], Any]) -> None:
         try:

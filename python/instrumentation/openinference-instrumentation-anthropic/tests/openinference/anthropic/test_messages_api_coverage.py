@@ -953,6 +953,8 @@ def instrument_with_config(tracer_provider: TracerProvider) -> Iterator[Callable
     [
         ({}, False, False),
         ({"hide_inputs": True}, True, False),
+        ({"hide_input_messages": True}, True, False),
+        ({"hide_input_text": True}, True, False),
         ({"hide_outputs": True}, True, True),
         ({"hide_output_text": True}, True, True),
     ],
