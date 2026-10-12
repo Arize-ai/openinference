@@ -949,7 +949,7 @@ def instrument_with_config(tracer_provider: TracerProvider) -> Iterator[Callable
 
 
 @pytest.mark.parametrize(
-    "config, hides_citations, hides_explanation",
+    "config, hides_cited_text, hides_explanation",
     [
         ({}, False, False),
         ({"hide_inputs": True}, True, False),
@@ -964,7 +964,7 @@ def test_metadata_respects_trace_config(
     in_memory_span_exporter: InMemorySpanExporter,
     instrument_with_config: Callable[..., None],
     config: Dict[str, Any],
-    hides_citations: bool,
+    hides_cited_text: bool,
     hides_explanation: bool,
     streaming: bool,
 ) -> None:
@@ -985,8 +985,15 @@ def test_metadata_respects_trace_config(
     metadata = json.loads(
         str(dict(_get_span(in_memory_span_exporter).attributes or {})[SpanAttributes.METADATA])
     )
-    # the citations quote the input, and the explanation describes the output
-    assert ("citations" in metadata) is not hides_citations
+    # the cited text quotes the input, and the explanation describes the output
+    (citation,) = metadata["citations"]["1"]
+    assert ("cited_text" in citation) is not hides_cited_text
+    # the citation's other fields are kept
+    assert citation == {
+        key: value
+        for key, value in _CITATION.items()
+        if not (hides_cited_text and key == "cited_text")
+    }
     assert ("explanation" in metadata["stop_details"]) is not hides_explanation
     assert metadata["stop_details"]["category"] == "cyber"
     assert metadata["container_id"] == "container_1"

@@ -284,12 +284,13 @@ def _get_response_metadata(
       likewise
 
     The metadata is not masked by the trace config, so the items that quote the input or the
-    output are left out here when the config hides it: the citations, which quote the cited
-    input, and the explanation in the stop details, which describes the output.
+    output are left out here when the config hides it: each citation's cited_text, which quotes
+    the cited input, keeping the citation's other fields, and the explanation in the stop
+    details, which describes the output.
     """
     metadata: Dict[str, Any] = {}
     hide_output_text = bool(config and (config.hide_outputs or config.hide_output_text))
-    hide_citations = hide_output_text or bool(
+    hide_cited_text = hide_output_text or bool(
         config and (config.hide_inputs or config.hide_input_messages or config.hide_input_text)
     )
 
@@ -310,8 +311,7 @@ def _get_response_metadata(
     add("input_transformations", lambda: _get(message, "input_transformations"))
     add("usage_iterations", lambda: _get(_get(message, "usage"), "iterations"))
     add("server_tool_use", lambda: _get_server_tool_use(message))
-    if not hide_citations:
-        add("citations", lambda: _get_citations(message))
+    add("citations", lambda: _get_citations(message, hide_cited_text))
     add("mcp_server_names", lambda: _get_mcp_server_names(message))
     tool_calls = _ToolCallMetadata()
     tool_calls.add_messages(request_messages)
@@ -378,9 +378,14 @@ def _get_server_tool_use(message: Any) -> Any:
     return counts if isinstance(counts, dict) and any(counts.values()) else None
 
 
-def _get_citations(message: Any) -> Dict[str, Any]:
+def _get_citations(message: Any, hide_cited_text: bool) -> Dict[str, Any]:
     return {
-        str(j): citations
+        str(j): [
+            {key: value for key, value in citation.items() if key != "cited_text"}
+            if hide_cited_text and isinstance(citation, dict)
+            else citation
+            for citation in _to_jsonable(citations)
+        ]
         for j, block in enumerate(_get(message, "content") or ())
         if _get(block, "type") == "text" and (citations := _get(block, "citations"))
     }
