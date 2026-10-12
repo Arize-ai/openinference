@@ -16,7 +16,12 @@ from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+    safe_json_dumps,
+    using_attributes,
+)
 from openinference.instrumentation.litellm import (
     LiteLLMInstrumentor,
     _get_reasoning_content_blocks,
@@ -2927,6 +2932,10 @@ def test_image_generation_url(
 
     assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+    assert (
+        attributes.get(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
+        == "https://dummy-url"
+    )
     assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
@@ -2993,8 +3002,12 @@ def test_image_generation_b64json(
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
 
-    assert attributes.get(ImageAttributes.IMAGE_URL) == "dummy_b64_json"
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "dummy_b64_json"
+    assert ImageAttributes.IMAGE_URL not in attributes
+    assert SpanAttributes.OUTPUT_VALUE not in attributes
+    assert (
+        attributes.get(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
+        == "data:image/png;base64,dummy_b64_json"
+    )
     assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
@@ -3008,6 +3021,56 @@ def test_image_generation_b64json(
             prompt_template_version,
             prompt_template_variables,
         )
+
+
+@pytest.mark.parametrize(
+    "config, expected_images",
+    [
+        pytest.param(
+            TraceConfig(),
+            {0: "data:image/jpeg;base64," + "A" * 2_000, 1: "https://dummy-url"},
+            id="default",
+        ),
+        pytest.param(
+            TraceConfig(base64_image_max_length=1_000),
+            {0: "__REDACTED__", 1: "https://dummy-url"},
+            id="base64_image_max_length",
+        ),
+        pytest.param(TraceConfig(hide_outputs=True), {}, id="hide_outputs"),
+    ],
+)
+def test_image_generation_output_images_respect_trace_config(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    config: TraceConfig,
+    expected_images: Dict[int, str],
+) -> None:
+    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
+    in_memory_span_exporter.clear()
+    mock_response_image_gen = ImageResponse(
+        created=1722359754,
+        output_format="jpeg",
+        data=[
+            ImageObject(b64_json="A" * 2_000, revised_prompt=None, url=None),  # type: ignore
+            ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url"),  # type: ignore
+        ],
+    )
+    with patch.object(
+        OpenAIChatCompletion, "image_generation", return_value=mock_response_image_gen
+    ):
+        litellm.image_generation(model="dall-e-2", prompt="a sunrise over the mountains")
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    output_images = {
+        index: attributes[key]
+        for index in range(2)
+        if (key := f"{SpanAttributes.OUTPUT_IMAGES}.{index}.{ImageAttributes.IMAGE_URL}")
+        in attributes
+    }
+    assert output_images == expected_images
+    assert ImageAttributes.IMAGE_URL not in attributes
+    assert SpanAttributes.OUTPUT_VALUE not in attributes
 
 
 def test_image_generation_with_invalid_model_triggers_exception_event(
@@ -3090,6 +3153,10 @@ async def test_aimage_generation(
 
     assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+    assert (
+        attributes.get(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
+        == "https://dummy-url"
+    )
     assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
