@@ -1001,16 +1001,32 @@ function getAnthropicToolDefinitions(body: MessageRequestParams): ToolDefinition
       continue;
     }
     for (const part of message.content) {
-      if (
-        part?.type === "tool_addition" &&
-        part.tool?.type === "tool_definition" &&
-        part.tool.definition != null
-      ) {
-        tools.push(part.tool.definition);
+      if (part?.type === "tool_addition") {
+        pushInlineToolDefinition(tools, part);
+      } else if (part?.type === "compaction" && Array.isArray(part.tool_changes)) {
+        // A compaction carries the tool changes of the turns it replaced.
+        for (const change of part.tool_changes) {
+          if (change?.type === "tool_addition") {
+            pushInlineToolDefinition(tools, change);
+          }
+        }
       }
     }
   }
   return tools;
+}
+
+/**
+ * Adds the tool a `tool_addition` block defines inline, if it defines one
+ * rather than referring to a tool by name.
+ */
+function pushInlineToolDefinition(
+  tools: ToolDefinition[],
+  block: Anthropic.Beta.Messages.BetaRequestToolAdditionBlock,
+) {
+  if (block.tool?.type === "tool_definition" && block.tool.definition != null) {
+    tools.push(block.tool.definition);
+  }
 }
 
 /**
@@ -1441,6 +1457,10 @@ function getAnthropicOtherContentAttributes(
     }
     if (block.signature != null) {
       attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] = block.signature;
+    }
+    if (block.encrypted_content != null) {
+      attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT_ENCRYPTED_CONTENT}`] =
+        block.encrypted_content;
     }
     return attributes;
   }
