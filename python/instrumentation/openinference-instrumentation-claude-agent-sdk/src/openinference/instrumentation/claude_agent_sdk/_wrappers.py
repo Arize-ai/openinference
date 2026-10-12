@@ -8,15 +8,6 @@ from collections.abc import Mapping as MappingABC
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Tuple
 
 import opentelemetry.context as context_api
-from opentelemetry import trace as trace_api
-
-from openinference.instrumentation import (
-    get_attributes_from_context,
-    get_input_attributes,
-    get_output_attributes,
-    get_tool_attributes,
-    safe_json_dumps,
-)
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -26,6 +17,15 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
+)
+from opentelemetry import trace as trace_api
+
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    get_input_attributes,
+    get_output_attributes,
+    get_tool_attributes,
+    safe_json_dumps,
 )
 
 if TYPE_CHECKING:
@@ -325,7 +325,88 @@ def _extract_result_error_attributes(msg: Any) -> dict[str, Any]:
     return attributes
 
 
-def _process_message(msg: Any, span: trace_api.Span) -> bool:
+class _TurnUsageAccumulator:
+    """Accumulates usage from root assistant API messages for one SDK turn.
+
+    The SDK may emit multiple AssistantMessage objects for the same API message
+    when partial-message streaming is enabled. Keep the latest usage snapshot
+    per message_id rather than counting those snapshots repeatedly. ResultMessage
+    cost is a session total on resumed CLI sessions, so per-turn cost is omitted
+    unless the SDK exposes a per-message cost source.
+    """
+
+    def __init__(self, parent_tool_use_id: Any = None) -> None:
+        self._usage_by_message_id: dict[str, Mapping[str, Any]] = {}
+        self._cli_version: tuple[int, ...] | None = None
+        self._parent_tool_use_id = parent_tool_use_id
+        self._has_init_message = False
+
+    def add(self, message: Any) -> None:
+        subtype = _get_field(message, "subtype")
+        if subtype == "init":
+            self._has_init_message = True
+            data = _get_field(message, "data", {})
+            version = _get_field(data, "claude_code_version")
+            if version is None:
+                version = _get_field(data, "version")
+            if version is None:
+                version = _get_field(message, "claude_code_version")
+            if isinstance(version, str):
+                try:
+                    self._cli_version = tuple(int(part) for part in version.split("."))
+                except ValueError:
+                    self._cli_version = None
+        message_id = _get_field(message, "message_id")
+        usage = _get_field(message, "usage")
+        if (
+            message_id is None
+            or not isinstance(usage, MappingABC)
+            or _get_field(message, "parent_tool_use_id") != self._parent_tool_use_id
+        ):
+            return
+        self._usage_by_message_id[str(message_id)] = usage
+
+    @property
+    def cli_version(self) -> tuple[int, ...] | None:
+        return self._cli_version
+
+    def set_cli_version(self, version: tuple[int, ...] | None) -> None:
+        if self._cli_version is None:
+            self._cli_version = version
+
+    def should_use_turn_usage(self) -> bool:
+        # Claude Code 2.1.277 changed headless resumed sessions to persist the
+        # session's totals at exit. Prefer per-turn messages whenever present;
+        # for newer CLI versions, fall back to them when init metadata is missing.
+        has_message_usage = bool(self._usage_by_message_id)
+        if self._cli_version is not None and self._cli_version >= (2, 1, 277):
+            return True
+        return has_message_usage and self._cli_version is None
+
+    def attributes(self) -> dict[str, int]:
+        totals: dict[str, int] = {}
+        usage_keys = (
+            LLM_TOKEN_COUNT_PROMPT,
+            LLM_TOKEN_COUNT_COMPLETION,
+            LLM_TOKEN_COUNT_TOTAL,
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+        )
+        for usage in self._usage_by_message_id.values():
+            attributes = _extract_usage_and_cost_attributes({"usage": usage})
+            for key in usage_keys:
+                value = attributes.get(key)
+                if isinstance(value, int):
+                    totals[key] = totals.get(key, 0) + value
+        return totals
+
+
+def _process_message(
+    msg: Any,
+    span: trace_api.Span,
+    *,
+    turn_usage: Mapping[str, int] | None = None,
+) -> bool:
     _maybe_set_model(span, msg)
     if stop_reason := _extract_stop_reason(msg):
         if span.is_recording():
@@ -338,6 +419,17 @@ def _process_message(msg: Any, span: trace_api.Span) -> bool:
         return False
     if _is_result_success_message(msg):
         attrs = _extract_result_success_attributes(msg)
+        if turn_usage is not None:
+            for key in (
+                LLM_TOKEN_COUNT_PROMPT,
+                LLM_TOKEN_COUNT_COMPLETION,
+                LLM_TOKEN_COUNT_TOTAL,
+                LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+                LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+                LLM_COST_TOTAL,
+            ):
+                attrs.pop(key, None)
+            attrs.update(turn_usage)
         if not _has_existing_session_id(span):
             if session_id := _get_field(msg, "session_id"):
                 attrs[SESSION_ID] = session_id
@@ -345,6 +437,17 @@ def _process_message(msg: Any, span: trace_api.Span) -> bool:
         return False
     if _is_result_error_message(msg):
         attrs = _extract_result_error_attributes(msg)
+        if turn_usage is not None:
+            for key in (
+                LLM_TOKEN_COUNT_PROMPT,
+                LLM_TOKEN_COUNT_COMPLETION,
+                LLM_TOKEN_COUNT_TOTAL,
+                LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+                LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+                LLM_COST_TOTAL,
+            ):
+                attrs.pop(key, None)
+            attrs.update(turn_usage)
         if not _has_existing_session_id(span):
             if session_id := _get_field(msg, "session_id"):
                 attrs[SESSION_ID] = session_id
@@ -958,9 +1061,10 @@ def _get_output_message_attributes(message: Any, message_index: int) -> dict[str
 
 
 class _SubagentState:
-    def __init__(self, span: trace_api.Span) -> None:
+    def __init__(self, span: trace_api.Span, parent_tool_use_id: Any) -> None:
         self.span = span
         self.has_error = False
+        self.turn_usage = _TurnUsageAccumulator(parent_tool_use_id)
 
 
 class _SubagentSpanTracker:
@@ -974,6 +1078,7 @@ class _SubagentSpanTracker:
         self._root_span = root_span
         self._tool_tracker = tool_tracker
         self._in_flight: dict[str, _SubagentState] = {}
+        self._cli_version: tuple[int, ...] | None = None
 
     def get_or_create(self, parent_tool_use_id: Any) -> _SubagentState:
         key = str(parent_tool_use_id)
@@ -990,9 +1095,14 @@ class _SubagentSpanTracker:
         parent_span = parent_tool_span or self._root_span
         ctx = trace_api.set_span_in_context(parent_span) if parent_span is not None else None
         span = self._tracer.start_span(span_name, context=ctx, attributes=attributes)
-        state = _SubagentState(span)
+        state = _SubagentState(span, parent_tool_use_id)
+        state.turn_usage.set_cli_version(self._cli_version)
         self._in_flight[key] = state
         return state
+
+    def set_cli_version(self, version: tuple[int, ...] | None) -> None:
+        if self._cli_version is None:
+            self._cli_version = version
 
     def process_message(self, message: Any) -> bool:
         parent_tool_use_id = _get_field(message, "parent_tool_use_id")
@@ -1001,7 +1111,13 @@ class _SubagentSpanTracker:
         if str(parent_tool_use_id) == "":
             return False
         state = self.get_or_create(parent_tool_use_id)
-        state.has_error = _process_message(message, state.span) or state.has_error
+        state.turn_usage.add(message)
+        overrides = (
+            state.turn_usage.attributes() if state.turn_usage.should_use_turn_usage() else None
+        )
+        state.has_error = (
+            _process_message(message, state.span, turn_usage=overrides) or state.has_error
+        )
         if _is_result_success_message(message) or _is_result_error_message(message):
             self.end(parent_tool_use_id)
         return True
@@ -1078,6 +1194,7 @@ class _QueryWrapper:
             args, kwargs = _apply_options(args, kwargs, merged_options)
 
         output_message_index = 0
+        turn_usage = _TurnUsageAccumulator()
         try:
             async for message in wrapped(*args, **kwargs):
                 parent_tool_use_id = _get_field(message, "parent_tool_use_id")
@@ -1089,7 +1206,10 @@ class _QueryWrapper:
                     )
                     yield message
                     continue
-                has_error = _process_message(message, span) or has_error
+                turn_usage.add(message)
+                subagent_tracker.set_cli_version(turn_usage.cli_version)
+                overrides = turn_usage.attributes() if turn_usage.should_use_turn_usage() else None
+                has_error = _process_message(message, span, turn_usage=overrides) or has_error
                 _update_tool_spans_from_messages(
                     message,
                     tool_tracker,
@@ -1215,6 +1335,7 @@ class _ClientReceiveResponseWrapper:
             delegating_tracker.set_delegate(tool_tracker)
 
         output_message_index = 0
+        turn_usage = _TurnUsageAccumulator()
         try:
             async for message in wrapped(*args, **kwargs):
                 parent_tool_use_id = _get_field(message, "parent_tool_use_id")
@@ -1226,7 +1347,10 @@ class _ClientReceiveResponseWrapper:
                     )
                     yield message
                     continue
-                has_error = _process_message(message, span) or has_error
+                turn_usage.add(message)
+                subagent_tracker.set_cli_version(turn_usage.cli_version)
+                overrides = turn_usage.attributes() if turn_usage.should_use_turn_usage() else None
+                has_error = _process_message(message, span, turn_usage=overrides) or has_error
                 _update_tool_spans_from_messages(
                     message,
                     tool_tracker,
