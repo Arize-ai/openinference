@@ -203,6 +203,7 @@ def _get_response_metadata(message: Any) -> Dict[str, Any]:
     - usage_iterations: the token usage of each sampling and compaction iteration. A compaction
       iteration's tokens are not included in the top-level usage, so they are not included in
       the token counts either.
+    - server_tool_use: the number of server tool requests, e.g. web searches, by tool
     - citations: the citations of each text block, keyed by its index in the output contents
     - mcp_server_names: the MCP server of each MCP tool call, keyed by its tool call id
     """
@@ -224,6 +225,7 @@ def _get_response_metadata(message: Any) -> Dict[str, Any]:
     )
     add("input_transformations", lambda: _get(message, "input_transformations"))
     add("usage_iterations", lambda: _get(_get(message, "usage"), "iterations"))
+    add("server_tool_use", lambda: _get(_get(message, "usage"), "server_tool_use"))
     add("citations", lambda: _get_citations(message))
     add("mcp_server_names", lambda: _get_mcp_server_names(message))
     return metadata

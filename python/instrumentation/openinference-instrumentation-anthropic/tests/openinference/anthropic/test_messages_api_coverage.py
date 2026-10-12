@@ -532,6 +532,7 @@ _RESPONSE_USAGE: Dict[str, Any] = {
     "output_tokens": 20,
     "output_tokens_details": {"thinking_tokens": 7},
     "iterations": _ITERATIONS,
+    "server_tool_use": {"web_search_requests": 2, "web_fetch_requests": 0},
 }
 
 
@@ -545,6 +546,7 @@ def _assert_response_metadata_and_usage(attributes: Dict[str, Any]) -> None:
         "context_management_applied_edits": _RESPONSE_DATA["context_management"]["applied_edits"],
         "input_transformations": _RESPONSE_DATA["input_transformations"],
         "usage_iterations": _ITERATIONS,
+        "server_tool_use": {"web_search_requests": 2, "web_fetch_requests": 0},
         "citations": {"1": [_CITATION]},
         "mcp_server_names": {"mcptoolu_1": "echo-server"},
     }
