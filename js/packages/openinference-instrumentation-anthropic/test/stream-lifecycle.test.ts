@@ -366,6 +366,41 @@ describe("AnthropicInstrumentation - stream lifecycle", () => {
     expect(toolArguments).toBe(JSON.stringify({ content: "abcdefghij".repeat(deltas) }));
   });
 
+  it("records a tool call streamed with empty input JSON as an empty input", async () => {
+    const client = createClient(
+      sseFetch([
+        messageStart(),
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", id: "toolu_1", name: "get_time", input: {} },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "input_json_delta", partial_json: "" },
+        },
+        { type: "content_block_stop", index: 0 },
+        messageDelta({ stopReason: "tool_use" }),
+        { type: "message_stop" },
+      ]),
+    );
+    const stream = await client.messages.create({ ...request, stream: true });
+    for await (const _event of stream) {
+      // drain
+    }
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    expect(
+      span.attributes[
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.0.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+      ],
+    ).toBe("{}");
+    const output = JSON.parse(span.attributes[SemanticConventions.OUTPUT_VALUE] as string);
+    expect(output.content[0].input).toEqual({});
+  });
+
   it("keeps the raw input of a tool call the caller left before it stopped", async () => {
     const client = createClient(
       sseFetch([
