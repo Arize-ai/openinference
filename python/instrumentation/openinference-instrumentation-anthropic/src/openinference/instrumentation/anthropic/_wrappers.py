@@ -345,6 +345,106 @@ def _finish_message_tracing(span: _WithSpan, message: Any) -> None:
     )
 
 
+class _CountTokensWrapper(_WithTracer):
+    """
+    Wrapper for messages.count_tokens, which counts the input tokens of a request without
+    sending it to the model, so its span has the request's input and the count as its output.
+    """
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        with self._start_as_current_span(
+            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            attributes=dict(
+                chain(
+                    get_attributes_from_context(),
+                    _get_llm_provider(instance),
+                    _get_llm_system(),
+                    _get_llm_span_kind(),
+                    _get_inputs(kwargs),
+                )
+            ),
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except BaseException as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                span.finish_tracing()
+                raise
+        if _is_api_response(response):
+            _finish_api_response_tracing(
+                span, response, streaming=False, finish=_finish_count_tokens_tracing
+            )
+        else:
+            _finish_count_tokens_tracing(span, response)
+        return response
+
+
+class _AsyncCountTokensWrapper(_WithTracer):
+    """
+    See _CountTokensWrapper.
+    """
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
+        with self._start_as_current_span(
+            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            attributes=dict(
+                chain(
+                    get_attributes_from_context(),
+                    _get_llm_provider(instance),
+                    _get_llm_system(),
+                    _get_llm_span_kind(),
+                    _get_inputs(kwargs),
+                )
+            ),
+        ) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
+            except BaseException as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                span.finish_tracing()
+                raise
+        if _is_api_response(response):
+            await _async_finish_api_response_tracing(
+                span, response, streaming=False, finish=_finish_count_tokens_tracing
+            )
+        else:
+            _finish_count_tokens_tracing(span, response)
+        return response
+
+
+def _finish_count_tokens_tracing(span: _WithSpan, response: Any) -> None:
+    span.finish_tracing(
+        status=trace_api.Status(trace_api.StatusCode.OK),
+        extra_attributes=dict(_get_count_tokens_outputs(response)),
+    )
+
+
+@_stop_on_exception
+def _get_count_tokens_outputs(response: Any) -> Iterator[Tuple[str, Any]]:
+    # The count is not recorded as a token count, since nothing is generated or billed.
+    yield OUTPUT_VALUE, str(response.input_tokens)
+
+
 def _is_api_response(response: Any) -> bool:
     """
     messages.with_raw_response and messages.with_streaming_response return the HTTP response,
@@ -367,7 +467,12 @@ def _parsing_runs_caller_code(response: Any) -> bool:
     return not isinstance(getattr(options, "post_parser", None), NotGiven)
 
 
-def _finish_api_response_tracing(span: _WithSpan, response: Any, streaming: bool) -> None:
+def _finish_api_response_tracing(
+    span: _WithSpan,
+    response: Any,
+    streaming: bool,
+    finish: Callable[[_WithSpan, Any], None] = _finish_message_tracing,
+) -> None:
     """
     The output attributes are recorded only if the body has been read and parsing runs no caller
     code; the response caches the parsed message for the caller's own parse(). An unread body
@@ -386,11 +491,14 @@ def _finish_api_response_tracing(span: _WithSpan, response: Any, streaming: bool
         logger.exception("Failed to parse the raw response")
         span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return
-    _finish_message_tracing(span, message)
+    finish(span, message)
 
 
 async def _async_finish_api_response_tracing(
-    span: _WithSpan, response: Any, streaming: bool
+    span: _WithSpan,
+    response: Any,
+    streaming: bool,
+    finish: Callable[[_WithSpan, Any], None] = _finish_message_tracing,
 ) -> None:
     """
     See _finish_api_response_tracing.
@@ -407,7 +515,7 @@ async def _async_finish_api_response_tracing(
         logger.exception("Failed to parse the raw response")
         span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return
-    _finish_message_tracing(span, message)
+    finish(span, message)
 
 
 class _MessagesStreamWrapper(_WithTracer):

@@ -720,3 +720,212 @@ def test_provider_is_the_platform_hosting_the_model(
     attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
     assert attributes[SpanAttributes.LLM_PROVIDER] == provider
     assert attributes[SpanAttributes.LLM_SYSTEM] == "anthropic"
+
+
+def _text_message_handler(request: Any) -> Any:
+    # Vertex AI's path is count-tokens:rawPredict
+    if "count_tokens" in request.url.path or "count-tokens" in request.url.path:
+        return httpx2.Response(200, json={"input_tokens": 12})
+    if b'"stream": true' in request.content or b'"stream":true' in request.content:
+        return _event_stream_response(
+            [
+                {"type": "message_start", "message": _message_json([])},
+                *_content_block_events(0, {"type": "text", "text": "ok"}),
+                {
+                    "type": "message_delta",
+                    "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                    "usage": {"output_tokens": 1},
+                },
+                {"type": "message_stop"},
+            ]
+        )
+    return httpx2.Response(200, json=_message_json([{"type": "text", "text": "ok"}]))
+
+
+@pytest.mark.parametrize("provider", ["aws", "google"])
+def test_platform_beta_messages_are_traced(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+    provider: str,
+) -> None:
+    client = _platform_clients(_text_message_handler)[provider]
+    messages: Any = [{"role": "user", "content": "hi"}]
+    client.beta.messages.create(model=MODEL, max_tokens=100, messages=messages)
+    names = ["beta.messages.create"]
+    if provider == "google":
+        # Bedrock streams AWS event streams, which need botocore to decode
+        with client.beta.messages.stream(model=MODEL, max_tokens=100, messages=messages) as stream:
+            stream.until_done()
+        names.append("beta.messages.stream")
+    # one span each, so none is traced twice
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == names
+    output_text = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        assert attributes[SpanAttributes.LLM_PROVIDER] == provider
+        assert attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "hi"
+        assert attributes[output_text] == "ok"
+
+
+async def test_platform_async_beta_messages_are_traced(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    from anthropic import AsyncAnthropicBedrock
+
+    # Any, since the SDK types the methods it copies as the first-party resource's
+    client: Any = AsyncAnthropicBedrock(
+        api_key="k",
+        aws_region="us-east-1",
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(_text_message_handler)),
+    )
+    await client.beta.messages.create(
+        model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "hi"}]
+    )
+    span = _get_span(in_memory_span_exporter)
+    assert span.name == "beta.messages.create"
+    assert dict(span.attributes or {})[SpanAttributes.LLM_PROVIDER] == "aws"
+
+
+def _assert_count_tokens_span(span: ReadableSpan, name: str, provider: str = "anthropic") -> None:
+    assert span.name == name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == provider
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "anthropic"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == MODEL
+    assert attributes.pop(SpanAttributes.LLM_REQUEST_MODEL_NAME) == MODEL
+    assert json.loads(str(attributes.pop(SpanAttributes.INPUT_VALUE)))["model"] == MODEL
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "be brief"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "hi"
+    assert json.loads(
+        str(attributes.pop(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"))
+    ) == {"name": "f", "input_schema": {"type": "object"}}
+    assert json.loads(str(attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS))) == {
+        "tool_choice": {"type": "auto"}
+    }
+    # the count is the output, and nothing is generated, so there are no token counts
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "12"
+    assert not attributes
+    assert span.status.is_ok
+
+
+_COUNT_TOKENS_KWARGS: Dict[str, Any] = {
+    "model": MODEL,
+    "system": "be brief",
+    "messages": [{"role": "user", "content": "hi"}],
+    "tools": [{"name": "f", "input_schema": {"type": "object"}}],
+    "tool_choice": {"type": "auto"},
+}
+
+
+@pytest.mark.parametrize("is_beta", [False, True])
+def test_count_tokens(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+    is_beta: bool,
+) -> None:
+    client = _mock_anthropic_client(_text_message_handler)
+    messages: Any = client.beta.messages if is_beta else client.messages
+    assert messages.count_tokens(**_COUNT_TOKENS_KWARGS).input_tokens == 12
+    name = "beta.messages.count_tokens" if is_beta else "messages.count_tokens"
+    _assert_count_tokens_span(_get_span(in_memory_span_exporter), name)
+
+
+@pytest.mark.parametrize("is_beta", [False, True])
+async def test_async_count_tokens(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+    is_beta: bool,
+) -> None:
+    from anthropic import AsyncAnthropic
+
+    client = AsyncAnthropic(
+        api_key="sk-ant-fake",
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(_text_message_handler)),
+    )
+    messages: Any = client.beta.messages if is_beta else client.messages
+    assert (await messages.count_tokens(**_COUNT_TOKENS_KWARGS)).input_tokens == 12
+    name = "beta.messages.count_tokens" if is_beta else "messages.count_tokens"
+    _assert_count_tokens_span(_get_span(in_memory_span_exporter), name)
+
+
+def test_platform_beta_count_tokens(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _platform_clients(_text_message_handler)["google"]
+    assert client.beta.messages.count_tokens(**_COUNT_TOKENS_KWARGS).input_tokens == 12
+    _assert_count_tokens_span(
+        _get_span(in_memory_span_exporter), "beta.messages.count_tokens", provider="google"
+    )
+
+
+def test_raw_count_tokens_response(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(_text_message_handler)
+    response = client.messages.with_raw_response.count_tokens(**_COUNT_TOKENS_KWARGS)
+    assert response.parse().input_tokens == 12
+    _assert_count_tokens_span(_get_span(in_memory_span_exporter), "messages.count_tokens")
+
+
+def test_suppressed_count_tokens_is_not_traced(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    from openinference.instrumentation import suppress_tracing
+
+    client = _mock_anthropic_client(_text_message_handler)
+    with suppress_tracing():
+        client.messages.count_tokens(**_COUNT_TOKENS_KWARGS)
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
+def test_uninstrumentation_restores_count_tokens_and_platform_beta_messages(
+    tracer_provider: TracerProvider,
+) -> None:
+    from anthropic.lib.bedrock import _beta_messages as bedrock_beta_messages
+    from anthropic.lib.vertex import _beta_messages as vertex_beta_messages
+    from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+    from anthropic.resources.beta.messages import Messages as BetaMessages
+    from anthropic.resources.messages import AsyncMessages, Messages
+    from wrapt import FunctionWrapper
+
+    from openinference.instrumentation.anthropic import AnthropicInstrumentor
+
+    wrapped = [
+        (Messages, "count_tokens"),
+        (AsyncMessages, "count_tokens"),
+        (BetaMessages, "count_tokens"),
+        (AsyncBetaMessages, "count_tokens"),
+        *(
+            (cls, method)
+            for module in [bedrock_beta_messages, vertex_beta_messages]
+            for cls in [module.Messages, module.AsyncMessages]
+            for method in ["create", "parse", "stream"]
+        ),
+        (vertex_beta_messages.Messages, "count_tokens"),
+        (vertex_beta_messages.AsyncMessages, "count_tokens"),
+    ]
+    originals = {(cls, method): cls.__dict__[method] for cls, method in wrapped}
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        for cls, method in wrapped:
+            assert isinstance(cls.__dict__[method], FunctionWrapper), (cls, method)
+    finally:
+        AnthropicInstrumentor().uninstrument()
+    for cls, method in wrapped:
+        assert cls.__dict__[method] is originals[(cls, method)]
