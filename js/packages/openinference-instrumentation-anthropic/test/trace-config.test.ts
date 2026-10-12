@@ -12,6 +12,7 @@ import { waitForSpans as waitForSpansOn } from "./helpers/waitForSpans";
 
 const {
   LLM_INPUT_MESSAGES,
+  LLM_INVOCATION_PARAMETERS,
   MESSAGE_CONTENT_TEXT,
   MESSAGE_CONTENT_TYPE,
   MESSAGE_CONTENTS,
@@ -144,6 +145,24 @@ describe("AnthropicInstrumentation - trace config", () => {
     const metadata = JSON.parse((await traceRequest())[METADATA] as string);
     expect(metadata.citations["0"][0].cited_text).toBeUndefined();
     expect(metadata.stop_details.explanation).toBe("SECRET EXPLANATION");
+  });
+
+  it("keeps the system prompt out of the invocation parameters, so hideInputs hides it", async () => {
+    instrument({ hideInputs: true });
+    const client = new Anthropic({ apiKey: "fake-api-key", fetch: jsonFetch(responseMessage) });
+    await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 100,
+      system: "SECRET SYSTEM PROMPT",
+      messages: [{ role: "user", content: "Hi" }],
+    });
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    expect(JSON.parse(span.attributes[LLM_INVOCATION_PARAMETERS] as string)).toEqual({
+      model: "claude-sonnet-4-6",
+      max_tokens: 100,
+    });
+    expect(JSON.stringify(span.attributes)).not.toContain("SECRET SYSTEM PROMPT");
   });
 
   it("never encodes base64 data in a block recorded as JSON", async () => {

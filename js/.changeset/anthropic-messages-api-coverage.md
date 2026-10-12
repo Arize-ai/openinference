@@ -7,7 +7,7 @@ Support the current Anthropic Messages API (stable and beta, `@anthropic-ai/sdk`
 Behavior changes to note:
 
 - A streamed response's `output.value` is now the message rebuilt from the stream as JSON (`output.mime_type` `application/json`, previously the concatenated text as `text/plain`), the same as for a non-streaming response.
-- The top-level `system` prompt is now recorded as input message 0, so the conversation's messages start at index 1 when a system prompt is set.
+- The top-level `system` prompt is now recorded as input message 0, so the conversation's messages start at index 1 when a system prompt is set. It is no longer part of `llm.invocation_parameters`, which `hideInputs` does not hide.
 
 Changes:
 

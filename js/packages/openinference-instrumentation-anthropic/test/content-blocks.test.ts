@@ -446,6 +446,48 @@ describe("AnthropicInstrumentation - content blocks", () => {
     expect(attributes[`${LLM_TOOLS}.2.${TOOL_JSON_SCHEMA}`]).toBe(JSON.stringify(inlineTool));
   });
 
+  it("redacts base64 data in the array content of a tool result", async () => {
+    const client = new Anthropic({ apiKey: "fake-api-key", fetch: jsonFetch(responseMessage) });
+    await client.messages.create({
+      ...request,
+      messages: [
+        { role: "user", content: "Snapshot camera A" },
+        {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "toolu_a", name: "snapshot", input: { cam: "A" } }],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_a",
+              content: [
+                { type: "text", text: "Camera A" },
+                {
+                  type: "image",
+                  source: { type: "base64", media_type: "image/png", data: "iVBOR" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    const attributes = span.attributes;
+    expect(attributes[input(2, "message.tool_call_id")]).toBe("toolu_a");
+    expect(JSON.parse(attributes[input(2, MESSAGE_CONTENT)] as string)).toEqual([
+      { type: "text", text: "Camera A" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/png", data: "__REDACTED__" },
+      },
+    ]);
+  });
+
   it("records a string system prompt as the first input message", async () => {
     const client = new Anthropic({ apiKey: "fake-api-key", fetch: jsonFetch(responseMessage) });
     await client.messages.create({ ...request, system: "You are terse." });
