@@ -818,7 +818,15 @@ def _get_llm_input_messages(
                             yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "image"
                             yield f"{prefix}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", image_data
                     elif block["type"] == "document":
-                        pass
+                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                        doc_source: Mapping[str, Any] = block.get("source") or {}
+                        if doc_source.get("type") == "text":
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", doc_source.get("data")
+                        else:
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "document"
+                            if media_type := doc_source.get("media_type"):
+                                yield f"{prefix}.message_content.document.media_type", media_type
                     elif block["type"] == "search_result":
                         pass
                     elif block["type"] == "thinking":
