@@ -18,6 +18,7 @@ const {
   LLM_OUTPUT_MESSAGES,
   LLM_TOOLS,
   MESSAGE_CONTENT,
+  MESSAGE_CONTENT_ENCRYPTED_CONTENT,
   MESSAGE_CONTENT_ID,
   MESSAGE_CONTENT_IMAGE,
   MESSAGE_CONTENT_SIGNATURE,
@@ -370,6 +371,63 @@ describe("AnthropicInstrumentation - content blocks", () => {
       encrypted_content: "enc",
     });
     expect(outputMessage.content[1].signature).toBeUndefined();
+  });
+
+  it("records a compaction's encrypted content and the tools it defines inline", async () => {
+    const compactedTool = {
+      name: "lookup",
+      description: "Look a word up",
+      input_schema: { type: "object" as const, properties: {} },
+    };
+    const client = new Anthropic({
+      apiKey: "fake-api-key",
+      fetch: jsonFetch({
+        ...responseMessage,
+        content: [
+          { type: "compaction", content: "Summary", encrypted_content: "enc-out", signature: null },
+        ],
+      }),
+    });
+    await client.beta.messages.create({
+      ...request,
+      tools: [
+        {
+          name: "get_weather",
+          description: "Get the weather",
+          input_schema: { type: "object", properties: {} },
+        },
+      ],
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "compaction",
+              content: "Earlier summary",
+              encrypted_content: "enc-in",
+              tool_changes: [
+                {
+                  type: "tool_addition",
+                  tool: { type: "tool_definition", definition: compactedTool },
+                },
+                { type: "tool_removal", tool: { type: "tool_reference", name: "get_weather" } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    const attributes = span.attributes;
+    expect(attributes[inputContent(0, 0, MESSAGE_CONTENT_TEXT)]).toBe("Earlier summary");
+    expect(attributes[inputContent(0, 0, MESSAGE_CONTENT_ENCRYPTED_CONTENT)]).toBe("enc-in");
+    expect(attributes[outputContent(0, MESSAGE_CONTENT_ENCRYPTED_CONTENT)]).toBe("enc-out");
+    expect(attributes[`${LLM_TOOLS}.0.${TOOL_NAME}`]).toBe("get_weather");
+    expect(attributes[`${LLM_TOOLS}.1.${TOOL_NAME}`]).toBe("lookup");
+    expect(attributes[`${LLM_TOOLS}.1.${TOOL_JSON_SCHEMA}`]).toBe(JSON.stringify(compactedTool));
+    expect(attributes[`${LLM_TOOLS}.2.${TOOL_NAME}`]).toBeUndefined();
   });
 
   it("does not modify the events the caller receives", async () => {
