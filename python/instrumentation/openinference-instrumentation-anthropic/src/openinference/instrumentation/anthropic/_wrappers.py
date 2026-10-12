@@ -463,8 +463,11 @@ def _finish_count_tokens_tracing(span: _WithSpan, response: Any) -> None:
 
 @_stop_on_exception
 def _get_count_tokens_outputs(response: Any) -> Iterator[Tuple[str, Any]]:
-    # The count is not recorded as a token count, since nothing is generated or billed.
-    yield OUTPUT_VALUE, str(response.input_tokens)
+    # The response, e.g. the count and, on beta, the context management's effect on it, with the
+    # API's field names. The count is not recorded as a token count, since nothing is generated
+    # or billed.
+    yield OUTPUT_VALUE, safe_json_dumps(_to_jsonable(response))
+    yield OUTPUT_MIME_TYPE, JSON
 
 
 def _is_api_response(response: Any) -> bool:

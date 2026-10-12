@@ -728,6 +728,10 @@ def test_provider_is_the_platform_hosting_the_model(
 def _text_message_handler(request: Any) -> Any:
     # Vertex AI's path is count-tokens:rawPredict
     if "count_tokens" in request.url.path or "count-tokens" in request.url.path:
+        if "beta=true" in str(request.url):
+            return httpx2.Response(
+                200, json={"input_tokens": 12, "context_management": _COUNT_CONTEXT_MANAGEMENT}
+            )
         return httpx2.Response(200, json={"input_tokens": 12})
     if b'"stream": true' in request.content or b'"stream":true' in request.content:
         return _event_stream_response(
@@ -793,6 +797,9 @@ async def test_platform_async_beta_messages_are_traced(
     assert dict(span.attributes or {})[SpanAttributes.LLM_PROVIDER] == "aws"
 
 
+_COUNT_CONTEXT_MANAGEMENT = {"original_input_tokens": 50}
+
+
 def _assert_count_tokens_span(span: ReadableSpan, name: str, provider: str = "anthropic") -> None:
     assert span.name == name
     attributes = dict(span.attributes or {})
@@ -814,7 +821,11 @@ def _assert_count_tokens_span(span: ReadableSpan, name: str, provider: str = "an
         "tool_choice": {"type": "auto"}
     }
     # the count is the output, and nothing is generated, so there are no token counts
-    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "12"
+    expected_output: Dict[str, Any] = {"input_tokens": 12}
+    if name.startswith("beta.") and provider == "anthropic":
+        expected_output["context_management"] = _COUNT_CONTEXT_MANAGEMENT
+    assert json.loads(str(attributes.pop(SpanAttributes.OUTPUT_VALUE))) == expected_output
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
     assert not attributes
     assert span.status.is_ok
 
