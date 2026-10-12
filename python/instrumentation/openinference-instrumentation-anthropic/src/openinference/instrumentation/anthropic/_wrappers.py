@@ -35,8 +35,11 @@ from openinference.instrumentation.anthropic._content import (
     _get_message_contents_attributes,
     _get_metadata_attributes,
     _get_output_message_attributes,
+    _get_request_params,
     _hides_input_images,
     _require,
+    _to_json,
+    _to_jsonable,
 )
 from openinference.instrumentation.anthropic._stream import (
     _MessagesStream,
@@ -230,7 +233,7 @@ def _get_attributes_from_messages_create(
     config: Optional[TraceConfig] = None,
 ) -> Iterator[Tuple[str, AttributeValue]]:
     yield from _get_llm_model_name_from_input(kwargs)
-    invocation_parameters = dict(kwargs)
+    invocation_parameters = _get_request_params(kwargs)
     invocation_parameters.pop("extra_headers", None)
     invocation_parameters.pop("model", None)
     invocation_parameters.pop("output_format", None)
@@ -245,7 +248,7 @@ def _get_attributes_from_messages_create(
     tools.extend(_get_inline_tool_definitions(messages))
     if tools:
         yield from _get_llm_tools(tools)
-    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
+    yield LLM_INVOCATION_PARAMETERS, _to_json(invocation_parameters)
 
 
 class _MessagesWrapper(_WithTracer):
@@ -834,7 +837,8 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-def
 
 @_stop_on_exception
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    yield INPUT_VALUE, safe_json_dumps(arguments)
+    # as JSON, so e.g. response blocks passed back as input are dumped rather than repr'd
+    yield INPUT_VALUE, safe_json_dumps(_to_jsonable(_get_request_params(arguments)))
     yield INPUT_MIME_TYPE, JSON
 
 

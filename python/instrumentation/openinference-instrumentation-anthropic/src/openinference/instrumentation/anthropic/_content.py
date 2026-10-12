@@ -51,7 +51,8 @@ def _to_jsonable(obj: Any) -> Any:
         return [_to_jsonable(item) for item in obj]
     if isinstance(obj, Mapping):
         return {key: _to_jsonable(value) for key, value in obj.items()}
-    if hasattr(obj, "model_dump"):
+    # not a model class, e.g. the output_format of messages.parse(), which has no instance to dump
+    if hasattr(obj, "model_dump") and not isinstance(obj, type):
         # by_alias, so e.g. a fallback block's `from_` is recorded as the API's `from`, and
         # without warnings, which the SDK's stand-in model for an unknown block type would raise
         try:
@@ -98,6 +99,21 @@ def _to_json(obj: Any, hide_images: bool = False) -> str:
 
 def _hides_input_images(config: Optional[TraceConfig]) -> bool:
     return bool(config and (config.hide_inputs or config.hide_input_images))
+
+
+def _get_request_params(kwargs: Mapping[str, Any]) -> Dict[str, Any]:
+    """
+    The request's parameters, to be recorded, without the ones that were not given, e.g. the
+    `omit` defaults that the tool runner passes explicitly.
+    """
+    from anthropic import NotGiven, Omit
+
+    return {
+        key: value
+        for key, value in kwargs.items()
+        if not isinstance(value, (NotGiven, Omit))
+        and not (key in ("extra_query", "extra_body") and value is None)
+    }
 
 
 def _attributes_or_nothing(
@@ -254,7 +270,7 @@ def _get_response_metadata(
     - usage_iterations: the token usage of each sampling and compaction iteration. A compaction
       iteration's tokens are not included in the top-level usage, so they are not included in
       the token counts either.
-    - server_tool_use: the number of server tool requests, e.g. web searches, by tool
+    - server_tool_use: the number of server tool requests, e.g. web searches, by tool, when any
     - citations: the citations of each text block, keyed by its index in the output contents
     - mcp_server_names: the MCP server of each MCP tool call, keyed by its tool call id
 
@@ -282,7 +298,7 @@ def _get_response_metadata(
     )
     add("input_transformations", lambda: _get(message, "input_transformations"))
     add("usage_iterations", lambda: _get(_get(message, "usage"), "iterations"))
-    add("server_tool_use", lambda: _get(_get(message, "usage"), "server_tool_use"))
+    add("server_tool_use", lambda: _get_server_tool_use(message))
     if not hide_citations:
         add("citations", lambda: _get_citations(message))
     add("mcp_server_names", lambda: _get_mcp_server_names(message))
@@ -295,6 +311,12 @@ def _get_stop_details(message: Any, hide_explanation: bool) -> Any:
     if hide_explanation and isinstance(stop_details, dict):
         stop_details.pop("explanation", None)
     return stop_details
+
+
+def _get_server_tool_use(message: Any) -> Any:
+    # only when a server tool was used, since the API returns zero counts on most responses
+    counts = _to_jsonable(_get(_get(message, "usage"), "server_tool_use"))
+    return counts if isinstance(counts, dict) and any(counts.values()) else None
 
 
 def _get_citations(message: Any) -> Dict[str, Any]:

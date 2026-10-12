@@ -10,6 +10,7 @@ from anthropic import Anthropic
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation.anthropic._content import _get_response_metadata
 from openinference.instrumentation.anthropic._wrappers import _get_llm_input_messages
 from openinference.semconv.trace import (
     ImageAttributes,
@@ -1083,3 +1084,12 @@ def test_bad_block_is_logged_at_debug_level(caplog: pytest.LogCaptureFixture) ->
     records = [record for record in caplog.records if record.msg == "Failed to get attributes."]
     assert records and all(record.levelno == logging.DEBUG for record in records)
     assert all(record.exc_info for record in records)
+
+
+def test_zero_server_tool_counts_are_not_recorded() -> None:
+    usage = {
+        "input_tokens": 1,
+        "output_tokens": 1,
+        "server_tool_use": {"web_search_requests": 0, "web_fetch_requests": 0},
+    }
+    assert "server_tool_use" not in _get_response_metadata({"usage": usage})
