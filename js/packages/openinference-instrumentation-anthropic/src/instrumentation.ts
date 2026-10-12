@@ -413,6 +413,12 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
         const provider = getAnthropicProvider(this);
         try {
           instrumentToolRunnerTools({ runner, tools });
+        } catch (error) {
+          diag.warn(`Failed to instrument a ${MODULE_NAME} tool runner's tools`, error);
+        }
+        // Instrumented on its own, so the run keeps its CHAIN span even when
+        // the runner's tool methods could not be wrapped.
+        try {
           instrumentToolRunner({
             runner,
             traceConfig: instrumentation.resolvedTraceConfig,
@@ -2233,6 +2239,33 @@ function instrumentToolRunnerTools({
     },
   });
 
+  // setMessagesParams() and addTools() are wrapped only where the SDK has
+  // them: SDKs before 0.133 have no addTools().
+  if (typeof runner.setMessagesParams === "function") {
+    instrumentSetMessagesParams({ runner, tools });
+  }
+  if (typeof runner.addTools === "function") {
+    const addTools = runner.addTools.bind(runner);
+    Object.defineProperty(runner, "addTools", {
+      configurable: true,
+      writable: true,
+      value: (...added: Parameters<ToolRunner["addTools"]>) =>
+        addTools(...added.map((tool) => tools.trace(tool))),
+    });
+  }
+}
+
+/**
+ * Traces the tools of the params given to `setMessagesParams()`, and hands its
+ * mutator the caller's tools.
+ */
+function instrumentSetMessagesParams({
+  runner,
+  tools,
+}: {
+  runner: ToolRunner;
+  tools: RunnableToolTracer;
+}) {
   const setMessagesParams = runner.setMessagesParams.bind(runner);
   Object.defineProperty(runner, "setMessagesParams", {
     configurable: true,
@@ -2248,14 +2281,6 @@ function instrumentToolRunnerTools({
         setMessagesParams(tools.traceParams(paramsOrMutator));
       }
     },
-  });
-
-  const addTools = runner.addTools.bind(runner);
-  Object.defineProperty(runner, "addTools", {
-    configurable: true,
-    writable: true,
-    value: (...added: Parameters<ToolRunner["addTools"]>) =>
-      addTools(...added.map((tool) => tools.trace(tool))),
   });
 }
 
