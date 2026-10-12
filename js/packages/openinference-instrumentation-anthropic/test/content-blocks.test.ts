@@ -430,6 +430,110 @@ describe("AnthropicInstrumentation - content blocks", () => {
     expect(attributes[`${LLM_TOOLS}.2.${TOOL_NAME}`]).toBeUndefined();
   });
 
+  describe("tool call callers and toolsets", () => {
+    const programmaticCaller = { type: "code_execution_20250825", tool_id: "srvtoolu_exec" };
+    const outputCaller = { type: "code_execution_20260120", tool_id: "srvtoolu_exec2" };
+    const toolCallRequest = {
+      ...request,
+      messages: [
+        { role: "user" as const, content: "Browse to example.com" },
+        {
+          role: "assistant" as const,
+          content: [
+            {
+              type: "tool_use" as const,
+              id: "toolu_in",
+              name: "navigate",
+              input: { url: "https://example.com" },
+              caller: programmaticCaller,
+              toolset_name: "browser",
+            },
+            {
+              type: "tool_use" as const,
+              id: "toolu_both",
+              name: "click",
+              input: {},
+              caller: programmaticCaller,
+            },
+          ],
+        },
+        {
+          role: "user" as const,
+          content: [
+            {
+              type: "tool_result" as const,
+              tool_use_id: "toolu_in",
+              content: "ok",
+              toolset_name: "browser",
+            },
+          ],
+        },
+      ],
+    } as unknown as Anthropic.Beta.MessageCreateParamsNonStreaming;
+    const outputBlocks = [
+      {
+        type: "tool_use",
+        id: "toolu_both",
+        name: "click",
+        input: {},
+        caller: outputCaller,
+        toolset_name: "browser",
+      },
+      {
+        type: "tool_use",
+        id: "toolu_direct",
+        name: "get_weather",
+        input: {},
+        caller: { type: "direct" },
+      },
+    ];
+    const expected = {
+      tool_callers: { toolu_in: programmaticCaller, toolu_both: outputCaller },
+      toolset_names: { toolu_in: "browser", toolu_both: "browser" },
+    };
+
+    it("records them from the request and a non-streaming response", async () => {
+      const client = new Anthropic({
+        apiKey: "fake-api-key",
+        fetch: jsonFetch({ ...responseMessage, content: outputBlocks }),
+      });
+      await client.beta.messages.create(toolCallRequest);
+
+      await waitForSpans(1);
+      const [span] = memoryExporter.getFinishedSpans();
+      const metadata = JSON.parse(span.attributes[METADATA] as string);
+      expect(metadata.tool_callers).toEqual(expected.tool_callers);
+      expect(metadata.toolset_names).toEqual(expected.toolset_names);
+      // The function name stays the bare member name.
+      expect(span.attributes[outputToolCall(0, TOOL_CALL_FUNCTION_NAME)]).toBe("click");
+    });
+
+    it("records them from the request and a streamed response", async () => {
+      const client = new Anthropic({
+        apiKey: "fake-api-key",
+        fetch: sseFetch([
+          messageStart(),
+          ...outputBlocks.flatMap((block, index) => [
+            { type: "content_block_start", index, content_block: block },
+            { type: "content_block_stop", index },
+          ]),
+          messageDelta({ stopReason: "tool_use" }),
+          { type: "message_stop" },
+        ]),
+      });
+      const stream = await client.beta.messages.create({ ...toolCallRequest, stream: true });
+      for await (const _event of stream) {
+        // drain
+      }
+
+      await waitForSpans(1);
+      const [span] = memoryExporter.getFinishedSpans();
+      const metadata = JSON.parse(span.attributes[METADATA] as string);
+      expect(metadata.tool_callers).toEqual(expected.tool_callers);
+      expect(metadata.toolset_names).toEqual(expected.toolset_names);
+    });
+  });
+
   it("does not modify the events the caller receives", async () => {
     const client = new Anthropic({
       apiKey: "fake-api-key",
