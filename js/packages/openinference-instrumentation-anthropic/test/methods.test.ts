@@ -465,6 +465,28 @@ describe("AnthropicInstrumentation - other Messages methods", () => {
       expect(toolSpan.attributes[TOOL_DESCRIPTION]).toBe("Get the weather for a city");
     });
 
+    it("records no parameters for a tool without an input schema", async () => {
+      const client = new Anthropic({
+        apiKey: "fake-api-key",
+        fetch: sequenceFetch([
+          () => jsonResponse(toolUseMessage),
+          () => jsonResponse(finalMessage),
+        ]),
+      });
+      const { input_schema: _schema, ...schemaless } = weatherTool(() => "sunny");
+
+      await client.beta.messages.toolRunner({
+        ...request,
+        tools: [schemaless as unknown as BetaRunnableTool<{ city: string }>],
+      });
+
+      await waitForSpans(4);
+      const [toolSpan] = byKind(memoryExporter.getFinishedSpans(), OpenInferenceSpanKind.TOOL);
+      expect(toolSpan.attributes[TOOL_NAME]).toBe("get_weather");
+      expect(toolSpan.attributes[TOOL_DESCRIPTION]).toBe("Get the weather for a city");
+      expect(toolSpan.attributes[TOOL_PARAMETERS]).toBeUndefined();
+    });
+
     it("traces a run retried after a failure under a new CHAIN span", async () => {
       const responses = [
         () =>
