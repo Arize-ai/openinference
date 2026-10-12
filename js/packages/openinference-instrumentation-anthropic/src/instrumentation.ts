@@ -659,11 +659,13 @@ function getAnthropicRequestAttributes(
   // The system prompt is input message 0, so it is left out of the invocation
   // parameters, which hideInputs does not hide.
   const { messages: _messages, system: _system, ...invocationParameters } = body;
+  // Each part is extracted on its own, so a malformed message or tool costs
+  // only its own attributes.
   const attributes: Attributes = {
     [SemanticConventions.LLM_MODEL_NAME]: body.model,
     [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
-    ...getAnthropicInputMessagesAttributes(body, traceConfig),
-    ...getAnthropicToolsJSONSchema(body),
+    ...safelyGetAttributes(() => getAnthropicInputMessagesAttributes(body, traceConfig)),
+    ...safelyGetAttributes(() => getAnthropicToolsJSONSchema(body)),
   };
   const input = safelyJSONStringify(body);
   if (input != null) {
@@ -933,10 +935,19 @@ function getAnthropicInputMessagesAttributes(
 ): Attributes {
   // The top-level system prompt is the first input message, ahead of the
   // conversation, so the prompt the model saw is recorded in order.
+  // An empty system prompt is no message, as in the Python instrumentation.
+  const system = body.system;
+  const hasSystem =
+    typeof system === "string" ? system !== "" : Array.isArray(system) && system.length > 0;
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  // Each message is mapped on its own, so a malformed one keeps its index
+  // without dropping the others.
   const messagesAttributes = [
-    ...(body.system != null ? [getAnthropicSystemMessageAttributes(body.system)] : []),
-    ...(body.messages ?? []).map((message) =>
-      getAnthropicInputMessageAttributes(message, traceConfig),
+    ...(hasSystem && system != null
+      ? [safelyGetAttributes(() => getAnthropicSystemMessageAttributes(system))]
+      : []),
+    ...messages.map((message: MessageParam) =>
+      safelyGetAttributes(() => getAnthropicInputMessageAttributes(message, traceConfig)),
     ),
   ];
   return messagesAttributes.reduce<Attributes>((acc, messageAttributes, index) => {
@@ -974,13 +985,18 @@ function getAnthropicSystemMessageAttributes(
  * tools a `tool_addition` block of a beta request defines inline.
  */
 function getAnthropicToolDefinitions(body: MessageRequestParams): ToolDefinition[] {
-  const tools: ToolDefinition[] = [...(body.tools ?? [])];
-  for (const message of body.messages ?? []) {
-    if (typeof message.content === "string") {
+  const tools: ToolDefinition[] = Array.isArray(body.tools) ? [...body.tools] : [];
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  for (const message of messages) {
+    if (!Array.isArray(message?.content)) {
       continue;
     }
     for (const part of message.content) {
-      if (part.type === "tool_addition" && part.tool.type === "tool_definition") {
+      if (
+        part?.type === "tool_addition" &&
+        part.tool?.type === "tool_definition" &&
+        part.tool.definition != null
+      ) {
         tools.push(part.tool.definition);
       }
     }
@@ -995,6 +1011,9 @@ function getAnthropicToolDefinitions(body: MessageRequestParams): ToolDefinition
 function getAnthropicToolsJSONSchema(body: MessageRequestParams): Attributes {
   return getAnthropicToolDefinitions(body).reduce((acc: Attributes, tool, index) => {
     const toolPrefix = `${SemanticConventions.LLM_TOOLS}.${index}.`;
+    if (tool == null || typeof tool !== "object") {
+      return acc;
+    }
     const toolJsonSchema = safelyJSONStringify(tool);
     if (toolJsonSchema) {
       acc[`${toolPrefix}${SemanticConventions.TOOL_JSON_SCHEMA}`] = toolJsonSchema;
@@ -1025,6 +1044,9 @@ function getAnthropicInputMessageAttributes(
     let toolIndex = 0;
     message.content.forEach((part, index) => {
       const contentsIndexPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${index}.`;
+      if (part == null || typeof part !== "object") {
+        return;
+      }
       if (part.type === "tool_result") {
         attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = part.tool_use_id;
         if (typeof part.content === "string") {
@@ -1090,6 +1112,32 @@ function getAnthropicOutputMessagesAttributes(
  * call the model made is visible, whoever ran it.
  */
 function getAnthropicContentBlockAttributes({
+  block,
+  contentPrefix,
+  toolCallPrefix,
+  traceConfig,
+}: {
+  block: ContentBlock | ContentBlockParam;
+  contentPrefix: string;
+  toolCallPrefix: string;
+  traceConfig: TraceConfig;
+}): { attributes: Attributes; isToolCall: boolean } {
+  try {
+    return mapAnthropicContentBlock({ block, contentPrefix, toolCallPrefix, traceConfig });
+  } catch (error) {
+    // A malformed block is recorded as its type and JSON, so it keeps its
+    // index and the blocks after it are still mapped.
+    diag.debug(`Failed to map a ${MODULE_NAME} content block`, error);
+    return {
+      attributes: safelyGetAttributes(() =>
+        getAnthropicGenericContentAttributes(contentPrefix, block, traceConfig),
+      ),
+      isToolCall: false,
+    };
+  }
+}
+
+function mapAnthropicContentBlock({
   block,
   contentPrefix,
   toolCallPrefix,
@@ -1382,6 +1430,17 @@ function getAnthropicOtherContentAttributes(
     }
     return attributes;
   }
+  return getAnthropicGenericContentAttributes(prefix, block, traceConfig);
+}
+
+/**
+ * Records a content block as its type and its redacted JSON.
+ */
+function getAnthropicGenericContentAttributes(
+  prefix: string,
+  block: ContentBlock | ContentBlockParam,
+  traceConfig: TraceConfig,
+): Attributes {
   const attributes: Attributes = {
     [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: String(block.type),
   };
