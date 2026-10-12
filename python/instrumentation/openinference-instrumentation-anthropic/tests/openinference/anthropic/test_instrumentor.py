@@ -3528,10 +3528,23 @@ def test_token_count_total_matches_across_paths(
     )
 
 
-def test_token_count_total_omitted_when_all_counts_are_zero() -> None:
-    """A zero total is skipped rather than emitted as 0, like the other counts."""
-    usage = Usage(input_tokens=0, output_tokens=0)
-    assert LLM_TOKEN_COUNT_TOTAL not in dict(_get_llm_token_counts(usage))
+def test_zero_token_counts_are_recorded() -> None:
+    """A reported 0 is a count, so it is recorded, except for the cache counts."""
+    from anthropic.types import OutputTokensDetails
+
+    usage = Usage(
+        input_tokens=0,
+        output_tokens=0,
+        cache_read_input_tokens=0,
+        cache_creation_input_tokens=0,
+        output_tokens_details=OutputTokensDetails(thinking_tokens=0),
+    )
+    assert dict(_get_llm_token_counts(usage)) == {
+        LLM_TOKEN_COUNT_PROMPT: 0,
+        LLM_TOKEN_COUNT_COMPLETION: 0,
+        LLM_TOKEN_COUNT_TOTAL: 0,
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 0,
+    }
 
 
 def test_cache_token_details_match_between_streaming_and_non_streaming(

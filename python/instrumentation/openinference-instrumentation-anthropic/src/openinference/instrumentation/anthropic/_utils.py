@@ -34,9 +34,11 @@ def _get_token_counts(usage: "Usage") -> Iterator[Tuple[str, AttributeValue]]:
         + (usage.cache_creation_input_tokens or 0)
         + (usage.cache_read_input_tokens or 0)
     )
-    if prompt_tokens:
+    # A reported count of 0 is recorded. The cache counts, which Anthropic reports as 0 when
+    # caching did not run, are left out when 0, rather than tagging every span with them.
+    if prompt_tokens is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if usage.output_tokens:
+    if usage.output_tokens is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
     if usage.cache_read_input_tokens:
         yield (
@@ -49,13 +51,13 @@ def _get_token_counts(usage: "Usage") -> Iterator[Tuple[str, AttributeValue]]:
             usage.cache_creation_input_tokens,
         )
     # The thinking tokens are part of, not in addition to, the output tokens.
-    if (output_tokens_details := getattr(usage, "output_tokens_details", None)) and (
+    if (output_tokens_details := getattr(usage, "output_tokens_details", None)) is not None and (
         thinking_tokens := getattr(output_tokens_details, "thinking_tokens", None)
-    ):
+    ) is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thinking_tokens
     # Anthropic's Usage has no total field, so derive it from prompt + completion.
-    if total_tokens := prompt_tokens + (usage.output_tokens or 0):
-        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
+    if prompt_tokens is not None and usage.output_tokens is not None:
+        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, prompt_tokens + usage.output_tokens
 
 
 class _ValueAndType(NamedTuple):
