@@ -27,6 +27,7 @@ import {
   getMetadata,
   getMetadataAttributes,
   getOutputAttributes,
+  getToolAttributes,
   OITracer,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
@@ -353,37 +354,38 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     type CountTokensType =
       | typeof anthropicModule.Messages.prototype.countTokens
       | typeof anthropicModule.Beta.Messages.prototype.countTokens;
-    const patchCountTokens =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      <CountType extends CountTokensType>(original: CountType): any => {
-        return function patchedCountTokens(this: unknown, ...args: Parameters<CountType>) {
-          const body = args[0];
-          const span = instrumentation.oiTracer.startSpan(`Anthropic Count Tokens`, {
-            kind: SpanKind.INTERNAL,
-            attributes: {
-              [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-              [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
-              [SemanticConventions.LLM_PROVIDER]: getAnthropicProvider(this),
-              ...safelyGetAttributes(() =>
-                getAnthropicRequestAttributes(body, instrumentation.resolvedTraceConfig),
-              ),
-            },
-          });
-          return traceAnthropicAPIPromise<TokensCount>({
-            span,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-            invoke: () => Reflect.apply(original, this, args) as PromiseLike<TokensCount>,
-            onResult: (result, { endSpan }) => {
-              span.setAttributes(
-                safelyGetAttributes(() => getOutputAttributes(toJSONOutput(result))),
-              );
-              span.setStatus({ code: SpanStatusCode.OK });
-              endSpan();
-              return result;
-            },
-          });
-        };
+    const patchCountTokens = <CountType extends CountTokensType>(
+      original: CountType,
+    ): CountType => {
+      const patched = function patchedCountTokens(this: unknown, ...args: Parameters<CountType>) {
+        const body = args[0];
+        const span = instrumentation.oiTracer.startSpan(`Anthropic Count Tokens`, {
+          kind: SpanKind.INTERNAL,
+          attributes: {
+            [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+            [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
+            [SemanticConventions.LLM_PROVIDER]: getAnthropicProvider(this),
+            ...safelyGetAttributes(() =>
+              getAnthropicRequestAttributes(body, instrumentation.resolvedTraceConfig),
+            ),
+          },
+        });
+        return traceAnthropicAPIPromise<TokensCount>({
+          span,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+          invoke: () => Reflect.apply(original, this, args) as PromiseLike<TokensCount>,
+          onResult: (result, { endSpan }) => {
+            span.setAttributes(
+              safelyGetAttributes(() => getOutputAttributes(toJSONOutput(result))),
+            );
+            span.setStatus({ code: SpanStatusCode.OK });
+            endSpan();
+            return result;
+          },
+        });
       };
+      return isPatchOf(original, patched) ? patched : original;
+    };
     if (typeof anthropicModule.Messages.prototype.countTokens === "function") {
       this._wrap(anthropicModule.Messages.prototype, "countTokens", patchCountTokens);
     }
@@ -394,40 +396,42 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     // Patch beta.messages.toolRunner: a CHAIN span for the run, parenting the
     // LLM span of each request and a TOOL span for each tool it runs.
     type ToolRunnerType = typeof anthropicModule.Beta.Messages.prototype.toolRunner;
-    const patchToolRunner =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (original: ToolRunnerType): any => {
-        return function patchedToolRunner(this: unknown, ...args: Parameters<ToolRunnerType>) {
-          const [params, ...rest] = args;
-          const tools = new RunnableToolTracer(instrumentation.oiTracer);
-          const runner: ReturnType<ToolRunnerType> = Reflect.apply(original, this, [
-            tools.traceParams(params),
-            ...rest,
-          ]);
-          const provider = getAnthropicProvider(this);
-          try {
-            instrumentToolRunnerTools({ runner, tools });
-            instrumentToolRunner({
-              runner,
-              traceConfig: instrumentation.resolvedTraceConfig,
-              // Started for each run, with the params as they are then.
-              startRunSpan: () =>
-                instrumentation.oiTracer.startSpan(TOOL_RUNNER_SPAN_NAME, {
-                  kind: SpanKind.INTERNAL,
-                  attributes: {
-                    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
-                    [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
-                    [SemanticConventions.LLM_PROVIDER]: provider,
-                    ...safelyGetAttributes(() => getInputAttributes(toJSONOutput(runner.params))),
-                  },
-                }),
-            });
-          } catch (error) {
-            diag.warn(`Failed to instrument a ${MODULE_NAME} tool runner`, error);
-          }
-          return runner;
-        };
+    const patchToolRunner = (original: ToolRunnerType): ToolRunnerType => {
+      const patched = function patchedToolRunner(
+        this: unknown,
+        ...args: Parameters<ToolRunnerType>
+      ) {
+        const [params, ...rest] = args;
+        const tools = new RunnableToolTracer(instrumentation.oiTracer);
+        const runner: ReturnType<ToolRunnerType> = Reflect.apply(original, this, [
+          tools.traceParams(params),
+          ...rest,
+        ]);
+        const provider = getAnthropicProvider(this);
+        try {
+          instrumentToolRunnerTools({ runner, tools });
+          instrumentToolRunner({
+            runner,
+            traceConfig: instrumentation.resolvedTraceConfig,
+            // Started for each run, with the params as they are then.
+            startRunSpan: () =>
+              instrumentation.oiTracer.startSpan(TOOL_RUNNER_SPAN_NAME, {
+                kind: SpanKind.INTERNAL,
+                attributes: {
+                  [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+                  [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
+                  [SemanticConventions.LLM_PROVIDER]: provider,
+                  ...safelyGetAttributes(() => getInputAttributes(toJSONOutput(runner.params))),
+                },
+              }),
+          });
+        } catch (error) {
+          diag.warn(`Failed to instrument a ${MODULE_NAME} tool runner`, error);
+        }
+        return runner;
       };
+      return isPatchOf(original, patched) ? patched : original;
+    };
     if (betaMessages?.prototype?.toolRunner) {
       this._wrap(betaMessages.prototype, "toolRunner", patchToolRunner);
     }
@@ -585,6 +589,19 @@ function traceAnthropicAPIPromise<T>({
 }
 
 /**
+ * Narrows a patched method to the type of the SDK method it replaces. A patch
+ * takes the same arguments and returns what the original returns (through
+ * `traceAnthropicAPIPromise` or the original call itself), which TypeScript
+ * cannot check against the SDK's overloads.
+ */
+function isPatchOf<Method extends (...args: never[]) => unknown>(
+  _original: Method,
+  patched: unknown,
+): patched is Method {
+  return typeof patched === "function";
+}
+
+/**
  * True when create() returned an APIPromise we can transform with _thenUnwrap.
  */
 function hasThenUnwrap<T>(promise: PromiseLike<T>): promise is APIPromise<T> {
@@ -667,11 +684,7 @@ function getAnthropicRequestAttributes(
     ...safelyGetAttributes(() => getAnthropicInputMessagesAttributes(body, traceConfig)),
     ...safelyGetAttributes(() => getAnthropicToolsJSONSchema(body)),
   };
-  const input = safelyJSONStringify(body);
-  if (input != null) {
-    attributes[SemanticConventions.INPUT_VALUE] = input;
-    attributes[SemanticConventions.INPUT_MIME_TYPE] = MimeType.JSON;
-  }
+  Object.assign(attributes, getInputAttributes(toJSONOutput(body)));
   const invocationParametersJSON = safelyJSONStringify(invocationParameters);
   if (invocationParametersJSON != null) {
     attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] = invocationParametersJSON;
@@ -700,11 +713,7 @@ function getAnthropicResponseAttributes(
       contextMetadata,
     }),
   };
-  const output = safelyJSONStringify(result);
-  if (output != null) {
-    attributes[SemanticConventions.OUTPUT_VALUE] = output;
-    attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
-  }
+  Object.assign(attributes, getOutputAttributes(toJSONOutput(result)));
   return attributes;
 }
 
@@ -1770,11 +1779,7 @@ function getAnthropicStreamAttributes(
     Object.assign(attributes, getAnthropicReasoningTokenAttributes(message.usage));
   }
 
-  const output = safelyJSONStringify(message);
-  if (output != null) {
-    attributes[SemanticConventions.OUTPUT_VALUE] = output;
-    attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
-  }
+  Object.assign(attributes, getOutputAttributes(toJSONOutput(message)));
 
   if (state.responseModel != null) {
     // Override the model from the value sent by the server
@@ -2026,20 +2031,26 @@ function getRunnableToolAttributes({
   tool: RunnableTool;
   args: unknown;
 }): Attributes {
-  const attributes: Attributes = {
-    [SemanticConventions.TOOL_NAME]: tool.name,
-    ...getInputAttributes(toJSONOutput(args)),
-  };
-  if ("description" in tool && typeof tool.description === "string" && tool.description) {
-    attributes[SemanticConventions.TOOL_DESCRIPTION] = tool.description;
+  const description =
+    "description" in tool && typeof tool.description === "string" && tool.description
+      ? tool.description
+      : undefined;
+  const inputSchema: unknown = "input_schema" in tool ? tool.input_schema : undefined;
+  const toolAttributes = getToolAttributes({
+    name: tool.name,
+    description,
+    parameters: isStringRecord(inputSchema) ? inputSchema : {},
+  });
+  if (!isStringRecord(inputSchema)) {
+    // A tool without a schema of its own (e.g. a typed client tool) has no
+    // parameters to record.
+    delete toolAttributes[SemanticConventions.TOOL_PARAMETERS];
   }
-  if ("input_schema" in tool) {
-    const parameters = safelyJSONStringify(tool.input_schema);
-    if (parameters != null) {
-      attributes[SemanticConventions.TOOL_PARAMETERS] = parameters;
-    }
-  }
-  return attributes;
+  return { ...toolAttributes, ...getInputAttributes(toJSONOutput(args)) };
+}
+
+function isStringRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === "object" && !Array.isArray(value);
 }
 
 /**
