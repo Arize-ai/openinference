@@ -420,9 +420,9 @@ def test_input_user_blocks() -> None:
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}": "user",
         f"{contents}.0.{MESSAGE_CONTENT_TYPE}": "image",
         f"{contents}.0.{image_url}": "https://example.com/a.png",
-        # a file has no URL, so it is referenced by its id
+        # a file has no URL, so the block is recorded as JSON
         f"{contents}.1.{MESSAGE_CONTENT_TYPE}": "image",
-        f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_ID}": "file_1",
+        f"{contents}.1.{MESSAGE_CONTENT_TEXT}": json.dumps(blocks[1]),
         f"{contents}.2.{MESSAGE_CONTENT_TYPE}": "image",
         f"{contents}.2.{image_url}": "data:image/png;base64,AAA",
         f"{contents}.3.{MESSAGE_CONTENT_TYPE}": "search_result",
@@ -1271,3 +1271,17 @@ def test_compaction_blocks_record_encrypted_content_and_their_tools(
     json_schema = ToolAttributes.TOOL_JSON_SCHEMA
     assert json.loads(str(attributes[f"{llm_tools}.0.{json_schema}"])) == inline_tool
     assert f"{llm_tools}.1.{json_schema}" not in attributes
+
+
+def test_hidden_file_images_are_redacted() -> None:
+    block = {"type": "image", "source": {"type": "file", "file_id": "file_1"}}
+    attributes = dict(
+        _get_llm_input_messages([{"role": "user", "content": [block]}], hide_images=True)
+    )
+    contents = f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}"
+    assert attributes[f"{contents}.0.{MESSAGE_CONTENT_TYPE}"] == "image"
+    assert json.loads(str(attributes[f"{contents}.0.{MESSAGE_CONTENT_TEXT}"])) == {
+        "type": "image",
+        "source": {"type": "file", "file_id": "__REDACTED__"},
+    }
+    assert not any(key.endswith(MessageContentAttributes.MESSAGE_CONTENT_ID) for key in attributes)

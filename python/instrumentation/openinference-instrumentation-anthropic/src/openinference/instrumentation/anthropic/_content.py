@@ -204,7 +204,12 @@ def _get_content_block_attributes(
                 else _to_json(tool_result_content, hide_images),
             )
     elif block_type == "image":
-        yield from _get_image_attributes(prefix, _require(block, "source"))
+        if _get(_require(block, "source"), "type") == "file":
+            # A file uploaded with the Files API has no URL, and message_content.id is the content
+            # item's own id, not the file's, so the block is recorded as JSON.
+            yield from _get_generic_content_block_attributes(prefix, block, hide_images)
+        else:
+            yield from _get_image_attributes(prefix, _require(block, "source"))
     elif block_type == "compaction":
         # The summary of the compacted context, which stands in for it from here on. Its content
         # is null if compaction failed.
@@ -229,11 +234,6 @@ def _get_image_attributes(prefix: str, source: Any) -> Iterator[Tuple[str, Any]]
         url = f"data:{_get(source, 'media_type')};base64,{_require(source, 'data')}"
     elif source_type == "url":
         url = _require(source, "url")
-    elif source_type == "file":
-        # A file uploaded with the Files API has no URL, so it is referenced by its id.
-        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "image"
-        yield f"{prefix}.{MESSAGE_CONTENT_ID}", _require(source, "file_id")
-        return
     else:
         raise ValueError(f"Unknown image source type: {source_type}")
     yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "image"
@@ -460,7 +460,6 @@ MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
 MESSAGE_CONTENT_ENCRYPTED_CONTENT = MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
-MESSAGE_CONTENT_ID = MessageContentAttributes.MESSAGE_CONTENT_ID
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
