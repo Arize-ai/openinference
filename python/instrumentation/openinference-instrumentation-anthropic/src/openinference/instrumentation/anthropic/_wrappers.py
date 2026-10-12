@@ -185,14 +185,14 @@ class _WithTracer(ABC):
         tracer: trace_api.Tracer,
         span_name: str,
         *args: Any,
+        config: Optional[TraceConfig] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
         self._span_name = span_name
-        # the OITracer's trace config, for the attributes that its masking does not cover
-        config = getattr(tracer, "_self_config", None)
-        self._config = config if isinstance(config, TraceConfig) else None
+        # the trace config, for the attributes that the tracer's masking does not cover
+        self._config = config or TraceConfig()
 
     def _get_attributes_from_request(
         self, kwargs: Mapping[str, Any]
@@ -553,8 +553,9 @@ class _MessagesStreamWrapper(_WithTracer):
         tracer: trace_api.Tracer,
         span_name: str,
         manager_class: "Type[_MessageStreamManager]",
+        config: Optional[TraceConfig] = None,
     ) -> None:
-        super().__init__(tracer=tracer, span_name=span_name)
+        super().__init__(tracer=tracer, span_name=span_name, config=config)
         self._manager_class = manager_class
 
     def __call__(
@@ -596,8 +597,9 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
         tracer: trace_api.Tracer,
         span_name: str,
         manager_class: "Type[_AsyncMessageStreamManager]",
+        config: Optional[TraceConfig] = None,
     ) -> None:
-        super().__init__(tracer=tracer, span_name=span_name)
+        super().__init__(tracer=tracer, span_name=span_name, config=config)
         self._manager_class = manager_class
 
     def __call__(

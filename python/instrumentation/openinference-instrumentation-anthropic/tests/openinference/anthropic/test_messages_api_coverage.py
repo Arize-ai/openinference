@@ -1403,3 +1403,35 @@ def test_fallback_blocks_are_summarized(
     ]:
         assert attributes[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] == "fallback"
         assert attributes[f"{prefix}.{MESSAGE_CONTENT_TEXT}"] == text
+
+
+def test_trace_config_is_passed_to_the_wrappers(tracer_provider: TracerProvider) -> None:
+    from anthropic.lib.vertex import _beta_messages as vertex_beta_messages
+    from anthropic.resources.messages import Messages
+
+    from openinference.instrumentation import TraceConfig
+    from openinference.instrumentation.anthropic import AnthropicInstrumentor
+
+    config = TraceConfig(hide_output_text=True)
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
+    try:
+        for method in [
+            Messages.__dict__["create"],
+            Messages.__dict__["stream"],
+            Messages.__dict__["count_tokens"],
+            vertex_beta_messages.Messages.__dict__["create"],
+        ]:
+            assert method._self_wrapper._config is config
+    finally:
+        AnthropicInstrumentor().uninstrument()
+
+
+def test_wrappers_default_to_a_trace_config() -> None:
+    from opentelemetry.trace import NoOpTracer
+
+    from openinference.instrumentation import TraceConfig
+    from openinference.instrumentation.anthropic._wrappers import _MessagesWrapper
+
+    # a tracer that is not an OITracer, so has no config of its own
+    wrapper = _MessagesWrapper(tracer=NoOpTracer(), span_name="messages.create")
+    assert isinstance(wrapper._config, TraceConfig)

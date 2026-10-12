@@ -58,6 +58,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_prepare_request_data",
         "_original_async_prepare_request_data",
         "_originals",
+        "_config",
         "_instruments",
         "_tracer",
     )
@@ -82,6 +83,8 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
+        # for the attributes that the tracer's masking does not cover
+        self._config = config
         self._tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
@@ -92,6 +95,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "Messages.create",
             _MessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.create",
             ),
@@ -102,6 +106,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "AsyncMessages.create",
             _AsyncMessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.create",
             ),
@@ -112,6 +117,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "Messages.stream",
             _MessagesStreamWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.stream",
                 manager_class=_MessageStreamManager,
@@ -123,6 +129,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "AsyncMessages.stream",
             _AsyncMessagesStreamWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.stream",
                 manager_class=_AsyncMessageStreamManager,
@@ -134,6 +141,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "Messages.parse",
             _MessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.parse",
             ),
@@ -144,6 +152,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "AsyncMessages.parse",
             _AsyncMessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.parse",
             ),
@@ -154,6 +163,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "Messages.create",
             _MessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.create",
             ),
@@ -164,6 +174,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "AsyncMessages.create",
             _AsyncMessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.create",
             ),
@@ -174,6 +185,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "Messages.stream",
             _MessagesStreamWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.stream",
                 manager_class=_BetaMessageStreamManager,  # type: ignore[arg-type]
@@ -185,6 +197,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "AsyncMessages.stream",
             _AsyncMessagesStreamWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.stream",
                 manager_class=_BetaAsyncMessageStreamManager,  # type: ignore[arg-type]
@@ -196,6 +209,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "Messages.parse",
             _MessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.parse",
             ),
@@ -206,6 +220,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "AsyncMessages.parse",
             _AsyncMessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.parse",
             ),
@@ -232,11 +247,15 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_count_tokens(self, cls: Any, async_cls: Any, span_name: str) -> None:
         # an OITracer, which the wrappers' annotations do not name
         tracer: Any = self._tracer
-        self._wrap(cls, "count_tokens", _CountTokensWrapper(tracer=tracer, span_name=span_name))
+        self._wrap(
+            cls,
+            "count_tokens",
+            _CountTokensWrapper(config=self._config, tracer=tracer, span_name=span_name),
+        )
         self._wrap(
             async_cls,
             "count_tokens",
-            _AsyncCountTokensWrapper(tracer=tracer, span_name=span_name),
+            _AsyncCountTokensWrapper(config=self._config, tracer=tracer, span_name=span_name),
         )
 
     def _wrap_platform_beta_messages(self, module: Any) -> None:
@@ -247,16 +266,21 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ("create", "beta.messages.create"),
             ("parse", "beta.messages.parse"),
         ]:
-            self._wrap(sync_cls, method, _MessagesWrapper(tracer=tracer, span_name=span_name))
+            self._wrap(
+                sync_cls,
+                method,
+                _MessagesWrapper(config=self._config, tracer=tracer, span_name=span_name),
+            )
             self._wrap(
                 async_cls,
                 method,
-                _AsyncMessagesWrapper(tracer=tracer, span_name=span_name),
+                _AsyncMessagesWrapper(config=self._config, tracer=tracer, span_name=span_name),
             )
         self._wrap(
             sync_cls,
             "stream",
             _MessagesStreamWrapper(
+                config=self._config,
                 tracer=tracer,
                 span_name="beta.messages.stream",
                 manager_class=_BetaMessageStreamManager,  # type: ignore[arg-type]
@@ -266,6 +290,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             async_cls,
             "stream",
             _AsyncMessagesStreamWrapper(
+                config=self._config,
                 tracer=tracer,
                 span_name="beta.messages.stream",
                 manager_class=_BetaAsyncMessageStreamManager,  # type: ignore[arg-type]
