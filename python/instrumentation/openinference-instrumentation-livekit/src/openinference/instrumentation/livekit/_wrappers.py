@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Callable, Mapping, Tuple
 
-from openinference.semconv.trace import OpenInferenceMimeTypeValues
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
 from opentelemetry.trace import Status, StatusCode
@@ -13,6 +12,7 @@ from openinference.instrumentation import (
     get_span_kind_attributes,
 )
 from openinference.instrumentation.livekit._targets import LiveKitWrapTarget
+from openinference.semconv.trace import OpenInferenceMimeTypeValues
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

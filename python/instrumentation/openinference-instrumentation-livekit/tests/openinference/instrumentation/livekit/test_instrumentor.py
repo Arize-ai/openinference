@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Iterator
 
 import pytest
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -18,6 +17,7 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.livekit import LiveKitInstrumentor
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 _EXAMPLES = Path(__file__).resolve().parents[4] / "examples"
 if str(_EXAMPLES) not in sys.path:
@@ -59,6 +59,15 @@ def _require_str(value: object) -> str:
     if not isinstance(value, str):
         raise AssertionError(value)
     return value
+
+
+def _require_tags(value: object) -> list[str]:
+    if not isinstance(value, (list, tuple)):
+        raise AssertionError(value)
+    tags = [item for item in value if isinstance(item, str)]
+    if len(tags) != len(value):
+        raise AssertionError(value)
+    return tags
 
 
 def _all_attribute_values(attributes: dict[str, Any] | None) -> str:
@@ -167,7 +176,7 @@ async def test_context_attributes_propagate(
     assert attrs[SpanAttributes.SESSION_ID] == "session-1"
     assert attrs[SpanAttributes.USER_ID] == "user-1"
     assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
-    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]
+    assert _require_tags(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]
 
 
 @pytest.mark.asyncio
