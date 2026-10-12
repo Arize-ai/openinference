@@ -147,10 +147,7 @@ def test_aclosing_without_exhausting_ends_one_span(
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    """`AsyncStream.aclose` is only present in newer releases of the SDK."""
-    openai = importlib.import_module("openai")
-    if not hasattr(openai.AsyncStream, "aclose"):
-        pytest.skip(f"openai {openai.__version__} has no AsyncStream.aclose")
+    """Older releases of the SDK have no `AsyncStream.aclose`, so `close` is used instead."""
     _mock_stream(respx_mock)
     client = _client(is_async=True)
     messages: List[Dict[str, str]] = [{"role": "user", "content": "hi"}]
@@ -164,6 +161,52 @@ def test_aclosing_without_exhausting_ends_one_span(
         await stream.aclose()
 
     asyncio.run(run())
+
+    assert keep_alive[0].response.is_closed
+    (span,) = _llm_spans(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+def test_close_that_raises_still_ends_one_span(
+    is_async: bool,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_stream(respx_mock)
+    client = _client(is_async)
+    messages: List[Dict[str, str]] = [{"role": "user", "content": "hi"}]
+    keep_alive: List[Any] = []
+
+    def close() -> None:
+        raise RuntimeError("close failed")
+
+    async def aclose() -> None:
+        raise RuntimeError("close failed")
+
+    async def run_async() -> None:
+        stream = await client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
+        keep_alive.append(stream)
+        async for _ in stream:
+            break
+        monkeypatch.setattr(stream.__wrapped__, "close", aclose)
+        with pytest.raises(RuntimeError, match="close failed"):
+            await stream.close()
+
+    def run_sync() -> None:
+        stream = client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
+        keep_alive.append(stream)
+        for _ in stream:
+            break
+        monkeypatch.setattr(stream.__wrapped__, "close", close)
+        with pytest.raises(RuntimeError, match="close failed"):
+            stream.close()
+
+    if is_async:
+        asyncio.run(run_async())
+    else:
+        run_sync()
 
     (span,) = _llm_spans(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.UNSET

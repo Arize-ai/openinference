@@ -147,23 +147,30 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             self._finish_tracing(status=None)
 
     def close(self) -> Any:
-        close = getattr(self.__wrapped__, "close", None)
-        if not callable(close):
-            self._finish_tracing(status=None)
-            return None
-        result = close()
-        if inspect.isawaitable(result):
-            # `Stream.close` is synchronous while `AsyncStream.close` is a coroutine, so an
-            # awaited close finishes the span once the wrapped close has run.
+        is_awaitable = False
+        try:
+            close = getattr(self.__wrapped__, "close", None)
+            result = close() if callable(close) else None
+            is_awaitable = inspect.isawaitable(result)
+        finally:
+            if not is_awaitable:
+                self._finish_tracing(status=None)
+        # `Stream.close` is synchronous while `AsyncStream.close` is a coroutine, so an
+        # awaited close finishes the span once the wrapped close has run.
+        if is_awaitable:
             return self._close_and_finish(result)
-        self._finish_tracing(status=None)
         return result
 
     async def aclose(self) -> None:
         try:
-            aclose = getattr(self.__wrapped__, "aclose", None)
-            if callable(aclose):
-                await aclose()
+            # Older releases of the SDK have no `AsyncStream.aclose`, only `close`.
+            close = getattr(self.__wrapped__, "aclose", None)
+            if not callable(close):
+                close = getattr(self.__wrapped__, "close", None)
+            if callable(close):
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
         finally:
             self._finish_tracing(status=None)
 
