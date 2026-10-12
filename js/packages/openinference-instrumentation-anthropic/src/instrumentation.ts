@@ -14,10 +14,12 @@ import {
   safeExecuteInTheMiddle,
 } from "@opentelemetry/instrumentation";
 
-import type { Metadata, TraceConfigOptions } from "@arizeai/openinference-core";
+import type { Metadata, SpanOutput, TraceConfigOptions } from "@arizeai/openinference-core";
 import {
+  getInputAttributes,
   getMetadata,
   getMetadataAttributes,
+  getOutputAttributes,
   OITracer,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
@@ -37,9 +39,26 @@ const MODULE_NAME = "@anthropic-ai/sdk";
 
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-anthropic";
 
+/**
+ * The name of the span of a `beta.messages.toolRunner()` run, the same as the
+ * Python instrumentation's for `beta.messages.tool_runner()`.
+ */
+const TOOL_RUNNER_SPAN_NAME = "beta.messages.tool_runner";
+
 type MessageCreateParams =
   | Parameters<typeof Anthropic.Messages.prototype.create>[0]
   | Parameters<typeof Anthropic.Beta.Messages.prototype.create>[0];
+/** The params of a request with messages: a messages create or a token count */
+type MessageRequestParams =
+  | MessageCreateParams
+  | Parameters<typeof Anthropic.Messages.prototype.countTokens>[0]
+  | Parameters<typeof Anthropic.Beta.Messages.prototype.countTokens>[0];
+type TokensCount =
+  | Anthropic.Messages.MessageTokensCount
+  | Anthropic.Beta.Messages.BetaMessageTokensCount;
+type ToolRunnerParams = Parameters<typeof Anthropic.Beta.Messages.prototype.toolRunner>[0];
+type ToolRunner = ReturnType<typeof Anthropic.Beta.Messages.prototype.toolRunner>;
+type RunnableTool = Extract<ToolRunnerParams["tools"][number], { parse: unknown }>;
 type MessageParam = Anthropic.Messages.MessageParam | Anthropic.Beta.Messages.BetaMessageParam;
 type Message = Anthropic.Messages.Message | Anthropic.Beta.Messages.BetaMessage;
 type ContentBlock = Anthropic.Messages.ContentBlock | Anthropic.Beta.Messages.BetaContentBlock;
@@ -53,7 +72,7 @@ type ToolUseContentBlock = Extract<
 type ImageBlockParam =
   | Anthropic.Messages.ImageBlockParam
   | Anthropic.Beta.Messages.BetaImageBlockParam;
-type ToolDefinition = NonNullable<MessageCreateParams["tools"]>[number];
+type ToolDefinition = NonNullable<MessageRequestParams["tools"]>[number];
 /**
  * The parts of a message the output attributes are read from, shared by a
  * parsed message and one rebuilt from a stream.
@@ -269,117 +288,37 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
               ...safelyGetAttributes(() => getAnthropicRequestAttributes(body)),
             },
           });
-          const execContext = getExecContext(span);
-          const execPromise = safeExecuteInTheMiddle(
-            () => {
-              return context.with(trace.setSpan(execContext, span), () => {
-                // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-                return Reflect.apply(original, this, args) as ReturnType<CreateType>;
-              });
-            },
-            (error: Error | undefined) => {
-              // Push the error to the span
-              if (error) {
-                span.recordException(error);
-                span.setStatus({
-                  code: SpanStatusCode.ERROR,
-                  message: error.message,
+          return traceAnthropicAPIPromise<Message | Stream<RawMessageStreamEvent>>({
+            span,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+            invoke: () => Reflect.apply(original, this, args) as ReturnType<CreateType>,
+            onResult: (result, { endSpan, recordError }) => {
+              if (isAnthropicMessageResponse(result)) {
+                // Record the results
+                span.setAttributes(
+                  safelyGetAttributes(() =>
+                    getAnthropicResponseAttributes(result, contextMetadata),
+                  ),
+                );
+                span.setStatus({ code: SpanStatusCode.OK });
+                endSpan();
+              } else if (isAnthropicStream(result)) {
+                // Observe the events as the caller reads them, so the caller's
+                // stream keeps its own iterator (break / abort still cancel the
+                // request) and nothing is read ahead or buffered on its behalf.
+                instrumentAnthropicStream({
+                  stream: result,
+                  span,
+                  endSpan,
+                  recordError,
+                  contextMetadata,
                 });
-                span.end();
+              } else {
+                endSpan();
               }
+              return result;
             },
-          ) as APIPromise<Message | Stream<RawMessageStreamEvent>>;
-
-          // The span can be ended by the parse path, the asResponse() override, or
-          // an error, so guard against ending it more than once.
-          let spanEnded = false;
-          const endSpan = () => {
-            if (spanEnded) {
-              return;
-            }
-            spanEnded = true;
-            span.end();
-          };
-
-          const recordError = (error: unknown) => {
-            if (spanEnded) {
-              return;
-            }
-            recordSpanError(span, error);
-            endSpan();
-          };
-
-          const wrappedPromiseThen = (result: Message | Stream<RawMessageStreamEvent>) => {
-            if (isAnthropicMessageResponse(result)) {
-              // Record the results
-              span.setAttributes(
-                safelyGetAttributes(() => getAnthropicResponseAttributes(result, contextMetadata)),
-              );
-              span.setStatus({ code: SpanStatusCode.OK });
-              endSpan();
-            } else if (isAnthropicStream(result)) {
-              // Observe the events as the caller reads them, so the caller's
-              // stream keeps its own iterator (break / abort still cancel the
-              // request) and nothing is read ahead or buffered on its behalf.
-              instrumentAnthropicStream({
-                stream: result,
-                span,
-                endSpan,
-                recordError,
-                contextMetadata,
-              });
-            } else {
-              endSpan();
-            }
-
-            return result;
-          };
-
-          // Use _thenUnwrap so the result stays an APIPromise and keeps
-          // withResponse()/asResponse(). Plain .then() would drop them and break
-          // client.messages.stream().
-          if (hasThenUnwrap(execPromise)) {
-            const wrappedPromise = execPromise._thenUnwrap(wrappedPromiseThen);
-            const rawResponse = wrappedPromise.asResponse.bind(wrappedPromise);
-
-            // Record request failures without triggering parse (which would consume
-            // the body). Covers the await/withResponse and asResponse paths.
-            rawResponse().catch(recordError);
-
-            // Wrap asResponse() itself so the span is finalized only when the caller
-            // actually chooses the raw-response path. Those callers bypass parsing,
-            // so no parsed output attributes are available.
-            wrappedPromise.asResponse = async () => {
-              const response = await rawResponse();
-              span.setStatus({ code: SpanStatusCode.OK });
-              endSpan();
-              return response;
-            };
-
-            // withResponse() calls this.asResponse() internally; reimplement it
-            // against the raw response so the override above doesn't end the span
-            // before wrappedPromiseThen records the output.
-            wrappedPromise.withResponse = async () => {
-              const [data, response] = await Promise.all([
-                wrappedPromise.then((value) => value),
-                rawResponse(),
-              ]);
-              return {
-                data,
-                response,
-                request_id: response.headers.get("request-id"),
-                workspace_id: response.headers.get("anthropic-workspace-id"),
-              };
-            };
-
-            return context.bind(execContext, wrappedPromise);
-          }
-
-          const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error: unknown) => {
-            recordError(error);
-            throw error;
           });
-          return context.bind(execContext, wrappedPromise);
         };
       };
 
@@ -389,6 +328,87 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     } else {
       // Beta instrumentation is optional: the stable Messages patch still applies.
       diag.debug(`Cannot find Beta.Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
+    }
+
+    // Patch stable and beta messages.countTokens: an LLM span with the
+    // request and the counted tokens as its output.
+    type CountTokensType =
+      | typeof anthropicModule.Messages.prototype.countTokens
+      | typeof anthropicModule.Beta.Messages.prototype.countTokens;
+    const patchCountTokens =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      <CountType extends CountTokensType>(original: CountType): any => {
+        return function patchedCountTokens(this: unknown, ...args: Parameters<CountType>) {
+          const body = args[0];
+          const span = instrumentation.oiTracer.startSpan(`Anthropic Count Tokens`, {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+              [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
+              [SemanticConventions.LLM_PROVIDER]: getAnthropicProvider(this),
+              ...safelyGetAttributes(() => getAnthropicRequestAttributes(body)),
+            },
+          });
+          return traceAnthropicAPIPromise<TokensCount>({
+            span,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+            invoke: () => Reflect.apply(original, this, args) as PromiseLike<TokensCount>,
+            onResult: (result, { endSpan }) => {
+              span.setAttributes(
+                safelyGetAttributes(() => getOutputAttributes(toJSONOutput(result))),
+              );
+              span.setStatus({ code: SpanStatusCode.OK });
+              endSpan();
+              return result;
+            },
+          });
+        };
+      };
+    if (typeof anthropicModule.Messages.prototype.countTokens === "function") {
+      this._wrap(anthropicModule.Messages.prototype, "countTokens", patchCountTokens);
+    }
+    if (betaMessages?.prototype?.countTokens) {
+      this._wrap(betaMessages.prototype, "countTokens", patchCountTokens);
+    }
+
+    // Patch beta.messages.toolRunner: a CHAIN span for the run, parenting the
+    // LLM span of each request and a TOOL span for each tool it runs.
+    type ToolRunnerType = typeof anthropicModule.Beta.Messages.prototype.toolRunner;
+    const patchToolRunner =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (original: ToolRunnerType): any => {
+        return function patchedToolRunner(this: unknown, ...args: Parameters<ToolRunnerType>) {
+          const [params, ...rest] = args;
+          const span = instrumentation.oiTracer.startSpan(TOOL_RUNNER_SPAN_NAME, {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+              [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
+              [SemanticConventions.LLM_PROVIDER]: getAnthropicProvider(this),
+              ...safelyGetAttributes(() => getInputAttributes(toJSONOutput(params))),
+            },
+          });
+          const runContext = trace.setSpan(getExecContext(span), span);
+          const tracedParams = traceRunnableTools({
+            params,
+            oiTracer: instrumentation.oiTracer,
+          });
+          let runner: ReturnType<ToolRunnerType>;
+          try {
+            runner = context.with(runContext, () =>
+              Reflect.apply(original, this, [tracedParams, ...rest]),
+            );
+          } catch (error) {
+            recordSpanError(span, error);
+            span.end();
+            throw error;
+          }
+          instrumentToolRunner({ runner, span, runContext });
+          return runner;
+        };
+      };
+    if (betaMessages?.prototype?.toolRunner) {
+      this._wrap(betaMessages.prototype, "toolRunner", patchToolRunner);
     }
 
     _isOpenInferencePatched = true;
@@ -414,8 +434,17 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
     const { anthropicModule, betaMessages } = resolveAnthropicModule(moduleExports);
     this._unwrap(anthropicModule.Messages.prototype, "create");
+    if (typeof anthropicModule.Messages.prototype.countTokens === "function") {
+      this._unwrap(anthropicModule.Messages.prototype, "countTokens");
+    }
     if (betaMessages?.prototype?.create) {
       this._unwrap(betaMessages.prototype, "create");
+    }
+    if (betaMessages?.prototype?.countTokens) {
+      this._unwrap(betaMessages.prototype, "countTokens");
+    }
+    if (betaMessages?.prototype?.toolRunner) {
+      this._unwrap(betaMessages.prototype, "toolRunner");
     }
 
     // Keyed the same way patch() keys it, so a re-patch is possible after.
@@ -429,6 +458,109 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
     }
   }
+}
+
+/**
+ * Ends a span at most once, and records an error on it before it ends.
+ */
+interface SpanLifecycle {
+  endSpan: () => void;
+  recordError: (error: unknown) => void;
+}
+
+/**
+ * Calls an SDK method returning an `APIPromise` in the span's context, and
+ * hands its parsed result to `onResult`, which records it and ends the span.
+ *
+ * The result stays an `APIPromise` (through `_thenUnwrap`) so `withResponse()`
+ * and `asResponse()` keep working, which `client.messages.stream()` relies on.
+ * A request failure is recorded without triggering the parse, and a caller
+ * that takes the raw response ends the span, as nothing is parsed for it.
+ */
+function traceAnthropicAPIPromise<T>({
+  span,
+  invoke,
+  onResult,
+}: {
+  span: Span;
+  invoke: () => PromiseLike<T>;
+  onResult: (result: T, lifecycle: SpanLifecycle) => T;
+}) {
+  const execContext = getExecContext(span);
+  // The span can be ended by the parse path, the asResponse() override, or
+  // an error, so guard against ending it more than once.
+  let spanEnded = false;
+  const endSpan = () => {
+    if (spanEnded) {
+      return;
+    }
+    spanEnded = true;
+    span.end();
+  };
+  const recordError = (error: unknown) => {
+    if (spanEnded) {
+      return;
+    }
+    recordSpanError(span, error);
+    endSpan();
+  };
+  const lifecycle: SpanLifecycle = { endSpan, recordError };
+
+  const execPromise = safeExecuteInTheMiddle(
+    () => context.with(trace.setSpan(execContext, span), invoke),
+    (error: Error | undefined) => {
+      // Push the error to the span
+      if (error) {
+        recordError(error);
+      }
+    },
+  );
+  const handleResult = (result: T) => onResult(result, lifecycle);
+
+  if (hasThenUnwrap(execPromise)) {
+    const wrappedPromise = execPromise._thenUnwrap(handleResult);
+    const rawResponse = wrappedPromise.asResponse.bind(wrappedPromise);
+
+    // Record request failures without triggering parse (which would consume
+    // the body). Covers the await/withResponse and asResponse paths.
+    rawResponse().catch(recordError);
+
+    // Wrap asResponse() itself so the span is finalized only when the caller
+    // actually chooses the raw-response path. Those callers bypass parsing,
+    // so no parsed output attributes are available.
+    wrappedPromise.asResponse = async () => {
+      const response = await rawResponse();
+      span.setStatus({ code: SpanStatusCode.OK });
+      endSpan();
+      return response;
+    };
+
+    // withResponse() calls this.asResponse() internally; reimplement it
+    // against the raw response so the override above doesn't end the span
+    // before the result is recorded.
+    wrappedPromise.withResponse = async () => {
+      const [data, response] = await Promise.all([
+        wrappedPromise.then((value) => value),
+        rawResponse(),
+      ]);
+      return {
+        data,
+        response,
+        request_id: response.headers.get("request-id"),
+        workspace_id: response.headers.get("anthropic-workspace-id"),
+      };
+    };
+
+    return context.bind(execContext, wrappedPromise);
+  }
+
+  const wrappedPromise = Promise.resolve(execPromise)
+    .then(handleResult)
+    .catch((error: unknown) => {
+      recordError(error);
+      throw error;
+    });
+  return context.bind(execContext, wrappedPromise);
 }
 
 /**
@@ -499,7 +631,7 @@ function recordSpanError(span: Span, error: unknown) {
 /**
  * Builds the request attributes of an Anthropic messages request.
  */
-function getAnthropicRequestAttributes(body: MessageCreateParams): Attributes {
+function getAnthropicRequestAttributes(body: MessageRequestParams): Attributes {
   const { messages: _messages, ...invocationParameters } = body;
   const attributes: Attributes = {
     [SemanticConventions.LLM_MODEL_NAME]: body.model,
@@ -754,7 +886,7 @@ function getAnthropicFallbackContentAttributes(
 /**
  * Converts the body of an Anthropic messages request to LLM input messages
  */
-function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attributes {
+function getAnthropicInputMessagesAttributes(body: MessageRequestParams): Attributes {
   // The top-level system prompt is the first input message, ahead of the
   // conversation, so the prompt the model saw is recorded in order.
   const messagesAttributes = [
@@ -776,7 +908,7 @@ function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attribu
  * blocks, to a message with the system role.
  */
 function getAnthropicSystemMessageAttributes(
-  system: NonNullable<MessageCreateParams["system"]>,
+  system: NonNullable<MessageRequestParams["system"]>,
 ): Attributes {
   const attributes: Attributes = { [SemanticConventions.MESSAGE_ROLE]: "system" };
   if (typeof system === "string") {
@@ -795,7 +927,7 @@ function getAnthropicSystemMessageAttributes(
  * Lists the tool definitions of a request: the `tools` param, followed by the
  * tools a `tool_addition` block of a beta request defines inline.
  */
-function getAnthropicToolDefinitions(body: MessageCreateParams): ToolDefinition[] {
+function getAnthropicToolDefinitions(body: MessageRequestParams): ToolDefinition[] {
   const tools: ToolDefinition[] = [...(body.tools ?? [])];
   for (const message of body.messages ?? []) {
     if (typeof message.content === "string") {
@@ -814,7 +946,7 @@ function getAnthropicToolDefinitions(body: MessageCreateParams): ToolDefinition[
  * Converts each tool definition into the `llm.tools` attributes: its JSON
  * schema, plus the name and description the spec defines next to it.
  */
-function getAnthropicToolsJSONSchema(body: MessageCreateParams): Attributes {
+function getAnthropicToolsJSONSchema(body: MessageRequestParams): Attributes {
   return getAnthropicToolDefinitions(body).reduce((acc: Attributes, tool, index) => {
     const toolPrefix = `${SemanticConventions.LLM_TOOLS}.${index}.`;
     const toolJsonSchema = safelyJSONStringify(tool);
@@ -1474,4 +1606,229 @@ function applyAnthropicStreamEvent({
   } else if (chunk.type === "content_block_delta") {
     applyAnthropicContentBlockDelta({ chunk, state });
   }
+}
+
+/**
+ * Serializes a value as a JSON input or output, or nothing when it cannot be.
+ */
+function toJSONOutput(value: unknown): SpanOutput | undefined {
+  const json = safelyJSONStringify(value);
+  return json == null ? undefined : { value: json, mimeType: MimeType.JSON };
+}
+
+/**
+ * type-guard for a tool the tool runner runs on the client: a tool definition
+ * with the `run` and `parse` the runner calls. Toolsets, which have a `run`
+ * but no `parse`, are left alone.
+ */
+function isRunnableTool(tool: ToolRunnerParams["tools"][number]): tool is RunnableTool {
+  return (
+    tool != null &&
+    typeof tool === "object" &&
+    "run" in tool &&
+    typeof tool.run === "function" &&
+    "parse" in tool &&
+    typeof tool.parse === "function"
+  );
+}
+
+/**
+ * Returns the tool runner params with each runnable tool traced. The caller's
+ * params and tools are never modified: the tools are proxies that trace `run`
+ * and pass everything else through.
+ */
+function traceRunnableTools({
+  params,
+  oiTracer,
+}: {
+  params: ToolRunnerParams;
+  oiTracer: OITracer;
+}): ToolRunnerParams {
+  try {
+    if (!Array.isArray(params?.tools)) {
+      return params;
+    }
+    return {
+      ...params,
+      tools: params.tools.map((tool) =>
+        isRunnableTool(tool) ? traceRunnableTool({ tool, oiTracer }) : tool,
+      ),
+    };
+  } catch (error) {
+    diag.warn(`Failed to trace the ${MODULE_NAME} tool runner's tools`, error);
+    return params;
+  }
+}
+
+/**
+ * Wraps a runnable tool so each run is a TOOL span, a child of the span
+ * active when the runner calls it.
+ */
+function traceRunnableTool({
+  tool,
+  oiTracer,
+}: {
+  tool: RunnableTool;
+  oiTracer: OITracer;
+}): RunnableTool {
+  const run = tool.run.bind(tool);
+  const tracedRun: RunnableTool["run"] = (args, runContext) => {
+    const span = oiTracer.startSpan(tool.name, {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
+        ...safelyGetAttributes(() => getRunnableToolAttributes({ tool, args })),
+      },
+    });
+    let result: ReturnType<RunnableTool["run"]>;
+    try {
+      result = context.with(trace.setSpan(context.active(), span), () => run(args, runContext));
+    } catch (error) {
+      recordSpanError(span, error);
+      span.end();
+      throw error;
+    }
+    return Promise.resolve(result).then(
+      (output) => {
+        span.setAttributes(
+          safelyGetAttributes(() =>
+            getOutputAttributes(typeof output === "string" ? output : toJSONOutput(output)),
+          ),
+        );
+        span.setStatus({ code: SpanStatusCode.OK });
+        span.end();
+        return output;
+      },
+      (error: unknown) => {
+        recordSpanError(span, error);
+        span.end();
+        throw error;
+      },
+    );
+  };
+  return new Proxy(tool, {
+    get(target, property, receiver) {
+      return property === "run" ? tracedRun : Reflect.get(target, property, receiver);
+    },
+  });
+}
+
+/**
+ * The attributes of a tool run: the tool, its parameters schema and the
+ * arguments it was called with.
+ */
+function getRunnableToolAttributes({
+  tool,
+  args,
+}: {
+  tool: RunnableTool;
+  args: unknown;
+}): Attributes {
+  const attributes: Attributes = {
+    [SemanticConventions.TOOL_NAME]: tool.name,
+    ...getInputAttributes(toJSONOutput(args)),
+  };
+  if ("description" in tool && typeof tool.description === "string" && tool.description) {
+    attributes[SemanticConventions.TOOL_DESCRIPTION] = tool.description;
+  }
+  if ("input_schema" in tool) {
+    const parameters = safelyJSONStringify(tool.input_schema);
+    if (parameters != null) {
+      attributes[SemanticConventions.TOOL_PARAMETERS] = parameters;
+    }
+  }
+  return attributes;
+}
+
+/**
+ * Runs each step of a tool runner in the context of its span, so the LLM span
+ * of every request and the TOOL span of every tool it runs are children of it,
+ * and ends the span when the run ends:
+ *
+ * - run to the end (`for await`, `runUntilDone()` or `await runner`): status
+ *   OK, with the final message as the output;
+ * - left early (`break`): with the status unset;
+ * - failed: status ERROR, with the error recorded.
+ *
+ * Every way of running the runner iterates it, so wrapping its async iterator
+ * covers them all.
+ */
+function instrumentToolRunner({
+  runner,
+  span,
+  runContext,
+}: {
+  runner: ToolRunner;
+  span: Span;
+  runContext: ReturnType<typeof context.active>;
+}) {
+  let spanEnded = false;
+  const endSpan = () => {
+    if (!spanEnded) {
+      spanEnded = true;
+      span.end();
+    }
+  };
+  const onError = (error: unknown) => {
+    if (!spanEnded) {
+      recordSpanError(span, error);
+      endSpan();
+    }
+  };
+  const onDone = async () => {
+    if (spanEnded) {
+      return;
+    }
+    const message = await runner.done().catch(() => undefined);
+    if (message != null) {
+      span.setAttributes(
+        safelyGetAttributes(() => ({
+          ...getAnthropicOutputMessagesAttributes(message),
+          ...getOutputAttributes(toJSONOutput(message)),
+        })),
+      );
+    }
+    span.setStatus({ code: SpanStatusCode.OK });
+    endSpan();
+  };
+
+  const iterate = runner[Symbol.asyncIterator].bind(runner);
+  type Item = Awaited<ReturnType<ReturnType<typeof iterate>["next"]>>;
+  Object.defineProperty(runner, Symbol.asyncIterator, {
+    configurable: true,
+    writable: true,
+    value: () => {
+      const iterator = context.with(runContext, iterate);
+      const tracedIterator = {
+        async next(): Promise<Item> {
+          let result: Item;
+          try {
+            result = await context.with(runContext, () => iterator.next());
+          } catch (error) {
+            onError(error);
+            throw error;
+          }
+          if (result.done) {
+            await onDone();
+          }
+          return result;
+        },
+        async return(value?: unknown): Promise<Item> {
+          try {
+            const returned = await context.with(runContext, () => iterator.return?.(value));
+            const result: Item = returned ?? { done: true, value: undefined };
+            endSpan();
+            return result;
+          } catch (error) {
+            onError(error);
+            throw error;
+          }
+        },
+        [Symbol.asyncIterator]() {
+          return tracedIterator;
+        },
+      };
+      return tracedIterator;
+    },
+  });
 }
