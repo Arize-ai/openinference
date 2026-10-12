@@ -1167,7 +1167,8 @@ function mapAnthropicContentBlock({
   if (block.type === "text") {
     attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
     attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = block.text;
-  } else if (block.type === "image") {
+  } else if (block.type === "image" && block.source.type !== "file") {
+    // A Files API image has no URL, so it takes the generic mapping below.
     Object.assign(attributes, getAnthropicImageContentAttributes(contentPrefix, block));
   } else if (block.type === "thinking") {
     attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
@@ -1395,8 +1396,8 @@ function getAnthropicToolUseContentAttributes({
 
 /**
  * Records an image input. A base64 image becomes a data URI (which trace
- * config can truncate or hide), a URL image its URL, and a Files API image the
- * file id, as there is no URL for it.
+ * config can truncate or hide) and a URL image its URL. A Files API image has
+ * no URL, so it is recorded as its JSON, see {@link getAnthropicContentBlockAttributes}.
  */
 function getAnthropicImageContentAttributes(prefix: string, block: ImageBlockParam): Attributes {
   const imagePrefix = `${prefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.`;
@@ -1411,8 +1412,6 @@ function getAnthropicImageContentAttributes(prefix: string, block: ImageBlockPar
       `data:${source.media_type};base64,${source.data}`;
   } else if (source.type === "url") {
     attributes[`${imagePrefix}${SemanticConventions.IMAGE_URL}`] = source.url;
-  } else if (source.type === "file") {
-    attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT_ID}`] = source.file_id;
   }
   return attributes;
 }
