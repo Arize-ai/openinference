@@ -169,6 +169,26 @@ describe("AnthropicInstrumentation - response details", () => {
     expect(output.usage.input_tokens).toBe(10);
   });
 
+  it("leaves zero server tool counts out of the metadata", async () => {
+    const client = new Anthropic({
+      apiKey: "fake-api-key",
+      fetch: jsonFetch({
+        ...responseMessage,
+        usage: {
+          input_tokens: 1,
+          output_tokens: 1,
+          server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        },
+      }),
+    });
+    await client.messages.create(request);
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    const metadata = JSON.parse(String(span.attributes[METADATA] ?? "{}"));
+    expect(metadata.server_tool_use).toBeUndefined();
+  });
+
   it("leaves token counts out when the usage has none", async () => {
     const client = new Anthropic({
       apiKey: "fake-api-key",
