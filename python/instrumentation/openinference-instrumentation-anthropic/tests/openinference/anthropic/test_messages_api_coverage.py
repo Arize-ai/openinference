@@ -1228,3 +1228,46 @@ def test_streaming_tool_callers_and_toolsets_are_recorded(
     for _ in stream:
         pass
     _assert_tool_call_metadata(dict(_get_span(in_memory_span_exporter).attributes or {}))
+
+
+def test_compaction_blocks_record_encrypted_content_and_their_tools(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    inline_tool = {"name": "g", "input_schema": {"type": "object"}}
+    compaction = {
+        "type": "compaction",
+        "content": "summary",
+        "encrypted_content": "opaque",
+        "tool_changes": [
+            {
+                "type": "tool_addition",
+                "tool": {"type": "tool_definition", "definition": inline_tool},
+            },
+            # a reference to a tool defines nothing new
+            {"type": "tool_addition", "tool": {"type": "tool_reference", "name": "f"}},
+            {"type": "tool_removal", "tool": {"type": "tool_reference", "name": "h"}},
+        ],
+    }
+    response = _message_json([{**compaction, "encrypted_content": "opaque output"}])
+    client = _mock_anthropic_client(lambda request: httpx2.Response(200, json=response))
+    messages: Any = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": [compaction]},
+        {"role": "user", "content": "more"},
+    ]
+    client.beta.messages.create(model=MODEL, max_tokens=100, messages=messages)
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    encrypted_content = MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
+    for prefix, value in [
+        (f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0", "opaque"),
+        (f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0", "opaque output"),
+    ]:
+        assert attributes[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] == "text"
+        assert attributes[f"{prefix}.{MESSAGE_CONTENT_TEXT}"] == "summary"
+        assert attributes[f"{prefix}.{encrypted_content}"] == value
+    llm_tools = SpanAttributes.LLM_TOOLS
+    json_schema = ToolAttributes.TOOL_JSON_SCHEMA
+    assert json.loads(str(attributes[f"{llm_tools}.0.{json_schema}"])) == inline_tool
+    assert f"{llm_tools}.1.{json_schema}" not in attributes

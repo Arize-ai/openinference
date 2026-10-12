@@ -213,6 +213,9 @@ def _get_content_block_attributes(
             yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", content
         if signature := _get(block, "signature"):
             yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
+        # opaque metadata from a prior compaction, round-tripped verbatim
+        if encrypted_content := _get(block, "encrypted_content"):
+            yield f"{prefix}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}", encrypted_content
     else:
         # e.g. server tool results, MCP tool results and listings, container uploads, fallback
         # boundaries, documents, search results, tool additions and removals, and types newer
@@ -419,7 +422,9 @@ def _get_inline_tool_definitions(messages: Iterable[Any]) -> Iterator[Any]:
     """
     Yields the tools defined inline in the messages by `tool_addition` blocks, which make them
     available to the model from that point in the conversation onward, in addition to the
-    request's `tools`. A `tool_addition` that references a tool by name defines nothing new.
+    request's `tools`, including those in the `tool_changes` of `compaction` blocks, which stand
+    in for the compacted range's. A `tool_addition` that references a tool by name defines
+    nothing new.
     """
     for message in messages:
         try:
@@ -427,15 +432,21 @@ def _get_inline_tool_definitions(messages: Iterable[Any]) -> Iterator[Any]:
             if isinstance(content, str) or not isinstance(content, Iterable):
                 continue
             for block in content:
-                if _get(block, "type") != "tool_addition":
-                    continue
-                tool = _get(block, "tool")
-                if _get(tool, "type") == "tool_definition" and (
-                    definition := _get(tool, "definition")
-                ):
-                    yield _to_jsonable(definition)
+                block_type = _get(block, "type")
+                if block_type == "tool_addition":
+                    yield from _get_tool_addition_definition(block)
+                elif block_type == "compaction":
+                    for tool_change in _get(block, "tool_changes") or ():
+                        if _get(tool_change, "type") == "tool_addition":
+                            yield from _get_tool_addition_definition(tool_change)
         except Exception:
             logger.exception("Failed to get the tools defined in a message.")
+
+
+def _get_tool_addition_definition(tool_addition: Any) -> Iterator[Any]:
+    tool = _get(tool_addition, "tool")
+    if _get(tool, "type") == "tool_definition" and (definition := _get(tool, "definition")):
+        yield _to_jsonable(definition)
 
 
 IMAGE_URL = ImageAttributes.IMAGE_URL
@@ -448,6 +459,7 @@ MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
+MESSAGE_CONTENT_ENCRYPTED_CONTENT = MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
 MESSAGE_CONTENT_ID = MessageContentAttributes.MESSAGE_CONTENT_ID
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
