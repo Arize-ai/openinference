@@ -166,7 +166,7 @@ export interface ConverseStreamProcessingState {
 /**
  * Extended role type used by some providers (e.g., Mistral) in legacy InvokeModel flows.
  */
-export type ExtendedConversationRole = ConversationRole | "tool" | "system";
+export type ExtendedConversationRole = ConversationRole | "tool" | "system" | "developer";
 
 /** Legacy InvokeModel message format (different from Converse messages). */
 export interface BedrockMessage {

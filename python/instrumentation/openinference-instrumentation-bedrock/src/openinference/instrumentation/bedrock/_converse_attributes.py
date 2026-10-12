@@ -67,6 +67,8 @@ def get_message_objects(message_list: Sequence[MessageUnionTypeDef]) -> List[Mes
         role = message["role"]
         contents: list[Any] = []  # Accept both TextMessageContent and ImageMessageContent
         tool_calls: list[ToolCall] = []
+        tool_result_messages: list[Message] = []
+        saw_tool_result = False
         message_obj = Message(role=role)
         for message_content in message["content"]:
             _content: ContentBlockOutputTypeDef = message_content  # type: ignore[assignment]
@@ -104,24 +106,39 @@ def get_message_objects(message_list: Sequence[MessageUnionTypeDef]) -> List[Mes
                 )
             if "toolResult" in _content:
                 _tool_result: ToolResultBlockOutputTypeDef = _content["toolResult"]
-                message_obj["tool_call_id"] = _tool_result["toolUseId"]
+                # A single API message can carry several toolResult blocks (parallel tool
+                # calls) and each block can carry several content blocks, while `Message`
+                # has one `tool_call_id` and one `content`. Writing them into `message_obj`
+                # kept only the last id and the last output, so the other tool results
+                # could no longer be linked or read.
+                tool_result_blocks: list[str] = []
                 for tool_result_content in _tool_result["content"]:
                     _tr_content: ToolResultContentBlockOutputTypeDef = tool_result_content
                     if "text" in _tr_content:
-                        message_obj["content"] = _tr_content["text"]
+                        tool_result_blocks.append(_tr_content["text"])
                     if "json" in _tr_content:
-                        message_obj["content"] = safe_json_dumps(_tr_content["json"])
+                        tool_result_blocks.append(safe_json_dumps(_tr_content["json"]))
                     if "image" in _tr_content:
                         pass  # TODO: handle image tool result
                     if "video" in _tr_content:
                         pass  # TODO: handle video tool result
                     if "document" in _tr_content:
                         pass  # TODO: handle document tool result
+                tool_result_message = Message(role="tool")
+                tool_result_message["tool_call_id"] = _tool_result["toolUseId"]
+                if tool_result_blocks:
+                    tool_result_message["content"] = "\n\n".join(tool_result_blocks)
+                tool_result_messages.append(tool_result_message)
+                saw_tool_result = True
         if contents:
             message_obj["contents"] = contents
         if tool_calls:
             message_obj["tool_calls"] = tool_calls
-        messages.append(message_obj)
+        # A message whose only content was tool results is fully represented by those
+        # messages; anything else keeps the message it always produced.
+        if contents or tool_calls or not saw_tool_result:
+            messages.append(message_obj)
+        messages.extend(tool_result_messages)
     return messages
 
 
@@ -206,15 +223,19 @@ def get_token_counts(output_params: ConverseResponseTypeDef) -> TokenCount | Non
     if "usage" not in output_params:
         return None
     usage = output_params["usage"]
+    cache_read = usage.get("cacheReadInputTokens")
+    cache_write = usage.get("cacheWriteInputTokens")
+    # inputTokens excludes cache reads and writes, while totalTokens includes them. Fold the
+    # cache tokens into the prompt count so that prompt + completion matches the total.
     token_count = TokenCount(
-        prompt=usage["inputTokens"],
+        prompt=usage["inputTokens"] + (cache_read or 0) + (cache_write or 0),
         completion=usage["outputTokens"],
         total=usage["totalTokens"],
     )
     prompt_details: PromptDetails = {}
-    if (cache_read := usage.get("cacheReadInputTokens")) is not None:
+    if cache_read is not None:
         prompt_details["cache_read"] = cache_read
-    if (cache_write := usage.get("cacheWriteInputTokens")) is not None:
+    if cache_write is not None:
         prompt_details["cache_write"] = cache_write
     if prompt_details:
         token_count["prompt_details"] = prompt_details

@@ -11,6 +11,8 @@ import type { Stream } from "openai/streaming";
 import { safelyJSONStringify } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+import { getNumberProperty } from "./typeUtils";
+
 /**
  * Get attributes for responses api Items that are not typical messages with role
  * @param item - The item to get attributes for
@@ -18,7 +20,7 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
  * @returns The attributes for the item
  */
 function getResponseItemAttributes(
-  item: Exclude<ResponseInputItem | ResponseOutputItem, { role: string }>,
+  item: Exclude<ResponseInputItem | ResponseOutputItem, { role: string; content: unknown }>,
   prefix = "",
 ): Attributes {
   const attributes: Attributes = {};
@@ -38,13 +40,14 @@ function getResponseItemAttributes(
     }
     case "function_call_output": {
       attributes[`${prefix}${SemanticConventions.MESSAGE_ROLE}`] = "tool";
-      attributes[`${prefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = item.call_id;
+      attributes[`${prefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
+        item.call_id ?? undefined;
       if (typeof item.output === "string") {
         attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] = item.output;
       } else {
         // TODO(2410): figure out how to serialize the list of tools
         attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
-          safelyJSONStringify(item.output) || undefined;
+          safelyJSONStringify(item.output) ?? undefined;
       }
 
       break;
@@ -129,7 +132,9 @@ function getResponseItemMessageAttributes(
     typeof itemMessage === "string"
       ? ({ content: itemMessage, role: "user" } satisfies ResponseInputItem)
       : itemMessage;
-  if (!("role" in message)) {
+  // Items such as `additional_tools` carry a role but no content, and are
+  // handled with the other non-message items.
+  if (!("role" in message) || !("content" in message)) {
     return getResponseItemAttributes(message, prefix);
   }
   const role = message.role;
@@ -217,6 +222,10 @@ export function getResponsesUsageAttributes(response: ResponseType): Attributes 
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: response.usage.total_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]:
         response.usage.input_tokens_details?.cached_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: getNumberProperty(
+        response.usage.input_tokens_details,
+        "cache_write_tokens",
+      ),
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]:
         response.usage.output_tokens_details?.reasoning_tokens,
       // no audio tokens for response inputs or outputs

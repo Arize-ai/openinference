@@ -201,13 +201,13 @@ def test_handler_basic_retrieval(
                 assert isinstance(query_output_value, str)
                 assert query_attributes.pop(OUTPUT_MIME_TYPE) == JSON
         elif is_stream:
-            if LLAMA_INDEX_VERSION >= (0, 14, 22):
-                assert OUTPUT_VALUE not in query_attributes
-                assert OUTPUT_MIME_TYPE not in query_attributes
-            else:
-                query_output_value = query_attributes.pop(OUTPUT_VALUE)
-                assert isinstance(query_output_value, str)
-                assert query_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+            query_output_value = query_attributes.pop(OUTPUT_VALUE)
+            assert isinstance(query_output_value, str)
+            response_metadata = json.loads(query_output_value)
+            assert response_metadata["response_txt"] is None
+            assert len(response_metadata["source_nodes"]) == len(nodes)
+            assert query_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+            assert query_span.status.status_code == trace_api.StatusCode.ERROR
 
         if is_async:
             assert (
@@ -278,13 +278,13 @@ def test_handler_basic_retrieval(
                 assert isinstance(synthesize_output_value, str)
                 assert synthesize_attributes.pop(OUTPUT_MIME_TYPE) == JSON
         elif is_stream:
-            if LLAMA_INDEX_VERSION >= (0, 14, 22):
-                assert OUTPUT_VALUE not in synthesize_attributes
-                assert OUTPUT_MIME_TYPE not in synthesize_attributes
-            else:
-                synthesize_output_value = synthesize_attributes.pop(OUTPUT_VALUE)
-                assert isinstance(synthesize_output_value, str)
-                assert synthesize_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+            synthesize_output_value = synthesize_attributes.pop(OUTPUT_VALUE)
+            assert isinstance(synthesize_output_value, str)
+            response_metadata = json.loads(synthesize_output_value)
+            assert response_metadata["response_txt"] is None
+            assert len(response_metadata["source_nodes"]) == len(nodes)
+            assert synthesize_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+            assert synthesize_span.status.status_code == trace_api.StatusCode.ERROR
 
         if use_context_attributes:
             _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
@@ -313,7 +313,17 @@ def test_handler_basic_retrieval(
             else:
                 assert (llm_span := _pop_span(spans_by_name, "OpenAI.predict")) is not None
         assert _is_descendant(llm_span, refine_span, spans_by_id)
+        for parent_span in (query_span, synthesize_span, refine_span):
+            assert parent_span.start_time is not None and parent_span.end_time is not None
+            assert llm_span.start_time is not None and llm_span.end_time is not None
+            assert (
+                parent_span.start_time
+                <= llm_span.start_time
+                <= llm_span.end_time
+                <= parent_span.end_time
+            )
         llm_attributes = dict(llm_span.attributes or {})
+        llm_attributes.pop(LLM_FINISH_REASON, None)
         assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert llm_attributes.pop(LLM_MODEL_NAME, None) is not None
         assert llm_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
@@ -352,6 +362,10 @@ def test_handler_basic_retrieval(
                 assert (openai_span := _pop_span(spans_by_name, "OpenAI.chat")) is not None
         assert _is_descendant(openai_span, llm_span, spans_by_id)
         openai_attributes = dict(openai_span.attributes or {})
+        if status_code == 200:
+            assert openai_attributes.pop(LLM_FINISH_REASON, None) == "stop"
+        else:
+            openai_attributes.pop(LLM_FINISH_REASON, None)
         assert openai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert openai_attributes.pop(LLM_MODEL_NAME, None) is not None
         assert openai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
@@ -487,6 +501,8 @@ def chat_completion_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
             b'data: {"choices": [{"delta": {"content": "A"}, "index": 0}]}\n\n',
             b'data: {"choices": [{"delta": {"content": "B"}, "index": 0}]}\n\n',
             b'data: {"choices": [{"delta": {"content": "C"}, "index": 0}]}\n\n',
+            b'data: {"choices": [{"delta": {}, "finish_reason": "stop", "index": 0}]}\n\n',
+            b'data: {"choices": []}\n\n',
             b"data: [DONE]\n",
         ],
         [{"role": "assistant", "content": "ABC"}],
@@ -573,6 +589,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER

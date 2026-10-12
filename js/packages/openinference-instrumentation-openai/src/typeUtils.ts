@@ -11,3 +11,14 @@ export function assertUnreachable(_: never): never {
 export function isString(value: unknown): value is string {
   return typeof value === "string";
 }
+
+/**
+ * Read a numeric property that the installed OpenAI SDK types may not declare yet
+ * (for example `prompt_tokens_details.cache_write_tokens`). Returns undefined when
+ * the object is missing or the property is not a number.
+ */
+export function getNumberProperty(obj: object | null | undefined, key: string): number | undefined {
+  if (obj == null) return undefined;
+  const value: unknown = Reflect.get(obj, key);
+  return typeof value === "number" ? value : undefined;
+}

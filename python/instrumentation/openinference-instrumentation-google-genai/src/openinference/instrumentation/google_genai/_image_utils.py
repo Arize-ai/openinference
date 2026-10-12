@@ -29,6 +29,23 @@ def redact_images_from_request_parameters(
     return redacted
 
 
+def redact_images_from_output_value(
+    value: Any,
+    base64_image_max_length: int,
+) -> tuple[Any, bool]:
+    """Return a response tree with oversized base64 images redacted, and whether any were.
+
+    Applies the same ``base64_image_max_length`` check used for ``input.value``
+    to the response serialized into ``output.value``. ``hide_input_images``
+    does not apply to outputs.
+    """
+    return _redact_images_with_change(
+        value,
+        hide_input_images=False,
+        base64_image_max_length=base64_image_max_length,
+    )
+
+
 def _redact_images(
     value: Any,
     *,

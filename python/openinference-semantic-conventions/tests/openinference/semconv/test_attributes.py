@@ -87,6 +87,21 @@ class TestSpanAttributes:
             "agent": {
                 "name": SpanAttributes.AGENT_NAME,
             },
+            "decision": {
+                "model_name": SpanAttributes.DECISION_MODEL_NAME,
+                "provider": SpanAttributes.DECISION_PROVIDER,
+                "request": {
+                    "model_name": SpanAttributes.DECISION_REQUEST_MODEL_NAME,
+                },
+                "response": {
+                    "model_name": SpanAttributes.DECISION_RESPONSE_MODEL_NAME,
+                },
+                "system": SpanAttributes.DECISION_SYSTEM,
+                "token_count": {
+                    "input": SpanAttributes.DECISION_TOKEN_COUNT_INPUT,
+                    "output": SpanAttributes.DECISION_TOKEN_COUNT_OUTPUT,
+                },
+            },
             "embedding": {
                 "embeddings": SpanAttributes.EMBEDDING_EMBEDDINGS,
                 "invocation_parameters": SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS,

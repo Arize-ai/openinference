@@ -70,7 +70,7 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 
 # Skip capture
-KEYS_TO_REDACT = ["api_key", "messages"]
+KEYS_TO_REDACT = ["api_key", "messages", "proxy_server_request"]
 
 RESPONSES_KEYS_TO_REDACT = KEYS_TO_REDACT + ["input", "tools", "model"]
 
