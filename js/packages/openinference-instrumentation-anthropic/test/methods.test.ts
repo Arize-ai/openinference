@@ -373,5 +373,125 @@ describe("AnthropicInstrumentation - other Messages methods", () => {
       expect(params.tools[0]).toBe(tool);
       expect(tool.run).toBe(run);
     });
+
+    it("runs a class tool that uses private fields", async () => {
+      class WeatherTool {
+        #forecast = "sunny";
+        #parse = (input: unknown) => input as { city: string };
+        name = "get_weather";
+        description = "Get the weather for a city";
+        input_schema = inputSchema;
+        parse(input: unknown) {
+          return this.#parse(input);
+        }
+        run(args: { city: string }) {
+          return `${this.#forecast} in ${args.city}`;
+        }
+      }
+      const client = new Anthropic({
+        apiKey: "fake-api-key",
+        fetch: sequenceFetch([
+          () => jsonResponse(toolUseMessage),
+          () => jsonResponse(finalMessage),
+        ]),
+      });
+
+      const runner = client.beta.messages.toolRunner({ ...request, tools: [new WeatherTool()] });
+      await runner;
+
+      // The model got the tool's result, not an error.
+      const toolResult = runner.params.messages.at(-2);
+      expect(toolResult?.content).toEqual([
+        { type: "tool_result", tool_use_id: "toolu_1", content: "sunny in Paris" },
+      ]);
+      await waitForSpans(4);
+      const [toolSpan] = byKind(memoryExporter.getFinishedSpans(), OpenInferenceSpanKind.TOOL);
+      expect(toolSpan.status.code).toBe(SpanStatusCode.OK);
+      expect(toolSpan.attributes[OUTPUT_VALUE]).toBe("sunny in Paris");
+    });
+
+    it("traces a run retried after a failure under a new CHAIN span", async () => {
+      const responses = [
+        () =>
+          new Response(
+            JSON.stringify({ type: "error", error: { type: "invalid_request_error" } }),
+            {
+              status: 400,
+              headers: { "content-type": "application/json" },
+            },
+          ),
+        () => jsonResponse(toolUseMessage),
+        () => jsonResponse(finalMessage),
+      ];
+      const client = new Anthropic({
+        apiKey: "fake-api-key",
+        maxRetries: 0,
+        fetch: sequenceFetch(responses),
+      });
+      const runner = client.beta.messages.toolRunner({
+        ...request,
+        tools: [weatherTool(() => "sunny")],
+      });
+
+      await expect(runner.runUntilDone()).rejects.toThrow();
+      await waitForSpans(2);
+      const [failedRun] = byKind(memoryExporter.getFinishedSpans(), OpenInferenceSpanKind.CHAIN);
+      expect(failedRun.status.code).toBe(SpanStatusCode.ERROR);
+      memoryExporter.reset();
+
+      await runner.runUntilDone();
+      await waitForSpans(4);
+      const spans = memoryExporter.getFinishedSpans();
+      const chains = byKind(spans, OpenInferenceSpanKind.CHAIN);
+      expect(chains).toHaveLength(1);
+      const [retry] = chains;
+      expect(retry.spanContext().spanId).not.toBe(failedRun.spanContext().spanId);
+      expect(retry.status.code).toBe(SpanStatusCode.OK);
+      for (const span of spans.filter((span) => span !== retry)) {
+        expect(span.parentSpanId, span.name).toBe(retry.spanContext().spanId);
+      }
+    });
+
+    it("shows the caller's own tools, and traces tools added later", async () => {
+      const client = new Anthropic({
+        apiKey: "fake-api-key",
+        fetch: sequenceFetch([
+          () =>
+            jsonResponse(
+              message(
+                [{ type: "tool_use", id: "toolu_2", name: "get_time", input: {} }],
+                "tool_use",
+              ),
+            ),
+          () => jsonResponse(finalMessage),
+        ]),
+      });
+      const weather = weatherTool(() => "sunny");
+      const time: BetaRunnableTool<Record<string, never>> = {
+        name: "get_time",
+        description: "Get the time",
+        input_schema: { type: "object", properties: {} },
+        parse: (input: unknown) => input as Record<string, never>,
+        run: () => "noon",
+      };
+      const runner = client.beta.messages.toolRunner({ ...request, tools: [weather] });
+
+      expect(runner.params.tools[0]).toBe(weather);
+      let seen: unknown[] = [];
+      runner.setMessagesParams((params) => {
+        seen = [...params.tools];
+        return { ...params, tools: params.tools.filter((tool) => tool !== weather) };
+      });
+      expect(seen).toEqual([weather]);
+      expect(runner.params.tools).toEqual([]);
+      runner.addTools(time);
+
+      await runner;
+
+      await waitForSpans(4);
+      const [toolSpan] = byKind(memoryExporter.getFinishedSpans(), OpenInferenceSpanKind.TOOL);
+      expect(toolSpan.name).toBe("get_time");
+      expect(toolSpan.attributes[OUTPUT_VALUE]).toBe("noon");
+    });
   });
 });

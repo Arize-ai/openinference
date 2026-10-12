@@ -318,4 +318,113 @@ describe("AnthropicInstrumentation - stream lifecycle", () => {
       span.attributes[`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`],
     ).toBe("fallback");
   });
+
+  it("parses a large streamed tool input once, not on every delta", async () => {
+    const deltas = 20000;
+    const client = createClient(
+      sseFetch([
+        messageStart(),
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", id: "toolu_1", name: "write", input: {} },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "input_json_delta", partial_json: '{"content": "' },
+        },
+        ...Array.from({ length: deltas }, () => ({
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "input_json_delta", partial_json: "abcdefghij" },
+        })),
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "input_json_delta", partial_json: '"}' },
+        },
+        { type: "content_block_stop", index: 0 },
+        messageDelta({ stopReason: "tool_use" }),
+        { type: "message_stop" },
+      ]),
+    );
+    const started = Date.now();
+    const stream = await client.messages.create({ ...request, stream: true });
+    for await (const _event of stream) {
+      // drain
+    }
+    // Parsing the input on every delta took seconds for this stream.
+    expect(Date.now() - started).toBeLessThan(1000);
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    const toolArguments =
+      span.attributes[
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.0.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+      ];
+    expect(toolArguments).toBe(JSON.stringify({ content: "abcdefghij".repeat(deltas) }));
+  });
+
+  it("keeps the raw input of a tool call the caller left before it stopped", async () => {
+    const client = createClient(
+      sseFetch([
+        messageStart(),
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", id: "toolu_1", name: "get_weather", input: {} },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "input_json_delta", partial_json: '{"city": "Par' },
+        },
+        { type: "content_block_stop", index: 0 },
+        messageDelta({ stopReason: "tool_use" }),
+        { type: "message_stop" },
+      ]),
+    );
+    const stream = await client.messages.create({ ...request, stream: true });
+    let read = 0;
+    for await (const _event of stream) {
+      if (++read === 3) {
+        break;
+      }
+    }
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    expect(
+      span.attributes[
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.0.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+      ],
+    ).toBe('{"city": "Par');
+  });
+
+  it("observes only the first iterator, so a second one's error does not end the span", async () => {
+    const client = createClient(sseFetch(textStreamEvents()));
+    const stream = await client.messages.create({ ...request, stream: true });
+
+    const first = stream[Symbol.asyncIterator]();
+    await first.next();
+    await expect(
+      (async () => {
+        for await (const _event of stream) {
+          // the response was already taken by the first iterator
+        }
+      })(),
+    ).rejects.toThrow("Cannot iterate over a consumed stream");
+    expect(memoryExporter.getFinishedSpans()).toHaveLength(0);
+
+    while (!(await first.next()).done) {
+      // drain
+    }
+
+    await waitForSpans(1);
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].status.code).toBe(SpanStatusCode.OK);
+    expect(spans[0].attributes[outputText]).toBe("Hello, world");
+  });
 });
