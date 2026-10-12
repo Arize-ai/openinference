@@ -14,8 +14,15 @@ import {
   safeExecuteInTheMiddle,
 } from "@opentelemetry/instrumentation";
 
-import type { Metadata, SpanOutput, TraceConfigOptions } from "@arizeai/openinference-core";
+import type {
+  Metadata,
+  SpanOutput,
+  TraceConfig,
+  TraceConfigOptions,
+} from "@arizeai/openinference-core";
 import {
+  generateTraceConfig,
+  REDACTED_VALUE,
   getInputAttributes,
   getMetadata,
   getMetadataAttributes,
@@ -162,6 +169,8 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
   private oiTracer: OITracer;
   private tracerProvider?: TracerProvider;
   private traceConfig?: TraceConfigOptions;
+  /** The trace config with its defaults and environment variables applied */
+  private resolvedTraceConfig: TraceConfig = generateTraceConfig({});
   private readonly patchedModuleExports = new Map<
     typeof Anthropic,
     typeof Anthropic & { openInferencePatched?: boolean }
@@ -193,6 +202,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     super(INSTRUMENTATION_NAME, VERSION, Object.assign({}, instrumentationConfig));
     this.tracerProvider = tracerProvider;
     this.traceConfig = traceConfig;
+    this.resolvedTraceConfig = generateTraceConfig(traceConfig ?? {});
     this.oiTracer = new OITracer({
       tracer: this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ?? this.tracer,
       traceConfig,
@@ -285,7 +295,9 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
               [SemanticConventions.LLM_PROVIDER]: getAnthropicProvider(this),
-              ...safelyGetAttributes(() => getAnthropicRequestAttributes(body)),
+              ...safelyGetAttributes(() =>
+                getAnthropicRequestAttributes(body, instrumentation.resolvedTraceConfig),
+              ),
             },
           });
           return traceAnthropicAPIPromise<Message | Stream<RawMessageStreamEvent>>({
@@ -297,7 +309,11 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                 // Record the results
                 span.setAttributes(
                   safelyGetAttributes(() =>
-                    getAnthropicResponseAttributes(result, contextMetadata),
+                    getAnthropicResponseAttributes(
+                      result,
+                      contextMetadata,
+                      instrumentation.resolvedTraceConfig,
+                    ),
                   ),
                 );
                 span.setStatus({ code: SpanStatusCode.OK });
@@ -312,6 +328,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                   endSpan,
                   recordError,
                   contextMetadata,
+                  traceConfig: instrumentation.resolvedTraceConfig,
                 });
               } else {
                 endSpan();
@@ -346,7 +363,9 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
               [SemanticConventions.LLM_PROVIDER]: getAnthropicProvider(this),
-              ...safelyGetAttributes(() => getAnthropicRequestAttributes(body)),
+              ...safelyGetAttributes(() =>
+                getAnthropicRequestAttributes(body, instrumentation.resolvedTraceConfig),
+              ),
             },
           });
           return traceAnthropicAPIPromise<TokensCount>({
@@ -379,31 +398,32 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       (original: ToolRunnerType): any => {
         return function patchedToolRunner(this: unknown, ...args: Parameters<ToolRunnerType>) {
           const [params, ...rest] = args;
-          const span = instrumentation.oiTracer.startSpan(TOOL_RUNNER_SPAN_NAME, {
-            kind: SpanKind.INTERNAL,
-            attributes: {
-              [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
-              [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
-              [SemanticConventions.LLM_PROVIDER]: getAnthropicProvider(this),
-              ...safelyGetAttributes(() => getInputAttributes(toJSONOutput(params))),
-            },
-          });
-          const runContext = trace.setSpan(getExecContext(span), span);
-          const tracedParams = traceRunnableTools({
-            params,
-            oiTracer: instrumentation.oiTracer,
-          });
-          let runner: ReturnType<ToolRunnerType>;
+          const tools = new RunnableToolTracer(instrumentation.oiTracer);
+          const runner: ReturnType<ToolRunnerType> = Reflect.apply(original, this, [
+            tools.traceParams(params),
+            ...rest,
+          ]);
+          const provider = getAnthropicProvider(this);
           try {
-            runner = context.with(runContext, () =>
-              Reflect.apply(original, this, [tracedParams, ...rest]),
-            );
+            instrumentToolRunnerTools({ runner, tools });
+            instrumentToolRunner({
+              runner,
+              traceConfig: instrumentation.resolvedTraceConfig,
+              // Started for each run, with the params as they are then.
+              startRunSpan: () =>
+                instrumentation.oiTracer.startSpan(TOOL_RUNNER_SPAN_NAME, {
+                  kind: SpanKind.INTERNAL,
+                  attributes: {
+                    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+                    [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
+                    [SemanticConventions.LLM_PROVIDER]: provider,
+                    ...safelyGetAttributes(() => getInputAttributes(toJSONOutput(runner.params))),
+                  },
+                }),
+            });
           } catch (error) {
-            recordSpanError(span, error);
-            span.end();
-            throw error;
+            diag.warn(`Failed to instrument a ${MODULE_NAME} tool runner`, error);
           }
-          instrumentToolRunner({ runner, span, runContext });
           return runner;
         };
       };
@@ -631,12 +651,15 @@ function recordSpanError(span: Span, error: unknown) {
 /**
  * Builds the request attributes of an Anthropic messages request.
  */
-function getAnthropicRequestAttributes(body: MessageRequestParams): Attributes {
+function getAnthropicRequestAttributes(
+  body: MessageRequestParams,
+  traceConfig: TraceConfig,
+): Attributes {
   const { messages: _messages, ...invocationParameters } = body;
   const attributes: Attributes = {
     [SemanticConventions.LLM_MODEL_NAME]: body.model,
     [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
-    ...getAnthropicInputMessagesAttributes(body),
+    ...getAnthropicInputMessagesAttributes(body, traceConfig),
     ...getAnthropicToolsJSONSchema(body),
   };
   const input = safelyJSONStringify(body);
@@ -654,17 +677,21 @@ function getAnthropicRequestAttributes(body: MessageRequestParams): Attributes {
 /**
  * Builds the response attributes of a non-streaming Anthropic message.
  */
-function getAnthropicResponseAttributes(result: Message, contextMetadata?: Metadata): Attributes {
+function getAnthropicResponseAttributes(
+  result: Message,
+  contextMetadata: Metadata | undefined,
+  traceConfig: TraceConfig,
+): Attributes {
   const attributes: Attributes = {
     // Override the model from the value sent by the server
     [SemanticConventions.LLM_MODEL_NAME]: result.model,
     [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
     ...getAnthropicFinishReasonAttributes(result.stop_reason),
-    ...getAnthropicOutputMessagesAttributes(result),
+    ...getAnthropicOutputMessagesAttributes(result, traceConfig),
     ...getAnthropicUsageAttributes(result.usage ?? {}),
     ...getAnthropicReasoningTokenAttributes(result.usage ?? {}),
     ...getAnthropicMetadataAttributes({
-      metadata: getAnthropicResponseMetadata(result),
+      metadata: getAnthropicResponseMetadata(result, traceConfig),
       contextMetadata,
     }),
   };
@@ -699,17 +726,19 @@ function instrumentAnthropicStream({
   endSpan,
   recordError,
   contextMetadata,
+  traceConfig,
 }: {
   stream: Stream<RawMessageStreamEvent>;
   span: Span;
   endSpan: () => void;
   recordError: (error: unknown) => void;
   contextMetadata?: Metadata;
+  traceConfig: TraceConfig;
 }) {
   const state = createAnthropicStreamState();
   const recordStreamAttributes = () => {
     span.setAttributes(
-      safelyGetAttributes(() => getAnthropicStreamAttributes(state, contextMetadata)),
+      safelyGetAttributes(() => getAnthropicStreamAttributes(state, contextMetadata, traceConfig)),
     );
   };
   const observer: AnthropicStreamObserver = {
@@ -737,13 +766,22 @@ function instrumentAnthropicStream({
     },
   };
 
+  // Only the first iterator is observed: the response can be read once, so a
+  // later one only gets the SDK's "consumed stream" error, which belongs to
+  // that caller and must not end the span while the first is still reading.
+  let observing = false;
+  const observeFirst = (iterator: AsyncIterator<RawMessageStreamEvent>) => {
+    if (observing) {
+      return iterator;
+    }
+    observing = true;
+    return wrapAnthropicStreamIterator({ iterator, observer });
+  };
+
   const iteratorFactory: unknown = Reflect.get(stream, "iterator");
   if (typeof iteratorFactory === "function") {
     Reflect.set(stream, "iterator", () =>
-      wrapAnthropicStreamIterator({
-        iterator: getAsyncIterator(Reflect.apply(iteratorFactory, stream, [])),
-        observer,
-      }),
+      observeFirst(getAsyncIterator(Reflect.apply(iteratorFactory, stream, []))),
     );
     return;
   }
@@ -753,7 +791,7 @@ function instrumentAnthropicStream({
   Object.defineProperty(stream, Symbol.asyncIterator, {
     configurable: true,
     writable: true,
-    value: () => wrapAnthropicStreamIterator({ iterator: asyncIterator(), observer }),
+    value: () => observeFirst(asyncIterator()),
   });
 }
 
@@ -886,12 +924,17 @@ function getAnthropicFallbackContentAttributes(
 /**
  * Converts the body of an Anthropic messages request to LLM input messages
  */
-function getAnthropicInputMessagesAttributes(body: MessageRequestParams): Attributes {
+function getAnthropicInputMessagesAttributes(
+  body: MessageRequestParams,
+  traceConfig: TraceConfig,
+): Attributes {
   // The top-level system prompt is the first input message, ahead of the
   // conversation, so the prompt the model saw is recorded in order.
   const messagesAttributes = [
     ...(body.system != null ? [getAnthropicSystemMessageAttributes(body.system)] : []),
-    ...(body.messages ?? []).map((message) => getAnthropicInputMessageAttributes(message)),
+    ...(body.messages ?? []).map((message) =>
+      getAnthropicInputMessageAttributes(message, traceConfig),
+    ),
   ];
   return messagesAttributes.reduce<Attributes>((acc, messageAttributes, index) => {
     const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
@@ -963,7 +1006,10 @@ function getAnthropicToolsJSONSchema(body: MessageRequestParams): Attributes {
   }, {});
 }
 
-function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
+function getAnthropicInputMessageAttributes(
+  message: MessageParam,
+  traceConfig: TraceConfig,
+): Attributes {
   const role = message.role;
   const attributes: Attributes = {
     [SemanticConventions.MESSAGE_ROLE]: role,
@@ -1016,7 +1062,10 @@ function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
         // A prior turn's fallback boundary echoed back to the API
         Object.assign(attributes, getAnthropicFallbackContentAttributes(contentsIndexPrefix, part));
       } else {
-        Object.assign(attributes, getAnthropicOtherContentAttributes(contentsIndexPrefix, part));
+        Object.assign(
+          attributes,
+          getAnthropicOtherContentAttributes(contentsIndexPrefix, part, traceConfig),
+        );
       }
     });
   }
@@ -1027,7 +1076,10 @@ function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
 /**
  * Converts the Anthropic message result to LLM output attributes
  */
-function getAnthropicOutputMessagesAttributes(message: OutputMessage): Attributes {
+function getAnthropicOutputMessagesAttributes(
+  message: OutputMessage,
+  traceConfig: TraceConfig,
+): Attributes {
   const attributes: Attributes = {};
   const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
@@ -1065,7 +1117,10 @@ function getAnthropicOutputMessagesAttributes(message: OutputMessage): Attribute
     } else if (content.type === "fallback") {
       Object.assign(attributes, getAnthropicFallbackContentAttributes(contentPrefix, content));
     } else {
-      Object.assign(attributes, getAnthropicOtherContentAttributes(contentPrefix, content));
+      Object.assign(
+        attributes,
+        getAnthropicOtherContentAttributes(contentPrefix, content, traceConfig),
+      );
     }
   });
 
@@ -1088,17 +1143,25 @@ function getAnthropicOutputMessagesAttributes(message: OutputMessage): Attribute
  * - `citations`: the citations of each text block, by content index;
  * - `mcp_server_names`: the MCP server of each `mcp_tool_use` call, by id.
  */
-function getAnthropicResponseMetadata(message: AnthropicResponseDetails): Metadata {
+function getAnthropicResponseMetadata(
+  message: AnthropicResponseDetails,
+  traceConfig: TraceConfig,
+): Metadata {
   const metadata: Metadata = {
-    ...getAnthropicResponseDetailsMetadata(message),
+    ...getAnthropicResponseDetailsMetadata(message, traceConfig),
     ...getAnthropicUsageMetadata(message.usage),
   };
   const { content } = message;
   const citations: Record<string, unknown> = {};
   const mcpServerNames: Record<string, string> = {};
+  // A citation's cited_text quotes the prompt's documents and is part of the
+  // output text, so it is left out when either is hidden.
+  const hideCitedText = traceConfig.hideInputs || hidesOutputText(traceConfig);
   content.forEach((block, index) => {
     if (block.type === "text" && block.citations != null && block.citations.length > 0) {
-      citations[String(index)] = block.citations;
+      citations[String(index)] = hideCitedText
+        ? block.citations.map((citation) => omitKey(citation, "cited_text"))
+        : block.citations;
     } else if (block.type === "mcp_tool_use") {
       mcpServerNames[block.id] = block.server_name;
     }
@@ -1113,6 +1176,20 @@ function getAnthropicResponseMetadata(message: AnthropicResponseDetails): Metada
 }
 
 /**
+ * True when the trace config hides the model's output text.
+ */
+function hidesOutputText(traceConfig: TraceConfig): boolean {
+  return traceConfig.hideOutputs || traceConfig.hideOutputText;
+}
+
+/**
+ * Copies an object without one of its keys.
+ */
+function omitKey(value: object, key: string): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).filter(([entryKey]) => entryKey !== key));
+}
+
+/**
  * The response fields metadata is read from, shared by a parsed message and
  * one rebuilt from a stream, whose fields are only known once they arrive.
  */
@@ -1123,10 +1200,17 @@ type AnthropicResponseDetails = { content: ContentBlock[]; usage?: unknown } & P
   >
 >;
 
-function getAnthropicResponseDetailsMetadata(message: AnthropicResponseDetails): Metadata {
+function getAnthropicResponseDetailsMetadata(
+  message: AnthropicResponseDetails,
+  traceConfig: TraceConfig,
+): Metadata {
   const metadata: Metadata = {};
-  if (message.stop_details != null) {
-    metadata.stop_details = message.stop_details;
+  const stopDetails = message.stop_details;
+  if (stopDetails != null && typeof stopDetails === "object") {
+    // A refusal's explanation is model output, hidden with the outputs.
+    metadata.stop_details = hidesOutputText(traceConfig)
+      ? omitKey(stopDetails, "explanation")
+      : stopDetails;
   }
   const diagnostics = message.diagnostics;
   if (
@@ -1263,11 +1347,15 @@ function getAnthropicImageContentAttributes(prefix: string, block: ImageBlockPar
  * block (server tool results, MCP results and listings, container uploads,
  * documents, tool changes, and types this version does not know) is recorded
  * as its type and its JSON, so it still occupies its index in the contents
- * list rather than leaving a hole.
+ * list rather than leaving a hole. Embedded base64 data (a PDF document, a
+ * nested image) is replaced by a placeholder before the block is encoded, and
+ * nested images are hidden with `hideInputImages`, so the JSON never carries
+ * what the image and size rules would mask.
  */
 function getAnthropicOtherContentAttributes(
   prefix: string,
   block: ContentBlock | ContentBlockParam,
+  traceConfig: TraceConfig,
 ): Attributes {
   if (block.type === "compaction") {
     const attributes: Attributes = {
@@ -1284,11 +1372,36 @@ function getAnthropicOtherContentAttributes(
   const attributes: Attributes = {
     [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: String(block.type),
   };
-  const blockJSON = safelyJSONStringify(block);
+  const blockJSON = getRedactedBlockJSON(block, traceConfig);
   if (blockJSON != null) {
     attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = blockJSON;
   }
   return attributes;
+}
+
+/**
+ * Encodes a content block as JSON with its embedded base64 data replaced by a
+ * placeholder (keeping its media type), and its nested images replaced by a
+ * placeholder when `hideInputImages` is set.
+ */
+function getRedactedBlockJSON(block: object, traceConfig: TraceConfig): string | undefined {
+  try {
+    return JSON.stringify(block, (_key, value: unknown) => {
+      if (value == null || typeof value !== "object" || !("type" in value)) {
+        return value;
+      }
+      if (value.type === "image" && traceConfig.hideInputImages) {
+        return { type: "image", source: REDACTED_VALUE };
+      }
+      if (value.type === "base64" && "data" in value) {
+        return { ...value, data: REDACTED_VALUE };
+      }
+      return value;
+    });
+  } catch (error) {
+    diag.debug(`Failed to encode a ${MODULE_NAME} content block`, error);
+    return undefined;
+  }
 }
 
 /**
@@ -1384,8 +1497,12 @@ interface AnthropicStreamState {
   message?: Omit<Message, "content">;
   /** The content blocks, by their stream `index` */
   content: ContentBlock[];
-  /** The raw JSON streamed so far for the input of each tool call, by block index */
-  partialInputs: Map<number, string>;
+  /**
+   * The raw JSON chunks streamed so far for the input of each tool call not
+   * yet stopped, by block index. They are joined and parsed once, when the
+   * block stops or the stream ends, as parsing on every delta is quadratic.
+   */
+  partialInputs: Map<number, string[]>;
   /** The fields `message_delta` events set on the message */
   messageDelta: Record<string, unknown>;
   /** Every usage field reported by `message_delta` events, latest first */
@@ -1486,11 +1603,30 @@ function applyAnthropicContentBlockDelta({
   } else if (delta.type === "compaction_delta" && block.type === "compaction") {
     applyAnthropicCompactionDelta(block, delta);
   } else if (delta.type === "input_json_delta" && isToolUseContentBlock(block)) {
-    const partialInput = (state.partialInputs.get(chunk.index) ?? "") + delta.partial_json;
-    state.partialInputs.set(chunk.index, partialInput);
-    // Kept as the raw JSON until it parses, which it may never do when the
-    // caller leaves the stream early.
-    Object.assign(block, { input: parseToolInput(partialInput) });
+    const chunks = state.partialInputs.get(chunk.index);
+    if (chunks == null) {
+      state.partialInputs.set(chunk.index, [delta.partial_json]);
+    } else {
+      chunks.push(delta.partial_json);
+    }
+  }
+}
+
+/**
+ * Sets the input of each tool call whose JSON is still being accumulated,
+ * or just the one of `index`. Input that does not parse, as when the caller
+ * left the stream early, is kept as the raw JSON received.
+ */
+function settleAnthropicToolInputs(state: AnthropicStreamState, index?: number) {
+  for (const [blockIndex, chunks] of state.partialInputs) {
+    if (index != null && blockIndex !== index) {
+      continue;
+    }
+    const block = state.content[blockIndex];
+    if (block != null) {
+      Object.assign(block, { input: parseToolInput(chunks.join("")) });
+    }
+    state.partialInputs.delete(blockIndex);
   }
 }
 
@@ -1535,14 +1671,19 @@ function getAnthropicStreamMessage(state: AnthropicStreamState): Record<string, 
  */
 function getAnthropicStreamAttributes(
   state: AnthropicStreamState,
-  contextMetadata?: Metadata,
+  contextMetadata: Metadata | undefined,
+  traceConfig: TraceConfig,
 ): Attributes {
+  settleAnthropicToolInputs(state);
   const content = state.content.filter((block) => block != null);
   const message = getAnthropicStreamMessage(state);
   const attributes: Attributes = {
-    ...getAnthropicOutputMessagesAttributes({ role: state.message?.role ?? "assistant", content }),
+    ...getAnthropicOutputMessagesAttributes(
+      { role: state.message?.role ?? "assistant", content },
+      traceConfig,
+    ),
     ...getAnthropicMetadataAttributes({
-      metadata: getAnthropicResponseMetadata({ ...message, content }),
+      metadata: getAnthropicResponseMetadata({ ...message, content }, traceConfig),
       contextMetadata,
     }),
   };
@@ -1612,6 +1753,8 @@ function applyAnthropicStreamEvent({
     applyAnthropicContentBlockStart({ chunk, state });
   } else if (chunk.type === "content_block_delta") {
     applyAnthropicContentBlockDelta({ chunk, state });
+  } else if (chunk.type === "content_block_stop") {
+    settleAnthropicToolInputs(state, chunk.index);
   }
 }
 
@@ -1640,36 +1783,66 @@ function isRunnableTool(tool: ToolRunnerParams["tools"][number]): tool is Runnab
 }
 
 /**
- * Returns the tool runner params with each runnable tool traced. The caller's
- * params and tools are never modified: the tools are proxies that trace `run`
- * and pass everything else through.
+ * Traces the runnable tools of one tool runner, while keeping the caller's own
+ * tool objects everywhere the caller can see them.
+ *
+ * The runner calls `tool.run()` from module-private code, on the tools of its
+ * private params, so the only place to trace a run from is the tool object
+ * itself. Each runnable tool is therefore handed to the runner as a proxy that
+ * traces `run`, and the runner's public surface maps between the two:
+ * `params` and the `setMessagesParams()` mutator show the caller's tools, and
+ * the tools passed to `setMessagesParams()` and `addTools()` are traced too.
  */
-function traceRunnableTools({
-  params,
-  oiTracer,
-}: {
-  params: ToolRunnerParams;
-  oiTracer: OITracer;
-}): ToolRunnerParams {
-  try {
+class RunnableToolTracer {
+  private readonly traced = new WeakMap<object, RunnableTool>();
+  private readonly originals = new WeakMap<object, RunnableTool>();
+
+  constructor(private readonly oiTracer: OITracer) {}
+
+  /** The traced proxy of a runnable tool, the same one each time */
+  trace<Tool extends ToolRunnerParams["tools"][number]>(tool: Tool): Tool | RunnableTool {
+    if (!isRunnableTool(tool) || this.originals.has(tool)) {
+      return tool;
+    }
+    let proxy = this.traced.get(tool);
+    if (proxy == null) {
+      proxy = traceRunnableTool({ tool, oiTracer: this.oiTracer });
+      this.traced.set(tool, proxy);
+      this.originals.set(proxy, tool);
+    }
+    return proxy;
+  }
+
+  /** The caller's tool behind a traced proxy */
+  original<Tool extends ToolRunnerParams["tools"][number]>(tool: Tool): Tool | RunnableTool {
+    return (tool != null && typeof tool === "object" && this.originals.get(tool)) || tool;
+  }
+
+  traceParams(params: ToolRunnerParams): ToolRunnerParams {
+    try {
+      if (!Array.isArray(params?.tools)) {
+        return params;
+      }
+      return { ...params, tools: params.tools.map((tool) => this.trace(tool)) };
+    } catch (error) {
+      diag.warn(`Failed to trace the ${MODULE_NAME} tool runner's tools`, error);
+      return params;
+    }
+  }
+
+  originalParams(params: ToolRunnerParams): ToolRunnerParams {
     if (!Array.isArray(params?.tools)) {
       return params;
     }
-    return {
-      ...params,
-      tools: params.tools.map((tool) =>
-        isRunnableTool(tool) ? traceRunnableTool({ tool, oiTracer }) : tool,
-      ),
-    };
-  } catch (error) {
-    diag.warn(`Failed to trace the ${MODULE_NAME} tool runner's tools`, error);
-    return params;
+    return { ...params, tools: params.tools.map((tool) => this.original(tool)) };
   }
 }
 
 /**
- * Wraps a runnable tool so each run is a TOOL span, a child of the span
- * active when the runner calls it.
+ * Wraps a runnable tool in a proxy whose `run` is a TOOL span, a child of the
+ * span active when the runner calls it. Everything else is read from the tool
+ * itself, with its methods bound to it, so a class tool keeps working with
+ * private (`#`) fields.
  */
 function traceRunnableTool({
   tool,
@@ -1713,9 +1886,22 @@ function traceRunnableTool({
       },
     );
   };
+  const boundMethods = new Map<unknown, unknown>();
   return new Proxy(tool, {
-    get(target, property, receiver) {
-      return property === "run" ? tracedRun : Reflect.get(target, property, receiver);
+    get(target, property) {
+      if (property === "run") {
+        return tracedRun;
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      if (typeof value !== "function") {
+        return value;
+      }
+      let bound = boundMethods.get(value);
+      if (bound == null) {
+        bound = value.bind(target);
+        boundMethods.set(value, bound);
+      }
+      return bound;
     },
   });
 }
@@ -1748,9 +1934,58 @@ function getRunnableToolAttributes({
 }
 
 /**
- * Runs each step of a tool runner in the context of its span, so the LLM span
- * of every request and the TOOL span of every tool it runs are children of it,
- * and ends the span when the run ends:
+ * Maps the runner's public view of its params back to the caller's tools, and
+ * traces the tools given to it later, see {@link RunnableToolTracer}.
+ */
+function instrumentToolRunnerTools({
+  runner,
+  tools,
+}: {
+  runner: ToolRunner;
+  tools: RunnableToolTracer;
+}) {
+  const prototype: unknown = Object.getPrototypeOf(runner);
+  if (prototype == null || typeof prototype !== "object") {
+    return;
+  }
+  Object.defineProperty(runner, "params", {
+    configurable: true,
+    get: () => {
+      const params: ToolRunnerParams = Reflect.get(prototype, "params", runner);
+      return tools.originalParams(params);
+    },
+  });
+
+  const setMessagesParams = runner.setMessagesParams.bind(runner);
+  Object.defineProperty(runner, "setMessagesParams", {
+    configurable: true,
+    writable: true,
+    value: (
+      paramsOrMutator: ToolRunnerParams | ((prevParams: ToolRunnerParams) => ToolRunnerParams),
+    ) => {
+      if (typeof paramsOrMutator === "function") {
+        setMessagesParams((prevParams) =>
+          tools.traceParams(paramsOrMutator(tools.originalParams(prevParams))),
+        );
+      } else {
+        setMessagesParams(tools.traceParams(paramsOrMutator));
+      }
+    },
+  });
+
+  const addTools = runner.addTools.bind(runner);
+  Object.defineProperty(runner, "addTools", {
+    configurable: true,
+    writable: true,
+    value: (...added: Parameters<ToolRunner["addTools"]>) =>
+      addTools(...added.map((tool) => tools.trace(tool))),
+  });
+}
+
+/**
+ * Runs each run of a tool runner under a CHAIN span of its own, so the LLM
+ * span of every request and the TOOL span of every tool it runs are children
+ * of it, and ends the span when the run ends:
  *
  * - run to the end (`for await`, `runUntilDone()` or `await runner`): status
  *   OK, with the final message as the output;
@@ -1758,53 +1993,55 @@ function getRunnableToolAttributes({
  * - failed: status ERROR, with the error recorded.
  *
  * Every way of running the runner iterates it, so wrapping its async iterator
- * covers them all.
+ * covers them all, and a run retried after a failure gets a new span.
  */
 function instrumentToolRunner({
   runner,
-  span,
-  runContext,
+  startRunSpan,
+  traceConfig,
 }: {
   runner: ToolRunner;
-  span: Span;
-  runContext: ReturnType<typeof context.active>;
+  startRunSpan: () => Span;
+  traceConfig: TraceConfig;
 }) {
-  let spanEnded = false;
-  const endSpan = () => {
-    if (!spanEnded) {
-      spanEnded = true;
-      span.end();
-    }
-  };
-  const onError = (error: unknown) => {
-    if (!spanEnded) {
-      recordSpanError(span, error);
-      endSpan();
-    }
-  };
-  const onDone = async () => {
-    if (spanEnded) {
-      return;
-    }
-    const message = await runner.done().catch(() => undefined);
-    if (message != null) {
-      span.setAttributes(
-        safelyGetAttributes(() => ({
-          ...getAnthropicOutputMessagesAttributes(message),
-          ...getOutputAttributes(toJSONOutput(message)),
-        })),
-      );
-    }
-    span.setStatus({ code: SpanStatusCode.OK });
-    endSpan();
-  };
-
   const iterate = runner[Symbol.asyncIterator].bind(runner);
   type Item = Awaited<ReturnType<ReturnType<typeof iterate>["next"]>>;
   Object.defineProperty(runner, Symbol.asyncIterator, {
     configurable: true,
     writable: true,
     value: () => {
+      const span = startRunSpan();
+      const runContext = trace.setSpan(getExecContext(span), span);
+      let spanEnded = false;
+      const endSpan = () => {
+        if (!spanEnded) {
+          spanEnded = true;
+          span.end();
+        }
+      };
+      const onError = (error: unknown) => {
+        if (!spanEnded) {
+          recordSpanError(span, error);
+          endSpan();
+        }
+      };
+      const onDone = async () => {
+        if (spanEnded) {
+          return;
+        }
+        const message = await runner.done().catch(() => undefined);
+        if (message != null) {
+          span.setAttributes(
+            safelyGetAttributes(() => ({
+              ...getAnthropicOutputMessagesAttributes(message, traceConfig),
+              ...getOutputAttributes(toJSONOutput(message)),
+            })),
+          );
+        }
+        span.setStatus({ code: SpanStatusCode.OK });
+        endSpan();
+      };
+
       const iterator = context.with(runContext, iterate);
       const tracedIterator = {
         async next(): Promise<Item> {
