@@ -140,12 +140,15 @@ describe("AnthropicInstrumentation - trace config", () => {
     },
   );
 
-  it("drops cited text with hideInputs, as it quotes the prompt", async () => {
-    instrument({ hideInputs: true });
-    const metadata = JSON.parse((await traceRequest())[METADATA] as string);
-    expect(metadata.citations["0"][0].cited_text).toBeUndefined();
-    expect(metadata.stop_details.explanation).toBe("SECRET EXPLANATION");
-  });
+  it.each([{ hideInputs: true }, { hideInputText: true }, { hideInputMessages: true }])(
+    "drops cited text with %o, as it quotes the prompt",
+    async (traceConfig) => {
+      instrument(traceConfig);
+      const metadata = JSON.parse((await traceRequest())[METADATA] as string);
+      expect(metadata.citations["0"][0].cited_text).toBeUndefined();
+      expect(metadata.stop_details.explanation).toBe("SECRET EXPLANATION");
+    },
+  );
 
   it("keeps the system prompt out of the invocation parameters, so hideInputs hides it", async () => {
     instrument({ hideInputs: true });

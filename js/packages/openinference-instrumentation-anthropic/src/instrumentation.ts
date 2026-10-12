@@ -1210,8 +1210,13 @@ function getAnthropicResponseMetadata(
   const citations: Record<string, unknown> = {};
   const mcpServerNames: Record<string, string> = {};
   // A citation's cited_text quotes the prompt's documents and is part of the
-  // output text, so it is left out when either is hidden.
-  const hideCitedText = traceConfig.hideInputs || hidesOutputText(traceConfig);
+  // output text, so it is left out when either the input text or the output
+  // text is hidden.
+  const hideCitedText =
+    traceConfig.hideInputs ||
+    traceConfig.hideInputText ||
+    traceConfig.hideInputMessages ||
+    hidesOutputText(traceConfig);
   content.forEach((block, index) => {
     if (block.type === "text" && block.citations != null && block.citations.length > 0) {
       citations[String(index)] = hideCitedText
