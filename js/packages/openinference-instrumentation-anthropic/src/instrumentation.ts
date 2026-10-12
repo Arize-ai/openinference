@@ -655,7 +655,9 @@ function getAnthropicRequestAttributes(
   body: MessageRequestParams,
   traceConfig: TraceConfig,
 ): Attributes {
-  const { messages: _messages, ...invocationParameters } = body;
+  // The system prompt is input message 0, so it is left out of the invocation
+  // parameters, which hideInputs does not hide.
+  const { messages: _messages, system: _system, ...invocationParameters } = body;
   const attributes: Attributes = {
     [SemanticConventions.LLM_MODEL_NAME]: body.model,
     [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
@@ -1042,8 +1044,11 @@ function getAnthropicInputMessageAttributes(
         if (typeof part.content === "string") {
           attributes[SemanticConventions.MESSAGE_CONTENT] = part.content;
         } else if (Array.isArray(part.content)) {
-          // Handle complex tool result content
-          attributes[SemanticConventions.MESSAGE_CONTENT] = JSON.stringify(part.content);
+          // Handle complex tool result content, with its base64 data redacted
+          const contentJSON = getRedactedBlockJSON(part.content, traceConfig);
+          if (contentJSON != null) {
+            attributes[SemanticConventions.MESSAGE_CONTENT] = contentJSON;
+          }
         }
       } else if (part.type === "thinking") {
         attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
