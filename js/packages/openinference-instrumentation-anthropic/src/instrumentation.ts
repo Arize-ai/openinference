@@ -1079,7 +1079,7 @@ function getAnthropicOutputMessagesAttributes(message: OutputMessage): Attribute
  * - `stop_details`: why the model stopped, e.g. the category of a refusal;
  * - `cache_miss_reason`: why the prompt cache was not read;
  * - `container_id`: the container a code execution tool ran in;
- * - `context_management`: the context edits applied to the request;
+ * - `context_management_applied_edits`: the context edits applied to the request;
  * - `input_transformations`: the input blocks the API dropped or let through;
  * - `usage_iterations`: the usage of each sampling iteration. A compaction
  *   iteration's tokens are not part of the top-level usage, so they are not
@@ -1146,8 +1146,15 @@ function getAnthropicResponseDetailsMetadata(message: AnthropicResponseDetails):
   ) {
     metadata.container_id = container.id;
   }
-  if (message.context_management != null) {
-    metadata.context_management = message.context_management;
+  const contextManagement = message.context_management;
+  if (
+    contextManagement != null &&
+    typeof contextManagement === "object" &&
+    "applied_edits" in contextManagement &&
+    contextManagement.applied_edits != null
+  ) {
+    // The same key as the Python instrumentation
+    metadata.context_management_applied_edits = contextManagement.applied_edits;
   }
   if (Array.isArray(message.input_transformations) && message.input_transformations.length > 0) {
     metadata.input_transformations = message.input_transformations;
