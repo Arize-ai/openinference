@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { betaTool } from "@anthropic-ai/sdk/helpers/beta/json-schema";
 import type { BetaRunnableTool } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
 import { SpanStatusCode } from "@opentelemetry/api";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
@@ -408,6 +409,60 @@ describe("AnthropicInstrumentation - other Messages methods", () => {
       const [toolSpan] = byKind(memoryExporter.getFinishedSpans(), OpenInferenceSpanKind.TOOL);
       expect(toolSpan.status.code).toBe(SpanStatusCode.OK);
       expect(toolSpan.attributes[OUTPUT_VALUE]).toBe("sunny in Paris");
+    });
+
+    class FrozenWeatherTool {
+      #forecast = "sunny";
+      name = "get_weather";
+      description = "Get the weather for a city";
+      input_schema = inputSchema;
+      constructor() {
+        Object.freeze(this);
+      }
+      parse(input: unknown) {
+        return input as { city: string };
+      }
+      run(args: { city: string }) {
+        return `${this.#forecast} in ${args.city}`;
+      }
+    }
+
+    it.each([
+      {
+        name: "a frozen betaTool()",
+        tool: () =>
+          Object.freeze(
+            betaTool({
+              name: "get_weather",
+              description: "Get the weather for a city",
+              inputSchema,
+              run: (args) => `sunny in ${String(args.city)}`,
+            }),
+          ),
+      },
+      { name: "a frozen class instance", tool: () => new FrozenWeatherTool() },
+    ])("traces $name", async ({ tool }) => {
+      const client = new Anthropic({
+        apiKey: "fake-api-key",
+        fetch: sequenceFetch([
+          () => jsonResponse(toolUseMessage),
+          () => jsonResponse(finalMessage),
+        ]),
+      });
+      const frozen = tool();
+
+      const runner = client.beta.messages.toolRunner({ ...request, tools: [frozen] });
+      await runner;
+
+      expect(runner.params.tools[0]).toBe(frozen);
+      expect(runner.params.messages.at(-2)?.content).toEqual([
+        { type: "tool_result", tool_use_id: "toolu_1", content: "sunny in Paris" },
+      ]);
+      await waitForSpans(4);
+      const [toolSpan] = byKind(memoryExporter.getFinishedSpans(), OpenInferenceSpanKind.TOOL);
+      expect(toolSpan.status.code).toBe(SpanStatusCode.OK);
+      expect(toolSpan.attributes[OUTPUT_VALUE]).toBe("sunny in Paris");
+      expect(toolSpan.attributes[TOOL_DESCRIPTION]).toBe("Get the weather for a city");
     });
 
     it("traces a run retried after a failure under a new CHAIN span", async () => {
