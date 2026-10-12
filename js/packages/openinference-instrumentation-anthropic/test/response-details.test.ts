@@ -79,7 +79,7 @@ function expectResponseDetails(attributes: Record<string, unknown>) {
     stop_details: stopDetails,
     cache_miss_reason: { type: "prompt_changed" },
     container_id: "container_1",
-    context_management: contextManagement,
+    context_management_applied_edits: contextManagement.applied_edits,
     input_transformations: inputTransformations,
     usage_iterations: iterations,
     server_tool_use: serverToolUse,
