@@ -221,11 +221,31 @@ def _get_content_block_attributes(
         # opaque metadata from a prior compaction, round-tripped verbatim
         if encrypted_content := _get(block, "encrypted_content"):
             yield f"{prefix}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}", encrypted_content
+    elif block_type == "fallback":
+        yield from _get_fallback_attributes(prefix, block)
     else:
-        # e.g. server tool results, MCP tool results and listings, container uploads, fallback
-        # boundaries, documents, search results, tool additions and removals, and types newer
-        # than this instrumentation
+        # e.g. server tool results, MCP tool results and listings, container uploads, documents,
+        # search results, tool additions and removals, and types newer than this
+        # instrumentation
         yield from _get_generic_content_block_attributes(prefix, block, hide_images)
+
+
+def _get_fallback_attributes(prefix: str, block: Any) -> Iterator[Tuple[str, Any]]:
+    """
+    Summarizes a server-side fallback boundary, where one model's output gives way to the next's,
+    as which model declined, which took over, and why.
+    """
+    # the response model names `from` as `from_`, which is a keyword
+    from_ = _get(block, "from")
+    if from_ is None:
+        from_ = _get(block, "from_")
+    category = _get(_get(block, "trigger"), "category")
+    reason = f" (refusal: {category})" if isinstance(category, str) else ""
+    yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "fallback"
+    yield (
+        f"{prefix}.{MESSAGE_CONTENT_TEXT}",
+        f"{_get(from_, 'model')} -> {_get(_get(block, 'to'), 'model')}{reason}",
+    )
 
 
 def _get_image_attributes(prefix: str, source: Any) -> Iterator[Tuple[str, Any]]:

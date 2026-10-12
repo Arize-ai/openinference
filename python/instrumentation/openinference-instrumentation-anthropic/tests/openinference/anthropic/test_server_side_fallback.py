@@ -236,14 +236,10 @@ def _assert_fallback_content_block_span(span: Any) -> None:
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
         == "fallback"
     )
-    assert json.loads(
-        str(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"))
-    ) == {
-        "type": "fallback",
-        "from": {"model": REQUESTED_MODEL},
-        "to": {"model": FALLBACK_MODEL},
-        "trigger": {"type": "refusal", "category": "reasoning_extraction"},
-    }
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}")
+        == f"{REQUESTED_MODEL} -> {FALLBACK_MODEL} (refusal: reasoning_extraction)"
+    )
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}")
         == "text"

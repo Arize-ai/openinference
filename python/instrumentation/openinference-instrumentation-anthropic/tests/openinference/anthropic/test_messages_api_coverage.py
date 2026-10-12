@@ -1357,3 +1357,49 @@ def test_only_failed_tool_input_json_is_buffered(
     snapshot = accumulator._result()
     assert snapshot.content[0].text == ""
     assert snapshot.content[1].input == {}
+
+
+@pytest.mark.parametrize("as_model", [False, True])
+@pytest.mark.parametrize(
+    "trigger, text",
+    [
+        (
+            {"type": "refusal", "category": "cyber"},
+            "claude-fable-5 -> claude-opus-4-8 (refusal: cyber)",
+        ),
+        ({"type": "refusal"}, "claude-fable-5 -> claude-opus-4-8"),
+    ],
+)
+def test_fallback_blocks_are_summarized(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+    as_model: bool,
+    trigger: Dict[str, Any],
+    text: str,
+) -> None:
+    block = {**_FALLBACK_BLOCK, "trigger": trigger}
+    content: List[Any] = [block]
+    if as_model:
+        # e.g. a response passed back as input
+        from anthropic._models import construct_type
+        from anthropic.types.beta import BetaMessage
+
+        message: Any = construct_type(type_=BetaMessage, value=_message_json(content))
+        content = message.content
+    client = _mock_anthropic_client(
+        lambda request: httpx2.Response(200, json=_message_json([block]))
+    )
+    messages: Any = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": content},
+        {"role": "user", "content": "more"},
+    ]
+    client.beta.messages.create(model=MODEL, max_tokens=100, messages=messages)
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    for prefix in [
+        f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0",
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0",
+    ]:
+        assert attributes[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] == "fallback"
+        assert attributes[f"{prefix}.{MESSAGE_CONTENT_TEXT}"] == text
