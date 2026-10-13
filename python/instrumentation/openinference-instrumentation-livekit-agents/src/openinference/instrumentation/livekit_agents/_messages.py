@@ -1,73 +1,42 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Iterable
 
 from openinference.instrumentation import Message, ToolCall
 
 
-def oi_messages(
-    messages_json: str | None,
-    system_instructions_json: str | None = None,
-) -> list[Message]:
-    """Convert LiveKit's gen_ai `{role, parts}` messages to OpenInference messages."""
+def oi_messages(items: Iterable[Any]) -> list[Message]:
+    """Convert LiveKit ChatContext items to OpenInference messages.
+
+    A FunctionCall joins the assistant message right before it, or starts one, and a
+    FunctionCallOutput becomes a tool message.
+    """
     messages: list[Message] = []
-    system = _text(_load(system_instructions_json))
-    if system:
-        messages.append(Message(role="system", content=system))
-    for item in _load(messages_json):
-        if isinstance(item, dict):
-            messages.append(_message(item))
+    for item in items:
+        kind = getattr(item, "type", None)
+        if kind == "message":
+            message = Message(role=_role(item.role))
+            if text := item.text_content:
+                message["content"] = text
+            messages.append(message)
+        elif kind == "function_call":
+            call = ToolCall(
+                id=item.call_id, function={"name": item.name, "arguments": item.arguments}
+            )
+            previous = messages[-1] if messages else None
+            if previous is None or previous.get("role") != "assistant":
+                previous = Message(role="assistant")
+                messages.append(previous)
+            previous["tool_calls"] = [*previous.get("tool_calls", ()), call]
+        elif kind == "function_call_output":
+            messages.append(Message(role="tool", tool_call_id=item.call_id, content=item.output))
     return messages
 
 
-def _message(item: dict[str, Any]) -> Message:
-    message = Message()
-    if isinstance(role := item.get("role"), str):
-        message["role"] = role
-    parts = [part for part in item.get("parts") or () if isinstance(part, dict)]
-    if text := _text(parts):
-        message["content"] = text
-    tool_calls: list[ToolCall] = []
-    for part in parts:
-        if part.get("type") == "tool_call":
-            tool_call = ToolCall(function={})
-            if isinstance(call_id := part.get("id"), str):
-                tool_call["id"] = call_id
-            if isinstance(name := part.get("name"), str):
-                tool_call["function"]["name"] = name
-            if (arguments := part.get("arguments")) is not None:
-                tool_call["function"]["arguments"] = (
-                    arguments if isinstance(arguments, str) else json.dumps(arguments)
-                )
-            tool_calls.append(tool_call)
-        elif part.get("type") == "tool_call_response":
-            if isinstance(call_id := part.get("id"), str):
-                message["tool_call_id"] = call_id
-            if "content" not in message and (response := part.get("response")) is not None:
-                message["content"] = response if isinstance(response, str) else json.dumps(response)
-    if tool_calls:
-        message["tool_calls"] = tool_calls
-    return message
+def messages_json(messages: list[Message]) -> str:
+    return json.dumps(messages, default=str, ensure_ascii=False)
 
 
-def _text(parts: Any) -> str:
-    if not isinstance(parts, list):
-        return ""
-    return "".join(
-        part["content"]
-        for part in parts
-        if isinstance(part, dict)
-        and part.get("type") == "text"
-        and isinstance(part.get("content"), str)
-    )
-
-
-def _load(value: str | None) -> list[Any]:
-    if value is None:
-        return []
-    try:
-        loaded = json.loads(value)
-    except ValueError:
-        return []
-    return loaded if isinstance(loaded, list) else []
+def _role(role: str) -> str:
+    return "system" if role == "developer" else role

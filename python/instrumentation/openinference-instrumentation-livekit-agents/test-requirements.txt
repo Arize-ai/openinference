@@ -1,3 +1,4 @@
-livekit-agents==1.8.6
+livekit-agents[openai,silero]==1.8.6
 opentelemetry-sdk
 pytest
+pytest-recording
