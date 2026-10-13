@@ -13,7 +13,18 @@ pip install openinference-instrumentation-livekit-agents
 
 ## Usage
 
-Instrument before the session starts, in the process that runs the job:
+Register a tracer provider with `auto_instrument=True`, or call the instrumentor yourself,
+before the session starts:
+
+```python
+from phoenix.otel import register  # or: from arize.otel import register
+
+register(
+    project_name="livekit-voice-agent",
+    auto_instrument=True,
+    set_global_tracer_provider=False,  # see Double counting below
+)
+```
 
 ```python
 from openinference.instrumentation.livekit_agents import LiveKitAgentsInstrumentor
@@ -22,8 +33,8 @@ LiveKitAgentsInstrumentor().instrument(tracer_provider=tracer_provider)
 ```
 
 LiveKit's own telemetry does not need to be configured. Under the default process job
-executor, instrument from the server's `setup_fnc` so each job process is instrumented.
-[examples/voice_agent.py](examples/voice_agent.py) shows the pattern.
+executor, register from the server's `setup_fnc`, which runs in each job process, as the
+[examples](examples/) do.
 
 ## What a turn looks like
 
@@ -59,8 +70,8 @@ LiveKit's spans out.
 
 ## Examples
 
-[examples/](examples/) runs a voice agent with a weather tool against a LiveKit server, traced
-to Arize (`arize_voice_agent.py`) or Phoenix (`phoenix_voice_agent.py`). `talk.py` joins the
+[examples/](examples/) has a voice agent with a weather tool, auto-instrumented and traced to
+Arize (`arize_voice_agent.py`) or Phoenix (`phoenix_voice_agent.py`). `talk.py` joins the
 room and asks a question out loud, so the examples run without a person:
 
 ```shell
