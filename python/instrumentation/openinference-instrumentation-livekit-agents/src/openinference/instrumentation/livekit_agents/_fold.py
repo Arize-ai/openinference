@@ -41,6 +41,7 @@ class ModelStep:
     time_to_first_token_s: float | None
     start_ns: int
     end_ns: int
+    system_instructions_json: str | None = None
 
 
 @dataclass(frozen=True)

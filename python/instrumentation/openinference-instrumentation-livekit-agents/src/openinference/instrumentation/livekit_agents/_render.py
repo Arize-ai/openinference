@@ -20,8 +20,11 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
     get_attributes_from_context,
+    get_llm_input_message_attributes,
+    get_llm_output_message_attributes,
 )
 from openinference.instrumentation.livekit_agents._fold import ModelStep, ToolCall, VoiceTurn
+from openinference.instrumentation.livekit_agents._messages import oi_messages
 from openinference.semconv.trace import SpanAttributes
 
 logger = logging.getLogger(__name__)
@@ -186,6 +189,12 @@ def _set_step_attributes(span: Span, step: ModelStep, config: TraceConfig) -> No
     elif step.output_messages_json is not None:
         attributes[SpanAttributes.OUTPUT_VALUE] = step.output_messages_json
         attributes[SpanAttributes.OUTPUT_MIME_TYPE] = "application/json"
+    attributes.update(
+        get_llm_input_message_attributes(
+            oi_messages(step.input_messages_json, step.system_instructions_json)
+        )
+    )
+    attributes.update(get_llm_output_message_attributes(oi_messages(step.output_messages_json)))
     optional_counts = {
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: step.input_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: step.output_tokens,

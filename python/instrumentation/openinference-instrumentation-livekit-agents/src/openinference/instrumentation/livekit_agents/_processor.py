@@ -31,7 +31,7 @@ from openinference.instrumentation.livekit_agents._fold import (
     reduce_trace,
 )
 from openinference.instrumentation.livekit_agents._render import render_turn
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import OpenInferenceLLMProviderValues, SpanAttributes
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -49,6 +49,7 @@ _TRANSCRIPT_CONFIDENCE = "lk.transcript_confidence"
 _REQUEST_MODEL = "gen_ai.request.model"
 _PROVIDER_NAME = "gen_ai.provider.name"
 _INPUT_MESSAGES = "gen_ai.input.messages"
+_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
 _OUTPUT_MESSAGES = "gen_ai.output.messages"
 _INPUT_TOKENS = "gen_ai.usage.input_tokens"
 _OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
@@ -204,7 +205,7 @@ def parse(span: ReadableSpan, phase: _Phase) -> TraceEvent | None:
             utterance = HeardUtterance(
                 transcript=transcript,
                 stt_model=_string(attributes.get(_REQUEST_MODEL)),
-                stt_provider=_string(attributes.get(_PROVIDER_NAME)),
+                stt_provider=_provider(attributes.get(_PROVIDER_NAME)),
                 confidence=_number(attributes.get(_TRANSCRIPT_CONFIDENCE)),
                 start_ns=start_ns,
                 end_ns=end_ns,
@@ -242,7 +243,7 @@ def parse(span: ReadableSpan, phase: _Phase) -> TraceEvent | None:
                 span_id=context.span_id,
                 source=cast(Literal["llm_request", "realtime_inference"], span.name),
                 model=_string(attributes.get(_REQUEST_MODEL)),
-                provider=_string(attributes.get(_PROVIDER_NAME)),
+                provider=_provider(attributes.get(_PROVIDER_NAME)),
                 input_messages_json=_string(attributes.get(_INPUT_MESSAGES)),
                 output_messages_json=_string(attributes.get(_OUTPUT_MESSAGES)),
                 spoken_text=None,
@@ -253,6 +254,7 @@ def parse(span: ReadableSpan, phase: _Phase) -> TraceEvent | None:
                 time_to_first_token_s=_nonnegative_number(attributes.get(_TTFT_SECONDS)),
                 start_ns=start_ns,
                 end_ns=end_ns,
+                system_instructions_json=_string(attributes.get(_SYSTEM_INSTRUCTIONS)),
             ),
         )
 
@@ -293,6 +295,28 @@ def parse(span: ReadableSpan, phase: _Phase) -> TraceEvent | None:
         return SessionEnded(**identity)
 
     return SpanIndexed(**identity)
+
+
+# Some LiveKit plugins report the API host as gen_ai.provider.name.
+_PROVIDER_HOSTS = {
+    "api.openai.com": OpenInferenceLLMProviderValues.OPENAI.value,
+    "api.anthropic.com": OpenInferenceLLMProviderValues.ANTHROPIC.value,
+    "api.groq.com": OpenInferenceLLMProviderValues.GROQ.value,
+    "api.deepseek.com": OpenInferenceLLMProviderValues.DEEPSEEK.value,
+    "api.mistral.ai": OpenInferenceLLMProviderValues.MISTRALAI.value,
+    "api.x.ai": OpenInferenceLLMProviderValues.XAI.value,
+    "api.cerebras.ai": OpenInferenceLLMProviderValues.CEREBRAS.value,
+    "api.fireworks.ai": OpenInferenceLLMProviderValues.FIREWORKS.value,
+    "api.together.xyz": OpenInferenceLLMProviderValues.TOGETHER.value,
+    "generativelanguage.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE.value,
+}
+
+
+def _provider(value: Any) -> str | None:
+    provider = _nonempty_string(value)
+    if provider is None:
+        return None
+    return _PROVIDER_HOSTS.get(provider.lower(), provider)
 
 
 def _has_livekit_scope(span: Any) -> bool:

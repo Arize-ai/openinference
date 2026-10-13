@@ -10,6 +10,13 @@ from openinference.instrumentation import REDACTED_VALUE, OITracer, TraceConfig,
 from openinference.instrumentation.livekit_agents import LiveKitAgentsInstrumentor
 from openinference.instrumentation.livekit_agents._processor import LiveKitTurnProcessor
 
+_INPUT_MESSAGES = '[{"role":"user","parts":[{"type":"text","content":"hello"}]}]'
+_OUTPUT_MESSAGES = (
+    '[{"role":"assistant","parts":[{"type":"text","content":"hi"},'
+    '{"type":"tool_call","id":"call_1","name":"lookup","arguments":{"q":"hello"}}]}]'
+)
+_TEXT_OUTPUT_MESSAGES = '[{"role":"assistant","parts":[{"type":"text","content":"hi"}]}]'
+
 
 def _setup(config: TraceConfig) -> tuple[TracerProvider, InMemorySpanExporter]:
     provider = TracerProvider()
@@ -35,7 +42,7 @@ def _drive_cascaded_turn(provider: TracerProvider, session_id: str | None = None
             attributes={
                 "lk.pii.user_transcript": "hello",
                 "gen_ai.request.model": "whisper-1",
-                "gen_ai.provider.name": "openai",
+                "gen_ai.provider.name": "api.openai.com",
             },
             start_time=100,
         )
@@ -59,8 +66,9 @@ def _drive_cascaded_turn(provider: TracerProvider, session_id: str | None = None
             context=llm_node_context,
             attributes={
                 "gen_ai.request.model": "gpt",
-                "gen_ai.input.messages": '[{"role":"user","content":"hello"}]',
-                "gen_ai.output.messages": '[{"role":"assistant","content":"hi"}]',
+                "gen_ai.system_instructions": '[{"type":"text","content":"be brief"}]',
+                "gen_ai.input.messages": _INPUT_MESSAGES,
+                "gen_ai.output.messages": _OUTPUT_MESSAGES,
                 "gen_ai.usage.input_tokens": 3,
                 "gen_ai.usage.output_tokens": 5,
             },
@@ -124,8 +132,12 @@ def _assert_cascaded_attributes(
         {"input.value": REDACTED_VALUE}
         if hide_inputs
         else {
-            "input.value": '[{"role":"user","content":"hello"}]',
+            "input.value": _INPUT_MESSAGES,
             "input.mime_type": "application/json",
+            "llm.input_messages.0.message.role": "system",
+            "llm.input_messages.0.message.content": "be brief",
+            "llm.input_messages.1.message.role": "user",
+            "llm.input_messages.1.message.content": "hello",
         }
     )
     _pop_attributes(
@@ -162,6 +174,13 @@ def _assert_cascaded_attributes(
             "llm.token_count.prompt": 3,
             "llm.token_count.completion": 5,
             "time_to_first_token_ms": 250,
+            "llm.output_messages.0.message.role": "assistant",
+            "llm.output_messages.0.message.content": "hi",
+            "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_1",
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "lookup",
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": (
+                '{"q": "hello"}'
+            ),
         },
     )
     _pop_attributes(
@@ -230,7 +249,7 @@ def test_tool_ending_before_the_model_request_is_its_child() -> None:
         context=trace_api.set_span_in_context(llm_node),
         attributes={
             "gen_ai.request.model": "gpt",
-            "gen_ai.output.messages": '[{"role":"assistant","content":"hi"}]',
+            "gen_ai.output.messages": _TEXT_OUTPUT_MESSAGES,
         },
         start_time=500,
     )
