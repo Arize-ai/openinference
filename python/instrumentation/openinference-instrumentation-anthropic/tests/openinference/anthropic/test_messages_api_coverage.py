@@ -2,6 +2,7 @@
 whose events fail to accumulate, and every content block type in input and output messages."""
 
 import json
+import warnings
 from typing import Any, Callable, Dict, Iterator, List
 
 import httpx2
@@ -378,6 +379,38 @@ def test_streaming_manager_output_server_tool_blocks(
     assert not output_message
 
 
+@pytest.mark.parametrize("streaming", [False, True])
+def test_unknown_blocks_do_not_warn(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+    streaming: bool,
+) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        if streaming:
+            client = _mock_anthropic_client(_server_tool_blocks_stream_handler)
+            stream = client.beta.messages.create(
+                model=MODEL,
+                max_tokens=100,
+                messages=[{"role": "user", "content": "weather?"}],
+                stream=True,
+            )
+            for _ in stream:
+                pass
+        else:
+            response = _message_json(_SERVER_TOOL_BLOCKS)
+            client = _mock_anthropic_client(lambda request: httpx2.Response(200, json=response))
+            client.beta.messages.create(
+                model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "weather?"}]
+            )
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    output = json.loads(str(attributes[SpanAttributes.OUTPUT_VALUE]))
+    unknown_block = output["content"][-1]
+    assert (unknown_block["type"], unknown_block["foo"]) == ("brand_new_block", 1)
+    assert f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}" in attributes
+
+
 @pytest.mark.parametrize("as_models", [False, True])
 def test_input_server_tool_blocks(as_models: bool) -> None:
     content: List[Any] = _SERVER_TOOL_BLOCKS
@@ -470,6 +503,63 @@ def test_inline_tool_definitions_are_recorded_as_tools(
     assert json.loads(str(attributes.pop(f"{contents}.0.{MESSAGE_CONTENT_TEXT}"))) == (
         tool_addition
     )
+
+
+def test_tool_changes_are_applied_to_tools(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    tool_f = {"name": "f", "input_schema": {"type": "object"}}
+    tool_h = {"name": "h", "input_schema": {"type": "object"}}
+    toolset = {"type": "mcp_toolset", "mcp_server_name": "echo-server"}
+    inline_tool = {"name": "g", "input_schema": {"type": "object"}}
+    client = _mock_anthropic_client(
+        lambda request: httpx2.Response(200, json=_message_json([{"type": "text", "text": "ok"}]))
+    )
+    # tool changes are sent in mid-conversation system messages
+    messages: Any = [
+        {"role": "user", "content": "hi"},
+        {
+            "role": "system",
+            "content": [
+                {
+                    "type": "tool_addition",
+                    "tool": {"type": "tool_definition", "definition": inline_tool},
+                },
+                {"type": "tool_removal", "tool": {"type": "tool_reference", "name": "f"}},
+                {"type": "tool_removal", "tool": {"type": "tool_reference", "name": "g"}},
+                {
+                    "type": "tool_removal",
+                    "tool": {"type": "mcp_toolset_reference", "server_name": "echo-server"},
+                },
+            ],
+        },
+        {"role": "assistant", "content": "ok"},
+        {"role": "user", "content": "again"},
+        {
+            "role": "system",
+            "content": [
+                {"type": "tool_addition", "tool": {"type": "tool_reference", "name": "f"}},
+                {
+                    "type": "tool_addition",
+                    "tool": {"type": "tool_definition", "definition": inline_tool},
+                },
+            ],
+        },
+    ]
+    tools: Any = [tool_f, tool_h, toolset]
+    client.beta.messages.create(model=MODEL, max_tokens=100, tools=tools, messages=messages)
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    llm_tools = SpanAttributes.LLM_TOOLS
+    json_schema = ToolAttributes.TOOL_JSON_SCHEMA
+    recorded = []
+    index = 0
+    while (key := f"{llm_tools}.{index}.{json_schema}") in attributes:
+        recorded.append(json.loads(str(attributes[key])))
+        index += 1
+    # the removed toolset is gone, and the re-added tools are listed once each
+    assert recorded == [tool_h, tool_f, inline_tool]
 
 
 _CITATION = {
@@ -980,9 +1070,10 @@ def instrument_with_config(tracer_provider: TracerProvider) -> Iterator[Callable
     [
         ({}, False, False, False),
         ({"hide_inputs": True}, True, True, False),
-        ({"hide_input_messages": True}, False, True, False),
+        ({"hide_input_messages": True}, True, True, False),
         ({"hide_input_text": True}, False, True, False),
         ({"hide_outputs": True}, True, True, True),
+        ({"hide_output_messages": True}, True, True, True),
         ({"hide_output_text": True}, False, True, True),
     ],
 )
@@ -1013,8 +1104,8 @@ def test_metadata_respects_trace_config(
     metadata = json.loads(
         str(dict(_get_span(in_memory_span_exporter).attributes or {})[SpanAttributes.METADATA])
     )
-    # the citations name and quote the sources, so they are left out when all of the input or
-    # output is hidden, and otherwise only their cited text is when the input or output text is
+    # the citations name and quote the sources, so they are left out when the input or output
+    # messages are hidden, and otherwise only their cited text is when the input or output text is
     if hides_citations:
         assert "citations" not in metadata
     else:
