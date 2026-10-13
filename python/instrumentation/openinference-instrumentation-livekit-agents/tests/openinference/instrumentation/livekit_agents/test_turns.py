@@ -32,7 +32,11 @@ def _drive_cascaded_turn(provider: TracerProvider, session_id: str | None = None
         user = tracer.start_span(
             "user_turn",
             context=livekit_context,
-            attributes={"lk.pii.user_transcript": "hello"},
+            attributes={
+                "lk.pii.user_transcript": "hello",
+                "gen_ai.request.model": "whisper-1",
+                "gen_ai.provider.name": "openai",
+            },
             start_time=100,
         )
         user.end(end_time=200)
@@ -142,6 +146,8 @@ def _assert_cascaded_attributes(
     }
     if not hide_inputs:
         user_expected["input.audio.transcript"] = "hello"
+    user_expected["llm.model_name"] = "whisper-1"
+    user_expected["llm.provider"] = "openai"
     _pop_attributes(spans["user"], user_expected)
     _pop_attributes(
         spans["assistant"],
@@ -165,6 +171,7 @@ def _assert_cascaded_attributes(
             "session.id": session_id,
             "tool.name": "lookup",
             "output.value": "ok",
+            "output.mime_type": "text/plain",
         },
     )
 
@@ -196,6 +203,86 @@ def test_cascaded_turn() -> None:
     )
     assert livekit_agent.attributes is not None
     assert livekit_agent.attributes["session.id"] == "RM_room"
+
+
+def test_tool_ending_before_the_model_request_is_its_child() -> None:
+    provider, exporter = _setup(TraceConfig())
+    tracer = provider.get_tracer("livekit-agents")
+    session = tracer.start_span("agent_session", start_time=50)
+    livekit_context = trace_api.set_span_in_context(session)
+    user = tracer.start_span(
+        "user_turn",
+        context=livekit_context,
+        attributes={"lk.pii.user_transcript": "hello"},
+        start_time=100,
+    )
+    user.end(end_time=200)
+    agent = tracer.start_span(
+        "agent_turn",
+        context=livekit_context,
+        attributes={"gen_ai.conversation.id": "RM_room"},
+        start_time=300,
+    )
+    agent_context = trace_api.set_span_in_context(agent)
+    llm_node = tracer.start_span("llm_node", context=agent_context, start_time=400)
+    llm_request = tracer.start_span(
+        "llm_request",
+        context=trace_api.set_span_in_context(llm_node),
+        attributes={
+            "gen_ai.request.model": "gpt",
+            "gen_ai.output.messages": '[{"role":"assistant","content":"hi"}]',
+        },
+        start_time=500,
+    )
+    tool = tracer.start_span(
+        "function_tool",
+        context=agent_context,
+        attributes={"gen_ai.tool.name": "lookup", "gen_ai.tool.call.result": "ok"},
+        start_time=520,
+    )
+    tool.end(end_time=580)
+    llm_request.end(end_time=600)
+    llm_node.end(end_time=700)
+    agent.end(end_time=1000)
+    session.end(end_time=1100)
+
+    spans = _rendered_spans(exporter)
+    assert spans["lookup"].parent.span_id == spans["assistant"].context.span_id
+
+
+def test_session_close_mid_reply_without_tools_renders_the_turn() -> None:
+    provider, exporter = _setup(TraceConfig())
+    tracer = provider.get_tracer("livekit-agents")
+    session = tracer.start_span("agent_session", start_time=50)
+    livekit_context = trace_api.set_span_in_context(session)
+    user = tracer.start_span(
+        "user_turn",
+        context=livekit_context,
+        attributes={"lk.pii.user_transcript": "hello"},
+        start_time=100,
+    )
+    user.end(end_time=200)
+    agent = tracer.start_span(
+        "agent_turn",
+        context=livekit_context,
+        attributes={"gen_ai.conversation.id": "RM_room"},
+        start_time=300,
+    )
+    agent_context = trace_api.set_span_in_context(agent)
+    llm_node = tracer.start_span("llm_node", context=agent_context, start_time=400)
+    llm_request = tracer.start_span(
+        "llm_request",
+        context=trace_api.set_span_in_context(llm_node),
+        attributes={"gen_ai.request.model": "gpt"},
+        start_time=500,
+    )
+    llm_request.end(end_time=600)
+    llm_node.end(end_time=700)
+    session.end(end_time=800)
+
+    spans = _rendered_spans(exporter)
+    assert "conversation.turn" in spans
+    assert spans["conversation.turn"].attributes["end_reason"] == "session_closed"
 
 
 def test_empty_agent_turn_renders_nothing() -> None:

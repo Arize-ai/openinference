@@ -129,6 +129,10 @@ def _render_user(
         elif turn.typed_text and not config.hide_inputs:
             span.set_attribute(SpanAttributes.INPUT_VALUE, turn.typed_text)
             span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, "text/plain")
+        if turn.user is not None and turn.user.stt_model is not None:
+            span.set_attribute(SpanAttributes.LLM_MODEL_NAME, turn.user.stt_model)
+        if turn.user is not None and turn.user.stt_provider is not None:
+            span.set_attribute(SpanAttributes.LLM_PROVIDER, turn.user.stt_provider)
         span.set_status(_status(False))
     except Exception:
         logger.exception("Failed to render LiveKit user span")
@@ -215,6 +219,7 @@ def _render_tool(
             span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, "application/json")
         if tool.output is not None:
             span.set_attribute(SpanAttributes.OUTPUT_VALUE, tool.output)
+            span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "text/plain")
         span.set_status(_status(tool.is_error))
     except Exception:
         logger.exception("Failed to render LiveKit tool span")

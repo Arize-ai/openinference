@@ -291,18 +291,7 @@ def reduce_trace(
             return next_state, ()
         open_turns = dict(next_state.open_turns)
         turn = open_turns[agent_turn_span_id]
-        eligible_indexes = [
-            index for index, step in enumerate(turn.steps) if step.start_ns <= event.tool.start_ns
-        ]
-        step_span_id = None
-        if eligible_indexes:
-            step_index = max(
-                eligible_indexes,
-                key=lambda index: (turn.steps[index].start_ns, index),
-            )
-            step_span_id = turn.steps[step_index].span_id
-        tool = replace(event.tool, step_span_id=step_span_id)
-        open_turns[agent_turn_span_id] = replace(turn, tools=turn.tools + (tool,))
+        open_turns[agent_turn_span_id] = replace(turn, tools=turn.tools + (event.tool,))
         return replace(next_state, open_turns=open_turns), ()
 
     if isinstance(event, SpokenTextEnded):
@@ -399,8 +388,7 @@ def reduce_trace(
     if isinstance(event, SessionEnded):
         turns = []
         for turn_span_id, turn in next_state.open_turns.items():
-            end_ns = max((step.end_ns for step in turn.steps), default=turn.start_ns)
-            end_ns = max(end_ns, *(tool.end_ns for tool in turn.tools))
+            end_ns = _closed_end_ns(turn)
             sealed = _seal(
                 next_state,
                 trace_id=event.trace_id,
@@ -434,6 +422,30 @@ def _agent_turn_span_id(spans: Mapping[int, SpanLoc], span_id: int | None) -> in
     return None
 
 
+def _closed_end_ns(turn: OpenTurn) -> int:
+    return max(
+        [
+            turn.start_ns,
+            *(step.end_ns for step in turn.steps),
+            *(tool.end_ns for tool in turn.tools),
+        ]
+    )
+
+
+def _parent_tools(turn: OpenTurn) -> OpenTurn:
+    tools: list[ToolCall] = []
+    for tool in turn.tools:
+        eligible = [
+            (index, step) for index, step in enumerate(turn.steps) if step.start_ns <= tool.start_ns
+        ]
+        step_span_id = None
+        if eligible:
+            _, step = max(eligible, key=lambda item: (item[1].start_ns, item[0]))
+            step_span_id = step.span_id
+        tools.append(replace(tool, step_span_id=step_span_id))
+    return replace(turn, tools=tuple(tools))
+
+
 def _walk_reaches(spans: Mapping[int, SpanLoc], span_id: int, target_id: int) -> bool:
     seen: set[int] = set()
     while span_id not in seen:
@@ -458,6 +470,7 @@ def _seal(
 ) -> VoiceTurn | None:
     if turn.user is None and not turn.steps and not turn.tools:
         return None
+    turn = _parent_tools(turn)
     return VoiceTurn(
         trace_id=trace_id,
         agent_turn_span_id=agent_turn_span_id,
