@@ -23,6 +23,7 @@ from openinference.instrumentation import TraceConfig
 from openinference.instrumentation.anthropic._content import (
     TOOL_CALL_BLOCK_TYPES,
     _attributes_or_nothing,
+    _dump_json,
     _get_metadata_attributes,
     _get_output_message_attributes,
 )
@@ -419,8 +420,7 @@ class _MessageExtractor:
         snapshot = self._snapshot
         if snapshot is None:
             return
-        # by_alias, so the fields have the API's names, e.g. a fallback block's `from`
-        yield SpanAttributes.OUTPUT_VALUE, snapshot.model_dump_json(by_alias=True)
+        yield SpanAttributes.OUTPUT_VALUE, _dump_json(snapshot)
         yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
         if model_name := getattr(snapshot, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model_name

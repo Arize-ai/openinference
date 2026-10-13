@@ -65,6 +65,18 @@ def _to_jsonable(obj: Any) -> Any:
     return obj
 
 
+def _dump_json(model: Any) -> str:
+    # by_alias, so the fields have the API's names, e.g. a fallback block's `from`, and without
+    # warnings, which the SDK's stand-in model for an unknown block type would raise
+    try:
+        return str(model.model_dump_json(by_alias=True, warnings=False))
+    except (TypeError, ValueError):
+        # Pydantic v1, whose model_dump_json (the SDK's shim) does not take `warnings`
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return str(model.model_dump_json(by_alias=True))
+
+
 def _redact_sources(obj: Any, hide_images: bool) -> Any:
     """
     Redacts the nested sources that hold data, so that recording a block as JSON neither copies
@@ -310,11 +322,12 @@ def _get_response_metadata(
     details, which describes the output.
     """
     metadata: Dict[str, Any] = {}
-    hide_output_text = bool(config and (config.hide_outputs or config.hide_output_text))
-    hide_citations = bool(config and (config.hide_inputs or config.hide_outputs))
-    hide_cited_text = hide_output_text or bool(
-        config and (config.hide_input_messages or config.hide_input_text)
+    hide_output_messages = bool(config and (config.hide_outputs or config.hide_output_messages))
+    hide_output_text = hide_output_messages or bool(config and config.hide_output_text)
+    hide_citations = hide_output_messages or bool(
+        config and (config.hide_inputs or config.hide_input_messages)
     )
+    hide_cited_text = hide_output_text or bool(config and config.hide_input_text)
 
     def add(key: str, get_value: Callable[[], Any]) -> None:
         try:
@@ -446,35 +459,65 @@ def _get_metadata_attributes(
     yield METADATA, safe_json_dumps(metadata)
 
 
-def _get_inline_tool_definitions(messages: Iterable[Any]) -> Iterator[Any]:
+def _get_offered_tools(tools: Iterable[Any], messages: Iterable[Any]) -> List[Any]:
     """
-    Yields the tools defined inline in the messages by `tool_addition` blocks, which make them
-    available to the model from that point in the conversation onward, in addition to the
-    request's `tools`, including those in the `tool_changes` of `compaction` blocks, which stand
-    in for the compacted range's. A `tool_addition` that references a tool by name defines
-    nothing new.
+    Returns the tools offered to the model at the end of the messages: the request's `tools`,
+    plus those defined inline by `tool_addition` blocks, minus those withdrawn by `tool_removal`
+    blocks, in conversation order, including the tool changes in the `tool_changes` of
+    `compaction` blocks, which stand in for the compacted range's. A `tool_addition` that
+    references a tool by name offers again a tool that was removed.
     """
+    offered: Dict[Any, Any] = {}
+    for index, tool in enumerate(tools):
+        offered[_get_tool_key(tool, index)] = tool
+    defined = dict(offered)
+
+    def apply(tool_change: Any) -> None:
+        change_type = _get(tool_change, "type")
+        tool = _get(tool_change, "tool")
+        if change_type == "tool_addition":
+            if _get(tool, "type") == "tool_definition":
+                if definition := _get(tool, "definition"):
+                    definition = _to_jsonable(definition)
+                    key = _get_tool_key(definition, len(defined))
+                    offered.pop(key, None)
+                    offered[key] = defined[key] = definition
+            elif (key := _get_tool_reference_key(tool)) in defined and key not in offered:
+                offered[key] = defined[key]
+        elif change_type == "tool_removal":
+            offered.pop(_get_tool_reference_key(tool), None)
+
     for message in messages:
         try:
             content = _get(message, "content")
             if isinstance(content, str) or not isinstance(content, Iterable):
                 continue
             for block in content:
-                block_type = _get(block, "type")
-                if block_type == "tool_addition":
-                    yield from _get_tool_addition_definition(block)
-                elif block_type == "compaction":
+                if _get(block, "type") == "compaction":
                     for tool_change in _get(block, "tool_changes") or ():
-                        if _get(tool_change, "type") == "tool_addition":
-                            yield from _get_tool_addition_definition(tool_change)
+                        apply(tool_change)
+                else:
+                    apply(block)
         except Exception:
-            logger.exception("Failed to get the tools defined in a message.")
+            logger.exception("Failed to get the tool changes in a message.")
+    return list(offered.values())
 
 
-def _get_tool_addition_definition(tool_addition: Any) -> Iterator[Any]:
-    tool = _get(tool_addition, "tool")
-    if _get(tool, "type") == "tool_definition" and (definition := _get(tool, "definition")):
-        yield _to_jsonable(definition)
+def _get_tool_key(tool: Any, index: int) -> Any:
+    if _get(tool, "type") == "mcp_toolset":
+        return ("mcp_toolset", _get(tool, "mcp_server_name"))
+    if (name := _get(tool, "name")) is not None:
+        return name
+    return ("index", index)
+
+
+def _get_tool_reference_key(tool: Any) -> Any:
+    reference_type = _get(tool, "type")
+    if reference_type == "tool_reference":
+        return _get(tool, "name")
+    if reference_type == "mcp_toolset_reference":
+        return ("mcp_toolset", _get(tool, "server_name"))
+    return None
 
 
 IMAGE_URL = ImageAttributes.IMAGE_URL

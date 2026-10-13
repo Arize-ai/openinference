@@ -31,9 +31,10 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.anthropic._content import (
     _attributes_or_nothing,
-    _get_inline_tool_definitions,
+    _dump_json,
     _get_message_contents_attributes,
     _get_metadata_attributes,
+    _get_offered_tools,
     _get_output_message_attributes,
     _get_request_params,
     _hides_input_images,
@@ -247,9 +248,7 @@ def _get_attributes_from_messages_create(
     messages = list(messages) if isinstance(messages, Iterable) else []
     yield from _get_llm_input_messages(messages, system, _hides_input_images(config))
     tools = invocation_parameters.pop("tools", None)
-    tools = list(tools) if isinstance(tools, Iterable) else []
-    # tools defined inline in the messages are offered to the model as well
-    tools.extend(_get_inline_tool_definitions(messages))
+    tools = _get_offered_tools(tools if isinstance(tools, Iterable) else (), messages)
     if tools:
         yield from _get_llm_tools(tools)
     yield LLM_INVOCATION_PARAMETERS, _to_json(invocation_parameters)
@@ -851,8 +850,7 @@ def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
 
 @_stop_on_exception
 def _get_outputs(response: "BaseModel") -> Iterator[Tuple[str, Any]]:
-    # by_alias, so the fields have the API's names, e.g. a fallback block's `from`
-    yield OUTPUT_VALUE, response.model_dump_json(by_alias=True)
+    yield OUTPUT_VALUE, _dump_json(response)
     yield OUTPUT_MIME_TYPE, JSON
 
 
