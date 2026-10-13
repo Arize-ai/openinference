@@ -35,9 +35,7 @@ def _request_content_count(request_parameters: Mapping[str, Any]) -> int:
     `llm.input_messages` rather than to this span's output.
     """
     contents = (
-        request_parameters.get("contents")
-        if isinstance(request_parameters, Mapping)
-        else None
+        request_parameters.get("contents") if isinstance(request_parameters, Mapping) else None
     )
 
     if contents is None:
@@ -46,9 +44,7 @@ def _request_content_count(request_parameters: Mapping[str, Any]) -> int:
     try:
         return len(_transformers.t_contents(contents))
     except Exception:
-        logger.warning(
-            "Failed to size the request contents seeded into the AFC history"
-        )
+        logger.warning("Failed to size the request contents seeded into the AFC history")
         return 0
 
 
@@ -95,9 +91,7 @@ class _ResponseAttributesExtractor:
                 )
                 if content := getattr(candidate, "content", None):
                     published_contents.append(content)
-                    for key, value in self._get_attributes_from_generate_content_content(
-                        content
-                    ):
+                    for key, value in self._get_attributes_from_generate_content_content(content):
                         yield (
                             f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}",
                             value,
@@ -114,15 +108,11 @@ class _ResponseAttributesExtractor:
 
         # Handle automatic function calling history
         # For automatic function calling, the function call details are stored separately
-        if automatic_history := getattr(
-            response, "automatic_function_calling_history", None
-        ):
+        if automatic_history := getattr(response, "automatic_function_calling_history", None):
             yield from self._get_attributes_from_automatic_function_calling_history(
                 automatic_history,
                 first_message_index=last_output_message_index + 1,
-                request_content_count=_request_content_count(
-                    request_parameters
-                ),
+                request_content_count=_request_content_count(request_parameters),
                 published_contents=published_contents,
             )
 
@@ -255,9 +245,7 @@ class _ResponseAttributesExtractor:
             if position < request_content_count:
                 continue
 
-            if not hasattr(content_entry, "parts") or not hasattr(
-                content_entry, "role"
-            ):
+            if not hasattr(content_entry, "parts") or not hasattr(content_entry, "role"):
                 continue
 
             if getattr(content_entry, "role") != "model":
@@ -274,9 +262,7 @@ class _ResponseAttributesExtractor:
 
             for part in parts:
                 if function_call := getattr(part, "function_call", None):
-                    thought_signature: Optional[bytes] = getattr(
-                        part, "thought_signature", None
-                    )
+                    thought_signature: Optional[bytes] = getattr(part, "thought_signature", None)
 
                     for key, value in self._get_attributes_from_function_call(
                         function_call,
@@ -284,8 +270,7 @@ class _ResponseAttributesExtractor:
                         thought_signature,
                     ):
                         yield (
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}."
-                            f"{message_index}.{key}",
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{key}",
                             value,
                         )
 
