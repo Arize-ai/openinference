@@ -9,7 +9,19 @@ import asyncio
 import gc
 import importlib
 import json
-from typing import Any, AsyncIterator, Dict, Iterable, Iterator, List, Optional, Tuple, Type, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    Dict,
+    Generator,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    cast,
+)
 from urllib.parse import urljoin
 
 import pytest
@@ -48,6 +60,19 @@ class _MockAsyncByteStream(AsyncByteStream):
             yield byte_string
 
 
+class _InterruptedByteStream(AsyncByteStream):
+    """Sends part of the response, then is interrupted (sync) or never sends the rest (async)."""
+
+    def __iter__(self) -> Iterator[bytes]:
+        yield from _sse_events()[:_PARTIAL]
+        raise KeyboardInterrupt
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        for byte_string in _sse_events()[:_PARTIAL]:
+            yield byte_string
+        await asyncio.Event().wait()
+
+
 def _sse_events() -> List[bytes]:
     return [
         b'data: {"choices": [{"delta": {"role": "assistant"}, "index": 0}]}\n\n',  # noqa: E501
@@ -67,12 +92,12 @@ def _llm_spans(exporter: InMemorySpanExporter) -> Tuple[ReadableSpan, ...]:
     )
 
 
-def _mock_stream(respx_mock: MockRouter) -> None:
+def _mock_stream(respx_mock: MockRouter, stream: Optional[AsyncByteStream] = None) -> None:
     url = urljoin(_OPENAI_BASE_URL, "chat/completions")
     respx_mock.post(url).mock(
         return_value=Response(
             status_code=200,
-            stream=_MockAsyncByteStream(_sse_events()),
+            stream=stream or _MockAsyncByteStream(_sse_events()),
         )
     )
 
@@ -259,7 +284,8 @@ def test_teardown_that_raises_ends_one_span_with_error(
         _read(stream, _PARTIAL)
         stream.close()
 
-    with pytest.raises(exception_type, match="close failed"):
+    # No message match: asyncio.run drops the message of a CancelledError on Python 3.10.
+    with pytest.raises(exception_type):
         if is_async:
             asyncio.run(run_async())
         else:
@@ -275,6 +301,133 @@ def test_teardown_that_raises_ends_one_span_with_error(
         exception_type.__name__ if module == "builtins" else f"{module}.{exception_type.__name__}"
     )
     assert dict(exception_event.attributes or {})["exception.message"] == "close failed"
+    _assert_attributes(span, _PARTIAL_OUTPUT)
+
+
+@pytest.mark.parametrize(
+    "is_async,exception_type",
+    [
+        (False, RuntimeError),
+        (False, KeyboardInterrupt),
+        (True, RuntimeError),
+        (True, asyncio.CancelledError),
+    ],
+)
+def test_context_body_that_raises_ends_one_span_with_error(
+    is_async: bool,
+    exception_type: Type[BaseException],
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """The teardown itself succeeds, so the error only reaches the stream through its exit."""
+    _mock_stream(respx_mock)
+    client = _client(is_async)
+    keep_alive: List[Any] = []
+
+    async def run_async() -> None:
+        stream = await _create(client)
+        keep_alive.append(stream)
+        async with stream:
+            await _aread(stream, _PARTIAL)
+            raise exception_type("body failed")
+
+    def run_sync() -> None:
+        stream = _create(client)
+        keep_alive.append(stream)
+        with stream:
+            _read(stream, _PARTIAL)
+            raise exception_type("body failed")
+
+    # No message match: asyncio.run drops the message of a CancelledError on Python 3.10.
+    with pytest.raises(exception_type):
+        if is_async:
+            asyncio.run(run_async())
+        else:
+            run_sync()
+
+    assert keep_alive[0].response.is_closed
+    (span,) = _llm_spans(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.status.description == f"{exception_type.__name__}: body failed"
+    assert [event.name for event in span.events] == [_FIRST_TOKEN_EVENT, "exception"]
+    exception_event = span.events[1]
+    module = exception_type.__module__
+    assert dict(exception_event.attributes or {})["exception.type"] == (
+        exception_type.__name__ if module == "builtins" else f"{module}.{exception_type.__name__}"
+    )
+    assert dict(exception_event.attributes or {})["exception.message"] == "body failed"
+    _assert_attributes(span, _PARTIAL_OUTPUT)
+
+
+def test_closing_a_generator_that_holds_the_context_ends_one_span_without_error(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    _mock_stream(respx_mock)
+    client = _client(is_async=False)
+    keep_alive: List[Any] = []
+
+    def chunks() -> Generator[Any, None, None]:
+        stream = _create(client)
+        keep_alive.append(stream)
+        with stream:
+            yield from stream
+
+    generator = chunks()
+    for _ in range(_PARTIAL):
+        next(generator)
+    generator.close()
+
+    assert keep_alive[0].response.is_closed
+    (span,) = _llm_spans(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    assert [event.name for event in span.events] == [_FIRST_TOKEN_EVENT]
+    _assert_attributes(span, _PARTIAL_OUTPUT)
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+def test_iteration_that_is_cancelled_ends_one_span_with_error(
+    is_async: bool,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Cancelling or interrupting while waiting for the next chunk, with no teardown after it."""
+    _mock_stream(respx_mock, _InterruptedByteStream())
+    client = _client(is_async)
+    keep_alive: List[Any] = []
+    chunks: List[Any] = []
+
+    async def consume() -> None:
+        stream = await _create(client)
+        keep_alive.append(stream)
+        async for chunk in stream:
+            chunks.append(chunk)
+
+    async def run_async() -> None:
+        task = asyncio.create_task(consume())
+        while len(chunks) < _PARTIAL:
+            await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    def run_sync() -> None:
+        stream = _create(client)
+        keep_alive.append(stream)
+        with pytest.raises(KeyboardInterrupt):
+            _read(stream)
+
+    if is_async:
+        asyncio.run(run_async())
+    else:
+        run_sync()
+
+    exception_type = "asyncio.exceptions.CancelledError" if is_async else "KeyboardInterrupt"
+    (span,) = _llm_spans(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.status.description == f"{exception_type.rpartition('.')[2]}: "
+    assert [event.name for event in span.events] == [_FIRST_TOKEN_EVENT, "exception"]
+    assert dict(span.events[1].attributes or {})["exception.type"] == exception_type
     _assert_attributes(span, _PARTIAL_OUTPUT)
 
 
