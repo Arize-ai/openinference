@@ -9,7 +9,7 @@ import asyncio
 import gc
 import importlib
 import json
-from typing import Any, AsyncIterator, Dict, Iterable, Iterator, List, Optional, Tuple, cast
+from typing import Any, AsyncIterator, Dict, Iterable, Iterator, List, Optional, Tuple, Type, cast
 from urllib.parse import urljoin
 
 import pytest
@@ -207,10 +207,22 @@ def test_early_teardown_ends_one_span_with_partial_output(
     _assert_attributes(span, _PARTIAL_OUTPUT)
 
 
-@pytest.mark.parametrize("is_async,teardown", _TEARDOWNS)
+@pytest.mark.parametrize(
+    "is_async,teardown,exception_type",
+    [
+        (is_async, teardown, exception_type)
+        for is_async, teardown in _TEARDOWNS
+        # A cancelled or interrupted teardown is reported the same way as one that fails.
+        for exception_type in (
+            RuntimeError,
+            asyncio.CancelledError if is_async else KeyboardInterrupt,
+        )
+    ],
+)
 def test_teardown_that_raises_ends_one_span_with_error(
     is_async: bool,
     teardown: str,
+    exception_type: Type[BaseException],
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     monkeypatch: pytest.MonkeyPatch,
@@ -220,10 +232,10 @@ def test_teardown_that_raises_ends_one_span_with_error(
     keep_alive: List[Any] = []
 
     def close() -> None:
-        raise RuntimeError("close failed")
+        raise exception_type("close failed")
 
     async def aclose() -> None:
-        raise RuntimeError("close failed")
+        raise exception_type("close failed")
 
     async def run_async() -> None:
         stream = await _create(client)
@@ -247,7 +259,7 @@ def test_teardown_that_raises_ends_one_span_with_error(
         _read(stream, _PARTIAL)
         stream.close()
 
-    with pytest.raises(RuntimeError, match="close failed"):
+    with pytest.raises(exception_type, match="close failed"):
         if is_async:
             asyncio.run(run_async())
         else:
@@ -255,10 +267,13 @@ def test_teardown_that_raises_ends_one_span_with_error(
 
     (span,) = _llm_spans(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.ERROR
-    assert span.status.description == "RuntimeError: close failed"
+    assert span.status.description == f"{exception_type.__name__}: close failed"
     assert [event.name for event in span.events] == [_FIRST_TOKEN_EVENT, "exception"]
     exception_event = span.events[1]
-    assert dict(exception_event.attributes or {})["exception.type"] == "RuntimeError"
+    module = exception_type.__module__
+    assert dict(exception_event.attributes or {})["exception.type"] == (
+        exception_type.__name__ if module == "builtins" else f"{module}.{exception_type.__name__}"
+    )
     assert dict(exception_event.attributes or {})["exception.message"] == "close failed"
     _assert_attributes(span, _PARTIAL_OUTPUT)
 

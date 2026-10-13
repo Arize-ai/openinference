@@ -127,7 +127,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         try:
             self.__wrapped__.__exit__(*args, **kwargs)
-        except Exception as exception:
+        except BaseException as exception:
             self._finish_tracing_with_error(exception)
             raise
         finally:
@@ -146,7 +146,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
     async def __aexit__(self, *args: Any, **kwargs: Any) -> None:
         try:
             await self.__wrapped__.__aexit__(*args, **kwargs)
-        except Exception as exception:
+        except BaseException as exception:
             self._finish_tracing_with_error(exception)
             raise
         finally:
@@ -158,7 +158,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             close = getattr(self.__wrapped__, "close", None)
             result = close() if callable(close) else None
             is_awaitable = inspect.isawaitable(result)
-        except Exception as exception:
+        except BaseException as exception:
             self._finish_tracing_with_error(exception)
             raise
         finally:
@@ -180,7 +180,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
                 result = close()
                 if inspect.isawaitable(result):
                     await result
-        except Exception as exception:
+        except BaseException as exception:
             self._finish_tracing_with_error(exception)
             raise
         finally:
@@ -189,7 +189,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
     async def _close_and_finish(self, awaitable: Any) -> None:
         try:
             await awaitable
-        except Exception as exception:
+        except BaseException as exception:
             self._finish_tracing_with_error(exception)
             raise
         finally:
@@ -227,8 +227,9 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         )
         self._self_is_finished = True
 
-    def _finish_tracing_with_error(self, exception: Exception) -> None:
-        # A teardown that fails is an error, unlike one that just stops the stream early.
+    def _finish_tracing_with_error(self, exception: BaseException) -> None:
+        # A teardown that fails or is cancelled is an error, unlike one that just stops the
+        # stream early.
         self._self_with_span.record_exception(exception)
         self._finish_tracing(
             status=trace_api.Status(
