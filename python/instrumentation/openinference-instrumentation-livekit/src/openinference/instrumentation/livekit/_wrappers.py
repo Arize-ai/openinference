@@ -12,7 +12,7 @@ from openinference.instrumentation import (
     get_span_kind_attributes,
 )
 from openinference.instrumentation.livekit._targets import LiveKitWrapTarget
-from openinference.semconv.trace import OpenInferenceMimeTypeValues
+from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -47,6 +47,10 @@ def _make_async_wrapper(tracer: OITracer, target: LiveKitWrapTarget) -> Callable
                                     mime_type=OpenInferenceMimeTypeValues.JSON,
                                 )
                             )
+                    if target.tool_name_extractor is not None:
+                        tool_name = target.tool_name_extractor(args, kwargs)
+                        if tool_name is not None:
+                            attributes[SpanAttributes.TOOL_NAME] = tool_name
                     span.set_attributes(attributes)
                 except Exception:
                     logger.exception("Failed to set span attributes for %s", target.span_name)

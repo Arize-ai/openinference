@@ -78,7 +78,6 @@ ignore_missing_imports = true
 module = [
     "wrapt",
     "livekit.*",
-    "_stubs",
 ]
 
 [tool.ruff]
