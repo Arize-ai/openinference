@@ -3,3 +3,8 @@ arize-phoenix-otel
 openinference-instrumentation-qwen-agent
 openinference-instrumentation-openai
 qwen-agent
+# qwen-agent imports these at module load but does not declare them
+numpy
+soundfile
+tqdm
+python-dateutil

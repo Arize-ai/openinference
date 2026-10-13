@@ -1,9 +1,11 @@
 """The same Assistant against an OpenAI-compatible server.
 
-Qwen-Agent's `oai` backend discards the model response's usage block, so this
-example also enables OpenAIInstrumentor: the nested OpenAI-SDK span carries the
-token counts, and the Qwen-Agent LLM span deliberately does not, so trace-level
-totals are not double-counted.
+This example also enables OpenAIInstrumentor, so each Qwen-Agent LLM span has a
+nested OpenAI-SDK span with the wire-level request and response. Neither span
+carries token counts during an agent run: agents always stream, Qwen-Agent never
+asks for usage in streamed responses, and its `oai` backend discards the usage
+block anyway. See "Token counts" in the package README; use the DashScope backend
+when token counts matter.
 
 Defaults to a local Ollama serving Qwen — `ollama pull qwen3`. Point
 QWEN_MODEL_SERVER at a vLLM server or at DashScope's compatible-mode endpoint

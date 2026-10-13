@@ -31,8 +31,11 @@ or DashScope's compatible-mode endpoint via `QWEN_MODEL_SERVER`.
 python assistant_openai_compatible.py
 ```
 
-Qwen-Agent discards the usage block on this backend, so the example also enables
-`OpenAIInstrumentor`; the nested OpenAI-SDK span carries the token counts.
+The example also enables `OpenAIInstrumentor`, which nests an OpenAI-SDK span
+with the wire-level request and response inside each Qwen-Agent `LLM` span.
+Agent runs always stream and Qwen-Agent never requests usage, so neither span
+carries token counts on this backend — see the streaming caveat under "Token
+counts" in the package README.
 
 ## `multi_agent_router.py`
 
