@@ -24,6 +24,7 @@
     "python/instrumentation/openinference-instrumentation-ag2": "0.1.12",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.15",
     "python/instrumentation/openinference-instrumentation-openai-agents": "2.5.3",
+    "python/instrumentation/openinference-instrumentation-livekit-agents": "0.1.0",
     "python/instrumentation/openinference-instrumentation-portkey": "0.1.22",
     "python/instrumentation/openinference-instrumentation-beeai": "0.1.30",
     "python/instrumentation/openinference-instrumentation-mcp": "2.0.13",
