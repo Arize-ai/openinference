@@ -1,5 +1,3 @@
-import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace-base";
-
 export const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((v) => typeof v === "string");
 
@@ -8,8 +6,9 @@ export const isStringArray = (value: unknown): value is string[] =>
  * GenAI conventions). Used to detect AI SDK traces and to decide which spans are
  * eligible to be re-rooted when their non-AI parent is filtered out.
  */
-export const isLikelyAISDKSpan = (span: ReadableSpan | Span): boolean => {
-  const attrs = span.attributes as Record<string, unknown> | undefined;
+export const isLikelyAISDKSpan = (span: object): boolean => {
+  const maybeAttributes = Reflect.get(span, "attributes");
+  const attrs = isObjectWithStringKeys(maybeAttributes) ? maybeAttributes : undefined;
   const opName = attrs?.["operation.name"];
   const opId = attrs?.["ai.operationId"];
 
@@ -24,6 +23,20 @@ export const isLikelyAISDKSpan = (span: ReadableSpan | Span): boolean => {
   return (
     attrs != null && Object.keys(attrs).some((k) => k.startsWith("gen_ai.") || k.startsWith("ai."))
   );
+};
+
+/**
+ * Returns the parent span ID of a span, or undefined for a root span. OpenTelemetry JS SDK 2.x
+ * removed `ReadableSpan.parentSpanId` in favor of `parentSpanContext`, so read the 2.x shape
+ * first and fall back to the 1.x field.
+ */
+export const getParentSpanId = (span: object): string | undefined => {
+  const parentSpanContext: unknown = Reflect.get(span, "parentSpanContext");
+  const parentSpanId: unknown =
+    typeof parentSpanContext === "object" && parentSpanContext !== null
+      ? Reflect.get(parentSpanContext, "spanId")
+      : Reflect.get(span, "parentSpanId");
+  return typeof parentSpanId === "string" ? parentSpanId : undefined;
 };
 
 const isObjectWithStringKeys = (value: unknown): value is Record<string, unknown> => {

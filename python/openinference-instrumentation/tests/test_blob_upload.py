@@ -36,6 +36,8 @@ OUTPUT_IMAGE_URL_KEY = (
     f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}.0."
     f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
 )
+SPAN_INPUT_IMAGE_URL_KEY = f"{SpanAttributes.INPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}"
+SPAN_OUTPUT_IMAGE_URL_KEY = f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}"
 
 
 @pytest.fixture(autouse=True)
@@ -388,3 +390,26 @@ def test_ended_span_attribute_write_still_warns(caplog: pytest.LogCaptureFixture
     with caplog.at_level(logging.WARNING, logger="opentelemetry.sdk.trace"):
         span.set_attribute("llm.token_count.total", 7)
     assert any("ended span" in record.message for record in caplog.records)
+
+
+@pytest.mark.parametrize("key", [SPAN_INPUT_IMAGE_URL_KEY, SPAN_OUTPUT_IMAGE_URL_KEY])
+def test_mask_uploads_oversized_span_level_image(key: str) -> None:
+    """Externalization follows the image.url leaf, so span-level images are offloaded
+    the same way message images are."""
+    uploader = InMemoryUploader()
+    config = TraceConfig(blob_uploader=uploader, base64_image_max_length=100)
+    masked = config.mask(key, PNG_DATA_URI)
+    assert isinstance(masked, str) and masked.startswith("memory://")
+    assert uploader.store[masked] == PNG_BYTES
+
+
+def test_hide_takes_precedence_over_upload_for_span_level_images() -> None:
+    uploader = InMemoryUploader()
+    config = TraceConfig(
+        blob_uploader=uploader,
+        hide_input_images=True,
+        base64_image_max_length=100,
+    )
+    assert config.mask(SPAN_INPUT_IMAGE_URL_KEY, PNG_DATA_URI) is None
+    # Hidden content must never reach storage.
+    assert not uploader.store

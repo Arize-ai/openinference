@@ -40,7 +40,7 @@ class TestToolCallsInChatResponse:
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
         llm = OpenAI(model="gpt-4o-mini", api_key="sk-")
-        await self._test(llm, in_memory_span_exporter)
+        await self._test(llm, in_memory_span_exporter, "tool_calls")
 
     @pytest.mark.skipif(
         LLAMA_INDEX_LLMS_ANTHROPIC_VERSION < (0, 6),
@@ -50,15 +50,17 @@ class TestToolCallsInChatResponse:
     async def test_anthropic(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
+        anthropic_model: str,
     ) -> None:
-        llm = Anthropic(model="claude-3-5-haiku-20241022", api_key="sk-ant-")
-        await self._test(llm, in_memory_span_exporter)
+        llm = Anthropic(model=anthropic_model, api_key="sk-ant-")
+        await self._test(llm, in_memory_span_exporter, "tool_use")
 
     @classmethod
     async def _test(
         cls,
         llm: FunctionCallingLLM,
         in_memory_span_exporter: InMemorySpanExporter,
+        finish_reason: str,
     ) -> None:
         await llm.achat(
             **llm._prepare_chat_with_tools([TOOL], "what's the weather in San Francisco?"),
@@ -66,6 +68,7 @@ class TestToolCallsInChatResponse:
         spans = in_memory_span_exporter.get_finished_spans()
         span = spans[-1]
         assert span.attributes
+        assert span.attributes[LLM_FINISH_REASON] == finish_reason
         assert span.attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
         assert (
             span.attributes.get(
@@ -92,6 +95,7 @@ def instrument(
     LlamaIndexInstrumentor().uninstrument()
 
 
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID

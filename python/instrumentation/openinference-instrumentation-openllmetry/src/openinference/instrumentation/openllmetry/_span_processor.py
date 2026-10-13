@@ -68,6 +68,8 @@ _TOOL_KEY_CANDIDATES = [
     _GEN_AI_TOOL_DEFINITIONS,
 ]
 
+_RETRIEVAL_OPERATION_NAMES = frozenset({"retrieval", "vector_db_retrieve"})
+
 _MISSING: Any = object()
 
 
@@ -89,6 +91,15 @@ def _safe_int(value: Any) -> Optional[int]:
     try:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -122,11 +133,56 @@ def _unwrap_tool_io(input_raw: Any, output_raw: Any) -> Tuple[Optional[Any], Any
     return tool_args, tool_result, tool_args
 
 
+def _map_retriever_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
+    """Map an OpenLLMetry retrieval task to OpenInference retriever attributes."""
+    mapped: Dict[str, Any] = {
+        sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.RETRIEVER.value
+    }
+
+    input_raw = attrs.get("gen_ai.task.input") or attrs.get(SpanAttributes.TRACELOOP_ENTITY_INPUT)
+    input_obj = _coerce_json_obj(input_raw)
+    if isinstance(input_obj, dict) and input_obj.get("query") is not None:
+        mapped[sc.SpanAttributes.INPUT_VALUE] = str(input_obj["query"])
+        mapped[sc.SpanAttributes.INPUT_MIME_TYPE] = sc.OpenInferenceMimeTypeValues.TEXT.value
+
+    output_raw = attrs.get("gen_ai.task.output") or attrs.get(
+        SpanAttributes.TRACELOOP_ENTITY_OUTPUT
+    )
+    output_obj = _coerce_json_obj(output_raw)
+    documents = output_obj.get("documents") if isinstance(output_obj, dict) else None
+    if not isinstance(documents, list):
+        return mapped
+
+    for index, document in enumerate(documents):
+        prefix = f"{sc.SpanAttributes.RETRIEVAL_DOCUMENTS}.{index}"
+        if not isinstance(document, dict):
+            if document is not None:
+                mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_CONTENT}"] = str(document)
+            continue
+        content = document.get("page_content", document.get("content"))
+        if content is not None:
+            mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_CONTENT}"] = str(content)
+        if document.get("metadata"):
+            mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_METADATA}"] = _as_json_str(
+                document["metadata"]
+            )
+        if document.get("id") is not None:
+            mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_ID}"] = str(document["id"])
+        if (score := _safe_float(document.get("score"))) is not None:
+            mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_SCORE}"] = score
+
+    return mapped
+
+
 def _map_generic_span(attrs: Dict[str, Any], span_name: Optional[str] = None) -> Dict[str, Any]:
     """
     Convert TraceLoop 'workflow' / 'task' / 'agent' / 'tool' spans
     to OpenInference semantic conventions.
     """
+    operation_name = str(attrs.get("gen_ai.operation.name", "")).lower()
+    if operation_name in _RETRIEVAL_OPERATION_NAMES:
+        return _map_retriever_span(attrs)
+
     raw_kind = str(attrs.get(SpanAttributes.TRACELOOP_SPAN_KIND, "unknown")).lower()
     kind_val = _SPAN_KIND_MAPPING.get(raw_kind, sc.OpenInferenceSpanKindValues.UNKNOWN.value)
 
@@ -471,6 +527,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         }
         assistant_text = outputs[0].get("content", "") if outputs else ""
         finish_reason = output_finish_reasons[0] if output_finish_reasons else "stop"
+        if finish_reason is None:
+            response_finish_reasons = attrs.get(GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS)
+            finish_reason = response_finish_reasons[0] if response_finish_reasons else "stop"
         response_body = {
             "id": attrs.get("gen_ai.response.id"),
             "choices": [
@@ -505,6 +564,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         # Assemble OpenInference attributes
         oi_attrs = {
             sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: span_val,
+            sc.SpanAttributes.LLM_FINISH_REASON: finish_reason,
             **get_llm_attributes(
                 provider=provider_val,
                 system=system_val,

@@ -13,6 +13,7 @@ import { safelyJSONStringify } from "../utils";
 import type {
   Annotation,
   AnnotationScope,
+  DecisionTokenCount,
   Document,
   Embedding,
   InputToAttributesFn,
@@ -48,12 +49,12 @@ import type {
  */
 export function toInputType(...args: unknown[]): SpanInput | undefined {
   if (args.length === 0) {
-    return;
+    return undefined;
   }
   if (args.length === 1) {
     const value = args[0];
     if (value == null) {
-      return;
+      return undefined;
     }
     if (typeof value === "string") {
       return {
@@ -68,7 +69,7 @@ export function toInputType(...args: unknown[]): SpanInput | undefined {
   }
   const value = safelyJSONStringify(args);
   if (value == null) {
-    return;
+    return undefined;
   }
   return {
     value,
@@ -100,7 +101,7 @@ export function toInputType(...args: unknown[]): SpanInput | undefined {
  */
 export function toOutputType(result: unknown): SpanOutput | undefined {
   if (result == null) {
-    return;
+    return undefined;
   }
   if (typeof result === "string") {
     return {
@@ -594,6 +595,62 @@ export function getToolAttributes(options: {
 }
 
 /**
+ * The attribute keys a model identification helper writes to. LLM and
+ * DECISION spans share the same model name semantics under different
+ * namespaces (`llm.*` vs `decision.*`).
+ */
+interface ModelNameAttributeKeys {
+  modelName: string;
+  requestModelName: string;
+  responseModelName: string;
+}
+
+const LLM_MODEL_NAME_KEYS: ModelNameAttributeKeys = {
+  modelName: SemanticConventions.LLM_MODEL_NAME,
+  requestModelName: SemanticConventions.LLM_REQUEST_MODEL_NAME,
+  responseModelName: SemanticConventions.LLM_RESPONSE_MODEL_NAME,
+};
+
+const DECISION_MODEL_NAME_KEYS: ModelNameAttributeKeys = {
+  modelName: SemanticConventions.DECISION_MODEL_NAME,
+  requestModelName: SemanticConventions.DECISION_REQUEST_MODEL_NAME,
+  responseModelName: SemanticConventions.DECISION_RESPONSE_MODEL_NAME,
+};
+
+/**
+ * Generates the model name attributes for a model call. The `model_name` key
+ * is the one consumers display as the primary model, so it mirrors
+ * responseModelName ?? requestModelName when not set explicitly, matching how
+ * instrumentors populate all three keys. The keys default to the `llm.*`
+ * namespace; DECISION spans pass the `decision.*` keys.
+ */
+function getModelNameAttributes(
+  options: {
+    modelName?: string;
+    requestModelName?: string;
+    responseModelName?: string;
+  },
+  keys: ModelNameAttributeKeys = LLM_MODEL_NAME_KEYS,
+): Attributes {
+  const attributes: Attributes = {};
+
+  const modelName = options.modelName ?? options.responseModelName ?? options.requestModelName;
+  if (modelName != null) {
+    attributes[keys.modelName] = modelName;
+  }
+
+  if (options.requestModelName != null) {
+    attributes[keys.requestModelName] = options.requestModelName;
+  }
+
+  if (options.responseModelName != null) {
+    attributes[keys.responseModelName] = options.responseModelName;
+  }
+
+  return attributes;
+}
+
+/**
  * Generates attributes for LLM operations.
  *
  * Creates comprehensive OpenTelemetry attributes for LLM interactions
@@ -603,6 +660,9 @@ export function getToolAttributes(options: {
  * @param options.provider - The LLM provider (e.g., "openai", "anthropic")
  * @param options.system - The LLM system type
  * @param options.modelName - The name of the LLM model
+ * @param options.requestModelName - The model requested by the caller, as sent in the request.
+ * When modelName is omitted, llm.model_name is mirrored from responseModelName ?? requestModelName
+ * @param options.responseModelName - The model that actually generated the response, as reported by the provider
  * @param options.invocationParameters - Parameters used for the LLM invocation
  * @param options.inputMessages - Input messages sent to the LLM
  * @param options.outputMessages - Output messages received from the LLM
@@ -625,6 +685,8 @@ export function getLLMAttributes(options: {
   provider?: string;
   system?: string;
   modelName?: string;
+  requestModelName?: string;
+  responseModelName?: string;
   invocationParameters?: Record<string, unknown>;
   inputMessages?: Message[];
   outputMessages?: Message[];
@@ -643,10 +705,7 @@ export function getLLMAttributes(options: {
     attributes[SemanticConventions.LLM_SYSTEM] = options.system.toLowerCase();
   }
 
-  // Model name attributes
-  if (options.modelName != null) {
-    attributes[SemanticConventions.LLM_MODEL_NAME] = options.modelName;
-  }
+  Object.assign(attributes, getModelNameAttributes(options));
 
   // Invocation parameters
   if (options.invocationParameters != null) {
@@ -874,6 +933,83 @@ export function getLLMAttributes(options: {
         ] = schemaJson;
       }
     });
+  }
+
+  return attributes;
+}
+
+/**
+ * Generates attributes for DECISION operations.
+ *
+ * Creates OpenTelemetry attributes for a call to a decision model: a model
+ * that scores or selects among candidate options supplied in the request
+ * rather than generating free-form text. Decision spans identify the model
+ * under the `decision.*` namespace instead of `llm.*`, with the same
+ * semantics as {@link getLLMAttributes}: `system` names the decision API
+ * ecosystem the call conforms to, `provider` names who hosts the model, and
+ * the model name keys follow the same request/response mirroring rules.
+ *
+ * Record the raw request and response with `getInputAttributes` and
+ * `getOutputAttributes` (or the default processors); decision spans have no
+ * input or output messages.
+ *
+ * @param options - Configuration object for DECISION attributes
+ * @param options.provider - Who hosts the decision model (e.g., "typesafe", "openai").
+ * See `DecisionProvider` in the semantic conventions for well-known values
+ * @param options.system - The decision API ecosystem the call conforms to (e.g., "typesafe"
+ * for the System One / Jev API, "openai" for the OpenAI Decisions API). See `DecisionSystem`
+ * in the semantic conventions for well-known values
+ * @param options.modelName - The name of the decision model (e.g., "jev-1.13.0")
+ * @param options.requestModelName - The model requested by the caller, as sent in the request
+ * (e.g., the alias "jev-latest"). When modelName is omitted, decision.model_name is mirrored
+ * from responseModelName ?? requestModelName
+ * @param options.responseModelName - The model that actually produced the decision, as
+ * reported by the provider
+ * @param options.tokenCount - Token usage: the tokens sent (`input`) and the tokens that make
+ * up the typed answers (`output`)
+ * @returns OpenTelemetry attributes for DECISION operations
+ *
+ * @example
+ * ```typescript
+ * const attrs = getDecisionAttributes({
+ *   system: "typesafe",
+ *   provider: "typesafe",
+ *   requestModelName: "jev-latest",
+ *   responseModelName: "jev-1.13.0",
+ *   tokenCount: { input: 412, output: 2 },
+ * });
+ * ```
+ */
+export function getDecisionAttributes(options: {
+  provider?: string;
+  system?: string;
+  modelName?: string;
+  requestModelName?: string;
+  responseModelName?: string;
+  tokenCount?: DecisionTokenCount;
+}): Attributes {
+  const attributes: Attributes = {};
+
+  // Provider attributes
+  if (options.provider != null) {
+    attributes[SemanticConventions.DECISION_PROVIDER] = options.provider.toLowerCase();
+  }
+
+  // System attributes
+  if (options.system != null) {
+    attributes[SemanticConventions.DECISION_SYSTEM] = options.system.toLowerCase();
+  }
+
+  Object.assign(attributes, getModelNameAttributes(options, DECISION_MODEL_NAME_KEYS));
+
+  // Token count
+  if (options.tokenCount != null) {
+    if (options.tokenCount.input != null) {
+      attributes[SemanticConventions.DECISION_TOKEN_COUNT_INPUT] = options.tokenCount.input;
+    }
+    if (options.tokenCount.output != null) {
+      attributes[SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT] = options.tokenCount.output;
+    }
   }
 
   return attributes;

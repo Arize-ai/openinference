@@ -116,4 +116,4 @@ Thumbs.db
 # Workspace Definitions
 *.code-workspace
 .workbench/
-use-workbench/
+use-workbench/.claude/worktrees/

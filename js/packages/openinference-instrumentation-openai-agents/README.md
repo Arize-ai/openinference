@@ -1,6 +1,6 @@
 # OpenInference Instrumentation for OpenAI Agents SDK (Node.js)
 
-OpenTelemetry-based instrumentation for the [OpenAI Agents SDK](https://www.npmjs.com/package/@openai/agents) (`@openai/agents`). Bridges the SDK's native tracing events to OpenTelemetry spans following the [OpenInference semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md), so agent runs can be observed in any OpenTelemetry-compatible backend such as [Arize Phoenix](https://github.com/Arize-ai/phoenix), [Arize AX](https://arize.com/docs/ax), Jaeger, or your collector of choice.
+OpenTelemetry-based instrumentation for the [OpenAI Agents SDK](https://www.npmjs.com/package/@openai/agents) (`@openai/agents`). Bridges the SDK's native tracing events to OpenTelemetry spans following the [OpenInference semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md), so agent runs can be observed in any OpenTelemetry-compatible backend such as [Arize Phoenix](https://github.com/Arize-ai/phoenix), [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), Jaeger, or your collector of choice.
 
 ## Installation
 
@@ -129,3 +129,10 @@ The shared OTel setup lives in `examples/instrumentation.ts` — modify it to sw
 ## License
 
 Apache-2.0
+
+## Prompt cache token counts
+
+OpenAI cache reads (`cached_tokens`) and writes (`cache_write_tokens`) are recorded as
+`llm.token_count.prompt_details.cache_read` and `cache_write`. See the
+[semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md#token-count-details) for how these sub-counts relate to the prompt total, and the
+[cache token example](https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-openai/examples/cache_tokens.md) for a Phoenix round trip.

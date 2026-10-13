@@ -26,7 +26,7 @@ export function traceSerializer({ ignored_keys = [] }: { ignored_keys?: string[]
         return (key, value) => {
           // Ignore specific keys, all owned entities and keys starting with underscore
           if (mergedIgnoreKeys.has(key) || key.startsWith("_")) {
-            return;
+            return undefined;
           }
 
           return value;

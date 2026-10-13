@@ -3,6 +3,8 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 import {
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
   mapAgentAttributes,
+  mapConversationId,
+  mapFinishReason,
   mapInputMessages,
   mapInputValue,
   mapInvocationParameters,
@@ -151,6 +153,22 @@ describe("attributes helpers", () => {
     it("ignores non-string agent name", () => {
       const attrs = mapAgentAttributes({
         "gen_ai.agent.name": 42,
+      });
+      expect(attrs).toEqual({});
+    });
+  });
+
+  describe("mapConversationId", () => {
+    it("maps conversation id to session.id", () => {
+      const attrs = mapConversationId({
+        "gen_ai.conversation.id": "conv_5j66UpCpwteGg4YSxUnt7lPY",
+      });
+      expect(attrs[SemanticConventions.SESSION_ID]).toBe("conv_5j66UpCpwteGg4YSxUnt7lPY");
+    });
+
+    it("ignores non-string conversation id", () => {
+      const attrs = mapConversationId({
+        "gen_ai.conversation.id": 42,
       });
       expect(attrs).toEqual({});
     });
@@ -698,6 +716,22 @@ describe("attributes helpers", () => {
   });
 
   describe("convertGenAISpanAttributesToOpenInferenceSpanAttributes", () => {
+    it("preserves an explicit session id over the conversation id", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        [SemanticConventions.SESSION_ID]: "explicit-session",
+        "gen_ai.conversation.id": "eve-conversation",
+      });
+      expect(attrs[SemanticConventions.SESSION_ID]).toBe("explicit-session");
+    });
+
+    it("includes finish reason when present", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        "gen_ai.operation.name": "chat",
+        "gen_ai.response.finish_reasons": ["tool_calls"],
+      });
+      expect(attrs["llm.finish_reason"]).toBe("tool_calls");
+    });
+
     it("returns minimal defaults for empty attributes (span kind only)", () => {
       const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({});
       expect(attrs).toEqual({ "openinference.span.kind": "LLM" });
@@ -713,5 +747,40 @@ describe("attributes helpers", () => {
         "openinference.span.kind": "AGENT",
       });
     });
+  });
+});
+
+describe("mapFinishReason", () => {
+  it("maps the first finish reason", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": ["tool_calls"],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("tool_calls");
+  });
+
+  it("takes only the first reason when multiple are present", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": ["stop", "length"],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
+  });
+
+  it('defaults to "stop" when the array is empty', () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": [],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
+  });
+
+  it("sets nothing when the attribute is absent", () => {
+    const attrs = mapFinishReason({});
+    expect(attrs).toEqual({});
+  });
+
+  it("ignores non-array/malformed values (malformed)", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": "stop",
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
   });
 });

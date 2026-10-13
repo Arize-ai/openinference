@@ -12,7 +12,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.semconv._incubating.attributes import (
     gen_ai_attributes as GenAIAttributes,
 )
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 from openinference.instrumentation.openllmetry._span_processor import (
@@ -78,7 +77,7 @@ class TestOpenLLMetryInstrumentor:
         span = spans[0]
 
         # Get attributes
-        attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+        attributes = dict(cast(Mapping[str, Any], span.attributes))
 
         # OpenInference span kind
         assert is_openinference_span(span)
@@ -95,6 +94,7 @@ class TestOpenLLMetryInstrumentor:
 
         # LLM identity
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
         # gen_ai.system is deprecated; latest OpenLLMetry only emits gen_ai.provider.name
         if SpanAttributes.LLM_SYSTEM in attributes:
             assert (
@@ -152,6 +152,7 @@ class TestOpenLLMetryInstrumentor:
                     [{"role": "assistant", "parts": [{"type": "text", "content": "Hi"}]}]
                 ),
                 "gen_ai.request.model": "gpt-4.1",
+                "gen_ai.response.finish_reasons": ["length"],
                 "gen_ai.usage.input_tokens": 1,
                 "gen_ai.usage.output_tokens": 2,
                 "gen_ai.provider.name": "openai",
@@ -167,6 +168,7 @@ class TestOpenLLMetryInstrumentor:
             == OpenInferenceSpanKindValues.LLM.value
         )
         assert span._attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert span._attributes[SpanAttributes.LLM_FINISH_REASON] == "length"
         assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 1
         assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 2
 
@@ -314,12 +316,13 @@ class TestUpdatedGenAIMessageFormat:
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
         assert (
             attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
             == OpenInferenceSpanKindValues.LLM.value
         )
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 5
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 15
@@ -373,13 +376,14 @@ class TestUpdatedGenAIMessageFormat:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
 
-        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
 
         assert (
             attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
             == OpenInferenceSpanKindValues.LLM.value
         )
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
         assert isinstance(attributes[SpanAttributes.INPUT_VALUE], str)
         assert isinstance(attributes[SpanAttributes.OUTPUT_VALUE], str)
         assert attributes["llm.input_messages.0.message.role"] == "user"
@@ -437,7 +441,7 @@ class TestToolSpanMapping:
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
 
         assert (
             attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
@@ -499,7 +503,7 @@ class TestToolSpanMapping:
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
 
         assert attributes[SpanAttributes.OUTPUT_VALUE] == "It is sunny and 21C in Paris."
         assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.TEXT.value
@@ -523,7 +527,7 @@ class TestToolSpanMapping:
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
 
         assert attributes[SpanAttributes.INPUT_VALUE] == json.dumps(
             {"path": "/tmp/output.txt"}, separators=(",", ":")
@@ -550,7 +554,7 @@ class TestToolSpanMapping:
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
 
         assert attributes[SpanAttributes.TOOL_NAME] == "get_weather.tool"
 
@@ -573,7 +577,7 @@ class TestToolSpanMapping:
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
 
         assert (
             attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]

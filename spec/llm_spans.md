@@ -12,6 +12,8 @@ All LLM spans MUST include:
 
 LLM spans typically include:
 - `llm.model_name`: The specific model used (e.g., "gpt-4-0613")
+- `llm.request.model_name`: The model requested by the caller, when it can differ from the model that served the response (e.g., provider-side fallback)
+- `llm.response.model_name`: The model that actually generated the response, when it can differ from the requested model
 - `llm.invocation_parameters`: JSON string of parameters sent to the model
 - `input.value`: The raw input as a JSON string
 - `input.mime_type`: Usually "application/json"
@@ -43,7 +45,7 @@ Note that while the examples below show attributes in a nested JSON format for r
 
 - `llm.input_messages.0.message.role` instead of `llm.input_messages[0].message.role`
 - `llm.output_messages.0.message.tool_calls.0.tool_call.function.name` for nested tool calls
-- `llm.tools.0.tool.json_schema` for tool definitions
+- `llm.tools.0.tool.name`, `llm.tools.0.tool.description`, and `llm.tools.0.tool.json_schema` for tool definitions
 
 ## Tool Role Messages
 
@@ -187,6 +189,8 @@ Assistant messages from reasoning-capable models may include `"reasoning"` items
 When a provider attaches the reasoning echo token to a tool call instead of a message content item, use `tool_call.reasoning_signature`. Gemini uses this for `thoughtSignature` on `functionCall` parts. If a tool call must remain ordered relative to reasoning or text content, emit a `message.contents` item with `message_content.type = "tool_use"` and the same `tool_call.*` fields used by `message.tool_calls`.
 
 When OpenAI returns an array of `summary_text` items, concatenate them in source order into a single `message_content.text` value for now. Emit `message_content.id` when the `ResponseReasoningItem.id` is present, because stateless replay needs the reasoning item id as well as its `encrypted_content`.
+
+Audio and video content items are defined in [Multimodal Attributes](./multimodal_attributes.md). Use `message_content.type` `"audio"` or `"video"` on chat APIs.
 
 #### OpenAI Responses
 

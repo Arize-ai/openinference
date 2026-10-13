@@ -5,6 +5,7 @@ import json
 import logging
 import weakref
 from collections import defaultdict
+from contextvars import Context, copy_context
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
@@ -35,7 +36,6 @@ from typing import (
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
-from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import PrivateAttr
 from pydantic.v1.json import pydantic_encoder
@@ -47,6 +47,9 @@ from workflows.runtime.types.step_function import (
 )
 
 from llama_index.core import QueryBundle
+from llama_index.core.response_synthesizers.base import BaseSynthesizer
+from openinference.instrumentation.llama_index._finish_reason import _extract_finish_reason
+from openinference.instrumentation.llama_index._stream import _ResponseStream
 
 # Conditionally import agent base classes (they may not exist in all versions)
 try:
@@ -65,6 +68,8 @@ try:
     from llama_index.core.base.llms.types import ToolCallBlock  # type: ignore
 except ImportError:
     ToolCallBlock = None  # type: ignore
+from opentelemetry.util.types import AttributeValue
+
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
@@ -475,12 +480,14 @@ class _Span(BaseSpan):
             self.notify_parent(_StreamingStatus.FINISHED)
 
     def notify_parent(self, status: _StreamingStatus) -> None:
-        if not (parent := self._parent) or not parent.waiting_for_streaming:
+        if not (parent := self._parent) or not parent.active:
             return
         if status is _StreamingStatus.IN_PROGRESS:
             parent._last_updated_at = time()
-        else:
+        elif parent.waiting_for_streaming:
             parent.end()
+        else:
+            return
         parent.notify_parent(status)
 
     @singledispatchmethod
@@ -615,11 +622,15 @@ class _Span(BaseSpan):
         self[LLM_PROMPTS] = [event.prompt]
 
     @_process_event.register
-    def _(self, event: LLMCompletionInProgressEvent) -> None: ...
+    def _(self, event: LLMCompletionInProgressEvent) -> None:
+        if finish_reason := _extract_finish_reason(event.response):
+            self[LLM_FINISH_REASON] = finish_reason
 
     @_process_event.register
     def _(self, event: LLMCompletionEndEvent) -> None:
         self[OUTPUT_VALUE] = event.response.text
+        if finish_reason := _extract_finish_reason(event.response):
+            self[LLM_FINISH_REASON] = finish_reason
         self._extract_token_counts(event.response)
 
     @_process_event.register
@@ -632,13 +643,17 @@ class _Span(BaseSpan):
         )
 
     @_process_event.register
-    def _(self, event: LLMChatInProgressEvent) -> None: ...
+    def _(self, event: LLMChatInProgressEvent) -> None:
+        if finish_reason := _extract_finish_reason(event.response):
+            self[LLM_FINISH_REASON] = finish_reason
 
     @_process_event.register
     def _(self, event: LLMChatEndEvent) -> None:
         if (response := event.response) is None:
             return
         self[OUTPUT_VALUE] = str(response)
+        if finish_reason := _extract_finish_reason(response):
+            self[LLM_FINISH_REASON] = finish_reason
         self._extract_token_counts(response)
         self._process_messages(
             LLM_OUTPUT_MESSAGES,
@@ -963,6 +978,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _otel_tracer: Tracer = PrivateAttr()
     _separate_trace_from_runtime_context: bool = PrivateAttr()
     _export_queue: _ExportQueue = PrivateAttr()
+    _pending_streams: weakref.WeakKeyDictionary[Any, List[Tuple[_Span, Context]]] = PrivateAttr()
 
     def __init__(
         self,
@@ -980,6 +996,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         self._otel_tracer = tracer
         self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
         self._export_queue = _ExportQueue()
+        self._pending_streams = weakref.WeakKeyDictionary()
 
     def new_span(
         self,
@@ -994,6 +1011,8 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             return None
         with self.lock:
             parent = self.open_spans.get(parent_span_id) if parent_span_id else None
+        if parent is None and parent_span_id:
+            parent = self._export_queue.find(parent_span_id)
         otel_span = self._otel_tracer.start_span(
             name=id_.partition("-")[0],
             start_time=time_ns(),
@@ -1028,6 +1047,29 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         with self.lock:
             span = self.open_spans.get(id_)
         if span:
+            if isinstance(instance, BaseSynthesizer) and isinstance(
+                result, (Generator, AsyncGenerator)
+            ):
+                span.process_output(instance, result)
+                with self.lock:
+                    self._pending_streams.setdefault(result, []).append((span, copy_context()))
+                self._export_queue.put(span)
+                return span
+            if isinstance(result, (StreamingResponse, AsyncStreamingResponse)):
+                stream = result.response_gen
+                with self.lock:
+                    pending = self._pending_streams.pop(stream, [])
+                for producer, context in pending:
+                    stream = _ResponseStream(  # type: ignore[assignment]
+                        stream, producer.context, producer.end, context
+                    )
+
+                span.process_output(instance, result)
+                result.response_gen = _ResponseStream(  # type: ignore[assignment]
+                    stream, span.context, span.end
+                )
+                self._export_queue.put(span)
+                return span
             if isinstance(instance, (BaseLLM, MultiModalLLM)) and (
                 isinstance(result, Generator)
                 and result.gi_frame is not None
@@ -1375,7 +1417,14 @@ def _asdict(obj: Any) -> Any:
     elif isinstance(obj, (list, tuple)):
         return type(obj)(_asdict(v) for v in obj)
     elif isinstance(obj, dict):
-        return type(obj)((_asdict(k), _asdict(v)) for k, v in obj.items())
+        # Converting a dataclass key to a dict makes it unhashable and invalid as a JSON key.
+        return type(obj)(
+            (
+                k if isinstance(k, (str, int, float, bool, type(None))) else str(k),
+                _asdict(v),
+            )
+            for k, v in obj.items()
+        )
     else:
         if repr_str := _show_repr_str(obj):
             return repr_str
@@ -1423,6 +1472,7 @@ EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME

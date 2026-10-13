@@ -4,7 +4,7 @@ import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, List
 
 import pytest
 from mcp import ClientSession
@@ -239,3 +239,42 @@ async def test_stream_writer_exception_handling(tracer: Tracer) -> None:
         # Verify the exception was passed through correctly
         received = await read_stream.receive()
         assert isinstance(received, ValidationError)
+
+
+def test_uninstrument_removes_all_wrappers() -> None:
+    """uninstrument() fully reverses every wrapping target."""
+    import importlib
+    import inspect
+
+    import wrapt
+
+    from openinference.instrumentation.mcp import _WRAP_TARGETS, MCPInstrumentor, _resolve_target
+
+    # An independent statement of the wrapped targets, so dropping a row from
+    # _WRAP_TARGETS cannot silently shrink this test's coverage.
+    expected = [
+        "mcp.client.streamable_http.streamable_http_client",
+        "mcp.server.streamable_http.StreamableHTTPServerTransport.connect",
+        "mcp.client.sse.sse_client",
+        "mcp.server.sse.SseServerTransport.connect_sse",
+        "mcp.client.stdio.stdio_client",
+        "mcp.server.stdio.stdio_server",
+        "mcp.server.session.ServerSession.__init__",
+    ]
+    assert [f"{m}.{t}" for m, t, _ in _WRAP_TARGETS] == expected
+
+    def wrapped_targets() -> List[str]:
+        # inspect.getattr_static avoids descriptor binding, which for class methods
+        # would hide the FunctionWrapper behind a BoundFunctionWrapper.
+        names = []
+        for module_name, target, _ in _WRAP_TARGETS:
+            owner, attr = _resolve_target(importlib.import_module(module_name), target)
+            if isinstance(inspect.getattr_static(owner, attr), wrapt.FunctionWrapper):
+                names.append(f"{module_name}.{target}")
+        return names
+
+    # The autouse fixture called instrument(), which wrapped each module upon import.
+    assert wrapped_targets() == expected
+
+    MCPInstrumentor().uninstrument()
+    assert wrapped_targets() == []

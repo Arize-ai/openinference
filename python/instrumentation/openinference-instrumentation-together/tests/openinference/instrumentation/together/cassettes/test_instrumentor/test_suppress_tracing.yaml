@@ -1,0 +1,25 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Why is the sky blue? Answer in one
+      sentence."}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo"}'
+    headers: {}
+    method: POST
+    uri: https://api.together.ai/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"ovCb5Hn-6Ng1vN-a273a0fe1acc987c\",\n  \"object\": \"chat.completion\",\n
+        \ \"created\": 1786077895,\n  \"model\": \"meta-llama/Llama-3.3-70B-Instruct-Turbo\",\n
+        \ \"prompt\": [],\n  \"choices\": [\n    {\n      \"finish_reason\": \"stop\",\n
+        \     \"seed\": 12339535536277766000,\n      \"index\": 0,\n      \"logprobs\":
+        null,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\":
+        \"The sky appears blue because when sunlight enters Earth's atmosphere, it
+        is scattered in all directions by the tiny molecules of gases such as nitrogen
+        and oxygen, with shorter, blue wavelengths being scattered more than longer,
+        red wavelengths.\",\n        \"tool_calls\": []\n      }\n    }\n  ],\n  \"usage\":
+        {\n    \"prompt_tokens\": 46,\n    \"completion_tokens\": 45,\n    \"total_tokens\":
+        91,\n    \"cached_tokens\": 0\n  }\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

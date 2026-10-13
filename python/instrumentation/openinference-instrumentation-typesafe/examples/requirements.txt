@@ -1,0 +1,4 @@
+typesafe-sdk
+openinference-instrumentation-typesafe
+opentelemetry-sdk
+opentelemetry-exporter-otlp

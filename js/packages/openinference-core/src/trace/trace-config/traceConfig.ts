@@ -1,10 +1,15 @@
 import { assertUnreachable, withSafety } from "../../utils";
 import { DefaultTraceConfig, traceConfigMetadata } from "./constants";
-import type { TraceConfig, TraceConfigKey, TraceConfigOptions } from "./types";
+import type {
+  BooleanTraceConfigFlag,
+  NumericTraceConfigFlag,
+  TraceConfig,
+  TraceConfigOptions,
+} from "./types";
 
 const safelyParseInt = withSafety({ fn: parseInt });
 
-type TraceConfigOptionMetadata = (typeof traceConfigMetadata)[TraceConfigKey];
+type TraceConfigOptionMetadata = BooleanTraceConfigFlag | NumericTraceConfigFlag;
 
 /**
  * Parses an option based on its type
@@ -13,6 +18,20 @@ type TraceConfigOptionMetadata = (typeof traceConfigMetadata)[TraceConfigKey];
  * @param optionMetadata - The {@link TraceConfigOptionMetadata} for the option which includes its type, default value, and environment variable key.
  *
  */
+function parseOption({
+  optionValue,
+  optionMetadata,
+}: {
+  optionValue?: boolean;
+  optionMetadata: BooleanTraceConfigFlag;
+}): boolean;
+function parseOption({
+  optionValue,
+  optionMetadata,
+}: {
+  optionValue?: number;
+  optionMetadata: NumericTraceConfigFlag;
+}): number;
 function parseOption({
   optionValue,
   optionMetadata,
@@ -52,14 +71,50 @@ export function generateTraceConfig(options?: TraceConfigOptions): TraceConfig {
   if (options == null) {
     return DefaultTraceConfig;
   }
-  return Object.entries(traceConfigMetadata).reduce((config, [key, optionMetadata]) => {
-    const TraceConfigKey = key as TraceConfigKey;
-    return {
-      ...config,
-      [TraceConfigKey]: parseOption({
-        optionValue: options[TraceConfigKey],
-        optionMetadata,
-      }),
-    };
-  }, {} as TraceConfig);
+  return {
+    hideLLMTools: parseOption({
+      optionValue: options.hideLLMTools,
+      optionMetadata: traceConfigMetadata.hideLLMTools,
+    }),
+    hideInputs: parseOption({
+      optionValue: options.hideInputs,
+      optionMetadata: traceConfigMetadata.hideInputs,
+    }),
+    hideOutputs: parseOption({
+      optionValue: options.hideOutputs,
+      optionMetadata: traceConfigMetadata.hideOutputs,
+    }),
+    hideInputMessages: parseOption({
+      optionValue: options.hideInputMessages,
+      optionMetadata: traceConfigMetadata.hideInputMessages,
+    }),
+    hideOutputMessages: parseOption({
+      optionValue: options.hideOutputMessages,
+      optionMetadata: traceConfigMetadata.hideOutputMessages,
+    }),
+    hideInputImages: parseOption({
+      optionValue: options.hideInputImages,
+      optionMetadata: traceConfigMetadata.hideInputImages,
+    }),
+    hideInputText: parseOption({
+      optionValue: options.hideInputText,
+      optionMetadata: traceConfigMetadata.hideInputText,
+    }),
+    hideOutputText: parseOption({
+      optionValue: options.hideOutputText,
+      optionMetadata: traceConfigMetadata.hideOutputText,
+    }),
+    hideEmbeddingVectors: parseOption({
+      optionValue: options.hideEmbeddingVectors,
+      optionMetadata: traceConfigMetadata.hideEmbeddingVectors,
+    }),
+    base64ImageMaxLength: parseOption({
+      optionValue: options.base64ImageMaxLength,
+      optionMetadata: traceConfigMetadata.base64ImageMaxLength,
+    }),
+    hidePrompts: parseOption({
+      optionValue: options.hidePrompts,
+      optionMetadata: traceConfigMetadata.hidePrompts,
+    }),
+  };
 }

@@ -21,6 +21,7 @@ from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrum
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -96,6 +97,30 @@ def _payload_field(payload: Any, key: str) -> Any:
     if isinstance(payload, dict):
         return payload.get(key)
     return getattr(payload, key, None)
+
+
+# Usage recorded in both real-agent-span cassettes; update on re-record.
+_CASSETTE_PROMPT_TOKENS = 3 + 17024
+_CASSETTE_COMPLETION_TOKENS = 4
+_CASSETTE_CACHE_READ_TOKENS = 17024
+_CASSETTE_CACHE_WRITE_TOKENS = 0
+
+
+def _pop_and_assert_cassette_token_counts(attrs: dict[str, Any]) -> None:
+    assert attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None) == _CASSETTE_PROMPT_TOKENS
+    assert attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None) == _CASSETTE_COMPLETION_TOKENS
+    assert (
+        attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, None)
+        == _CASSETTE_CACHE_READ_TOKENS
+    )
+    assert (
+        attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, None)
+        == _CASSETTE_CACHE_WRITE_TOKENS
+    )
+    assert (
+        attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL, None)
+        == _CASSETTE_PROMPT_TOKENS + _CASSETTE_COMPLETION_TOKENS
+    )
 
 
 _PYPROJECT_PATH = (Path(__file__).resolve().parent.parent / "pyproject.toml").as_posix()
@@ -1056,23 +1081,9 @@ async def test_query_real_agent_span(
     assert isinstance(model_name, str)
     llm_system = attrs.pop(SpanAttributes.LLM_SYSTEM, None)
     assert llm_system == OpenInferenceLLMSystemValues.ANTHROPIC.value
-    prompt_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None)
-    completion_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None)
-    assert isinstance(prompt_tokens, int)
-    assert isinstance(completion_tokens, int)
-    cache_read_tokens = attrs.pop(
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-        None,
-    )
-    cache_write_tokens = attrs.pop(
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-        None,
-    )
-    assert isinstance(cache_read_tokens, int)
-    assert isinstance(cache_write_tokens, int)
-    total_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL, None)
-    if total_tokens is not None:
-        assert total_tokens == prompt_tokens + completion_tokens
+    llm_provider = attrs.pop(SpanAttributes.LLM_PROVIDER, None)
+    assert llm_provider == OpenInferenceLLMProviderValues.ANTHROPIC.value
+    _pop_and_assert_cassette_token_counts(attrs)
     cost_total = attrs.pop(SpanAttributes.LLM_COST_TOTAL, None)
     assert isinstance(cost_total, (int, float))
     # Output messages — text-only assistant turn
@@ -1124,23 +1135,9 @@ async def test_client_real_agent_span(
     assert isinstance(model_name, str)
     llm_system = attrs.pop(SpanAttributes.LLM_SYSTEM, None)
     assert llm_system == OpenInferenceLLMSystemValues.ANTHROPIC.value
-    prompt_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None)
-    completion_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None)
-    assert isinstance(prompt_tokens, int)
-    assert isinstance(completion_tokens, int)
-    cache_read_tokens = attrs.pop(
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-        None,
-    )
-    cache_write_tokens = attrs.pop(
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-        None,
-    )
-    assert isinstance(cache_read_tokens, int)
-    assert isinstance(cache_write_tokens, int)
-    total_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL, None)
-    if total_tokens is not None:
-        assert total_tokens == prompt_tokens + completion_tokens
+    llm_provider = attrs.pop(SpanAttributes.LLM_PROVIDER, None)
+    assert llm_provider == OpenInferenceLLMProviderValues.ANTHROPIC.value
+    _pop_and_assert_cassette_token_counts(attrs)
     cost_total = attrs.pop(SpanAttributes.LLM_COST_TOTAL, None)
     assert isinstance(cost_total, (int, float))
     # Output messages — text-only assistant turn
@@ -1654,3 +1651,102 @@ async def test_missing_parent_hook_end_before_message_result_still_closes_span(
     assert bash_span.parent is not None
     assert bash_span.parent.span_id == root.context.span_id
     assert json.loads(str(attrs.get(SpanAttributes.OUTPUT_VALUE))) == "message output"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stop_reason", ["end_turn", "max_tokens", "tool_use", "stop_sequence"])
+async def test_assistant_message_stop_reason_sets_llm_finish_reason(
+    stop_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "sess-finish",
+            "model": "claude-test",
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "stop_reason": stop_reason,
+                "content": [{"type": "text", "text": "hi"}],
+            },
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "hi",
+            "usage": {"input_tokens": 3, "output_tokens": 2},
+            "total_cost_usd": 0.001,
+            "session_id": "sess-finish",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert attrs.get(SpanAttributes.LLM_FINISH_REASON) == stop_reason
+
+
+@pytest.mark.asyncio
+async def test_no_stop_reason_leaves_llm_finish_reason_unset(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "sess-none",
+            "model": "claude-test",
+        },
+        {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "hi",
+            "usage": {"input_tokens": 3, "output_tokens": 2},
+            "total_cost_usd": 0.001,
+            "session_id": "sess-none",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(spans[0].attributes or {})
+    assert SpanAttributes.LLM_FINISH_REASON not in attrs

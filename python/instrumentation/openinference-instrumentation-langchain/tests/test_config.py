@@ -82,12 +82,13 @@ def test_chat_with_config_hiding_inputs(
     assert span is not None
     assert span is not None
     assert span.parent is None
-    attributes = dict(span.attributes or {})
+    attributes: Dict[str, Any] = dict(span.attributes or {})
     assert (
         attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND, None)
         == OpenInferenceSpanKindValues.LLM.value
     )
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME, None) == model_name
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON, None) == "stop"
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS, None) is not None
     if LANGCHAIN_VERSION >= (0, 2):
         assert attributes.pop(SpanAttributes.METADATA, None)
@@ -99,7 +100,7 @@ def test_chat_with_config_hiding_inputs(
     else:
         assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE, None) == "application/json"
         input_value = json.loads(cast(str, input_value))
-        input_messages = input_value.pop("messages")  # type:ignore
+        input_messages = input_value.pop("messages")
         assert len(input_messages) == 1
         input_message = input_messages[0][0]
         assert input_message.pop("kwargs").pop("content") == content
@@ -187,12 +188,13 @@ def test_chat_with_config_hiding_outputs(
     assert span is not None
     assert span is not None
     assert span.parent is None
-    attributes = dict(span.attributes or {})
+    attributes: Dict[str, Any] = dict(span.attributes or {})
     assert (
         attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND, None)
         == OpenInferenceSpanKindValues.LLM.value
     )
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME, None) == model_name
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON, None) == "stop"
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS, None) is not None
     if LANGCHAIN_VERSION >= (0, 2):
         assert attributes.pop(SpanAttributes.METADATA, None)
@@ -201,7 +203,7 @@ def test_chat_with_config_hiding_outputs(
     assert input_value is not None
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE, None) == "application/json"
     input_value = json.loads(cast(str, input_value))
-    input_messages = input_value.pop("messages")  # type:ignore
+    input_messages = input_value.pop("messages")
     assert len(input_messages) == 1
     input_message = input_messages[0][0]
     assert input_message.pop("kwargs").pop("content") == content

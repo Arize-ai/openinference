@@ -30,6 +30,7 @@ class TestTokenCounts:
         assert span.attributes.get(LLM_TOKEN_COUNT_TOTAL)
         assert span.attributes.get(LLM_TOKEN_COUNT_COMPLETION)
         assert span.attributes.get(LLM_TOKEN_COUNT_TOTAL)
+        assert span.attributes[LLM_FINISH_REASON] == "stop"
 
     @pytest.mark.vcr
     def test_openai(
@@ -69,8 +70,9 @@ class TestTokenCounts:
     def test_anthropic(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
+        anthropic_model: str,
     ) -> None:
-        llm = Anthropic(model="claude-3-5-haiku-20241022", api_key="sk-")
+        llm = Anthropic(model=anthropic_model, api_key="sk-")
         resp = llm.chat([ChatMessage(content="Hello!")])
         span = in_memory_span_exporter.get_finished_spans()[0]
         attr = dict(span.attributes or {})
@@ -130,6 +132,7 @@ def instrument(
     LlamaIndexInstrumentor().uninstrument()
 
 
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL

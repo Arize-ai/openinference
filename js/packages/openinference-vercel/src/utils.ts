@@ -3,7 +3,15 @@ import { diag } from "@opentelemetry/api";
 import { isAttributeValue } from "@opentelemetry/core";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
-import { safelyJSONParse, safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
+import {
+  getDecisionAttributes,
+  getInputAttributes,
+  getOutputAttributes,
+  isObjectWithStringKeys,
+  safelyJSONParse,
+  safelyJSONStringify,
+  withSafety,
+} from "@arizeai/openinference-core";
 import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "@arizeai/openinference-genai";
 import {
   MimeType,
@@ -12,6 +20,8 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 
 import {
+  EveOperationNameToSpanKindMap,
+  GenAIAgentIdentityAttributes,
   GenAIOperationNameToSpanKindMap,
   VercelSDKFunctionNameToSpanKindMap,
 } from "./constants.js";
@@ -21,7 +31,7 @@ import { VercelAISemanticConventions } from "./VercelAISemanticConventions.js";
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(
-    `Unable to get OpenInference ${attributeType} attributes from AI attributes falling back to null: ${error}`,
+    `Unable to get OpenInference ${attributeType} attributes from AI attributes falling back to null: ${String(error)}`,
   );
 };
 
@@ -54,7 +64,10 @@ const getOISpanKindFromAttributes = (
   if (typeof maybeOperationName === "string") {
     const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
     if (maybeFunctionName != null) {
-      const spanKind = VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName);
+      const hasAgentIdentity = GenAIAgentIdentityAttributes.some((key) => attributes[key] != null);
+      const spanKind =
+        VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName) ??
+        (hasAgentIdentity ? undefined : EveOperationNameToSpanKindMap.get(maybeFunctionName));
       if (spanKind != null) {
         return spanKind;
       }
@@ -65,6 +78,7 @@ const getOISpanKindFromAttributes = (
   if (typeof maybeGenAIOperationName === "string") {
     return GenAIOperationNameToSpanKindMap.get(maybeGenAIOperationName);
   }
+  return undefined;
 };
 
 /**
@@ -91,12 +105,12 @@ const getInvocationParamAttributes = (attributes: Attributes) => {
   if (settingAttributeKeys.length === 0) {
     return null;
   }
-  const settingAttributes = settingAttributeKeys.reduce((acc, key) => {
+  const settingAttributes = settingAttributeKeys.reduce<Attributes>((acc, key) => {
     const keyParts = key.split(".");
     const paramKey = keyParts[keyParts.length - 1];
     acc[paramKey] = attributes[key];
     return acc;
-  }, {} as Attributes);
+  }, {});
 
   return {
     [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
@@ -283,7 +297,7 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
       // - message.content: the result content
       // - message.tool_call_id: linking back to the original tool call
       // When Vercel sends multiple tool results in one message, we expand them.
-      const toolResultAttributes = contentArray.reduce((toolAcc: Attributes, content) => {
+      const toolResultAttributes = contentArray.reduce<Attributes>((toolAcc, content) => {
         if (typeof content !== "object" || content === null) {
           // bail out if the content is not an object
           return toolAcc;
@@ -316,7 +330,7 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
           [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`]: TOOL_OUTPUT_JSON,
           [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]: TOOL_CALL_ID,
         };
-      }, {} as Attributes);
+      }, {});
 
       return {
         ...acc,
@@ -394,16 +408,16 @@ const getInputMessagesFromPrompt = (promptValue?: AttributeValue) => {
   }
 
   const parsed = safelyJSONParse(promptValue);
-  if (parsed == null || typeof parsed !== "object") {
-    return null;
-  }
-
   // If the prompt itself is an array of messages, use it directly
   if (Array.isArray(parsed)) {
     return getInputMessageAttributes(promptValue);
   }
 
-  const prompt = parsed as Record<string, unknown>;
+  if (!isObjectWithStringKeys(parsed)) {
+    return null;
+  }
+
+  const prompt = parsed;
   const messagesArray: unknown[] = [];
 
   // Prepend system message if present at the top level
@@ -699,6 +713,27 @@ const safelyGetVercelIOAttributes = withSafety({
 });
 
 /**
+ * Gets the OpenInference finish reason from Vercel's response attributes.
+ * @param attributes the span attributes
+ * @returns the finish reason attribute, or null when it is unavailable
+ */
+const getFinishReasonAttribute = (attributes: Attributes): Attributes | null => {
+  const finishReason = attributes[VercelAISemanticConventions.RESPONSE_FINISH_REASON];
+  if (typeof finishReason !== "string") {
+    return null;
+  }
+  return { [SemanticConventions.LLM_FINISH_REASON]: finishReason };
+};
+
+/**
+ * {@link getFinishReasonAttribute} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetFinishReasonAttribute = withSafety({
+  fn: getFinishReasonAttribute,
+  onError: onErrorCallback("finish reason"),
+});
+
+/**
  * Gets model name from Vercel attributes when gen_ai.* attributes are not present
  * @param attributes the span attributes
  * @param spanKind the span kind
@@ -860,6 +895,106 @@ const getGenAIInputMessageAttributes = ({
 };
 
 /**
+ * Maps `gen_ai.system_instructions` onto the first OpenInference input message
+ * (system instructions always occupy input message index 0).
+ * @param systemInstructions the raw `gen_ai.system_instructions` value
+ * @returns the mapped attributes, empty when the value is not a JSON array
+ */
+const getGenAISystemInstructionAttributes = (systemInstructions: string): Attributes => {
+  const parsedSystemInstructions = safelyJSONParse(systemInstructions);
+  if (!Array.isArray(parsedSystemInstructions)) {
+    return {};
+  }
+
+  const attributes: Attributes = {};
+  const messagePrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0`;
+  attributes[`${messagePrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "system";
+  let contentIndex = 0;
+  parsedSystemInstructions.forEach((part) => {
+    if (typeof part === "object" && part !== null && "content" in part) {
+      const contentsPrefix = `${messagePrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
+      attributes[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+      attributes[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+        typeof part.content === "string" ? part.content : undefined;
+      contentIndex++;
+    }
+  });
+
+  return attributes;
+};
+
+/**
+ * Maps `gen_ai.tool.definitions` onto OpenInference tool JSON schema attributes.
+ * @param toolDefinitions the raw `gen_ai.tool.definitions` value
+ * @returns the mapped attributes
+ */
+const getGenAIToolDefinitionAttributes = (toolDefinitions: string): Attributes => {
+  const parsedToolDefinitions = safelyJSONParse(toolDefinitions);
+  if (!isArrayOfObjects(parsedToolDefinitions)) {
+    return {};
+  }
+
+  const attributes: Attributes = {};
+  parsedToolDefinitions.forEach((toolDefinition, index) => {
+    const name = toolDefinition.name;
+    const description = toolDefinition.description;
+    const inputSchema = toolDefinition.inputSchema;
+    if (typeof name !== "string") {
+      return;
+    }
+    const toolJsonSchema = safelyJSONStringify({
+      type: "function",
+      function: {
+        name,
+        description: typeof description === "string" ? description : undefined,
+        parameters: inputSchema,
+      },
+    });
+    if (toolJsonSchema != null) {
+      attributes[
+        `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`
+      ] = toolJsonSchema;
+    }
+  });
+
+  return attributes;
+};
+
+/**
+ * Maps the `gen_ai.tool.*` attributes that only apply to TOOL spans.
+ * @param attributes the span attributes
+ * @returns the mapped attributes
+ */
+const getGenAIToolSpanAttributes = (attributes: Attributes): Attributes => {
+  const result: Attributes = {};
+
+  const toolCallId = attributes["gen_ai.tool.call.id"];
+  if (typeof toolCallId === "string") {
+    result[SemanticConventions.TOOL_CALL_ID] = toolCallId;
+  }
+
+  const toolName = attributes["gen_ai.tool.name"];
+  if (typeof toolName === "string") {
+    result[SemanticConventions.TOOL_NAME] = toolName;
+  }
+
+  const toolCallArguments = attributes["gen_ai.tool.call.arguments"];
+  if (toolCallArguments != null) {
+    result[SemanticConventions.TOOL_PARAMETERS] = toolCallArguments;
+    result[SemanticConventions.INPUT_VALUE] = toolCallArguments;
+    result[SemanticConventions.INPUT_MIME_TYPE] = getMimeTypeFromValue(toolCallArguments);
+  }
+
+  const toolCallResult = attributes["gen_ai.tool.call.result"];
+  if (toolCallResult != null) {
+    result[SemanticConventions.OUTPUT_VALUE] = toolCallResult;
+    result[SemanticConventions.OUTPUT_MIME_TYPE] = getMimeTypeFromValue(toolCallResult);
+  }
+
+  return result;
+};
+
+/**
  * Gets Vercel-specific fixes for GenAI attributes that need span-kind-aware OpenInference keys.
  * @param attributes the span attributes
  * @param spanKind the OpenInference span kind
@@ -909,21 +1044,10 @@ const getVercelGenAIAttributes = (
   let inputMessageIndex = 0;
   const systemInstructions = attributes["gen_ai.system_instructions"];
   if (typeof systemInstructions === "string") {
-    const parsedSystemInstructions = safelyJSONParse(systemInstructions);
-    if (Array.isArray(parsedSystemInstructions)) {
-      const messagePrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${inputMessageIndex}`;
-      result[`${messagePrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "system";
-      let contentIndex = 0;
-      parsedSystemInstructions.forEach((part) => {
-        if (typeof part === "object" && part !== null && "content" in part) {
-          const contentsPrefix = `${messagePrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
-          result[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
-          result[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-            typeof part.content === "string" ? part.content : undefined;
-          contentIndex++;
-        }
-      });
-      inputMessageIndex++;
+    const systemInstructionAttributes = getGenAISystemInstructionAttributes(systemInstructions);
+    Object.assign(result, systemInstructionAttributes);
+    if (Object.keys(systemInstructionAttributes).length > 0) {
+      inputMessageIndex = 1;
     }
   }
 
@@ -953,55 +1077,11 @@ const getVercelGenAIAttributes = (
 
   const toolDefinitions = attributes["gen_ai.tool.definitions"];
   if (typeof toolDefinitions === "string") {
-    const parsedToolDefinitions = safelyJSONParse(toolDefinitions);
-    if (isArrayOfObjects(parsedToolDefinitions)) {
-      parsedToolDefinitions.forEach((toolDefinition, index) => {
-        const name = toolDefinition.name;
-        const description = toolDefinition.description;
-        const inputSchema = toolDefinition.inputSchema;
-        if (typeof name !== "string") {
-          return;
-        }
-        const toolJsonSchema = safelyJSONStringify({
-          type: "function",
-          function: {
-            name,
-            description: typeof description === "string" ? description : undefined,
-            parameters: inputSchema,
-          },
-        });
-        if (toolJsonSchema != null) {
-          result[
-            `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`
-          ] = toolJsonSchema;
-        }
-      });
-    }
+    Object.assign(result, getGenAIToolDefinitionAttributes(toolDefinitions));
   }
 
   if (spanKind === OpenInferenceSpanKind.TOOL) {
-    const toolCallId = attributes["gen_ai.tool.call.id"];
-    if (typeof toolCallId === "string") {
-      result[SemanticConventions.TOOL_CALL_ID] = toolCallId;
-    }
-
-    const toolName = attributes["gen_ai.tool.name"];
-    if (typeof toolName === "string") {
-      result[SemanticConventions.TOOL_NAME] = toolName;
-    }
-
-    const toolCallArguments = attributes["gen_ai.tool.call.arguments"];
-    if (toolCallArguments != null) {
-      result[SemanticConventions.TOOL_PARAMETERS] = toolCallArguments;
-      result[SemanticConventions.INPUT_VALUE] = toolCallArguments;
-      result[SemanticConventions.INPUT_MIME_TYPE] = getMimeTypeFromValue(toolCallArguments);
-    }
-
-    const toolCallResult = attributes["gen_ai.tool.call.result"];
-    if (toolCallResult != null) {
-      result[SemanticConventions.OUTPUT_VALUE] = toolCallResult;
-      result[SemanticConventions.OUTPUT_MIME_TYPE] = getMimeTypeFromValue(toolCallResult);
-    }
+    Object.assign(result, getGenAIToolSpanAttributes(attributes));
   }
 
   if (attributes["gen_ai.output.type"] === "json") {
@@ -1099,6 +1179,161 @@ const safelyGetRerankAttributes = withSafety({
 });
 
 /**
+ * Normalizes an AI SDK provider identifier to an OpenInference decision provider name.
+ *
+ * The AI SDK names providers `<vendor>.<modality>` (e.g. `typesafe.decision`), and the
+ * Vercel AI Gateway prefixes model IDs with `<vendor>-ai/` (e.g. `typesafe-ai/jev`).
+ * Stripping the modality suffix and the `-ai` gateway suffix yields the vendor, which
+ * {@link getDecisionAttributes} lowercases to match the `DecisionProvider` and
+ * `DecisionSystem` values (e.g. `typesafe`, `openai`).
+ *
+ * This normalization is specific to decision spans: there is no well-known
+ * `decision.provider` value for a modality-suffixed name, whereas LLM spans keep the
+ * GenAI provider name unchanged in `llm.system` for parity with the GenAI converter.
+ * @param provider - the raw provider or gateway vendor identifier
+ * @returns the normalized decision provider name
+ */
+const normalizeDecisionProviderName = (provider: string): string => {
+  const [vendor] = provider.split(".");
+  return vendor.endsWith("-ai") ? vendor.slice(0, -"-ai".length) : vendor;
+};
+
+/**
+ * Gets decision model identity and usage attributes from AI SDK v7 `gen_ai.*` attributes,
+ * falling back to the legacy `ai.*` attributes.
+ * @param attributes - the span attributes
+ * @returns the `decision.*` model and token count attributes
+ */
+const getDecisionModelAttributes = (attributes: Attributes): Attributes => {
+  const requestModelName =
+    attributes["gen_ai.request.model"] ?? attributes[VercelAISemanticConventions.MODEL_ID];
+  const responseModelName =
+    attributes["gen_ai.response.model"] ?? attributes[VercelAISemanticConventions.RESPONSE_MODEL];
+  const provider =
+    attributes["gen_ai.provider.name"] ?? attributes[VercelAISemanticConventions.MODEL_PROVIDER];
+  const inputTokens =
+    attributes["gen_ai.usage.input_tokens"] ??
+    attributes[VercelAISemanticConventions.TOKEN_COUNT_INPUT];
+  const outputTokens =
+    attributes["gen_ai.usage.output_tokens"] ??
+    attributes[VercelAISemanticConventions.TOKEN_COUNT_OUTPUT];
+
+  // Gateway model IDs (`<vendor>/<model>`) identify the API ecosystem even when the
+  // gateway hosts the call, so the vendor prefix is the system and the gateway the provider.
+  const system =
+    typeof requestModelName === "string" && requestModelName.includes("/")
+      ? requestModelName.split("/")[0]
+      : provider;
+
+  return getDecisionAttributes({
+    system: typeof system === "string" ? normalizeDecisionProviderName(system) : undefined,
+    provider: typeof provider === "string" ? normalizeDecisionProviderName(provider) : undefined,
+    requestModelName: typeof requestModelName === "string" ? requestModelName : undefined,
+    responseModelName: typeof responseModelName === "string" ? responseModelName : undefined,
+    tokenCount: {
+      input: typeof inputTokens === "number" ? inputTokens : undefined,
+      output: typeof outputTokens === "number" ? outputTokens : undefined,
+    },
+  });
+};
+
+/**
+ * Gets input and output attributes from the AI SDK decision supplemental attributes
+ * (`ai.decision.state`, `ai.decision.questions`, `ai.decision.answers`).
+ * The input is a JSON object of whichever of state and questions were recorded.
+ * @param attributes - the span attributes
+ * @returns the input and output attributes
+ */
+const getDecisionIOAttributes = (attributes: Attributes): Attributes => {
+  const result: Attributes = {};
+  const input: Record<string, unknown> = {};
+  const state = attributes[VercelAISemanticConventions.DECISION_STATE];
+  const questions = attributes[VercelAISemanticConventions.DECISION_QUESTIONS];
+  if (typeof state === "string") {
+    const parsedState = safelyJSONParse(state);
+    if (parsedState !== undefined) {
+      input.state = parsedState;
+    }
+  }
+  if (typeof questions === "string") {
+    const parsedQuestions = safelyJSONParse(questions);
+    if (parsedQuestions !== undefined) {
+      input.questions = parsedQuestions;
+    }
+  }
+  if (Object.keys(input).length > 0) {
+    const inputValue = safelyJSONStringify(input);
+    if (inputValue != null) {
+      Object.assign(result, getInputAttributes({ value: inputValue, mimeType: MimeType.JSON }));
+    }
+  }
+
+  const answers = attributes[VercelAISemanticConventions.DECISION_ANSWERS];
+  if (typeof answers === "string" && safelyJSONParse(answers) !== undefined) {
+    Object.assign(result, getOutputAttributes({ value: answers, mimeType: MimeType.JSON }));
+  }
+
+  return result;
+};
+
+const safelyGetDecisionIOAttributes = withSafety({
+  fn: getDecisionIOAttributes,
+  onError: onErrorCallback("decision input and output"),
+});
+
+/** Maps AI SDK decision model call telemetry into the dedicated OpenInference namespace. */
+const getDecisionModelCallAttributes = (attributes: Attributes): Attributes => ({
+  ...getDecisionModelAttributes(attributes),
+  ...getDecisionIOAttributes(attributes),
+});
+
+const safelyGetDecisionModelCallAttributes = withSafety({
+  fn: getDecisionModelCallAttributes,
+  onError: onErrorCallback("decision"),
+});
+
+/**
+ * Whether the span was emitted by an AI SDK `decide` operation or decision model call.
+ * Checks the v7 `gen_ai.operation.name` and the legacy `operation.name`.
+ * @param attributes - the span attributes
+ * @returns true if the span is part of a decision operation
+ */
+const isDecideOperation = (attributes: Attributes): boolean => {
+  if (attributes["gen_ai.operation.name"] === "decide") {
+    return true;
+  }
+  const operationName = attributes["operation.name"];
+  return (
+    typeof operationName === "string" &&
+    getVercelFunctionNameFromOperationName(operationName)?.startsWith("ai.decide") === true
+  );
+};
+
+/**
+ * Whether the span carries decision telemetry: either the `DECISION` model call or the
+ * `CHAIN` operation wrapping it.
+ * @param attributes - the span attributes
+ * @param spanKind - the OpenInference span kind resolved for the span
+ * @returns true if the span is a decision model call or decision operation
+ */
+const isDecisionSpan = (attributes: Attributes, spanKind: AttributeValue | undefined): boolean =>
+  spanKind === OpenInferenceSpanKind.DECISION ||
+  (spanKind === OpenInferenceSpanKind.CHAIN && isDecideOperation(attributes));
+
+/**
+ * Removes `llm.*` attributes produced by the generic GenAI conversion, which treats every
+ * model call as an LLM. Decision spans identify the model under `decision.*` instead.
+ * @param attributes - the OpenInference attributes to strip in place
+ */
+const deleteLLMAttributes = (attributes: Attributes): void => {
+  Object.keys(attributes).forEach((key) => {
+    if (key.startsWith("llm.")) {
+      delete attributes[key];
+    }
+  });
+};
+
+/**
  * Gets Vercel-specific attributes that are not covered by gen_ai.* conventions
  * @param attributes - The span attributes
  * @param spanKind - The OpenInference span kind
@@ -1117,6 +1352,9 @@ const getVercelSpecificAttributes = (
 
     // Input/Output values from ai.response.* and ai.prompt
     ...safelyGetVercelIOAttributes(attributes, spanKind),
+
+    // Finish reason from ai.response.finishReason
+    ...safelyGetFinishReasonAttribute(attributes),
 
     // Metadata from ai.telemetry.metadata.*
     ...safelyGetMetadataAttributes(attributes),
@@ -1213,6 +1451,17 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
 
   // Step 2: Determine span kind from operation.name (Vercel-specific, more precise)
   const spanKind = safelyGetOISpanKindFromAttributes(attributes) ?? undefined;
+  if (
+    attributes["gen_ai.operation.name"] === "decide" &&
+    attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] == null &&
+    attributes["operation.name"] == null
+  ) {
+    // The AI SDK emits identical gen_ai.* attributes on the decide operation and its
+    // model call, so without the enrichSpan hint both become DECISION spans.
+    diag.debug(
+      "AI SDK decide span has no openinference.span.kind; pass enrichSpanWithOpenInference as the OpenTelemetry enrichSpan option to distinguish the decide operation from its model call",
+    );
+  }
 
   // Step 3: Get Vercel-specific attributes not covered by gen_ai.*
   const vercelSpecificAttributes = getVercelSpecificAttributes(attributes, spanKind);
@@ -1232,6 +1481,23 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
     ...vercelGenAIAttributes,
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: finalSpanKind,
   };
+
+  if (isDecisionSpan(attributes, finalSpanKind)) {
+    deleteLLMAttributes(result);
+    if (finalSpanKind === OpenInferenceSpanKind.DECISION) {
+      Object.assign(result, safelyGetDecisionModelCallAttributes(attributes));
+    } else {
+      // The outer decide operation wraps the model call. Keep its input and
+      // output, but leave model identity and usage on the child DECISION span.
+      Object.assign(result, safelyGetDecisionIOAttributes(attributes));
+    }
+  }
+
+  // A session.id already on the span (e.g. propagated from setSession context) takes precedence
+  // over the one derived from gen_ai.conversation.id.
+  if (attributes[SemanticConventions.SESSION_ID] != null) {
+    delete result[SemanticConventions.SESSION_ID];
+  }
 
   if (
     finalSpanKind === OpenInferenceSpanKind.EMBEDDING ||
@@ -1282,6 +1548,26 @@ export const shouldExportSpan = ({
 };
 
 /**
+ * Removes the GenAI model identity and usage attributes from a decision span.
+ * Consumers such as Phoenix independently convert `gen_ai.request.model`, `gen_ai.response.model`,
+ * `gen_ai.provider.name` and `gen_ai.usage.*` into `llm.*`, which would re-label the decision
+ * model as an LLM. The values are preserved under `decision.*` on the DECISION span first.
+ * @param span - the decision span to strip in place
+ */
+const deleteGenAIModelAttributes = (span: ReadableSpan): void => {
+  Object.keys(span.attributes).forEach((key) => {
+    if (
+      key === "gen_ai.provider.name" ||
+      key === "gen_ai.request.model" ||
+      key === "gen_ai.response.model" ||
+      key.startsWith("gen_ai.usage.")
+    ) {
+      delete span.attributes[key];
+    }
+  });
+};
+
+/**
  * Adds OpenInference attributes to a span based on the span's existing attributes.
  * @param span - The span to add OpenInference attributes to.
  */
@@ -1293,8 +1579,12 @@ export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
   // newer versions of opentelemetry will not allow you to reassign
   // the attributes object, so you must edit it by keyname instead
   Object.entries(newAttributes).forEach(([key, value]) => {
-    span.attributes[key] = value as AttributeValue;
+    span.attributes[key] = value;
   });
+
+  if (isDecisionSpan(span.attributes, newAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND])) {
+    deleteGenAIModelAttributes(span);
+  }
 
   // Remove GenAI semantic convention events (e.g., ai.stream.firstChunk, ai.stream.finish)
   // These are Vercel AI SDK stream events that are not needed for OpenInference.

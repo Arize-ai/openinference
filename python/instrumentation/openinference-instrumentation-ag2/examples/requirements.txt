@@ -1,0 +1,6 @@
+ag2[openai]>=0.14.0,<1.0.0
+arize-phoenix
+openinference-instrumentation-ag2
+openinference-instrumentation-openai
+opentelemetry-exporter-otlp
+opentelemetry-sdk

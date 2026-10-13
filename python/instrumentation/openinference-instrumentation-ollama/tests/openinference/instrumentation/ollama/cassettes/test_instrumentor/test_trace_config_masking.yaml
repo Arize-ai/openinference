@@ -1,0 +1,58 @@
+interactions:
+- request:
+    body: '{"model":"qwen3.6:latest","stream":false,"options":{"temperature":0,"seed":42},"messages":[{"role":"user","content":"This
+      contains PII"}],"tools":[]}'
+    headers: {}
+    method: POST
+    uri: http://127.0.0.1:11434/api/chat
+  response:
+    body:
+      string: "{\"model\":\"qwen3.6:latest\",\"created_at\":\"2026-08-07T06:08:46.460387Z\",\"message\":{\"role\":\"assistant\",\"content\":\"Thank
+        you for the heads-up. To clarify, your message doesn't actually contain any
+        PII right now, but it's always smart to be cautious with sensitive information.
+        \\n\\nFor your privacy and security:\\n\U0001F512 **Avoid sharing real names,
+        addresses, phone numbers, emails, government IDs, financial details, or other
+        identifiable data in AI chats.**\\n\U0001F4DD If you need help drafting, editing,
+        or analyzing something that would normally include PII, use placeholders like
+        `[Name]`, `[Phone]`, `[Email]`, or `[ID]`.\\n\U0001F50D If you've already
+        shared PII elsewhere (including in previous conversations), review that platform's
+        privacy policy and consider requesting data deletion if available.\\n\\nIf
+        you'd like help with a specific task (e.g., redacting documents, writing templates,
+        understanding privacy compliance, or working with anonymized data), just describe
+        what you're trying to accomplish and I'll guide you safely.\",\"thinking\":\"Here's
+        a thinking process:\\n\\n1.  **Analyze User Input:**\\n   - User says: \\\"This
+        contains PII\\\"\\n   - This is a very brief statement, likely indicating
+        that they've shared or are about to share information containing Personally
+        Identifiable Information (PII).\\n   - No actual PII is provided in the prompt
+        itself.\\n\\n2.  **Identify Key Concerns:**\\n   - PII (Personally Identifiable
+        Information) includes names, addresses, phone numbers, email addresses, SSNs,
+        financial info, etc.\\n   - Sharing PII with AI systems can raise privacy/security
+        concerns.\\n   - I need to acknowledge the concern, advise on best practices,
+        and clarify my capabilities/limitations regarding PII.\\n\\n3.  **Determine
+        Response Goals:**\\n   - Acknowledge the statement\\n   - Clarify that no
+        PII was actually provided in this message\\n   - Advise on how to handle PII
+        safely (don't share it with AI, use redaction, etc.)\\n   - Offer to help
+        if they provide anonymized/redacted data\\n   - Maintain a helpful, privacy-conscious
+        tone\\n\\n4.  **Draft Response (Mental Refinement):**\\n   Thank you for the
+        heads-up. I want to clarify that your message doesn\u2019t actually contain
+        any PII right now, but it\u2019s always smart to be cautious with sensitive
+        information. For your privacy and security, I recommend:\\n   - Never sharing
+        real names, addresses, phone numbers, emails, IDs, or financial details in
+        AI chats\\n   - Using placeholders like [Name], [Phone], or [Email] if you
+        need help with a template or example\\n   - If you\u2019ve already shared
+        PII elsewhere, consider reviewing that platform\u2019s privacy policy and
+        taking steps to remove it if needed\\n   \\n   If you\u2019d like help with
+        something specific (like drafting a message, analyzing anonymized data, or
+        understanding privacy best practices), just let me know what you\u2019re working
+        on\u2014I\u2019m here to help safely!\\n\\n5.  **Check Against Guidelines:**\\n
+        \  - Acknowledges PII concern? Yes\\n   - Clarifies no PII was provided? Yes\\n
+        \  - Gives actionable privacy advice? Yes\\n   - Offers safe alternative/help?
+        Yes\\n   - Tone appropriate? Yes, professional and privacy-conscious\\n   -
+        No overpromising or false claims? Yes\\n\\n6.  **Final Polish:** Ensure clarity,
+        conciseness, and alignment with standard AI safety/privacy guidelines. The
+        draft looks solid. I'll output it.\u2705\"},\"done\":true,\"done_reason\":\"stop\",\"total_duration\":7041180583,\"load_duration\":154718291,\"prompt_eval_count\":14,\"prompt_eval_duration\":52630000,\"eval_count\":721,\"eval_duration\":6832326000}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

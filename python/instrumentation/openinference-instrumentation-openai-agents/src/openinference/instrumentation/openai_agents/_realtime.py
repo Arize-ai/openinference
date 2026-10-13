@@ -22,6 +22,7 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value, set_
 from opentelemetry.trace import Span, Status, StatusCode, set_span_in_context
 
 from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.openai_agents._processor import _map_finish_reason
 from openinference.semconv.trace import (
     OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
@@ -54,6 +55,7 @@ _INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 _SESSION_ID = SpanAttributes.SESSION_ID
 _LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 _LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+_LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 _LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 _LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 _LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
@@ -560,6 +562,7 @@ class _RealtimeSessionState:
         usage: Optional[Dict[str, Any]],
         model_name: Optional[str],
         output: Optional[list[Any]] = None,
+        status: Optional[str] = None,
     ) -> None:
         response = self._response(response_id)
         if not response or response.closed:
@@ -580,7 +583,9 @@ class _RealtimeSessionState:
             response_id,
             has_function_call,
         )
-        _finalize_response(response, self._config, usage=usage, model_name=model_name)
+        _finalize_response(
+            response, self._config, usage=usage, model_name=model_name, status_reason=status
+        )
 
         if not turn or turn.closed:
             return
@@ -795,6 +800,7 @@ def _finalize_response(
     usage: Optional[Dict[str, Any]] = None,
     model_name: Optional[str] = None,
     status: Optional[Status] = None,
+    status_reason: Optional[str] = None,
 ) -> None:
     if response.closed:
         return
@@ -806,6 +812,8 @@ def _finalize_response(
     max_len = _base64_audio_max_length()
     status = status or Status(StatusCode.OK)
     llm_span = response.llm_span
+    if finish_reason := _map_finish_reason(status_reason, None):
+        llm_span.set_attribute(_LLM_FINISH_REASON, finish_reason)
     effective_model = model_name or response.model_name
     effective_usage = usage or response.usage
     if model_name:
@@ -1067,6 +1075,7 @@ def _dispatch_raw(state: _RealtimeSessionState, event: Any) -> None:
             resp.get("usage"),
             resp.get("model"),
             resp.get("output"),
+            resp.get("status"),
         )
 
 

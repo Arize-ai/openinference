@@ -6,6 +6,7 @@ catch integration drift — frame ordering, lifecycle hooks, the
 TurnTrackingObserver parent class, and the PipelineTask wrapper.
 """
 
+import inspect
 import json
 
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -22,6 +23,18 @@ from pipecat.services.llm_service import LLMService
 from pipecat.tests.utils import SleepFrame, run_test
 
 from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
+
+# Newer pipecat (>=1.6) makes run_test wait up to ``start_timeout`` seconds for
+# the pipeline to emit ``on_pipeline_started`` before pushing frames; older
+# releases just slept briefly and expose no such parameter. The new 1.0s
+# default is too tight when the whole smoke suite runs concurrently under
+# pytest-xdist: pipeline startup races other workers for the CPU and can take
+# longer than a second, surfacing as a spurious TimeoutError. Pass a generous
+# timeout when the installed harness supports it, and stay a no-op on older
+# pipecat so the pinned test env keeps working.
+_START_TIMEOUT_KWARGS = (
+    {"start_timeout": 30.0} if "start_timeout" in inspect.signature(run_test).parameters else {}
+)
 
 
 class StubLLMService(LLMService):
@@ -63,6 +76,7 @@ async def test_observer_creates_spans_through_real_pipeline(
         service,
         frames_to_send=[LLMContextFrame(context=context), SleepFrame(sleep=0.1)],
         observers=[observer],
+        **_START_TIMEOUT_KWARGS,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -99,6 +113,7 @@ async def test_observer_handles_dict_valued_message_content(
         service,
         frames_to_send=[LLMContextFrame(context=context), SleepFrame(sleep=0.1)],
         observers=[observer],
+        **_START_TIMEOUT_KWARGS,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -133,6 +148,7 @@ async def test_observer_handles_llm_specific_message(
         service,
         frames_to_send=[LLMContextFrame(context=context), SleepFrame(sleep=0.1)],
         observers=[observer],
+        **_START_TIMEOUT_KWARGS,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()

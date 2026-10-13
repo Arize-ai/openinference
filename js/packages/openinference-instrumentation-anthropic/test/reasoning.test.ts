@@ -14,15 +14,19 @@ import {
 
 import { AnthropicInstrumentation } from "../src/instrumentation";
 import { vcrFetch, vcrFetchSequence } from "./helpers/vcr";
+import { waitForSpans as waitForSpansOn } from "./helpers/waitForSpans";
 
 const {
   OPENINFERENCE_SPAN_KIND,
   LLM_PROVIDER,
   LLM_SYSTEM,
   LLM_MODEL_NAME,
+  LLM_REQUEST_MODEL_NAME,
+  LLM_RESPONSE_MODEL_NAME,
   LLM_INVOCATION_PARAMETERS,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_COMPLETION,
+  LLM_FINISH_REASON,
   LLM_TOKEN_COUNT_TOTAL,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
@@ -46,15 +50,7 @@ const {
 } = SemanticConventions;
 
 const memoryExporter = new InMemorySpanExporter();
-
-async function waitForSpans(count: number) {
-  for (let i = 0; i < 50; i++) {
-    if (memoryExporter.getFinishedSpans().length >= count) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
+const waitForSpans = (count: number) => waitForSpansOn(memoryExporter, count);
 
 function pop(attributes: Attributes, key: string): unknown {
   const value = attributes[key];
@@ -113,6 +109,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     const inputValue = pop(attributes, INPUT_VALUE);
     expect(inputValue).toBe(JSON.stringify(requestBody));
@@ -160,6 +158,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(221);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(273);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("end_turn");
     expect(attributes).toEqual({});
   });
 
@@ -199,6 +198,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
@@ -243,6 +244,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(204);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(256);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("end_turn");
     expect(attributes).toEqual({});
   });
 
@@ -275,6 +277,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
@@ -311,6 +315,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(5);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(54);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("end_turn");
     expect(attributes).toEqual({});
   });
 
@@ -350,6 +355,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
@@ -385,6 +392,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(5);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(54);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("end_turn");
     expect(attributes).toEqual({});
   });
 
@@ -432,6 +440,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
       expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
       expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+      expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+      expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
       const inputValue = pop(attributes, INPUT_VALUE);
       expect(inputValue).toEqual(expect.any(String));
@@ -514,6 +524,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toEqual(expect.any(Number));
       expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toEqual(expect.any(Number));
 
+      expect(pop(attributes, LLM_FINISH_REASON)).toBe("end_turn");
       expect(attributes).toEqual({});
     },
   );
@@ -560,6 +571,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
@@ -640,6 +653,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(99);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(695);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("tool_use");
     expect(attributes).toEqual({});
   });
 
@@ -692,6 +706,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
@@ -773,6 +789,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(99);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(695);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("tool_use");
     expect(attributes).toEqual({});
   });
 });

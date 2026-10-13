@@ -1,0 +1,15 @@
+interactions:
+- request:
+    body: '{"model":"nonexistent-model:latest","stream":false,"messages":[{"role":"user","content":"Why
+      is the sky blue?"}],"tools":[]}'
+    headers: {}
+    method: POST
+    uri: http://127.0.0.1:11434/api/chat
+  response:
+    body:
+      string: '{"error":"model ''nonexistent-model:latest'' not found"}'
+    headers: {}
+    status:
+      code: 404
+      message: Not Found
+version: 1

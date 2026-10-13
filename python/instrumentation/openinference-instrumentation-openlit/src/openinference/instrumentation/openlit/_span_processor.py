@@ -278,8 +278,15 @@ def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
 
     invocation_params = find_invocation_parameters(attrs)
     provider_val, system_val = _extract_llm_provider_and_system(attrs)
+    response_finish_reasons = attrs.get("gen_ai.response.finish_reasons")
+    finish_reason = response_finish_reasons[0] if response_finish_reasons else None
 
     oi_attrs = {
+        **(
+            {sc.SpanAttributes.LLM_FINISH_REASON: finish_reason}
+            if finish_reason is not None
+            else {}
+        ),
         **get_llm_attributes(
             provider=provider_val,
             system=system_val,

@@ -67,6 +67,23 @@ class _ConverseStreamCallback:
             if "toolUse" in delta and "input" in delta["toolUse"]:
                 tool_use = content[index].setdefault("toolUse", {})
                 tool_use["input"] = tool_use.get("input", "") + delta["toolUse"]["input"]
+            if "reasoningContent" in delta:
+                reasoning_delta = delta["reasoningContent"]
+                reasoning = content[index].setdefault("reasoningContent", {})
+                if "text" in reasoning_delta:
+                    reasoning_text = reasoning.setdefault("reasoningText", {})
+                    reasoning_text["text"] = (
+                        reasoning_text.get("text", "") + reasoning_delta["text"]
+                    )
+                if "signature" in reasoning_delta:
+                    reasoning_text = reasoning.setdefault("reasoningText", {})
+                    reasoning_text["signature"] = (
+                        reasoning_text.get("signature", "") + reasoning_delta["signature"]
+                    )
+                if "redactedContent" in reasoning_delta:
+                    reasoning["redactedContent"] = (
+                        reasoning.get("redactedContent", b"") + reasoning_delta["redactedContent"]
+                    )
         if "contentBlockStart" in obj:
             content.append(dict(obj["contentBlockStart"]["start"]))
         if "contentBlockStop" in obj:

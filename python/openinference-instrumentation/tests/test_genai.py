@@ -24,6 +24,7 @@ from openinference.instrumentation._genai_attributes import (
     GenAIToolTypeValues,
 )
 from openinference.instrumentation._genai_conversion import (
+    _normalize_tool_definition,
     get_genai_attributes,
     get_genai_base_attributes,
 )
@@ -31,6 +32,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
 )
 
 # OTel GenAI semconv JSON schemas (v1.41.1) vendored at tests/fixtures/genai_schemas/.
@@ -220,6 +222,138 @@ def test_get_genai_attributes_maps_llm_chat_attributes() -> None:
             },
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("tool_definition", "expected"),
+    [
+        pytest.param(
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the weather",
+                    "parameters": {},
+                },
+            },
+            {
+                "type": "function",
+                "name": "get_weather",
+                "description": "Get the weather",
+            },
+            id="openai",
+        ),
+        pytest.param(
+            {
+                "name": "get_weather",
+                "description": "Get the weather",
+                "input_schema": {},
+            },
+            {
+                "type": "function",
+                "name": "get_weather",
+                "description": "Get the weather",
+                "parameters": {},
+            },
+            id="anthropic",
+        ),
+        pytest.param(
+            {
+                "name": "get_weather",
+                "description": "Get the weather",
+                "parameters": {"type": "object"},
+            },
+            {
+                "type": "function",
+                "name": "get_weather",
+                "description": "Get the weather",
+                "parameters": {"type": "object"},
+            },
+            id="normalized",
+        ),
+        pytest.param(
+            {"toolSpec": {"name": "get_weather", "inputSchema": {"json": {}}}},
+            {"toolSpec": {"name": "get_weather", "inputSchema": {"json": {}}}},
+            id="unknown-provider",
+        ),
+    ],
+)
+def test_normalize_tool_definition_by_provider_shape(
+    tool_definition: Dict[str, Any],
+    expected: Dict[str, Any],
+) -> None:
+    assert _normalize_tool_definition(tool_definition) == expected
+
+
+def test_normalize_tool_definition_unwraps_openinference_tool_bucket() -> None:
+    tool_definition = {
+        ToolAttributes.TOOL_JSON_SCHEMA: json.dumps(
+            {
+                "type": "function",
+                "function": {"name": "get_weather", "parameters": {"type": "object"}},
+            }
+        )
+    }
+
+    assert _normalize_tool_definition(tool_definition) == {
+        "type": "function",
+        "name": "get_weather",
+        "parameters": {"type": "object"},
+    }
+
+
+def test_normalize_tool_definition_rejects_invalid_json() -> None:
+    assert _normalize_tool_definition("not JSON") is None
+
+
+def test_get_genai_attributes_reads_tool_definition_names_from_tool_name_and_description() -> None:
+    openinference_attributes: Dict[str, Any] = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+        f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}": json.dumps(
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the weather",
+                    "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+                },
+            }
+        ),
+        # A bare parameter schema carries no name of its own.
+        f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_NAME}": "get_time",
+        f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_DESCRIPTION}": "Get the time",
+        f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_JSON_SCHEMA}": json.dumps(
+            {"type": "object", "properties": {"timezone": {"type": "string"}}}
+        ),
+        f"{SpanAttributes.LLM_TOOLS}.2.{ToolAttributes.TOOL_NAME}": "lookup",
+        f"{SpanAttributes.LLM_TOOLS}.2.{ToolAttributes.TOOL_DESCRIPTION}": "Look something up",
+        # A description alone cannot form a valid GenAI tool definition and is ignored.
+        f"{SpanAttributes.LLM_TOOLS}.3.{ToolAttributes.TOOL_DESCRIPTION}": "Missing a name",
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    tool_definitions = _load_json_attribute(
+        genai_attributes, GenAIAttributes.GEN_AI_TOOL_DEFINITIONS
+    )
+    assert [definition.get("name") for definition in tool_definitions] == [
+        "get_weather",
+        "get_time",
+        "lookup",
+    ]
+    assert tool_definitions[0] == {
+        "type": "function",
+        "name": "get_weather",
+        "description": "Get the weather",
+        "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+    }
+    assert tool_definitions[1]["description"] == "Get the time"
+    assert tool_definitions[2] == {
+        "type": GenAIToolTypeValues.FUNCTION.value,
+        "name": "lookup",
+        "description": "Look something up",
+    }
 
 
 def test_get_genai_attributes_maps_text_completion_prompts_and_choices() -> None:
@@ -514,6 +648,36 @@ def test_oi_tracer_derives_genai_from_masked_attributes(
             "parts": [{"type": "text", "content": REDACTED_VALUE}],
         }
     ]
+
+
+def test_oi_tracer_does_not_derive_genai_tool_definitions_from_masked_tools(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__),
+        TraceConfig(enable_genai_semconv=True, hide_llm_tools=True),
+    )
+
+    with tracer.start_as_current_span(
+        "masked-llm-span",
+        openinference_span_kind="llm",
+    ) as span:
+        span.set_attributes(
+            get_llm_attributes(
+                tools=[
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather",
+                        "json_schema": {"type": "object", "properties": {}},
+                    }
+                ]
+            )
+        )
+
+    attributes = dict(in_memory_span_exporter.get_finished_spans()[0].attributes or {})
+    assert not any(key.startswith(f"{SpanAttributes.LLM_TOOLS}.") for key in attributes)
+    assert GenAIAttributes.GEN_AI_TOOL_DEFINITIONS not in attributes
 
 
 def test_oi_tracer_preserves_initial_genai_attributes_after_set_attribute(

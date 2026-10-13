@@ -3,7 +3,7 @@ from abc import ABC
 from contextlib import contextmanager
 from enum import Enum
 from inspect import Signature, signature
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
@@ -17,7 +17,10 @@ from openinference.instrumentation.portkey._request_attributes_extractor import 
 from openinference.instrumentation.portkey._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.portkey._utils import _finish_tracing
+from openinference.instrumentation.portkey._utils import (
+    _finish_tracing,
+    _materialize_content_iterables,
+)
 from openinference.instrumentation.portkey._with_span import _WithSpan
 
 logger = logging.getLogger(__name__)
@@ -104,6 +107,13 @@ class _CompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        materialize_error: Optional[Exception] = None
+        try:
+            kwargs = _materialize_content_iterables(kwargs)
+        except Exception as exception:
+            # Reading a generator runs user code; record its failure on the span below.
+            materialize_error = exception
+
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {**kwargs}
         for arg in args:
@@ -121,6 +131,8 @@ class _CompletionsWrapper(_WithTracer):
             ),
         ) as span:
             try:
+                if materialize_error is not None:
+                    raise materialize_error
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.record_exception(exception)
@@ -162,6 +174,13 @@ class _AsyncCompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
+        materialize_error: Optional[Exception] = None
+        try:
+            kwargs = _materialize_content_iterables(kwargs)
+        except Exception as exception:
+            # Reading a generator runs user code; record its failure on the span below.
+            materialize_error = exception
+
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {**kwargs}
         for arg in args:
@@ -179,6 +198,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
             ),
         ) as span:
             try:
+                if materialize_error is not None:
+                    raise materialize_error
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
                 span.record_exception(exception)

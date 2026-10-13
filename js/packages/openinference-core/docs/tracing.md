@@ -24,6 +24,12 @@ interface SpanTraceOptions<Fn> {
 }
 ```
 
+To record LLM-specific attributes such as `llm.request.model_name` and
+`llm.response.model_name`, compose `getLLMAttributes` into the input/output
+processors — see
+[Request and Response Model Names](attribute-helpers.md#request-and-response-model-names)
+for the canonical example.
+
 ### Basic Usage
 
 ```typescript
@@ -172,17 +178,24 @@ const traced = withSpan(myFn, {
 });
 ```
 
-## traceChain, traceAgent, traceTool
+## traceChain, traceAgent, traceTool, and other span kind wrappers
 
 Convenience wrappers that call `withSpan` with the `kind` pre-set. Their options
-type is `Omit<SpanTraceOptions, "kind">`.
+type is `Omit<SpanTraceOptions, "kind">`. One wrapper exists for every
+OpenInference span kind.
 
 ```typescript
-import { traceAgent, traceChain, traceTool } from "@arizeai/openinference-core";
+import {
+  traceAgent,
+  traceChain,
+  traceDecision,
+  traceTool,
+} from "@arizeai/openinference-core";
 
 const chain = traceChain(myPipeline, { name: "rag-chain" });     // kind = CHAIN
 const agent = traceAgent(myOrchestrator, { name: "qa-agent" });  // kind = AGENT
 const tool  = traceTool(myApiCall, { name: "weather-lookup" });   // kind = TOOL
+const route = traceDecision(selectRoute, { name: "route-selection" }); // kind = DECISION
 ```
 
 ### When to Use Which
@@ -192,7 +205,52 @@ const tool  = traceTool(myApiCall, { name: "weather-lookup" });   // kind = TOOL
 | `traceChain` | CHAIN | Multi-step workflows, pipelines, sequential processing |
 | `traceAgent` | AGENT | Autonomous agents, decision-making loops, orchestrators |
 | `traceTool` | TOOL | External API calls, database queries, calculators |
-| `withSpan` | (any) | When you need RETRIEVER, LLM, EMBEDDING, RERANKER, GUARDRAIL, EVALUATOR, or any other kind |
+| `traceLLM` | LLM | Language model inference calls |
+| `traceRetriever` | RETRIEVER | Document/context retrieval (RAG) |
+| `traceReranker` | RERANKER | Reordering candidate documents by relevance |
+| `traceEmbedding` | EMBEDDING | Generating vector representations |
+| `traceGuardrail` | GUARDRAIL | Safety, validation, and policy checks |
+| `traceEvaluator` | EVALUATOR | Scoring/assessing output quality |
+| `tracePrompt` | PROMPT | Constructing or templating prompts |
+| `traceDecision` | DECISION | Decision model calls that score or select among candidate options (route selection, rubric scoring) |
+| `withSpan` | (any) | When you need to set `kind` dynamically or use a kind without a dedicated wrapper |
+
+### Decision Spans
+
+`traceDecision` marks a call to a decision model (one that scores or selects
+among candidate options instead of generating text). Pair it with
+`getDecisionAttributes` in `processInput` / `processOutput` to record the
+`decision.*` model identification and token counts alongside the raw request
+and response:
+
+```typescript
+import {
+  defaultProcessInput,
+  defaultProcessOutput,
+  getDecisionAttributes,
+  traceDecision,
+} from "@arizeai/openinference-core";
+
+const chooseRoute = traceDecision(
+  async (request: SystemOneRequest) => client.systemOne.create(request),
+  {
+    name: "route-selection",
+    processInput: (request) => ({
+      ...defaultProcessInput(request),
+      ...getDecisionAttributes({ system: "typesafe", requestModelName: request.model }),
+    }),
+    processOutput: (response) => ({
+      ...defaultProcessOutput(response),
+      ...getDecisionAttributes({
+        responseModelName: response.model,
+        tokenCount: { input: response.usage.input_tokens, output: response.usage.output_tokens },
+      }),
+    }),
+  },
+);
+```
+
+See [attribute-helpers.md](./attribute-helpers.md#getdecisionattributes) for the full option list.
 
 ### Nested Tracing Example
 

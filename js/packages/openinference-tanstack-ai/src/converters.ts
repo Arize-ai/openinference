@@ -216,9 +216,14 @@ export function updateToolCallArguments(
   if (existingToolCall == null) {
     return;
   }
+  const currentArguments = existingToolCall.function?.arguments;
+  const serializedArguments =
+    typeof currentArguments === "string"
+      ? currentArguments
+      : (safelyJSONStringify(currentArguments) ?? "");
   existingToolCall.function = {
     ...existingToolCall.function,
-    arguments: chunk.args ?? `${existingToolCall.function?.arguments ?? ""}${chunk.delta}`,
+    arguments: chunk.args ?? `${serializedArguments}${chunk.delta}`,
   };
 }
 

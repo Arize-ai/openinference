@@ -848,4 +848,62 @@ class HideFlagHierarchyTest {
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
                 .isNull();
     }
+
+    // ---- Span-level images: input.images.* / output.images.* ----
+
+    @Test
+    void hideInputsSuppressesSpanLevelInputImages() {
+        OITracer tracer = createTracer(TraceConfig.builder().hideInputs(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute("input.images.0.image.url", "data:image/png;base64,iVBORw0KGgo=");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("input.images.0.image.url")))
+                .isNull();
+    }
+
+    @Test
+    void hideInputImagesSuppressesSpanLevelInputImages() {
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideInputImages(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute("input.images.0.image.url", "data:image/png;base64,iVBORw0KGgo=");
+            span.setAttribute(SemanticConventions.INPUT_VALUE, "visible input");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("input.images.0.image.url")))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isEqualTo("visible input");
+    }
+
+    @Test
+    void hideOutputsSuppressesSpanLevelOutputImages() {
+        OITracer tracer = createTracer(TraceConfig.builder().hideOutputs(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute("output.images.0.image.url", "https://example.com/annotated.png");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("output.images.0.image.url")))
+                .isNull();
+    }
+
+    @Test
+    void spanLevelImagesAreVisibleByDefault() {
+        OITracer tracer = createTracer(TraceConfig.builder().build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute("input.images.0.image.url", "https://example.com/page-1.png");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("input.images.0.image.url")))
+                .isEqualTo("https://example.com/page-1.png");
+    }
 }

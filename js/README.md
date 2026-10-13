@@ -4,7 +4,7 @@ This is the JavaScript version of OpenInference, a framework for collecting trac
 
 ## Installation
 
-OpenInference uses OpenTelemetry Protocol (OTLP) to send traces to a compatible backend (e.x. [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax)). To use OpenInference, you will need to install the OpenTelemetry SDK and the OpenInference instrumentation for the LLM framework you are using.
+OpenInference uses OpenTelemetry Protocol (OTLP) to send traces to a compatible backend (e.x. [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)). To use OpenInference, you will need to install the OpenTelemetry SDK and the OpenInference instrumentation for the LLM framework you are using.
 
 Install the OpenTelemetry SDK:
 
@@ -56,10 +56,6 @@ Some frameworks expose first-class middleware or telemetry hooks instead of bein
 
 - [`@arizeai/openinference-tanstack-ai`](./packages/openinference-tanstack-ai) — middleware for [TanStack AI](https://tanstack.com/ai/latest/docs/getting-started/overview) that emits OpenInference-shaped spans for `chat()` runs, including LLM turns and tool calls.
 - [`@arizeai/openinference-vercel`](./packages/openinference-vercel) — utilities to ingest [Vercel AI SDK](https://github.com/vercel/ai) telemetry and reshape it to the OpenInference spec.
-
-## Examples
-
-For more examples on how to use OpenInference, see the [examples](./examples) directory.
 
 ## Contributing
 

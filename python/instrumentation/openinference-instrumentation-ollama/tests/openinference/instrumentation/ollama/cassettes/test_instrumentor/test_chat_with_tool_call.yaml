@@ -1,0 +1,23 @@
+interactions:
+- request:
+    body: '{"model":"qwen3.6:latest","stream":false,"options":{"temperature":0,"seed":42},"messages":[{"role":"user","content":"What
+      is the weather in Paris? Use the get_current_weather tool."}],"tools":[{"type":"function","function":{"name":"get_current_weather","description":"Get
+      the current weather in a city.","parameters":{"type":"object","required":["city"],"properties":{"city":{"type":"string","description":"The
+      city name."}}}}}]}'
+    headers: {}
+    method: POST
+    uri: http://127.0.0.1:11434/api/chat
+  response:
+    body:
+      string: "{\"model\":\"qwen3.6:latest\",\"created_at\":\"2026-08-07T06:08:09.335586Z\",\"message\":{\"role\":\"assistant\",\"content\":\"\",\"thinking\":\"Thinking
+        Process:\\n1.  **Identify User Intent**: The user wants to know the current
+        weather in Paris.\\n2.  **Identify Required Tool**: The user explicitly instructed
+        to use `get_current_weather`.\\n3.  **Check Tool Parameters**: `get_current_weather`
+        requires a `city` parameter (string).\\n4.  **Extract Parameters**: City =
+        \\\"Paris\\\".\\n5.  **Construct Tool Call**: `get_current_weather(city=\\\"Paris\\\")`.\\n6.
+        \ **Execute Tool Call**: Make the call.\u2705\",\"tool_calls\":[{\"id\":\"call_gsiiy8py\",\"function\":{\"index\":0,\"name\":\"get_current_weather\",\"arguments\":{\"city\":\"Paris\"}}}]},\"done\":true,\"done_reason\":\"stop\",\"total_duration\":1735248334,\"load_duration\":139246000,\"prompt_eval_count\":292,\"prompt_eval_duration\":247164000,\"eval_count\":143,\"eval_duration\":1337032000}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

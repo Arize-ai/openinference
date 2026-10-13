@@ -1,4 +1,5 @@
 import type {
+  SDKAssistantMessage,
   SDKResultError,
   SDKResultMessage,
   SDKResultSuccess,
@@ -21,9 +22,9 @@ export function isSystemInitMessage(msg: unknown): msg is SDKSystemMessage {
     msg != null &&
     typeof msg === "object" &&
     "type" in msg &&
-    (msg as Record<string, unknown>).type === "system" &&
+    msg.type === "system" &&
     "subtype" in msg &&
-    (msg as Record<string, unknown>).subtype === "init" &&
+    msg.subtype === "init" &&
     "session_id" in msg &&
     "model" in msg
   );
@@ -37,9 +38,9 @@ export function isResultSuccessMessage(msg: unknown): msg is SDKResultSuccess {
     msg != null &&
     typeof msg === "object" &&
     "type" in msg &&
-    (msg as Record<string, unknown>).type === "result" &&
+    msg.type === "result" &&
     "subtype" in msg &&
-    (msg as Record<string, unknown>).subtype === "success" &&
+    msg.subtype === "success" &&
     "result" in msg &&
     "usage" in msg
   );
@@ -49,14 +50,13 @@ export function isResultSuccessMessage(msg: unknown): msg is SDKResultSuccess {
  * Type guard: checks if a message is a result error message.
  */
 export function isResultErrorMessage(msg: unknown): msg is SDKResultError {
+  if (msg == null || typeof msg !== "object" || !("subtype" in msg)) return false;
+  const subtype = msg.subtype;
   return (
-    msg != null &&
-    typeof msg === "object" &&
     "type" in msg &&
-    (msg as Record<string, unknown>).type === "result" &&
-    "subtype" in msg &&
-    typeof (msg as Record<string, unknown>).subtype === "string" &&
-    ((msg as Record<string, unknown>).subtype as string).startsWith("error") &&
+    msg.type === "result" &&
+    typeof subtype === "string" &&
+    subtype.startsWith("error") &&
     "usage" in msg
   );
 }
@@ -66,6 +66,22 @@ export function isResultErrorMessage(msg: unknown): msg is SDKResultError {
  */
 export function isResultMessage(msg: unknown): msg is SDKResultMessage {
   return isResultSuccessMessage(msg) || isResultErrorMessage(msg);
+}
+
+/**
+ * Type guard: checks if a message is an assistant message.
+ */
+export function isAssistantMessage(msg: unknown): msg is SDKAssistantMessage {
+  return (
+    msg != null &&
+    typeof msg === "object" &&
+    "type" in msg &&
+    msg.type === "assistant" &&
+    "message" in msg &&
+    msg.message != null &&
+    typeof msg.message === "object" &&
+    "stop_reason" in msg.message
+  );
 }
 
 /**
@@ -84,9 +100,26 @@ export function extractInitAttributes(msg: SDKSystemMessage): {
 }
 
 /**
+ * Extracts the model's stop reason from a result message. The top-level
+ * `stop_reason` field is available in Claude Agent SDK 0.2.31 and later.
+ */
+function extractStopReason(msg: SDKResultMessage): string | undefined {
+  return msg.stop_reason ? String(msg.stop_reason) : undefined;
+}
+
+/**
+ * Extracts the model's stop reason from an assistant message. Claude Agent SDK
+ * versions 0.2.0 through 0.2.30 expose it only at `message.stop_reason`.
+ */
+export function extractAssistantStopReason(msg: SDKAssistantMessage): string | undefined {
+  return msg.message.stop_reason ? String(msg.message.stop_reason) : undefined;
+}
+
+/**
  * Extracts span attributes from a result success message.
  */
 export function extractResultSuccessAttributes(msg: SDKResultSuccess): Attributes {
+  const stopReason = extractStopReason(msg);
   return {
     ...getOutputAttributes(msg.result),
     [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: msg.usage.input_tokens,
@@ -94,6 +127,7 @@ export function extractResultSuccessAttributes(msg: SDKResultSuccess): Attribute
     [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: msg.usage.input_tokens + msg.usage.output_tokens,
     [SemanticConventions.LLM_COST_TOTAL]: msg.total_cost_usd,
     [SemanticConventions.SESSION_ID]: msg.session_id,
+    ...(stopReason != null ? { [SemanticConventions.LLM_FINISH_REASON]: stopReason } : {}),
   };
 }
 
@@ -109,6 +143,7 @@ export function extractResultErrorAttributes(msg: SDKResultError): Attributes {
           mimeType: MimeType.JSON,
         })
       : {};
+  const stopReason = extractStopReason(msg);
   return {
     ...outputAttrs,
     [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: msg.usage.input_tokens,
@@ -116,6 +151,7 @@ export function extractResultErrorAttributes(msg: SDKResultError): Attributes {
     [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: msg.usage.input_tokens + msg.usage.output_tokens,
     [SemanticConventions.LLM_COST_TOTAL]: msg.total_cost_usd,
     [SemanticConventions.SESSION_ID]: msg.session_id,
+    ...(stopReason != null ? { [SemanticConventions.LLM_FINISH_REASON]: stopReason } : {}),
   };
 }
 
@@ -124,7 +160,7 @@ export function extractResultErrorAttributes(msg: SDKResultError): Attributes {
  * Strings produce text/plain attributes; objects are JSON-stringified.
  * Delegates to {@link getInputAttributes} from `@arizeai/openinference-core`.
  */
-export function formatPromptAttributes(prompt: string | unknown): Attributes {
+export function formatPromptAttributes(prompt: unknown): Attributes {
   if (typeof prompt === "string") {
     return getInputAttributes(prompt);
   }

@@ -21,11 +21,14 @@ def _strip_response_headers(response: Any) -> Any:
 
 @pytest.fixture(scope="session")
 def vcr_config() -> dict[str, Any]:
+    # "none" replays existing cassettes and errors on anything missing, so a
+    # request without a cassette can never reach the real API. To re-record,
+    # run pytest with --record-mode=once.
     return {
         "before_record_request": _strip_request_headers,
         "before_record_response": _strip_response_headers,
         "decode_compressed_response": True,
-        "record_mode": "once",
+        "record_mode": "none",
     }
 
 

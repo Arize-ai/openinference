@@ -33,10 +33,10 @@ export class OISpan implements Span {
   }
 
   setAttributes(attributes: Attributes): this {
-    const maskedAttributes = Object.entries(attributes).reduce((maskedAttributes, [key, value]) => {
-      maskedAttributes[key] = mask({ config: this.config, key, value });
-      return maskedAttributes;
-    }, {} as Attributes);
+    const maskedAttributes = Object.entries(attributes).reduce<Attributes>((acc, [key, value]) => {
+      acc[key] = mask({ config: this.config, key, value });
+      return acc;
+    }, {});
     this.span.setAttributes(maskedAttributes);
     return this;
   }

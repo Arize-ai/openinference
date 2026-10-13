@@ -12,6 +12,7 @@ import {
 import type { LLMMessage } from "../src/types";
 import {
   safelyFlattenAttributes,
+  safelyFormatFinishReason,
   safelyFormatFunctionCalls,
   safelyFormatInputMessages,
   safelyFormatIO,
@@ -188,6 +189,123 @@ describe("formatMessages", () => {
       });
       expect(result).toEqual({
         [SemanticConventions.LLM_INPUT_MESSAGES]: expectedMessages,
+      });
+    });
+
+    it("should record content blocks as message contents", () => {
+      const result = safelyFormatInputMessages({
+        messages: [
+          [
+            getLangchainMessage({
+              lc_kwargs: {
+                content: [
+                  { type: "text", text: "what is in this image?" },
+                  {
+                    type: "image_url",
+                    image_url: { url: "data:image/png;base64,abc123" },
+                  },
+                ],
+                additional_kwargs: {},
+              },
+            }),
+            getLangchainMessage({
+              lc_kwargs: {
+                content: "plain string",
+                additional_kwargs: {},
+              },
+            }),
+          ],
+        ],
+      });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_INPUT_MESSAGES]: [
+          {
+            [SemanticConventions.MESSAGE_ROLE]: "user",
+            [SemanticConventions.MESSAGE_CONTENTS]: [
+              {
+                [SemanticConventions.MESSAGE_CONTENT_TYPE]: "text",
+                [SemanticConventions.MESSAGE_CONTENT_TEXT]: "what is in this image?",
+              },
+              {
+                [SemanticConventions.MESSAGE_CONTENT_TYPE]: "image",
+                [SemanticConventions.MESSAGE_CONTENT_IMAGE]: {
+                  [SemanticConventions.IMAGE_URL]: "data:image/png;base64,abc123",
+                },
+              },
+            ],
+          },
+          {
+            [SemanticConventions.MESSAGE_ROLE]: "user",
+            [SemanticConventions.MESSAGE_CONTENT]: "plain string",
+          },
+        ],
+      });
+    });
+
+    it("should record langchain standard image blocks and skip unknown blocks", () => {
+      const result = safelyFormatInputMessages({
+        messages: [
+          [
+            getLangchainMessage({
+              lc_kwargs: {
+                content: [
+                  "a bare string block",
+                  { type: "image", url: "https://example.com/cat.png" },
+                  { type: "image", source_type: "url", url: "https://example.com/dog.png" },
+                  { type: "image", mimeType: "image/jpeg", data: "abc123" },
+                  { type: "image", source_type: "base64", mime_type: "image/gif", data: "def456" },
+                  { type: "image_url", image_url: "https://example.com/plain.png" },
+                  { type: "image" },
+                  { type: "audio", url: "https://example.com/audio.mp3" },
+                  42,
+                ],
+                additional_kwargs: {},
+              },
+            }),
+          ],
+        ],
+      });
+      const image = (url: string) => ({
+        [SemanticConventions.MESSAGE_CONTENT_TYPE]: "image",
+        [SemanticConventions.MESSAGE_CONTENT_IMAGE]: {
+          [SemanticConventions.IMAGE_URL]: url,
+        },
+      });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_INPUT_MESSAGES]: [
+          {
+            [SemanticConventions.MESSAGE_ROLE]: "user",
+            [SemanticConventions.MESSAGE_CONTENTS]: [
+              {
+                [SemanticConventions.MESSAGE_CONTENT_TYPE]: "text",
+                [SemanticConventions.MESSAGE_CONTENT_TEXT]: "a bare string block",
+              },
+              image("https://example.com/cat.png"),
+              image("https://example.com/dog.png"),
+              image("data:image/jpeg;base64,abc123"),
+              image("data:image/gif;base64,def456"),
+              image("https://example.com/plain.png"),
+            ],
+          },
+        ],
+      });
+    });
+
+    it("should not record message contents when every block is unknown", () => {
+      const result = safelyFormatInputMessages({
+        messages: [
+          [
+            getLangchainMessage({
+              lc_kwargs: {
+                content: [{ type: "audio", url: "https://example.com/audio.mp3" }],
+                additional_kwargs: {},
+              },
+            }),
+          ],
+        ],
+      });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_INPUT_MESSAGES]: [{ [SemanticConventions.MESSAGE_ROLE]: "user" }],
       });
     });
 
@@ -645,6 +763,85 @@ describe("formatTokenCounts", () => {
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 35,
+    });
+  });
+});
+
+describe("formatFinishReason", () => {
+  it("should return null when the first generation is missing", () => {
+    expect(safelyFormatFinishReason(undefined)).toBeNull();
+    expect(safelyFormatFinishReason({ generations: [] })).toBeNull();
+  });
+
+  it.each([
+    ["finish_reason", "stop"],
+    ["stop_reason", "end_turn"],
+    ["finishReason", "length"],
+    ["stopReason", "tool_use"],
+  ])("should extract %s from generationInfo", (key, value) => {
+    const result = safelyFormatFinishReason({
+      generations: [[{ generationInfo: { [key]: value } }]],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: value,
+    });
+  });
+
+  it("should fall back to response_metadata for streamed generations", () => {
+    const result = safelyFormatFinishReason({
+      generations: [
+        [
+          {
+            message: {
+              response_metadata: { finish_reason: "stop" },
+            },
+          },
+        ],
+      ],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: "stop",
+    });
+  });
+
+  it("should prefer generationInfo over response_metadata", () => {
+    const result = safelyFormatFinishReason({
+      generations: [
+        [
+          {
+            generationInfo: { finish_reason: "length" },
+            message: {
+              response_metadata: { finish_reason: "stop" },
+            },
+          },
+        ],
+      ],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: "length",
+    });
+  });
+
+  it("should read response_metadata from serialized message kwargs", () => {
+    const result = safelyFormatFinishReason({
+      generations: [
+        [
+          {
+            message: {
+              lc_kwargs: {
+                response_metadata: { stop_reason: "end_turn" },
+              },
+            },
+          },
+        ],
+      ],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: "end_turn",
     });
   });
 });

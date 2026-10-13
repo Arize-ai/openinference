@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, List, Mapping, Sequence, Union, cast
+from typing import Any, List, Mapping, Optional, Sequence, Union, cast
 
 import pytest
 from opentelemetry import trace
@@ -22,6 +22,7 @@ from openinference.semconv.trace import (
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
@@ -59,6 +60,16 @@ def _test_openai_agent_plain_text_output(
     spans = in_memory_span_exporter.get_finished_spans()
     llm_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
     attributes = dict(cast(Mapping[str, AttributeValue], llm_span.attributes))
+
+    assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4o"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
+    # pydantic-ai < 1.42.0 doesn't set gen_ai.provider.name; assert only when present
+    provider = attributes.pop(LLM_PROVIDER, None)
+    if provider is not None:
+        assert provider == OpenInferenceLLMProviderValues.OPENAI.value
+    system = attributes.pop(LLM_SYSTEM, None)
+    if system is not None:
+        assert system == OpenInferenceLLMSystemValues.OPENAI.value
 
     message_content = attributes.get(
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
@@ -131,6 +142,13 @@ def _test_openai_agent_and_llm_spans(
     _verify_agent_span(agent_span)
 
 
+def _concatenated_instructions(message_content: Optional[AttributeValue]) -> List[str]:
+    """Recover an agent's instructions from the single system message pydantic-ai joins
+    them into."""
+    assert isinstance(message_content, str)
+    return [line for line in message_content.splitlines() if line]
+
+
 def _verify_llm_span(span: ReadableSpan) -> None:
     """Verify the LLM span has correct attributes."""
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -141,6 +159,7 @@ def _verify_llm_span(span: ReadableSpan) -> None:
     )
 
     assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4o"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "tool_call"
     # pydantic-ai < 1.42.0 doesn't set gen_ai.provider.name; assert only when present
     provider = attributes.pop(LLM_PROVIDER, None)
     if provider is not None:
@@ -150,11 +169,9 @@ def _verify_llm_span(span: ReadableSpan) -> None:
         assert system == OpenInferenceLLMSystemValues.OPENAI.value
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}") == "system"
-    # System instructions get concatenated into a single message by pydantic
-    assert (
+    assert _concatenated_instructions(
         attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
-        == "Use the weather tool\nUse the calculator tool"
-    )
+    ) == ["Use the weather tool", "Use the calculator tool"]
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic
@@ -193,9 +210,8 @@ def _verify_llm_span(span: ReadableSpan) -> None:
     prompt_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT)
     completion_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION)
     total_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
-    assert isinstance(prompt_tokens, int)
-    assert isinstance(completion_tokens, int)
-    assert isinstance(total_tokens, int)
+    assert isinstance(prompt_tokens, int) and prompt_tokens > 0
+    assert isinstance(completion_tokens, int) and completion_tokens > 0
     assert total_tokens == prompt_tokens + completion_tokens
 
 
@@ -291,6 +307,7 @@ MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 
@@ -326,6 +343,10 @@ def test_openai_tool_span_instrumentation_v5(
     assert tool_attrs.get(SpanAttributes.TOOL_PARAMETERS) is not None
     assert tool_attrs.get(SpanAttributes.OUTPUT_VALUE) is not None
 
+    # The tool arguments must also land on input.value
+    assert json.loads(cast(str, tool_attrs[SpanAttributes.INPUT_VALUE])) == {"city": "Paris"}
+    assert tool_attrs.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+
     # An LLM span must carry the tool's JSON schema. pydantic-ai 2.0 serializes it under
     # ``parameters_json_schema`` (not ``properties``), so this guards the extraction path.
     # A tool-calling run produces multiple LLM spans (the call and the follow-up); the tool
@@ -343,6 +364,35 @@ def test_openai_tool_span_instrumentation_v5(
         for span in llm_spans
         if span.attributes and json_schema_key in span.attributes
     ]
+    # Every LLM span (including only TOOL call attributes) must report an output.value
+    for llm_span in llm_spans:
+        llm_attrs = dict(cast(Mapping[str, AttributeValue], llm_span.attributes))
+        assert llm_attrs.get(SpanAttributes.OUTPUT_VALUE) is not None, (
+            f"LLM span {llm_span.name!r} is missing output.value"
+        )
+        assert llm_attrs.pop(LLM_MODEL_NAME, None) == "gpt-4o-mini"
+        assert llm_attrs.pop(LLM_FINISH_REASON, None) in ["stop", "tool_call"]
+        # pydantic-ai < 1.42.0 doesn't set gen_ai.provider.name; assert only when present
+        provider = llm_attrs.pop(LLM_PROVIDER, None)
+        if provider is not None:
+            assert provider == OpenInferenceLLMProviderValues.OPENAI.value
+        system = llm_attrs.pop(LLM_SYSTEM, None)
+        if system is not None:
+            assert system == OpenInferenceLLMSystemValues.OPENAI.value
+
+    # Exactly one of them is the tool-calling step, and its output.value is the tool call
+    tool_calling_outputs = [
+        json.loads(cast(str, span.attributes[SpanAttributes.OUTPUT_VALUE]))
+        for span in llm_spans
+        if span.attributes
+        and span.attributes.get(SpanAttributes.OUTPUT_MIME_TYPE)
+        == OpenInferenceMimeTypeValues.JSON.value
+    ]
+    assert tool_calling_outputs, "no LLM span reported a tool call as its output.value"
+    assert any(
+        call.get("name") == "get_weather" for output in tool_calling_outputs for call in output
+    )
+
     assert json_schemas, "no LLM span carried llm.tools.0.tool.json_schema"
     # The emitted value must be the actual JSON schema object (the get_weather tool takes a
     # `city: str`), not just any string that happens to contain "city".

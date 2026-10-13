@@ -41,6 +41,7 @@ describe("V2 unstable_v2_prompt() wrapper", () => {
           type: "result",
           subtype: "success",
           result: "Prompt response",
+          stop_reason: "end_turn",
           usage: { input_tokens: 50, output_tokens: 30 },
           total_cost_usd: 0.003,
           num_turns: 1,
@@ -70,6 +71,8 @@ describe("V2 unstable_v2_prompt() wrapper", () => {
     );
     expect(span.attributes[SemanticConventions.INPUT_VALUE]).toBe("What is 2+2?");
     expect(span.attributes[SemanticConventions.OUTPUT_VALUE]).toBe("Prompt response");
+    expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe("claude-sonnet-4-20250514");
+    expect(span.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("end_turn");
     expect(span.attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT]).toBe(50);
     expect(span.attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]).toBe(30);
     expect(span.attributes[SemanticConventions.LLM_COST_TOTAL]).toBe(0.003);
@@ -131,6 +134,7 @@ describe("V2 session wrappers", () => {
         type: "result",
         subtype: "success",
         result: "Session response",
+        stop_reason: "end_turn",
         usage: { input_tokens: 75, output_tokens: 40 },
         total_cost_usd: 0.004,
         num_turns: 1,
@@ -181,6 +185,8 @@ describe("V2 session wrappers", () => {
     );
     expect(span.attributes[SemanticConventions.INPUT_VALUE]).toBe("Hello session");
     expect(span.attributes[SemanticConventions.OUTPUT_VALUE]).toBe("Session response");
+    expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe("claude-sonnet-4-20250514");
+    expect(span.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("end_turn");
   });
 
   it("should wrap resumeSession", async () => {
@@ -228,6 +234,55 @@ describe("V2 session wrappers", () => {
     expect(spans[0].name).toBe("ClaudeAgent.turn");
   });
 
+  it("should read finish reason from older assistant message shapes", async () => {
+    const messages = [
+      {
+        type: "assistant",
+        message: { stop_reason: "end_turn" },
+        parent_tool_use_id: null,
+        uuid: "assistant-uuid",
+        session_id: "sess-older-v2",
+      },
+      {
+        type: "result",
+        subtype: "success",
+        result: "Done",
+        usage: { input_tokens: 10, output_tokens: 5 },
+        total_cost_usd: 0.001,
+        num_turns: 1,
+        duration_ms: 100,
+        session_id: "sess-older-v2",
+      },
+    ];
+    const mockSession = {
+      sessionId: "sess-older-v2",
+      send: async (_msg: string) => {},
+      stream: async function* () {
+        for (const msg of messages) {
+          yield msg;
+        }
+      },
+      close: () => {},
+    };
+    const mockModule = {
+      query: () => ({
+        [Symbol.asyncIterator]: () => ({ next: async () => ({ done: true, value: undefined }) }),
+      }),
+      unstable_v2_createSession: (_options: Record<string, unknown>) => mockSession,
+    };
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    const session = mockModule.unstable_v2_createSession({});
+    await session.send("test");
+    for await (const _msg of session.stream()) {
+      // consume
+    }
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans[0].attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("end_turn");
+  });
+
   it("should end span on session close()", async () => {
     const mockSession = {
       sessionId: "sess-close",
@@ -264,5 +319,33 @@ describe("V2 session wrappers", () => {
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
     expect(spans[0].status.code).toBe(SpanStatusCode.OK);
+  });
+
+  it("should omit finish reason when stop_reason is null", async () => {
+    const mockModule = {
+      query: () => ({
+        [Symbol.asyncIterator]: () => ({ next: async () => ({ done: true, value: undefined }) }),
+      }),
+      unstable_v2_prompt: async (_message: string, _options: Record<string, unknown>) => {
+        return {
+          type: "result",
+          subtype: "success",
+          result: "No stop reason",
+          stop_reason: null,
+          usage: { input_tokens: 10, output_tokens: 5 },
+          total_cost_usd: 0.001,
+          num_turns: 1,
+          duration_ms: 100,
+          session_id: "sess-v2-null-stop",
+        };
+      },
+    };
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    await mockModule.unstable_v2_prompt("test", { model: "claude-sonnet-4-20250514" });
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans[0].attributes).not.toHaveProperty(SemanticConventions.LLM_FINISH_REASON);
   });
 });

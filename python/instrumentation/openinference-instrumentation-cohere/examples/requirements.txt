@@ -1,0 +1,4 @@
+cohere
+openinference-instrumentation-cohere
+opentelemetry-sdk
+opentelemetry-exporter-otlp

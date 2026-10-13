@@ -1,3 +1,4 @@
+from inspect import signature
 from typing import Any, Iterator
 from unittest.mock import Mock, patch
 
@@ -57,6 +58,15 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-")
+
+
+@pytest.fixture
+def anthropic_model() -> str:
+    from anthropic.resources.messages import Messages
+
+    if "temperature" in signature(Messages.create).parameters:
+        return "claude-3-5-haiku-20241022"
+    return "claude-opus-4-7"
 
 
 @pytest.fixture(autouse=True)

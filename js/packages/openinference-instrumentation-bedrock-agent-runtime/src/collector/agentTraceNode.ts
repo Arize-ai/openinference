@@ -32,7 +32,7 @@ export class AgentTraceNode {
    * @param params.traceId {string} - Stable identifier for the node (prefixed trace-ID)
    * @param params.eventType {string | null} - Semantic type, e.g., 'orchestrationTrace' or 'agent-collaborator'
    */
-  constructor({ traceId, eventType = null }: { traceId: string; eventType: string | null }) {
+  constructor({ traceId, eventType }: { traceId: string; eventType: string | null }) {
     this.nodeTraceId = traceId;
     this.nodeType = eventType;
   }

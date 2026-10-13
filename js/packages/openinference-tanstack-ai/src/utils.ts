@@ -1,5 +1,6 @@
 import type { Tool as TanStackTool } from "@tanstack/ai";
 
+import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 import type { OISpan } from "@arizeai/openinference-core";
 
 /**
@@ -17,8 +18,8 @@ export function getToolDescription(tool: TanStackTool | undefined): string | und
  * Normalizes arbitrary tool arguments into an object for helper utilities.
  */
 export function toRecord(value: unknown): Record<string, unknown> {
-  if (value != null && typeof value === "object" && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
+  if (isObjectWithStringKeys(value)) {
+    return value;
   }
   return { value };
 }

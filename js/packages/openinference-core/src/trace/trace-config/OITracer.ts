@@ -19,7 +19,7 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
 ) {
   let opts: SpanOptions | undefined;
   let ctx: Context | undefined;
-  let fn: F;
+  let fn: F | undefined;
 
   if (typeof arg2 === "function") {
     fn = arg2;
@@ -29,8 +29,10 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
   } else {
     opts = arg2;
     ctx = arg3;
-    fn = arg4 as F;
+    fn = arg4;
   }
+
+  if (fn == null) return undefined;
 
   opts = opts ?? {};
   ctx = ctx ?? apiContext.active();
@@ -73,7 +75,7 @@ export class OITracer implements Tracer {
   ): ReturnType<F> | undefined {
     const formattedArgs = formatStartActiveSpanParams(arg2, arg3, arg4);
     if (formattedArgs == null) {
-      return;
+      return undefined;
     }
     const { opts, ctx, fn } = formattedArgs;
     const { attributes } = opts ?? {};

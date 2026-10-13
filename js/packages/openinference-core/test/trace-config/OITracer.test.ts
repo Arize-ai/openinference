@@ -13,6 +13,8 @@ import { SESSION_ID } from "@arizeai/openinference-semantic-conventions";
 import { OITracer, REDACTED_VALUE, setSession } from "../../src";
 import { OISpan } from "../../src/trace/trace-config/OISpan";
 
+const getMockMethod = <T, K extends keyof T>(mock: T, method: K) => mock[method];
+
 describe("OITracer", () => {
   let mockTracer: Mocked<Tracer>;
   let mockSpan: Mocked<Span>;
@@ -68,12 +70,12 @@ describe("OITracer", () => {
 
       const span = oiTracer.startSpan(name, options);
 
-      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+      expect(getMockMethod(mockTracer, "startSpan")).toHaveBeenCalledWith(
         name,
         { attributes: undefined },
         context.active(),
       );
-      expect(mockSpan.setAttributes).toHaveBeenCalledWith({
+      expect(getMockMethod(mockSpan, "setAttributes")).toHaveBeenCalledWith({
         key1: "value1",
         "input.value": REDACTED_VALUE,
       });
@@ -95,12 +97,12 @@ describe("OITracer", () => {
       context.with(setSession(context.active(), { sessionId: "my-session-id" }), () => {
         const span = oiTracer.startSpan(name, options, context.active());
 
-        expect(mockTracer.startSpan).toHaveBeenCalledWith(
+        expect(getMockMethod(mockTracer, "startSpan")).toHaveBeenCalledWith(
           name,
           { attributes: undefined },
           context.active(),
         );
-        expect(mockSpan.setAttributes).toHaveBeenCalledWith({
+        expect(getMockMethod(mockSpan, "setAttributes")).toHaveBeenCalledWith({
           key1: "value1",
           [SESSION_ID]: "my-session-id",
           "input.value": REDACTED_VALUE,
@@ -128,7 +130,7 @@ describe("OITracer", () => {
         return span;
       });
 
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      expect(getMockMethod(mockTracer, "startActiveSpan")).toHaveBeenCalledWith(
         name,
         {
           attributes: undefined,
@@ -136,7 +138,7 @@ describe("OITracer", () => {
         expect.any(Object),
         expect.any(Function),
       );
-      expect(mockSpan.setAttributes).toHaveBeenCalledWith({
+      expect(getMockMethod(mockSpan, "setAttributes")).toHaveBeenCalledWith({
         key1: "value1",
         "input.value": REDACTED_VALUE,
       });
@@ -155,7 +157,7 @@ describe("OITracer", () => {
       const mockFn = vi.fn();
 
       oiTracer.startActiveSpan(name, mockFn);
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      expect(getMockMethod(mockTracer, "startActiveSpan")).toHaveBeenCalledWith(
         name,
         { attributes: undefined },
         context.active(),
@@ -167,7 +169,7 @@ describe("OITracer", () => {
         attributes: { key: "value" },
       };
       oiTracer.startActiveSpan(name, options, mockFn);
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      expect(getMockMethod(mockTracer, "startActiveSpan")).toHaveBeenCalledWith(
         name,
         { kind: SpanKind.INTERNAL, attributes: undefined },
         context.active(),
@@ -177,7 +179,7 @@ describe("OITracer", () => {
       const newContext = context.active().setValue(Symbol("test"), "test");
 
       oiTracer.startActiveSpan(name, options, newContext, mockFn);
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      expect(getMockMethod(mockTracer, "startActiveSpan")).toHaveBeenCalledWith(
         name,
         { kind: SpanKind.INTERNAL, attributes: undefined },
         newContext,
@@ -199,7 +201,7 @@ describe("OITracer", () => {
       context.with(setSession(context.active(), { sessionId: "my-session-id" }), () => {
         const span = oiTracer.startActiveSpan(name, options, (span) => span);
 
-        expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+        expect(getMockMethod(mockTracer, "startActiveSpan")).toHaveBeenCalledWith(
           name,
           {
             attributes: undefined,
@@ -207,7 +209,7 @@ describe("OITracer", () => {
           context.active(),
           expect.any(Function),
         );
-        expect(mockSpan.setAttributes).toHaveBeenCalledWith({
+        expect(getMockMethod(mockSpan, "setAttributes")).toHaveBeenCalledWith({
           key1: "value1",
           [SESSION_ID]: "my-session-id",
           "input.value": REDACTED_VALUE,

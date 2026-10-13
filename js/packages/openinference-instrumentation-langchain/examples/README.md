@@ -4,11 +4,15 @@ This is a very simple example of how to setup LangChain.js auto instrumentation 
 
 ## Instrumentation
 
-Checkout the [instrumentation.ts](./instrumentation.ts) file to see how to auto-instrument LangChain.js and export spans to a locally running [Phoenix](https://github.com/Arize-ai/phoenix) server, or to [Arize AX](https://arize.com/docs/ax).
+Checkout the [instrumentation.ts](./instrumentation.ts) file to see how to auto-instrument LangChain.js and export spans to a locally running [Phoenix](https://github.com/Arize-ai/phoenix) server, or to [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
 ## Chat
 
 Checkout the [chat.ts](./chat.ts) file to see how to send a simple message to OpenAI with langchain.
+
+## Multimodal
+
+Checkout the [multimodal.ts](./multimodal.ts) file to see how a message made of text and image content blocks is recorded on the LLM span under `llm.input_messages.0.message.contents.*`.
 
 ## Instructions
 
