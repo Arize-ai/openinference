@@ -1,8 +1,13 @@
+"""Connect to LiveKit, print the spans, and export them to a local Phoenix.
+
+Start Phoenix on port 6006 first if you want the export to land.
+The LiveKit calls are the same as ``in_memory.py``.
+"""
+
 import asyncio
 import json
-import sys
-from pathlib import Path
 
+from in_memory import _openinference_attrs
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
@@ -10,16 +15,10 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from openinference.instrumentation.livekit import LiveKitInstrumentor
 
-_EXAMPLES = Path(__file__).resolve().parent
-if str(_EXAMPLES) not in sys.path:
-    sys.path.insert(0, str(_EXAMPLES))
-
-from _stubs import install_livekit_stubs  # noqa: E402
-from in_memory import _openinference_attrs, _run_calls  # noqa: E402
-
 
 def main() -> None:
-    install_livekit_stubs()
+    from livekit_calls import run_livekit_calls
+
     in_memory_exporter = InMemorySpanExporter()
     tracer_provider = TracerProvider()
     tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_exporter))
@@ -28,8 +27,8 @@ def main() -> None:
     batch_processor = BatchSpanProcessor(otlp_exporter)
     tracer_provider.add_span_processor(batch_processor)
 
-    LiveKitInstrumentor().instrument(tracer_provider=tracer_provider, skip_dep_check=True)
-    asyncio.run(_run_calls())
+    LiveKitInstrumentor().instrument(tracer_provider=tracer_provider)
+    asyncio.run(run_livekit_calls())
 
     try:
         batch_processor.force_flush(timeout_millis=3000)

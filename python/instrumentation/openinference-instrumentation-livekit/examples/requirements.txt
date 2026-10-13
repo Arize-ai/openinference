@@ -1,3 +1,5 @@
 openinference-instrumentation-livekit
 opentelemetry-sdk
 opentelemetry-exporter-otlp
+livekit
+livekit-api

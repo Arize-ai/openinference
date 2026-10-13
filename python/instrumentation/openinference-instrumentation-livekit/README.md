@@ -22,6 +22,8 @@ LiveKitInstrumentor().instrument(tracer_provider=TracerProvider())
 
 ## Examples
 
-`examples/in_memory.py` replays the four calls against stand-ins and prints the span attributes. It does not connect to LiveKit.
+The examples call the real SDK. They follow the [python-sdks RPC example](https://github.com/livekit/python-sdks/blob/main/examples/rpc.py) and the server API sample in that repository's README: mint a token, create and list a room, connect two participants, and `perform_rpc` a `greet` method.
 
-`examples/phoenix_local.py` prints the same attributes and also exports them to `http://localhost:6006/v1/traces`. Start Phoenix first if you want the export to land.
+Set `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET`. A local `livekit-server --dev --node-ip 127.0.0.1` accepts `ws://localhost:7880`, `devkey`, and `secret`. `--node-ip 127.0.0.1` keeps the peer connection on localhost.
+
+`examples/in_memory.py` prints the span attributes. `examples/phoenix_local.py` prints the same attributes and also exports them to `http://localhost:6006/v1/traces`. Start Phoenix first if you want the export to land.
