@@ -309,7 +309,9 @@ def reduce_trace(
             key=lambda index: (turn.steps[index].start_ns, index),
         )
         steps = list(turn.steps)
-        steps[step_index] = replace(steps[step_index], spoken_text=event.text)
+        previous = steps[step_index].spoken_text
+        spoken = event.text if previous is None else f"{previous} {event.text}"
+        steps[step_index] = replace(steps[step_index], spoken_text=spoken)
         open_turns[agent_turn_span_id] = replace(turn, steps=tuple(steps))
         return replace(next_state, open_turns=open_turns), ()
 
