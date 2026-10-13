@@ -337,8 +337,8 @@ def test_anthropic_instrumentation_beta_messages_streaming_fallback(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 42
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 128
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 170
-    # a reported 0 is recorded
-    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 0
+    # a reasoning count of 0, reported when thinking did not run, is left out
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING not in attributes
     # the fallback that served the response is in the metadata, among the usage iterations
     assert_json_contains(
         json.loads(str(attributes.pop(SpanAttributes.METADATA))),

@@ -34,12 +34,11 @@ def _get_token_counts(usage: "Usage") -> Iterator[Tuple[str, AttributeValue]]:
         + (usage.cache_creation_input_tokens or 0)
         + (usage.cache_read_input_tokens or 0)
     )
-    # A reported count of 0 is recorded. The cache counts, which Anthropic reports as 0 when
-    # caching did not run, are left out when 0, rather than tagging every span with them.
-    if prompt_tokens is not None:
-        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if usage.output_tokens is not None:
-        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
+    # A reported count of 0 is recorded. The cache and reasoning counts, which Anthropic reports
+    # as 0 when caching or thinking did not run, are left out when 0, rather than tagging every
+    # span with them.
+    yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
     if usage.cache_read_input_tokens:
         yield (
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
@@ -51,13 +50,12 @@ def _get_token_counts(usage: "Usage") -> Iterator[Tuple[str, AttributeValue]]:
             usage.cache_creation_input_tokens,
         )
     # The thinking tokens are part of, not in addition to, the output tokens.
-    if (output_tokens_details := getattr(usage, "output_tokens_details", None)) is not None and (
-        thinking_tokens := getattr(output_tokens_details, "thinking_tokens", None)
-    ) is not None:
+    if thinking_tokens := getattr(
+        getattr(usage, "output_tokens_details", None), "thinking_tokens", None
+    ):
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thinking_tokens
     # Anthropic's Usage has no total field, so derive it from prompt + completion.
-    if prompt_tokens is not None and usage.output_tokens is not None:
-        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, prompt_tokens + usage.output_tokens
+    yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, prompt_tokens + usage.output_tokens
 
 
 class _ValueAndType(NamedTuple):

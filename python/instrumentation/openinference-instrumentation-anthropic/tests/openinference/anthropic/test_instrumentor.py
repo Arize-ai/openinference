@@ -3529,7 +3529,7 @@ def test_token_count_total_matches_across_paths(
 
 
 def test_zero_token_counts_are_recorded() -> None:
-    """A reported 0 is a count, so it is recorded, except for the cache counts."""
+    """A reported 0 is a count, so it is recorded, except for the cache and reasoning counts."""
     from anthropic.types import OutputTokensDetails
 
     usage = Usage(
@@ -3543,7 +3543,6 @@ def test_zero_token_counts_are_recorded() -> None:
         LLM_TOKEN_COUNT_PROMPT: 0,
         LLM_TOKEN_COUNT_COMPLETION: 0,
         LLM_TOKEN_COUNT_TOTAL: 0,
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 0,
     }
 
 
