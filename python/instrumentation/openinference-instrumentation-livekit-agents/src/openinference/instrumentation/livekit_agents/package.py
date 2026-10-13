@@ -1,0 +1,1 @@
+_instruments = ("livekit-agents",)

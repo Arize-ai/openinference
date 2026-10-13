@@ -1,0 +1,33 @@
+# OpenInference livekit-agents instrumentation
+
+[![pypi](https://badge.fury.io/py/openinference-instrumentation-livekit-agents.svg)](https://pypi.org/project/openinference-instrumentation-livekit-agents/)
+
+This package maps livekit-agents voice turns onto OpenInference spans.
+
+## Installation
+
+```shell
+pip install openinference-instrumentation-livekit-agents
+```
+
+## Usage
+
+Register the instrumentor on the same provider that you pass to
+`livekit.agents.telemetry.set_tracer_provider`:
+
+```python
+from livekit.agents.telemetry import set_tracer_provider
+from openinference.instrumentation.livekit_agents import LiveKitAgentsInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+
+provider = TracerProvider()
+LiveKitAgentsInstrumentor().instrument(tracer_provider=provider)
+set_tracer_provider(provider)
+```
+
+One spoken question becomes a `conversation.turn` span of kind `AUDIO`, with user,
+assistant, and tool child spans. The instrumentor uses the room SID as `session.id`
+unless the caller already set a session ID.
+
+The spans omit `input.audio.url` and `output.audio.url`. LiveKit spans carry transcripts
+and token counts, not PCM audio.
