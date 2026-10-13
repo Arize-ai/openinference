@@ -1,7 +1,7 @@
 import os
 from contextlib import suppress
 from random import random
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 
 import pytest
 from opentelemetry.sdk import trace as trace_sdk
@@ -11,7 +11,13 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import TracerProvider, use_span
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation import (
+    Message,
+    OITracer,
+    TraceConfig,
+    get_llm_input_message_attributes,
+    get_llm_output_message_attributes,
+)
 from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:ignore[attr-defined]
 from openinference.instrumentation.config import (
     DEFAULT_BASE64_IMAGE_MAX_LENGTH,
@@ -52,9 +58,11 @@ from openinference.instrumentation.config import (
 from openinference.semconv.trace import (
     DocumentAttributes,
     ImageAttributes,
+    MessageAttributes,
     MessageContentAttributes,
     SpanAttributes,
     ToolAttributes,
+    ToolCallAttributes,
 )
 
 
@@ -382,6 +390,54 @@ def test_settings_from_env_vars_and_code(
             "sensitive document text",
             REDACTED_VALUE,
         ),
+        (
+            "hide_input_text",
+            True,
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}"
+            f".0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+            '{"city": "san francisco"}',
+            REDACTED_VALUE,
+        ),
+        (
+            "hide_output_text",
+            True,
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}"
+            f".0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+            '{"city": "san francisco"}',
+            REDACTED_VALUE,
+        ),
+        (
+            "hide_input_text",
+            True,
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+            f".{MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}",
+            '{"city": "san francisco"}',
+            REDACTED_VALUE,
+        ),
+        (
+            "hide_output_text",
+            True,
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+            f".{MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}",
+            '{"city": "san francisco"}',
+            REDACTED_VALUE,
+        ),
+        (
+            "hide_output_text",
+            None,
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}"
+            f".0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+            '{"city": "san francisco"}',
+            '{"city": "san francisco"}',
+        ),
+        (
+            "hide_input_text",
+            True,
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}"
+            f".0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+            "get_weather",
+            "get_weather",
+        ),
     ],
 )
 def test_trace_config(
@@ -402,6 +458,61 @@ def test_trace_config(
         assert span.attributes.get(attr_key) is None
     else:
         assert span.attributes.get(attr_key) == expected_value
+
+
+@pytest.mark.parametrize("message_type", ["input", "output"])
+def test_text_hiding_covers_helper_emitted_tool_call_arguments(
+    message_type: str,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """The text-hiding flags cover tool call arguments emitted by the public
+    message helpers, while the tool call itself (id, function name, role) stays
+    visible as structure."""
+    config = (
+        TraceConfig(hide_input_text=True)
+        if message_type == "input"
+        else TraceConfig(hide_output_text=True)
+    )
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
+    messages: Sequence[Message] = [
+        {
+            "role": "assistant",
+            "content": "checking the forecast",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": '{"city": "san francisco"}',
+                    },
+                }
+            ],
+        }
+    ]
+    attributes = (
+        get_llm_input_message_attributes(messages)
+        if message_type == "input"
+        else get_llm_output_message_attributes(messages)
+    )
+    base_key = (
+        SpanAttributes.LLM_INPUT_MESSAGES
+        if message_type == "input"
+        else SpanAttributes.LLM_OUTPUT_MESSAGES
+    )
+    tracer.start_span("test", attributes=dict(attributes)).end()
+    span = in_memory_span_exporter.get_finished_spans()[0]
+    assert span.attributes is not None
+    prefix = f"{base_key}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    assert (
+        span.attributes[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]
+        == REDACTED_VALUE
+    )
+    assert span.attributes[f"{base_key}.0.{MessageAttributes.MESSAGE_CONTENT}"] == REDACTED_VALUE
+    assert span.attributes[f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}"] == "call_1"
+    assert (
+        span.attributes[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_weather"
+    )
 
 
 def parse_bool_from_env(env_var: str) -> Optional[bool]:

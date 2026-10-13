@@ -28,6 +28,7 @@ from openinference.semconv.trace import (
     MessageContentAttributes,
     RerankerAttributes,
     SpanAttributes,
+    ToolCallAttributes,
 )
 
 from ._blob_upload import (
@@ -418,6 +419,18 @@ class TraceConfig:
             and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
         ):
             value = REDACTED_VALUE
+        elif (
+            self.hide_input_text
+            and SpanAttributes.LLM_INPUT_MESSAGES in key
+            and _is_tool_call_arguments(key)
+        ):
+            value = REDACTED_VALUE
+        elif (
+            self.hide_output_text
+            and SpanAttributes.LLM_OUTPUT_MESSAGES in key
+            and _is_tool_call_arguments(key)
+        ):
+            value = REDACTED_VALUE
         # The hide checks must precede the size/externalize branch below so a
         # hidden image never reaches the blob uploader.
         elif (self.hide_inputs or self.hide_input_images) and _is_input_image(key):
@@ -561,6 +574,17 @@ def _is_retrieval_document_content(key: str) -> bool:
     return _is_within(key, SpanAttributes.RETRIEVAL_DOCUMENTS) and (
         key.endswith(DocumentAttributes.DOCUMENT_CONTENT)
         or key.endswith(DocumentAttributes.DOCUMENT_METADATA)
+    )
+
+
+def _is_tool_call_arguments(key: str) -> bool:
+    """True for the arguments payload of a tool call, in either the nested
+    (``llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments``)
+    or the legacy (``llm.input_messages.0.message.function_call_arguments_json``)
+    spelling. The arguments JSON is message text, so the text-hiding flags cover
+    it; the call's id and function name stay visible as structure."""
+    return key.endswith(ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON) or key.endswith(
+        MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
     )
 
 
