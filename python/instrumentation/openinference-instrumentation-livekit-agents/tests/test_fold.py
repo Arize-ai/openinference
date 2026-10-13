@@ -4,6 +4,7 @@ from openinference.instrumentation.livekit_agents._fold import (
     HeardUtterance,
     ModelStep,
     ModelStepEnded,
+    SessionEnded,
     SessionFold,
     SpanIndexed,
     SpokenTextEnded,
@@ -310,6 +311,63 @@ def test_llm_node_latency_fills_its_request_after_the_request_ended() -> None:
     assert len(sealed) == 1
     by_model = {step.model: step.time_to_first_token_s for step in sealed[0].steps}
     assert by_model == {"gpt": 0.25, "other": None}
+
+
+def test_session_close_without_tools_seals_the_open_turn() -> None:
+    state = _start(SessionFold(), span_id=1, name="agent_session", parent_id=None)
+    state = _start_agent(state, span_id=20, start_ns=10, session_id="RM_room")
+    state = _start(state, span_id=30, name="llm_node", parent_id=20)
+    state = _model_step(state, span_id=31, parent_id=30, start_ns=20, end_ns=40)
+    _, turns = reduce_trace(state, SessionEnded(1, 1, None, "agent_session", "end"))
+
+    assert len(turns) == 1
+    assert turns[0].end_reason == "session_closed"
+    assert turns[0].steps[0].span_id == 31
+    assert turns[0].tools == ()
+    assert turns[0].end_ns == 40
+    assert turns[0].session_id == "RM_room"
+
+
+def test_tool_that_ends_before_its_request_parents_to_that_request() -> None:
+    state = _start_agent(SessionFold(), span_id=20, start_ns=10)
+    state = _start(state, span_id=30, name="llm_node", parent_id=20)
+    state = _start(state, span_id=31, name="llm_request", parent_id=30)
+    state = _start(state, span_id=40, name="function_tool", parent_id=20)
+    state, turns = reduce_trace(
+        state,
+        ToolEnded(
+            1,
+            40,
+            20,
+            "function_tool",
+            "end",
+            ToolCall("lookup", None, "{}", "ok", False, 25, 35, None),
+        ),
+    )
+    assert turns == ()
+    step = ModelStep(
+        31,
+        "llm_request",
+        "gpt",
+        None,
+        None,
+        None,
+        "hi",
+        3,
+        5,
+        None,
+        None,
+        1.5,
+        20,
+        50,
+    )
+    state, turns = reduce_trace(state, ModelStepEnded(1, 31, 30, "llm_request", "end", step))
+    assert turns == ()
+    _, sealed = _end_agent(state, span_id=20, end_ns=60)
+
+    assert len(sealed) == 1
+    assert sealed[0].tools[0].name == "lookup"
+    assert sealed[0].tools[0].step_span_id == 31
 
 
 def test_duplicate_agent_turn_end_does_not_emit_twice() -> None:
