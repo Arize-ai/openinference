@@ -1664,7 +1664,8 @@ function getAnthropicUsageAttributes(usage: MessageUsageCounts): Attributes {
 
 /**
  * Records the output tokens spent on extended thinking, which Anthropic
- * reports as a breakdown of (and so included in) `output_tokens`.
+ * reports as a breakdown of (and so included in) `output_tokens`. Like the
+ * cache counts, a 0, reported when thinking did not run, is left out.
  */
 function getAnthropicReasoningTokenAttributes(usage: object): Attributes {
   const details: unknown =
@@ -1673,7 +1674,8 @@ function getAnthropicReasoningTokenAttributes(usage: object): Attributes {
     details != null &&
     typeof details === "object" &&
     "thinking_tokens" in details &&
-    typeof details.thinking_tokens === "number"
+    typeof details.thinking_tokens === "number" &&
+    details.thinking_tokens > 0
   ) {
     return {
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]: details.thinking_tokens,

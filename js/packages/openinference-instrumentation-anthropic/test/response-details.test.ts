@@ -117,6 +117,24 @@ describe("AnthropicInstrumentation - response details", () => {
     expectResponseDetails(span.attributes);
   });
 
+  it("records zero top-level counts but leaves out a reasoning count of 0", async () => {
+    const client = new Anthropic({
+      apiKey: "fake-api-key",
+      fetch: jsonFetch({
+        ...responseMessage,
+        usage: { input_tokens: 0, output_tokens: 0, output_tokens_details: { thinking_tokens: 0 } },
+      }),
+    });
+    await client.beta.messages.create(request);
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    expect(span.attributes[LLM_TOKEN_COUNT_PROMPT]).toBe(0);
+    expect(span.attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(0);
+    expect(span.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(0);
+    expect(span.attributes).not.toHaveProperty(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING);
+  });
+
   it("records usage details and response metadata of a streaming response", async () => {
     const client = new Anthropic({
       apiKey: "fake-api-key",
