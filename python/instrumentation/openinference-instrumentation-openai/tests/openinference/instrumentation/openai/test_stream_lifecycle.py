@@ -8,7 +8,8 @@ exported, and the whole LLM call disappeared from the trace.
 import asyncio
 import gc
 import importlib
-from typing import Any, AsyncIterator, Dict, Iterable, Iterator, List, Tuple
+import json
+from typing import Any, AsyncIterator, Dict, Iterable, Iterator, List, Optional, Tuple, cast
 from urllib.parse import urljoin
 
 import pytest
@@ -18,9 +19,20 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from respx import MockRouter
 
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+
 _OPENAI_BASE_URL = "https://api.openai.com/v1/"
 _OPENINFERENCE_SCOPE = "openinference.instrumentation.openai"
 _MODEL = "gpt-4o-mini"
+_MESSAGES: List[Dict[str, str]] = [{"role": "user", "content": "hi"}]
+_FIRST_TOKEN_EVENT = "First Token Stream Event"
+# The role chunk and the first content chunk, so a partial stream has output to report.
+_PARTIAL = 2
 
 
 class _MockAsyncByteStream(AsyncByteStream):
@@ -71,67 +83,116 @@ def _client(is_async: bool) -> Any:
     return factory(api_key="sk-", base_url=_OPENAI_BASE_URL)
 
 
+def _create(client: Any) -> Any:
+    return client.chat.completions.create(model=_MODEL, messages=_MESSAGES, stream=True)
+
+
+def _read(stream: Any, count: Optional[int] = None) -> None:
+    for i, _ in enumerate(stream, 1):
+        if i == count:
+            break
+
+
+async def _aread(stream: Any, count: Optional[int] = None) -> None:
+    i = 0
+    async for _ in stream:
+        i += 1
+        if i == count:
+            break
+
+
+def _assert_attributes(span: ReadableSpan, output: Optional[Dict[str, Any]]) -> None:
+    """Checks every attribute on the span; `output` is the message streamed so far, if any."""
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == (
+        OpenInferenceSpanKindValues.LLM.value
+    )
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "openai"
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "openai"
+    assert json.loads(cast(str, attributes.pop(SpanAttributes.INPUT_VALUE))) == {
+        "messages": _MESSAGES,
+        "model": _MODEL,
+        "stream": True,
+    }
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(cast(str, attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS))) == {
+        "model": _MODEL,
+        "stream": True,
+    }
+    input_message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert attributes.pop(f"{input_message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{input_message}.{MessageAttributes.MESSAGE_CONTENT}") == "hi"
+    if output is not None:
+        assert json.loads(cast(str, attributes.pop(SpanAttributes.OUTPUT_VALUE))) == {
+            "choices": [{**output, "index": 0}]
+        }
+        assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == (
+            OpenInferenceMimeTypeValues.JSON.value
+        )
+        message = output["message"]
+        output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+        assert (
+            attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}")
+            == (message["role"])
+        )
+        assert (
+            attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}")
+            == (message["content"])
+        )
+        if finish_reason := output.get("finish_reason"):
+            assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == finish_reason
+    assert attributes == {}
+
+
+_PARTIAL_OUTPUT: Dict[str, Any] = {"message": {"content": "the", "role": "assistant"}}
+_FULL_OUTPUT: Dict[str, Any] = {
+    "message": {"content": "the answer", "role": "assistant"},
+    "finish_reason": "stop",
+}
+
+_TEARDOWNS = [
+    (False, "context"),
+    (False, "close"),
+    (True, "context"),
+    (True, "close"),
+    (True, "aclose"),
+]
+
+
 # Each test keeps a strong reference to the stream until after its assertions, so a span can only
 # be finished by the teardown path the test exercises, not by a later __del__ during GC.
 
 
-@pytest.mark.parametrize("is_async", [False, True])
-def test_leaving_context_without_exhausting_ends_one_span(
+@pytest.mark.parametrize("is_async,teardown", _TEARDOWNS)
+def test_early_teardown_ends_one_span_with_partial_output(
     is_async: bool,
+    teardown: str,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     _mock_stream(respx_mock)
     client = _client(is_async)
-    messages: List[Dict[str, str]] = [{"role": "user", "content": "hi"}]
     keep_alive: List[Any] = []
 
     async def run_async() -> None:
-        stream = await client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
+        stream = await _create(client)
         keep_alive.append(stream)
-        async with stream:
-            async for _ in stream:
-                break
+        if teardown == "context":
+            async with stream:
+                await _aread(stream, _PARTIAL)
+            return
+        await _aread(stream, _PARTIAL)
+        # Older releases of the SDK have no `AsyncStream.aclose`, so `close` is used instead.
+        await (stream.aclose() if teardown == "aclose" else stream.close())
 
     def run_sync() -> None:
-        stream = client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
+        stream = _create(client)
         keep_alive.append(stream)
-        with stream:
-            for _ in stream:
-                break
-
-    if is_async:
-        asyncio.run(run_async())
-    else:
-        run_sync()
-
-    (span,) = _llm_spans(in_memory_span_exporter)
-    assert span.status.status_code == trace_api.StatusCode.UNSET
-
-
-@pytest.mark.parametrize("is_async", [False, True])
-def test_closing_without_exhausting_ends_one_span(
-    is_async: bool,
-    respx_mock: MockRouter,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    _mock_stream(respx_mock)
-    client = _client(is_async)
-    messages: List[Dict[str, str]] = [{"role": "user", "content": "hi"}]
-    keep_alive: List[Any] = []
-
-    async def run_async() -> None:
-        stream = await client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
-        keep_alive.append(stream)
-        async for _ in stream:
-            break
-        await stream.close()
-
-    def run_sync() -> None:
-        stream = client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
-        keep_alive.append(stream)
-        for _ in stream:
-            break
+        if teardown == "context":
+            with stream:
+                _read(stream, _PARTIAL)
+            return
+        _read(stream, _PARTIAL)
         stream.close()
 
     if is_async:
@@ -139,44 +200,23 @@ def test_closing_without_exhausting_ends_one_span(
     else:
         run_sync()
 
-    (span,) = _llm_spans(in_memory_span_exporter)
-    assert span.status.status_code == trace_api.StatusCode.UNSET
-
-
-def test_aclosing_without_exhausting_ends_one_span(
-    respx_mock: MockRouter,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    """Older releases of the SDK have no `AsyncStream.aclose`, so `close` is used instead."""
-    _mock_stream(respx_mock)
-    client = _client(is_async=True)
-    messages: List[Dict[str, str]] = [{"role": "user", "content": "hi"}]
-    keep_alive: List[Any] = []
-
-    async def run() -> None:
-        stream = await client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
-        keep_alive.append(stream)
-        async for _ in stream:
-            break
-        await stream.aclose()
-
-    asyncio.run(run())
-
     assert keep_alive[0].response.is_closed
     (span,) = _llm_spans(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.UNSET
+    assert [event.name for event in span.events] == [_FIRST_TOKEN_EVENT]
+    _assert_attributes(span, _PARTIAL_OUTPUT)
 
 
-@pytest.mark.parametrize("is_async", [False, True])
-def test_close_that_raises_still_ends_one_span(
+@pytest.mark.parametrize("is_async,teardown", _TEARDOWNS)
+def test_teardown_that_raises_ends_one_span_with_error(
     is_async: bool,
+    teardown: str,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _mock_stream(respx_mock)
     client = _client(is_async)
-    messages: List[Dict[str, str]] = [{"role": "user", "content": "hi"}]
     keep_alive: List[Any] = []
 
     def close() -> None:
@@ -186,22 +226,68 @@ def test_close_that_raises_still_ends_one_span(
         raise RuntimeError("close failed")
 
     async def run_async() -> None:
-        stream = await client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
+        stream = await _create(client)
         keep_alive.append(stream)
-        async for _ in stream:
-            break
-        monkeypatch.setattr(stream.__wrapped__, "close", aclose)
-        with pytest.raises(RuntimeError, match="close failed"):
-            await stream.close()
+        monkeypatch.setattr(stream.response, "aclose", aclose)
+        if teardown == "context":
+            async with stream:
+                await _aread(stream, _PARTIAL)
+            return
+        await _aread(stream, _PARTIAL)
+        await (stream.aclose() if teardown == "aclose" else stream.close())
 
     def run_sync() -> None:
-        stream = client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
+        stream = _create(client)
         keep_alive.append(stream)
-        for _ in stream:
-            break
-        monkeypatch.setattr(stream.__wrapped__, "close", close)
-        with pytest.raises(RuntimeError, match="close failed"):
-            stream.close()
+        monkeypatch.setattr(stream.response, "close", close)
+        if teardown == "context":
+            with stream:
+                _read(stream, _PARTIAL)
+            return
+        _read(stream, _PARTIAL)
+        stream.close()
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        if is_async:
+            asyncio.run(run_async())
+        else:
+            run_sync()
+
+    (span,) = _llm_spans(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.status.description == "RuntimeError: close failed"
+    assert [event.name for event in span.events] == [_FIRST_TOKEN_EVENT, "exception"]
+    exception_event = span.events[1]
+    assert dict(exception_event.attributes or {})["exception.type"] == "RuntimeError"
+    assert dict(exception_event.attributes or {})["exception.message"] == "close failed"
+    _assert_attributes(span, _PARTIAL_OUTPUT)
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("count", [0, _PARTIAL])
+def test_dropped_stream_ends_one_span(
+    is_async: bool,
+    count: int,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """A stream that is dropped without any teardown, whether or not it was iterated."""
+    _mock_stream(respx_mock)
+    client = _client(is_async)
+
+    async def run_async() -> None:
+        stream = await _create(client)
+        if count:
+            await _aread(stream, count)
+        del stream
+        gc.collect()
+
+    def run_sync() -> None:
+        stream = _create(client)
+        if count:
+            _read(stream, count)
+        del stream
+        gc.collect()
 
     if is_async:
         asyncio.run(run_async())
@@ -210,21 +296,8 @@ def test_close_that_raises_still_ends_one_span(
 
     (span,) = _llm_spans(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.UNSET
-
-
-def test_stream_never_iterated_ends_one_span(
-    respx_mock: MockRouter,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    _mock_stream(respx_mock)
-    client = _client(is_async=False)
-    messages: List[Dict[str, str]] = [{"role": "user", "content": "hi"}]
-    stream = client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
-    del stream
-    gc.collect()
-
-    (span,) = _llm_spans(in_memory_span_exporter)
-    assert span.status.status_code == trace_api.StatusCode.UNSET
+    assert [event.name for event in span.events] == ([_FIRST_TOKEN_EVENT] if count else [])
+    _assert_attributes(span, _PARTIAL_OUTPUT if count else None)
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -236,23 +309,20 @@ def test_exhausted_stream_keeps_ok_status_and_one_span(
     """Tearing down after full consumption must not re-finish or downgrade the completed span."""
     _mock_stream(respx_mock)
     client = _client(is_async)
-    messages: List[Dict[str, str]] = [{"role": "user", "content": "hi"}]
     keep_alive: List[Any] = []
 
     async def run_async() -> None:
-        stream = await client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
+        stream = await _create(client)
         keep_alive.append(stream)
         async with stream:
-            async for _ in stream:
-                pass
+            await _aread(stream)
         await stream.close()
 
     def run_sync() -> None:
-        stream = client.chat.completions.create(model=_MODEL, messages=messages, stream=True)
+        stream = _create(client)
         keep_alive.append(stream)
         with stream:
-            for _ in stream:
-                pass
+            _read(stream)
         stream.close()
 
     if is_async:
@@ -262,3 +332,5 @@ def test_exhausted_stream_keeps_ok_status_and_one_span(
 
     (span,) = _llm_spans(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.OK
+    assert [event.name for event in span.events] == [_FIRST_TOKEN_EVENT]
+    _assert_attributes(span, _FULL_OUTPUT)

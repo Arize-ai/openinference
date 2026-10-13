@@ -127,6 +127,9 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         try:
             self.__wrapped__.__exit__(*args, **kwargs)
+        except Exception as exception:
+            self._finish_tracing_with_error(exception)
+            raise
         finally:
             # Leaving the context manager without exhausting the stream ends the HTTP
             # response but never raises StopIteration, so finish the span here. The status
@@ -143,6 +146,9 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
     async def __aexit__(self, *args: Any, **kwargs: Any) -> None:
         try:
             await self.__wrapped__.__aexit__(*args, **kwargs)
+        except Exception as exception:
+            self._finish_tracing_with_error(exception)
+            raise
         finally:
             self._finish_tracing(status=None)
 
@@ -152,6 +158,9 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             close = getattr(self.__wrapped__, "close", None)
             result = close() if callable(close) else None
             is_awaitable = inspect.isawaitable(result)
+        except Exception as exception:
+            self._finish_tracing_with_error(exception)
+            raise
         finally:
             if not is_awaitable:
                 self._finish_tracing(status=None)
@@ -171,12 +180,18 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
                 result = close()
                 if inspect.isawaitable(result):
                     await result
+        except Exception as exception:
+            self._finish_tracing_with_error(exception)
+            raise
         finally:
             self._finish_tracing(status=None)
 
     async def _close_and_finish(self, awaitable: Any) -> None:
         try:
             await awaitable
+        except Exception as exception:
+            self._finish_tracing_with_error(exception)
+            raise
         finally:
             self._finish_tracing(status=None)
 
@@ -211,6 +226,16 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             has_attributes=self,
         )
         self._self_is_finished = True
+
+    def _finish_tracing_with_error(self, exception: Exception) -> None:
+        # A teardown that fails is an error, unlike one that just stops the stream early.
+        self._self_with_span.record_exception(exception)
+        self._finish_tracing(
+            status=trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+        )
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if self._self_response_accumulator is not None:
