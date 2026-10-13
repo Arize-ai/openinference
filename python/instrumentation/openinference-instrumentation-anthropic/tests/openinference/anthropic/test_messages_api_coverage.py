@@ -872,6 +872,22 @@ async def test_async_count_tokens(
     _assert_count_tokens_span(_get_span(in_memory_span_exporter), name)
 
 
+def test_count_tokens_span_has_context_attributes(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    from openinference.instrumentation import using_attributes
+
+    client = _mock_anthropic_client(_text_message_handler)
+    with using_attributes(session_id="session-1", user_id="user-1", metadata={"k": "v"}):
+        client.messages.count_tokens(**_COUNT_TOKENS_KWARGS)
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    assert attributes[SpanAttributes.SESSION_ID] == "session-1"
+    assert attributes[SpanAttributes.USER_ID] == "user-1"
+    assert json.loads(str(attributes[SpanAttributes.METADATA])) == {"k": "v"}
+
+
 def test_platform_beta_count_tokens(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,

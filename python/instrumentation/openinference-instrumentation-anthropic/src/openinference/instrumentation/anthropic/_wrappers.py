@@ -387,7 +387,6 @@ class _CountTokensWrapper(_WithTracer):
             params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
             attributes=dict(
                 chain(
-                    get_attributes_from_context(),
                     _get_llm_provider(instance),
                     _get_llm_system(),
                     _get_llm_span_kind(),
@@ -430,7 +429,6 @@ class _AsyncCountTokensWrapper(_WithTracer):
             params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
             attributes=dict(
                 chain(
-                    get_attributes_from_context(),
                     _get_llm_provider(instance),
                     _get_llm_system(),
                     _get_llm_span_kind(),
