@@ -32,3 +32,8 @@ a worker job, so a session started directly on a room has no `session.id`.
 
 The spans omit `input.audio.url` and `output.audio.url`. LiveKit spans carry transcripts
 and token counts, not PCM audio.
+
+LiveKit's own spans still export alongside the OpenInference turn. Each `assistant` span
+repeats the token counts of the LiveKit `llm_request` it maps. A backend that prices
+`llm_request` spans as LLM calls, as Arize does, counts each model call twice. To avoid that,
+filter the raw `livekit-agents` `llm_request` spans out of the export.
