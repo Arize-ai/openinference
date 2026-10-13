@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.0.2...python-openinference-instrumentation-anthropic-v3.0.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* **anthropic:** contain token-count failures in streaming extractor ([#3902](https://github.com/Arize-ai/openinference/issues/3902)) ([a5abfd7](https://github.com/Arize-ai/openinference/commit/a5abfd75996706c9fa7dee26dc307dde0c150439))
+
+## [3.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.0.1...python-openinference-instrumentation-anthropic-v3.0.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
 ## [3.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.0.0...python-openinference-instrumentation-anthropic-v3.0.1) (2026-10-01)
 
 

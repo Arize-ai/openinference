@@ -4,12 +4,13 @@ import struct
 import warnings
 from typing import Any, Iterable, Iterator, List, Mapping, Sequence, Tuple
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import get_reranker_attributes, safe_json_dumps
 from openinference.instrumentation.cohere._request_attributes_extractor import (
     _as_reranker_documents,
     _replayable_sequence,
 )
-from openinference.instrumentation.cohere._types import AttributeValue
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,

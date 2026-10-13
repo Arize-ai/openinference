@@ -1,5 +1,23 @@
 # @arizeai/openinference-instrumentation-typesafe
 
+## 0.4.3
+
+### Patch Changes
+
+- af232b6: Republish through trusted publishing. Version 0.4.2 was rejected by npm with E404 because the package's trusted publisher configuration did not match the publish workflow.
+
+## 0.4.2
+
+### Patch Changes
+
+- 9fa6d52: Republish through trusted publishing now that direct `npm publish` is allowed for the package's trusted publisher.
+
+## 0.4.1
+
+### Patch Changes
+
+- 36334b6: Republish through trusted publishing. Versions 0.2.0 through 0.4.0 were never published to npm because the package's trusted publisher only allowed staged publishes.
+
 ## 0.4.0
 
 ### Minor Changes

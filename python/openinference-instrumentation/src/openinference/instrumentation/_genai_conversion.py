@@ -4,6 +4,8 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any, Dict, List, Optional, Tuple
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.semconv.trace import (
     ChoiceAttributes,
     DocumentAttributes,
@@ -31,7 +33,6 @@ from ._genai_attributes import (
     GenAIRoleValues,
     GenAIToolTypeValues,
 )
-from ._types import AttributeValue
 from .helpers import safe_json_dumps
 
 _DATA_URL_PATTERN = re.compile(r"^data:(?P<mime>[^;]+);base64,(?P<content>.+)$")

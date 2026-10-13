@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.12...python-openinference-instrumentation-agent-framework-v0.1.13) (2026-10-07)
+
+
+### Bug Fixes
+
+* **agent-framework:** stop duplicating messages and include the system prompt ([#3913](https://github.com/Arize-ai/openinference/issues/3913)) ([f0b9a7a](https://github.com/Arize-ai/openinference/commit/f0b9a7a785635bc1a1b7de561323fc17650578b3))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.11...python-openinference-instrumentation-agent-framework-v0.1.12) (2026-10-01)
 
 

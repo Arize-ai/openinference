@@ -236,7 +236,7 @@ def test_context_attributes_propagation(in_memory_span_exporter: InMemorySpanExp
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    attrs = dict(span.attributes or {})
+    attrs: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "Completions"
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value

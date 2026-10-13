@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
 
 import { setSession, setUser } from "@arizeai/openinference-core";
 import {
+  DecisionProvider,
+  DecisionSystem,
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
@@ -13,6 +15,7 @@ import {
 
 import type { SpanFilter } from "../src";
 import {
+  enrichSpanWithOpenInference,
   isOpenInferenceSpan,
   OpenInferenceBatchSpanProcessor,
   OpenInferenceSimpleSpanProcessor,
@@ -1184,6 +1187,119 @@ function setupTraceProvider({
   trace.setGlobalTracerProvider(traceProvider);
 }
 
+describe("enrichSpanWithOpenInference", () => {
+  it("classifies the decide operation as CHAIN and the decision model call as DECISION", () => {
+    expect(
+      enrichSpanWithOpenInference({
+        spanType: "operation",
+        operationId: "ai.decide",
+        callId: "test-call",
+        runtimeContext: undefined,
+      }),
+    ).toEqual({ [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN });
+    expect(
+      enrichSpanWithOpenInference({
+        spanType: "experimental_decision",
+        operationId: "ai.decide.doDecide",
+        callId: "test-call",
+        runtimeContext: undefined,
+      }),
+    ).toEqual({ [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.DECISION });
+  });
+
+  it("leaves other spans to the processor's mapping", () => {
+    expect(
+      enrichSpanWithOpenInference({
+        spanType: "languageModel",
+        operationId: "ai.generateText",
+        callId: "test-call",
+        runtimeContext: undefined,
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe.each([
+  ["OpenInferenceSimpleSpanProcessor", OpenInferenceSimpleSpanProcessor],
+  ["OpenInferenceBatchSpanProcessor", OpenInferenceBatchSpanProcessor],
+] as const)("%s with enrichSpanWithOpenInference", (_name, Processor) => {
+  beforeEach(() => {
+    setupTraceProvider({ Processor });
+  });
+  afterEach(() => {
+    trace.disable();
+  });
+
+  it("distinguishes the decide operation from the decision model call", async () => {
+    const tracer = trace.getTracer("test-tracer");
+    // The AI SDK emits the same gen_ai.* attributes on both spans.
+    const decisionAttributes = {
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "typesafe.decision",
+      "gen_ai.request.model": "jev-latest",
+      "ai.decision.state": JSON.stringify("Customer asks about an invoice."),
+      "ai.decision.questions": JSON.stringify({ route: { type: "choice" } }),
+    };
+    const operationAttributes = enrichSpanWithOpenInference({
+      spanType: "operation",
+      operationId: "ai.decide",
+      callId: "test-call",
+      runtimeContext: undefined,
+    });
+    const modelCallAttributes = enrichSpanWithOpenInference({
+      spanType: "experimental_decision",
+      operationId: "ai.decide.doDecide",
+      callId: "test-call",
+      runtimeContext: undefined,
+    });
+
+    const operation = tracer.startSpan("decide jev-latest", {
+      attributes: { ...decisionAttributes, ...operationAttributes },
+    });
+    const modelCall = tracer.startSpan(
+      "decide jev-latest",
+      { attributes: { ...decisionAttributes, ...modelCallAttributes } },
+      trace.setSpan(context.active(), operation),
+    );
+    modelCall.setAttributes({
+      "gen_ai.usage.input_tokens": 24,
+      "gen_ai.usage.output_tokens": 2,
+      "ai.decision.answers": JSON.stringify({ route: { choice: "billing" } }),
+    });
+    modelCall.end();
+    operation.setAttribute("ai.decision.answers", JSON.stringify({ route: { choice: "billing" } }));
+    operation.end();
+    await processor.forceFlush();
+
+    const spans = memoryExporter.getFinishedSpans();
+    const exportedOperation = spans.find(
+      (span) => span.spanContext().spanId === operation.spanContext().spanId,
+    );
+    const exportedModelCall = spans.find(
+      (span) => span.spanContext().spanId === modelCall.spanContext().spanId,
+    );
+    expect(exportedOperation?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.CHAIN,
+    );
+    expect(exportedModelCall?.parentSpanId).toBe(operation.spanContext().spanId);
+    expect(exportedModelCall?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.DECISION,
+    );
+    expect(exportedModelCall?.attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe(
+      "jev-latest",
+    );
+    expect(exportedModelCall?.attributes[SemanticConventions.DECISION_TOKEN_COUNT_INPUT]).toBe(24);
+    expect(exportedOperation?.attributes[SemanticConventions.INPUT_VALUE]).toBeDefined();
+    expect(exportedOperation?.attributes[SemanticConventions.OUTPUT_VALUE]).toBeDefined();
+    // Model identity and usage live on the DECISION span only, so they are not double counted.
+    expect(
+      Object.keys(exportedOperation?.attributes ?? {}).some(
+        (key) => key.startsWith("decision.") || key.startsWith("llm."),
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("OpenInferenceSimpleSpanProcessor", () => {
   beforeEach(() => {
     setupTraceProvider({ Processor: OpenInferenceSimpleSpanProcessor });
@@ -1272,6 +1388,155 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
       });
     },
   );
+
+  it("converts AI SDK v7 decision model telemetry without LLM attributes", () => {
+    const span = trace.getTracer("test-tracer").startSpan("decide jev-latest");
+    span.setAttributes({
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "typesafe.decision",
+      "gen_ai.request.model": "jev-latest",
+      "gen_ai.usage.input_tokens": 24,
+      "gen_ai.usage.output_tokens": 2,
+      "ai.decision.state": JSON.stringify("Customer asks about an invoice."),
+      "ai.decision.questions": JSON.stringify({ route: { type: "choice" } }),
+      "ai.decision.answers": JSON.stringify({ route: { type: "choice", choice: "billing" } }),
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.DECISION,
+    );
+    expect(attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe("jev-latest");
+    expect(attributes[SemanticConventions.DECISION_REQUEST_MODEL_NAME]).toBe("jev-latest");
+    expect(attributes[SemanticConventions.DECISION_RESPONSE_MODEL_NAME]).toBeUndefined();
+    expect(attributes[SemanticConventions.DECISION_SYSTEM]).toBe(DecisionSystem.TYPESAFE);
+    expect(attributes[SemanticConventions.DECISION_PROVIDER]).toBe(DecisionProvider.TYPESAFE);
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_INPUT]).toBe(24);
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT]).toBe(2);
+    expect(JSON.parse(attributes[SemanticConventions.INPUT_VALUE] as string)).toEqual({
+      state: "Customer asks about an invoice.",
+      questions: { route: { type: "choice" } },
+    });
+    expect(JSON.parse(attributes[SemanticConventions.OUTPUT_VALUE] as string)).toEqual({
+      route: { type: "choice", choice: "billing" },
+    });
+    expect(attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(MimeType.JSON);
+    expect(attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(MimeType.JSON);
+    expect(Object.keys(attributes).filter((key) => key.startsWith("llm."))).toEqual([]);
+    // The GenAI model and usage keys are removed so downstream GenAI converters do not
+    // re-label the decision model as an LLM.
+    expect(attributes["gen_ai.provider.name"]).toBeUndefined();
+    expect(attributes["gen_ai.request.model"]).toBeUndefined();
+    expect(attributes["gen_ai.usage.input_tokens"]).toBeUndefined();
+    expect(attributes["gen_ai.operation.name"]).toBe("decide");
+  });
+
+  it("records partial decision input when only the state is recorded", () => {
+    const span = trace.getTracer("test-tracer").startSpan("decide jev-latest");
+    span.setAttributes({
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "typesafe.decision",
+      "gen_ai.request.model": "jev-latest",
+      "ai.decision.state": JSON.stringify("Customer asks about an invoice."),
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(JSON.parse(attributes[SemanticConventions.INPUT_VALUE] as string)).toEqual({
+      state: "Customer asks about an invoice.",
+    });
+    expect(attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(MimeType.JSON);
+    expect(attributes[SemanticConventions.OUTPUT_VALUE]).toBeUndefined();
+  });
+
+  it("normalizes decision provider names to OpenInference provider values", () => {
+    const span = trace.getTracer("test-tracer").startSpan("decide decision-1");
+    span.setAttributes({
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "OpenAI.decision",
+      "gen_ai.request.model": "decision-1",
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.DECISION_SYSTEM]).toBe(DecisionSystem.OPENAI);
+    expect(attributes[SemanticConventions.DECISION_PROVIDER]).toBe(DecisionProvider.OPENAI);
+  });
+
+  it("identifies a gateway-hosted decision model from its model ID", () => {
+    const span = trace.getTracer("test-tracer").startSpan("decide typesafe-ai/jev");
+    span.setAttributes({
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "vercel",
+      "gen_ai.request.model": "typesafe-ai/jev",
+      "ai.response.model": "jev-1.13.0",
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.DECISION_SYSTEM]).toBe(DecisionSystem.TYPESAFE);
+    expect(attributes[SemanticConventions.DECISION_PROVIDER]).toBe("vercel");
+    expect(attributes[SemanticConventions.DECISION_REQUEST_MODEL_NAME]).toBe("typesafe-ai/jev");
+    expect(attributes[SemanticConventions.DECISION_RESPONSE_MODEL_NAME]).toBe("jev-1.13.0");
+    expect(attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe("jev-1.13.0");
+  });
+
+  it("converts legacy AI SDK decision attributes", () => {
+    const span = trace.getTracer("test-tracer").startSpan("ai.decide.doDecide");
+    span.setAttributes({
+      "operation.name": "ai.decide.doDecide",
+      "ai.model.id": "jev-latest",
+      "ai.model.provider": "typesafe-ai",
+      "ai.usage.inputTokens": 12,
+      "ai.usage.outputTokens": 1,
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.DECISION,
+    );
+    expect(attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe("jev-latest");
+    expect(attributes[SemanticConventions.DECISION_REQUEST_MODEL_NAME]).toBe("jev-latest");
+    expect(attributes[SemanticConventions.DECISION_PROVIDER]).toBe(DecisionProvider.TYPESAFE);
+    expect(attributes[SemanticConventions.DECISION_SYSTEM]).toBe(DecisionSystem.TYPESAFE);
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_INPUT]).toBe(12);
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT]).toBe(1);
+    expect(Object.keys(attributes).filter((key) => key.startsWith("llm."))).toEqual([]);
+  });
+
+  it("converts the legacy AI SDK decide operation to a CHAIN without model attributes", () => {
+    const span = trace.getTracer("test-tracer").startSpan("ai.decide");
+    span.setAttributes({
+      "operation.name": "ai.decide",
+      "ai.model.id": "jev-latest",
+      "ai.model.provider": "typesafe-ai",
+      "ai.usage.inputTokens": 12,
+      "ai.usage.outputTokens": 1,
+      "ai.decision.state": JSON.stringify("Customer asks about an invoice."),
+      "ai.decision.questions": JSON.stringify({ route: { type: "choice" } }),
+      "ai.decision.answers": JSON.stringify({ route: { choice: "billing" } }),
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.CHAIN,
+    );
+    expect(JSON.parse(attributes[SemanticConventions.INPUT_VALUE] as string)).toEqual({
+      state: "Customer asks about an invoice.",
+      questions: { route: { type: "choice" } },
+    });
+    expect(JSON.parse(attributes[SemanticConventions.OUTPUT_VALUE] as string)).toEqual({
+      route: { choice: "billing" },
+    });
+    expect(
+      Object.keys(attributes).filter(
+        (key) => key.startsWith("decision.") || key.startsWith("llm."),
+      ),
+    ).toEqual([]);
+  });
 
   it("should expand AI SDK v7 multi-tool response messages into separate tool messages", () => {
     const tracer = trace.getTracer("test-tracer");

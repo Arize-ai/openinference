@@ -23,6 +23,8 @@ export const VercelSDKFunctionNameToSpanKindMap = new Map([
   ["ai.embedMany", OpenInferenceSpanKind.CHAIN],
   ["ai.embedMany.doEmbed", OpenInferenceSpanKind.EMBEDDING],
   ["ai.toolCall", OpenInferenceSpanKind.TOOL],
+  ["ai.decide", OpenInferenceSpanKind.CHAIN],
+  ["ai.decide.doDecide", OpenInferenceSpanKind.DECISION],
 ]);
 
 /**
@@ -58,4 +60,5 @@ export const GenAIOperationNameToSpanKindMap = new Map([
   ["execute_tool", OpenInferenceSpanKind.TOOL],
   ["embeddings", OpenInferenceSpanKind.EMBEDDING],
   ["rerank", OpenInferenceSpanKind.RERANKER],
+  ["decide", OpenInferenceSpanKind.DECISION],
 ]);
