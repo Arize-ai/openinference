@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
 import pytest
-from agents import Agent, Runner, function_tool
-from agents.exceptions import MaxTurnsExceeded
+from agents import Agent, OpenAIResponsesModel, Runner, function_tool
+from agents.exceptions import MaxTurnsExceeded, ModelBehaviorError
 from agents.items import ModelResponse
 from agents.models.interface import Model
 from agents.usage import Usage
+from openai import AsyncOpenAI, InternalServerError
 from openai.types.responses import (
     ResponseFunctionToolCall,
     ResponseOutputMessage,
@@ -131,6 +133,64 @@ async def test_root_span_is_error_when_max_turns_exceeded(exporter: InMemorySpan
     )
 
 
+def test_root_span_is_error_when_sync_run_fails(exporter: InMemorySpanExporter) -> None:
+    agent = Agent(name="helper", model=_LoopForeverModel(), tools=[get_weather])
+    with pytest.raises(MaxTurnsExceeded):
+        Runner.run_sync(agent, "hi", max_turns=1)
+
+    assert _root_span(list(exporter.get_finished_spans())).status.status_code == StatusCode.ERROR
+
+
+async def test_root_span_is_error_when_model_returns_http_500(
+    exporter: InMemorySpanExporter,
+) -> None:
+    """A failed model request must mark the workflow as failed."""
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(500, json={"error": {"message": "boom"}})
+    )
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AsyncOpenAI(
+            api_key="test", base_url="http://fake/v1", max_retries=0, http_client=http_client
+        )
+        agent = Agent(name="helper", model=OpenAIResponsesModel("m", client))
+        with pytest.raises(InternalServerError, match="boom"):
+            await Runner.run(agent, "hi")
+
+    spans = list(exporter.get_finished_spans())
+    assert _root_span(spans).status.status_code == StatusCode.ERROR
+
+
+async def test_root_span_is_error_when_model_calls_unknown_tool(
+    exporter: InMemorySpanExporter,
+) -> None:
+    agent = Agent(name="helper", model=_ScriptedModel([_tool_call("missing_tool")]))
+    with pytest.raises(ModelBehaviorError):
+        await Runner.run(agent, "hi")
+
+    spans = list(exporter.get_finished_spans())
+    assert _root_span(spans).status.status_code == StatusCode.ERROR
+
+
+async def test_root_span_is_error_when_streamed_model_returns_http_500(
+    exporter: InMemorySpanExporter,
+) -> None:
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(500, json={"error": {"message": "boom"}})
+    )
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AsyncOpenAI(
+            api_key="test", base_url="http://fake/v1", max_retries=0, http_client=http_client
+        )
+        agent = Agent(name="helper", model=OpenAIResponsesModel("m", client))
+        result = Runner.run_streamed(agent, "hi")
+        with pytest.raises(InternalServerError, match="boom"):
+            async for _ in result.stream_events():
+                pass
+
+    spans = list(exporter.get_finished_spans())
+    assert _root_span(spans).status.status_code == StatusCode.ERROR
+
+
 async def test_root_span_is_ok_when_run_succeeds(exporter: InMemorySpanExporter) -> None:
     """A successful run must keep the root span as OK (regression guard)."""
     agent = Agent(name="helper", model=_SuccessModel())
@@ -142,6 +202,20 @@ async def test_root_span_is_ok_when_run_succeeds(exporter: InMemorySpanExporter)
     assert root.status.status_code == StatusCode.OK, (
         f"root span status should be OK, got {root.status.status_code}"
     )
+
+
+async def test_root_span_is_ok_when_run_succeeds_inside_exception_handler(
+    exporter: InMemorySpanExporter,
+) -> None:
+    """An exception already being handled by the caller is not a run failure."""
+    agent = Agent(name="helper", model=_SuccessModel())
+    try:
+        raise ValueError("earlier failure")
+    except ValueError:
+        result = await Runner.run(agent, "hi")
+
+    assert result.final_output == "Hello!"
+    assert _root_span(list(exporter.get_finished_spans())).status.status_code == StatusCode.OK
 
 
 async def test_root_span_is_ok_when_tool_raises_but_run_succeeds(
