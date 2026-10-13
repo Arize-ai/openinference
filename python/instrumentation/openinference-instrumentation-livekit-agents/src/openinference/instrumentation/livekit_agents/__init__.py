@@ -32,7 +32,13 @@ class LiveKitAgentsInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     its audio, and LLMStream to record each model call. A turn becomes a conversation.turn
     span of kind AUDIO with user, assistant, and tool child spans, rendered when the speech
     ends. LiveKit's own telemetry does not need to be configured.
+
+    instrument(exclusive=True), the default, also points livekit-agents' own tracer at a
+    no-op provider, so LiveKit's spans do not repeat the turn's model calls and token counts.
+    Pass exclusive=False to keep them. uninstrument restores LiveKit's provider.
     """
+
+    _livekit_tracer_provider: trace_api.TracerProvider | None = None
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -56,6 +62,12 @@ class LiveKitAgentsInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             llm_stream_init,
         )
 
+        if kwargs.get("exclusive", True):
+            from livekit.agents.telemetry import tracer as livekit_tracer
+
+            self._livekit_tracer_provider = livekit_tracer._tracer_provider
+            livekit_tracer.set_provider(trace_api.NoOpTracerProvider())
+
         wrap_function_wrapper(_SESSION_MODULE, "AgentSession.start", StartWrapper(tracer, config))
         wrap_function_wrapper(_LLM_MODULE, "LLMStream.__init__", llm_stream_init)
         wrap_function_wrapper(_LLM_MODULE, "LLMStream.__anext__", llm_stream_anext)
@@ -66,5 +78,10 @@ class LiveKitAgentsInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         from livekit.agents.voice.agent_session import AgentSession
 
         unwrap(AgentSession, "start")
+        if (provider := self._livekit_tracer_provider) is not None:
+            from livekit.agents.telemetry import tracer as livekit_tracer
+
+            livekit_tracer.set_provider(provider)
+            self._livekit_tracer_provider = None
         for method in ("__init__", "__anext__", "aclose"):
             unwrap(LLMStream, method)

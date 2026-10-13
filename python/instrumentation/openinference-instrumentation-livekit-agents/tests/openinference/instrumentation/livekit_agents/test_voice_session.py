@@ -17,6 +17,7 @@ from typing import Any, Iterator
 import pytest
 from livekit import rtc
 from livekit.agents import Agent, AgentSession, RunContext, function_tool
+from livekit.agents.telemetry import tracer as livekit_tracer
 from livekit.agents.voice import io as lk_io
 from livekit.plugins import openai, silero
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
@@ -122,12 +123,14 @@ async def _ask_about_the_weather() -> None:
 
 
 @contextmanager
-def _instrumented(config: TraceConfig | None = None) -> Iterator[InMemorySpanExporter]:
+def _instrumented(
+    config: TraceConfig | None = None, **kwargs: Any
+) -> Iterator[InMemorySpanExporter]:
     exporter = InMemorySpanExporter()
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     instrumentor = LiveKitAgentsInstrumentor()
-    instrumentor.instrument(tracer_provider=provider, config=config)
+    instrumentor.instrument(tracer_provider=provider, config=config, **kwargs)
     try:
         yield exporter
     finally:
@@ -339,3 +342,32 @@ def test_uninstrumented_session_emits_no_spans() -> None:
         pass
     asyncio.run(_ask_about_the_weather())
     assert exporter.get_finished_spans() == ()
+
+
+@contextmanager
+def _livekit_exporting_to(exporter: InMemorySpanExporter) -> Iterator[None]:
+    """Point livekit-agents' own tracer at an exporter, as a global tracer provider would."""
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    previous = livekit_tracer._tracer_provider
+    livekit_tracer.set_provider(provider)
+    try:
+        yield
+    finally:
+        livekit_tracer.set_provider(previous)
+
+
+@pytest.mark.vcr
+@pytest.mark.default_cassette(_CASSETTE)
+@pytest.mark.parametrize("exclusive", [True, False])
+def test_exclusive_silences_livekit_spans_until_uninstrumented(exclusive: bool) -> None:
+    livekit_spans = InMemorySpanExporter()
+    with _livekit_exporting_to(livekit_spans):
+        with _instrumented(exclusive=exclusive) as exporter:
+            asyncio.run(_ask_about_the_weather())
+        assert len(exporter.get_finished_spans()) == 5
+        names = {span.name for span in livekit_spans.get_finished_spans()}
+        assert ("llm_request" in names) is not exclusive
+        livekit_spans.clear()
+        livekit_tracer.start_span("after_uninstrument").end()
+        assert [span.name for span in livekit_spans.get_finished_spans()] == ["after_uninstrument"]

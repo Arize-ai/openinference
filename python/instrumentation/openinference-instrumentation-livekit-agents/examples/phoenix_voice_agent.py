@@ -37,7 +37,6 @@ def setup(proc: JobProcess) -> None:
     register(
         project_name=os.environ.get("PHOENIX_PROJECT_NAME", "livekit-voice-agent"),
         auto_instrument=True,  # Automatically use the installed OpenInference instrumentation
-        set_global_tracer_provider=False,  # Keep livekit-agents' own spans out of the project
         batch=True,
     )
     proc.userdata["vad"] = silero.VAD.load()

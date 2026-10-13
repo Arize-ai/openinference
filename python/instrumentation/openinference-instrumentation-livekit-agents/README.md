@@ -19,11 +19,7 @@ before the session starts:
 ```python
 from phoenix.otel import register  # or: from arize.otel import register
 
-register(
-    project_name="livekit-voice-agent",
-    auto_instrument=True,
-    set_global_tracer_provider=False,  # see Double counting below
-)
+register(project_name="livekit-voice-agent", auto_instrument=True)
 ```
 
 ```python
@@ -61,12 +57,12 @@ default (about 62 seconds of 24 kHz mono audio). Set `OPENINFERENCE_HIDE_INPUT_A
 `TraceConfig(hide_outputs=True)` drop it too. Arize stores the data URIs as blobs. Phoenix
 keeps them inline.
 
-## Double counting
+## LiveKit's own spans
 
-livekit-agents exports its own spans to the global tracer provider. When that provider sends
-to the same project, a backend that prices LiveKit's `llm_request` spans counts each model call
-twice. Pass `set_global_tracer_provider=False` to `register`, as the examples do, to keep
-LiveKit's spans out.
+livekit-agents emits its own spans (`agent_session`, `llm_request`, and others). By default
+the instrumentor points LiveKit's tracer at a no-op provider, so those spans do not repeat the
+turn's model calls and token counts, which a backend would otherwise price twice. To keep them,
+instrument with `exclusive=False`. `uninstrument()` restores LiveKit's tracer.
 
 ## Examples
 
