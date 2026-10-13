@@ -6,10 +6,6 @@ This package implements OpenInference tracing for the following Anthropic SDK me
 
 - `messages.create` (including streaming)
 - `beta.messages.create` (including server-side fallback and streaming)
-- `messages.countTokens` and `beta.messages.countTokens`
-- `beta.messages.toolRunner` (a CHAIN span parenting the LLM span of each request and a TOOL span for each tool run)
-
-`messages.stream()` and `beta.messages.stream()` are traced through `create`. Clients from `@anthropic-ai/bedrock-sdk`, `@anthropic-ai/vertex-sdk` and `@anthropic-ai/foundry-sdk` are traced too, with `llm.provider` set to `aws`, `google` and `azure`.
 
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
