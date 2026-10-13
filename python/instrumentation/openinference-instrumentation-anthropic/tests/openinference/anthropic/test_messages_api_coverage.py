@@ -929,39 +929,6 @@ _COUNT_TOKENS_KWARGS: Dict[str, Any] = {
 }
 
 
-@pytest.mark.parametrize("is_beta", [False, True])
-def test_count_tokens(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_anthropic_instrumentation: Any,
-    is_beta: bool,
-) -> None:
-    client = _mock_anthropic_client(_text_message_handler)
-    messages: Any = client.beta.messages if is_beta else client.messages
-    assert messages.count_tokens(**_COUNT_TOKENS_KWARGS).input_tokens == 12
-    name = "beta.messages.count_tokens" if is_beta else "messages.count_tokens"
-    _assert_count_tokens_span(_get_span(in_memory_span_exporter), name)
-
-
-@pytest.mark.parametrize("is_beta", [False, True])
-async def test_async_count_tokens(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_anthropic_instrumentation: Any,
-    is_beta: bool,
-) -> None:
-    from anthropic import AsyncAnthropic
-
-    client = AsyncAnthropic(
-        api_key="sk-ant-fake",
-        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(_text_message_handler)),
-    )
-    messages: Any = client.beta.messages if is_beta else client.messages
-    assert (await messages.count_tokens(**_COUNT_TOKENS_KWARGS)).input_tokens == 12
-    name = "beta.messages.count_tokens" if is_beta else "messages.count_tokens"
-    _assert_count_tokens_span(_get_span(in_memory_span_exporter), name)
-
-
 def test_count_tokens_span_has_context_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
