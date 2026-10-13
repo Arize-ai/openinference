@@ -150,7 +150,10 @@ async def test_root_span_is_error_when_model_returns_http_500(
     )
     async with httpx.AsyncClient(transport=transport) as http_client:
         client = AsyncOpenAI(
-            api_key="test", base_url="http://fake/v1", max_retries=0, http_client=http_client
+            api_key="test",
+            base_url="http://fake/v1",
+            max_retries=0,
+            http_client=http_client,  # type: ignore[arg-type]
         )
         agent = Agent(name="helper", model=OpenAIResponsesModel("m", client))
         with pytest.raises(InternalServerError, match="boom"):
@@ -179,7 +182,10 @@ async def test_root_span_is_error_when_streamed_model_returns_http_500(
     )
     async with httpx.AsyncClient(transport=transport) as http_client:
         client = AsyncOpenAI(
-            api_key="test", base_url="http://fake/v1", max_retries=0, http_client=http_client
+            api_key="test",
+            base_url="http://fake/v1",
+            max_retries=0,
+            http_client=http_client,  # type: ignore[arg-type]
         )
         agent = Agent(name="helper", model=OpenAIResponsesModel("m", client))
         result = Runner.run_streamed(agent, "hi")
