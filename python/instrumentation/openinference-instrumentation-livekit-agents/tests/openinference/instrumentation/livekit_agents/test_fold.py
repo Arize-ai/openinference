@@ -370,6 +370,29 @@ def test_tool_that_ends_before_its_request_parents_to_that_request() -> None:
     assert sealed[0].tools[0].step_span_id == 31
 
 
+def test_two_synthesized_sentences_both_stay_on_the_step() -> None:
+    state = _start_agent(SessionFold(), span_id=20, start_ns=10)
+    state = _start(state, span_id=30, name="llm_node", parent_id=20)
+    state = _model_step(state, span_id=31, parent_id=30, start_ns=20, end_ns=40)
+    state = _start(state, span_id=49, name="tts_node", parent_id=20)
+    state = _start(state, span_id=50, name="tts_request", parent_id=49)
+    state, turns = reduce_trace(
+        state,
+        SpokenTextEnded(1, 50, 49, "tts_request", "end", "Once upon a time.", 45),
+    )
+    assert turns == ()
+    state = _start(state, span_id=51, name="tts_request", parent_id=49)
+    state, turns = reduce_trace(
+        state,
+        SpokenTextEnded(1, 51, 49, "tts_request", "end", "The story of London begins.", 55),
+    )
+    assert turns == ()
+    _, sealed = _end_agent(state, span_id=20, end_ns=80)
+
+    assert len(sealed) == 1
+    assert sealed[0].steps[0].spoken_text == "Once upon a time. The story of London begins."
+
+
 def test_duplicate_agent_turn_end_does_not_emit_twice() -> None:
     state = _start_agent(SessionFold(), span_id=20, start_ns=10)
     state = _model_step(state, span_id=30, parent_id=20, start_ns=20, end_ns=30)
