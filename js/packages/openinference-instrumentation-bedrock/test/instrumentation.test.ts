@@ -153,6 +153,7 @@ describe("BedrockInstrumentation", () => {
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Hello, how are you?"}]}",
+  "llm.finish_reason": "end_turn",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -213,6 +214,7 @@ describe("BedrockInstrumentation", () => {
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather like in San Francisco?"}]}",
+  "llm.finish_reason": "tool_use",
   "llm.input_messages.0.message.content": "What's the weather like in San Francisco?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -267,12 +269,15 @@ describe("BedrockInstrumentation", () => {
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather in Paris?"},{"role":"assistant","content":[{"type":"tool_use","id":"toolu_123","name":"get_weather","input":{"location":"Paris, France"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_123","content":"The weather in Paris is currently 22°C and sunny."},{"type":"text","text":"Great! What should I wear?"}]}]}",
+  "llm.finish_reason": "max_tokens",
   "llm.input_messages.0.message.content": "What's the weather in Paris?",
   "llm.input_messages.0.message.role": "user",
   "llm.input_messages.1.message.role": "assistant",
   "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{"location":"Paris, France"}",
   "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "get_weather",
   "llm.input_messages.1.message.tool_calls.0.tool_call.id": "toolu_123",
+  "llm.input_messages.2.message.contents.0.message_content.text": "The weather in Paris is currently 22°C and sunny.",
+  "llm.input_messages.2.message.contents.0.message_content.type": "text",
   "llm.input_messages.2.message.contents.1.message_content.text": "Great! What should I wear?",
   "llm.input_messages.2.message.contents.1.message_content.type": "text",
   "llm.input_messages.2.message.role": "user",
@@ -325,6 +330,7 @@ The key things are to dress for the warm temperatures and have layers you can",
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}},{"name":"calculate","description":"Perform mathematical calculations","input_schema":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}},{"name":"web_search","description":"Search the web for information","input_schema":{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"num_results":{"type":"integer","description":"Number of results to return","minimum":1,"maximum":10}},"required":["query"]}}],"messages":[{"role":"user","content":"What's the weather in San Francisco and what's 15 * 23?"}]}",
+  "llm.finish_reason": "max_tokens",
   "llm.input_messages.0.message.content": "What's the weather in San Francisco and what's 15 * 23?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -433,6 +439,7 @@ The key things are to dress for the warm temperatures and have layers you can",
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":[{"type":"text","text":"What do you see in this image?"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="}}]}]}",
+  "llm.finish_reason": "max_tokens",
   "llm.input_messages.0.message.contents.0.message_content.text": "What do you see in this image?",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
@@ -522,6 +529,7 @@ The key things are to dress for the warm temperatures and have layers you can",
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short fact."}]}",
+  "llm.finish_reason": "end_turn",
   "llm.input_messages.0.message.content": "Tell me a short fact.",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -614,6 +622,7 @@ Honeybees can recognize human faces.",
 {
   "input.mime_type": "application/json",
   "input.value": "{"messages":[{"role":"user","content":"Hello, how are you?"}],"max_tokens":100,"temperature":0.7}",
+  "llm.finish_reason": "stop",
   "llm.input_messages.0.message.contents.0.message_content.text": "Hello, how are you?",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
@@ -694,6 +703,7 @@ Honeybees can recognize human faces.",
 {
   "input.mime_type": "application/json",
   "input.value": "{"messages":[{"role":"user","content":[{"text":"What's the weather like in San Francisco today? Please use the weather tool to check."}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.7},"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather information for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state/country for weather lookup"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit preference"}},"required":["location"]}}}}]}}",
+  "llm.finish_reason": "tool_use",
   "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather like in San Francisco today? Please use the weather tool to check.",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
@@ -746,6 +756,7 @@ Honeybees can recognize human faces.",
 {
   "input.mime_type": "application/json",
   "input.value": "{"inputText":"Hello, how are you?","textGenerationConfig":{"maxTokenCount":100,"temperature":0.7}}",
+  "llm.finish_reason": "FINISH",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokenCount":100,"temperature":0.7}",
@@ -790,6 +801,7 @@ This model is designed to avoid generating sensitive content. It is important to
 {
   "input.mime_type": "application/json",
   "input.value": "{"prompt":"Hello, how are you?","max_tokens":100,"temperature":0.7,"p":0.9,"k":0,"stop_sequences":[]}",
+  "llm.finish_reason": "COMPLETE",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"max_tokens":100,"temperature":0.7,"p":0.9,"k":0,"stop_sequences":[]}",
@@ -829,6 +841,7 @@ This model is designed to avoid generating sensitive content. It is important to
 {
   "input.mime_type": "application/json",
   "input.value": "{"prompt":"Hello, how are you?","max_gen_len":100,"temperature":0.7,"top_p":0.9}",
+  "llm.finish_reason": "length",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"max_gen_len":100,"temperature":0.7,"top_p":0.9}",
@@ -947,6 +960,7 @@ This model is designed to avoid generating sensitive content. It is important to
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short story"}]}",
+  "llm.finish_reason": "max_tokens",
   "llm.input_messages.0.message.content": "Tell me a short story",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -998,13 +1012,14 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather in San Francisco?"}]}",
+  "llm.finish_reason": "tool_use",
   "llm.input_messages.0.message.content": "What's the weather in San Francisco?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-sonnet-20240229",
   "llm.output_messages.0.message.content": "Okay, let's get the current weather for San Francisco:",
   "llm.output_messages.0.message.role": "assistant",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA","unit":"fahrenheit"}",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
   "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg",
   "llm.provider": "aws",
@@ -1014,7 +1029,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.tools.0.tool.json_schema": "{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}",
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
-  "output.value": "{"text":"Okay, let's get the current weather for San Francisco:","tool_calls":[{"id":"toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg","name":"get_weather","input":{}}],"usage":{"input_tokens":273,"output_tokens":88},"streaming":true}",
+  "output.value": "{"text":"Okay, let's get the current weather for San Francisco:","tool_calls":[{"id":"toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg","name":"get_weather","input":{"location":"San Francisco, CA","unit":"fahrenheit"}}],"usage":{"input_tokens":273,"output_tokens":88},"streaming":true}",
 }
 `);
       });
@@ -1308,6 +1323,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 {
   "input.mime_type": "application/json",
   "input.value": "{"inputText":"Tell me a very short story about a robot learning to paint.","textGenerationConfig":{"maxTokenCount":100,"temperature":0.7}}",
+  "llm.finish_reason": "LENGTH",
   "llm.input_messages.0.message.content": "Tell me a very short story about a robot learning to paint.",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokenCount":100,"temperature":0.7}",
@@ -1358,6 +1374,7 @@ Once upon a time, a robot named PaintBot was created to paint beautiful landscap
 {
   "input.mime_type": "application/json",
   "input.value": "{"prompt":"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\\n\\nTell me a very short story about artificial intelligence in the future.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n","max_gen_len":120,"temperature":0.7}",
+  "llm.finish_reason": "length",
   "llm.input_messages.0.message.content": "<|begin_of_text|><|start_header_id|>user<|end_header_id|>
 
 Tell me a very short story about artificial intelligence in the future.<|eot_id|><|start_header_id|>assistant<|end_header_id|>
@@ -1420,6 +1437,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 {
   "input.mime_type": "application/json",
   "input.value": "{"messages":[{"role":"user","content":[{"text":"Tell me a very short story about space exploration in the future."}]}],"inferenceConfig":{"max_new_tokens":150,"temperature":0.7}}",
+  "llm.finish_reason": "end_turn",
   "llm.input_messages.0.message.contents.0.message_content.text": "Tell me a very short story about space exploration in the future.",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
@@ -1489,6 +1507,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "Hello, how are you?",
             "llm.input_messages.0.message.role": "user",
             "llm.model_name": "claude-3-5-sonnet-20240620",
@@ -1551,6 +1570,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "Hello, how are you?",
             "llm.input_messages.0.message.role": "user",
             "llm.model_name": "claude-3-5-sonnet-20240620",
@@ -1687,6 +1707,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             {
               "input.mime_type": "application/json",
               "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's the weather in San Francisco and what time is it there?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}]}}",
+              "llm.finish_reason": "tool_use",
               "llm.input_messages.0.message.content": "What's the weather in San Francisco and what time is it there?",
               "llm.input_messages.0.message.role": "user",
               "llm.model_name": "claude-3-5-sonnet-20240620",
@@ -1754,6 +1775,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             {
               "input.mime_type": "application/json",
               "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Describe this image and tell me a short story about it:"},{"image":{"format":"png","source":{"bytes":{"type":"Buffer","data":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,13,73,68,65,84,120,218,99,100,248,207,80,15,0,3,134,1,128,90,52,125,107,0,0,0,0,73,69,78,68,174,66,96,130]}}}}]}]}",
+              "llm.finish_reason": "end_turn",
               "llm.input_messages.0.message.contents.0.message_content.text": "Describe this image and tell me a short story about it:",
               "llm.input_messages.0.message.contents.0.message_content.type": "text",
               "llm.input_messages.0.message.contents.1.message_content.image.format": "png",
@@ -1988,6 +2010,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           expect(span.attributes).toEqual({
             "input.mime_type": "application/json",
             "input.value": expectedInputValue,
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": expectedMessage1,
             "llm.input_messages.0.message.role": "user",
             "llm.input_messages.1.message.content": expectedMessage2,
@@ -2166,6 +2189,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
                 {
                   "input.mime_type": "application/json",
                   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
+                  "llm.finish_reason": "end_turn",
                   "llm.input_messages.0.message.content": "Hello, how are you?",
                   "llm.input_messages.0.message.role": "user",
                   "llm.model_name": "claude-3-5-sonnet-20240620",
@@ -2229,6 +2253,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             {
               "input.mime_type": "application/json",
               "input.value": "{"modelId":"meta.llama3-8b-instruct-v1:0","messages":[{"role":"user","content":[{"text":"Explain quantum computing in simple terms"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "max_tokens",
               "llm.input_messages.0.message.content": "Explain quantum computing in simple terms",
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -2292,6 +2317,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             {
               "input.mime_type": "application/json",
               "input.value": "{"modelId":"mistral.mistral-7b-instruct-v0:2","messages":[{"role":"user","content":[{"text":"Write a haiku about technology"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "end_turn",
               "llm.input_messages.0.message.content": "Write a haiku about technology",
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -2349,6 +2375,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             {
               "input.mime_type": "application/json",
               "input.value": "{"modelId":"amazon.titan-text-express-v1","messages":[{"role":"user","content":[{"text":"What are the benefits of cloud computing?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "max_tokens",
               "llm.input_messages.0.message.content": "What are the benefits of cloud computing?",
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -2408,6 +2435,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             {
               "input.mime_type": "application/json",
               "input.value": "{"modelId":"amazon.nova-lite-v1:0","messages":[{"role":"user","content":[{"text":"Describe the process of photosynthesis"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "max_tokens",
               "llm.input_messages.0.message.content": "Describe the process of photosynthesis",
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -2469,6 +2497,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             {
               "input.mime_type": "application/json",
               "input.value": "{"modelId":"cohere.command-r-v1:0","messages":[{"role":"user","content":[{"text":"Explain the concept of machine learning"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "max_tokens",
               "llm.input_messages.0.message.content": "Explain the concept of machine learning",
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -2524,6 +2553,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             {
               "input.mime_type": "application/json",
               "input.value": "{"modelId":"ai21.jamba-1-5-mini-v1:0","messages":[{"role":"user","content":[{"text":"What is artificial intelligence?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "max_tokens",
               "llm.input_messages.0.message.content": "What is artificial intelligence?",
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -2585,6 +2615,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant that responds concisely."}],"messages":[{"role":"user","content":[{"text":"What is the capital of France?"}]}]}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "You are a helpful assistant that responds concisely.",
             "llm.input_messages.0.message.role": "system",
             "llm.input_messages.1.message.content": "What is the capital of France?",
@@ -2647,6 +2678,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant."},{"text":"Respond briefly."}],"messages":[{"role":"user","content":[{"text":"What is TypeScript?"}]}]}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "You are a helpful assistant.
 
           Respond briefly.",
@@ -2711,6 +2743,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Explain machine learning briefly."}]}],"inferenceConfig":{"maxTokens":150,"temperature":0.7,"topP":0.9,"stopSequences":["END","STOP"]}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.content": "Explain machine learning briefly.",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":150,"temperature":0.7,"topP":0.9,"stopSequences":["END","STOP"]}",
@@ -2799,6 +2832,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, what's your name?"}]},{"role":"assistant","content":[{"text":"I'm Claude, an AI assistant. How can I help you today?"}]},{"role":"user","content":[{"text":"Can you tell me a joke?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "Hello, what's your name?",
             "llm.input_messages.0.message.role": "user",
             "llm.input_messages.1.message.content": "I'm Claude, an AI assistant. How can I help you today?",
@@ -2887,6 +2921,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant that tells jokes."}],"messages":[{"role":"user","content":[{"text":"Tell me about yourself."}]},{"role":"assistant","content":[{"text":"I'm Claude, an AI assistant who loves to help and tell jokes!"}]},{"role":"user","content":[{"text":"Great! Tell me a joke then."}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "You are a helpful assistant that tells jokes.",
             "llm.input_messages.0.message.role": "system",
             "llm.input_messages.1.message.content": "Tell me about yourself.",
@@ -2974,6 +3009,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's in this image?"},{"image":{"format":"png","source":{"bytes":{"type":"Buffer","data":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,13,73,68,65,84,120,218,99,252,255,159,161,30,0,7,130,2,127,61,200,72,239,0,0,0,0,73,69,78,68,174,66,96,130]}}}}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.contents.0.message_content.text": "What's in this image?",
             "llm.input_messages.0.message.contents.0.message_content.type": "text",
             "llm.input_messages.0.message.contents.1.message_content.image.format": "png",
@@ -3052,6 +3088,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Describe this JPEG image."},{"image":{"format":"jpeg","source":{"bytes":{"type":"Buffer","data":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,13,73,68,65,84,120,218,99,252,255,159,161,30,0,7,130,2,127,61,200,72,239,0,0,0,0,73,69,78,68,174,66,96,130]}}}}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.contents.0.message_content.text": "Describe this JPEG image.",
             "llm.input_messages.0.message.contents.0.message_content.type": "text",
             "llm.input_messages.0.message.contents.1.message_content.image.format": "jpeg",
@@ -3126,6 +3163,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"mistral.mistral-7b-instruct-v0:2","messages":[{"role":"user","content":[{"text":"Hello, can you tell me about yourself?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "Hello, can you tell me about yourself?",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -3188,6 +3226,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"meta.llama3-8b-instruct-v1:0","messages":[{"role":"user","content":[{"text":"Hello, can you tell me about yourself?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.content": "Hello, can you tell me about yourself?",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -3260,6 +3299,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Brief response please."}]}],"inferenceConfig":{"maxTokens":50,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.content": "Brief response please.",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":50,"temperature":0.1}",
@@ -3363,6 +3403,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"One word response."}]}]}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "One word response.",
             "llm.input_messages.0.message.role": "user",
             "llm.model_name": "claude-3-5-sonnet-20240620",
@@ -3452,6 +3493,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's the weather in San Francisco?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}]},"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.content": "What's the weather in San Francisco?",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -3542,6 +3584,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What is 15 * 23?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"calculate","description":"Perform mathematical calculations","inputSchema":{"json":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}}}}]},"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "tool_use",
             "llm.input_messages.0.message.content": "What is 15 * 23?",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -3641,6 +3684,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, what's your name?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "Hello, what's your name?",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -3751,6 +3795,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant."}],"messages":[{"role":"user","content":[{"text":"What is the capital of Germany?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.content": "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant.",
             "llm.input_messages.0.message.role": "system",
             "llm.input_messages.1.message.content": "What is the capital of Germany?",

@@ -28,6 +28,8 @@ from openinference.instrumentation.bedrock.utils._extract_invoke_model_attribute
     _build_nova_input_messages,
     _build_nova_output_messages,
     _build_nova_tools,
+    get_openai_output_attributes,
+    set_input_attributes,
 )
 
 if TYPE_CHECKING:
@@ -198,6 +200,124 @@ class _NovaStreamCallback:
             span.set_attributes(get_llm_output_message_attributes(output_messages))
 
 
+class _OpenAIStreamCallback:
+    """
+    Processes OpenAI (gpt-oss, GPT-5.x, GPT-6) invoke_model_with_response_stream events.
+
+    Each chunk is a Chat Completions ``chat.completion.chunk``. Every choice (keyed by
+    ``choices[].index``) streams its text in ``delta.content``, a refusal in
+    ``delta.refusal``, tool calls in ``delta.tool_calls`` (split into fragments keyed by
+    their own ``index``) and ends with ``finish_reason``. GPT-5.x/GPT-6 send ``usage``
+    with the finish reason (again in a trailing chunk with empty ``choices`` when
+    ``stream_options.include_usage`` is set). gpt-oss sends ``usage`` only with
+    ``include_usage``, so token counts fall back to the
+    ``amazon-bedrock-invocationMetrics`` of the last chunk.
+    """
+
+    def __init__(self, span: Span) -> None:
+        self._span = span
+        # Accumulated message state per ``choice.index`` (more than one when ``n > 1``).
+        self._choices: Dict[int, Dict[str, Any]] = {}
+        self._usage: Dict[str, Any] = {}
+
+    def __call__(self, obj: Any) -> Any:
+        span = self._span
+        if isinstance(obj, dict):
+            if "chunk" in obj and "bytes" in obj["chunk"]:
+                try:
+                    payload = json.loads(obj["chunk"]["bytes"])
+                    for choice in payload.get("choices") or []:
+                        self._add_choice_delta(choice)
+                    if isinstance(usage := payload.get("usage"), dict):
+                        self._usage = usage
+                    elif isinstance(
+                        metrics := payload.get("amazon-bedrock-invocationMetrics"), dict
+                    ):
+                        prompt = metrics.get("inputTokenCount")
+                        completion = metrics.get("outputTokenCount")
+                        self._usage = {"prompt_tokens": prompt, "completion_tokens": completion}
+                        if isinstance(prompt, int) and isinstance(completion, int):
+                            self._usage["total_tokens"] = prompt + completion
+                except Exception:
+                    pass
+        elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            if self._choices and (
+                finish_reason := self._choices[min(self._choices)]["finish_reason"]
+            ):
+                span.set_attribute(LLM_FINISH_REASON, finish_reason)
+            for key, attribute in (
+                ("prompt_tokens", LLM_TOKEN_COUNT_PROMPT),
+                ("completion_tokens", LLM_TOKEN_COUNT_COMPLETION),
+                ("total_tokens", LLM_TOKEN_COUNT_TOTAL),
+            ):
+                if isinstance(value := self._usage.get(key), int):
+                    span.set_attribute(attribute, value)
+            span.set_attributes(get_openai_output_attributes(self._output_messages()))
+            _finish(span, None, {})
+        elif isinstance(obj, BaseException):
+            _finish(span, obj, {})
+        return obj
+
+    def _add_choice_delta(self, choice: Any) -> None:
+        if not isinstance(choice, dict):
+            return
+        index = choice.get("index")
+        state = self._choices.setdefault(
+            index if isinstance(index, int) else 0,
+            {
+                "role": "assistant",
+                "content": "",
+                "refusal": "",
+                "tool_calls": {},
+                "finish_reason": None,
+            },
+        )
+        delta = choice.get("delta") or {}
+        if role := delta.get("role"):
+            state["role"] = role
+        if content := delta.get("content"):
+            state["content"] += content
+        if refusal := delta.get("refusal"):
+            state["refusal"] += refusal
+        for tool_call in delta.get("tool_calls") or []:
+            self._add_tool_call_delta(state["tool_calls"], tool_call)
+        if finish_reason := choice.get("finish_reason"):
+            state["finish_reason"] = finish_reason
+
+    @staticmethod
+    def _add_tool_call_delta(tool_calls: Dict[int, Dict[str, Any]], tool_call: Any) -> None:
+        if not isinstance(tool_call, dict):
+            return
+        index = tool_call.get("index")
+        if not isinstance(index, int):
+            index = len(tool_calls)
+        accumulated = tool_calls.setdefault(
+            index, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}}
+        )
+        if tool_call_id := tool_call.get("id"):
+            accumulated["id"] = tool_call_id
+        function = tool_call.get("function") or {}
+        if name := function.get("name"):
+            accumulated["function"]["name"] = name
+        if arguments := function.get("arguments"):
+            accumulated["function"]["arguments"] += arguments
+
+    def _output_messages(self) -> list[Dict[str, Any]]:
+        messages: list[Dict[str, Any]] = []
+        for index in sorted(self._choices):
+            state = self._choices[index]
+            if not (state["content"] or state["refusal"] or state["tool_calls"]):
+                continue
+            message: Dict[str, Any] = {"role": state["role"], "content": state["content"] or None}
+            if state["refusal"]:
+                message["refusal"] = state["refusal"]
+            if state["tool_calls"]:
+                tool_calls = state["tool_calls"]
+                message["tool_calls"] = [tool_calls[i] for i in sorted(tool_calls)]
+            messages.append(message)
+        return messages
+
+
 def _is_async_at_decoration(wrapped: Callable[..., Any]) -> bool:
     """
     Decide sync vs async at decoration time (same heuristic as call-time check).
@@ -287,9 +407,17 @@ class _InvokeModelWithResponseStream(_WithTracer):
                     _use_span(span),
                 )
                 return response
-        span.set_attribute(LLM_INVOCATION_PARAMETERS, body)
+            if "openai." in model_id:
+                set_input_attributes(span, body, dict(kwargs))
+                response["body"] = _EventStream(
+                    response["body"],
+                    _OpenAIStreamCallback(span),
+                    _use_span(span),
+                )
+                return response
+        span.set_attribute(LLM_INVOCATION_PARAMETERS, safe_json_dumps(body))
         span.set_attribute(INPUT_MIME_TYPE, JSON)
-        span.set_attribute(INPUT_VALUE, body)
+        span.set_attribute(INPUT_VALUE, safe_json_dumps(body))
         span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
         span.end()
 

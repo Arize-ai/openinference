@@ -1,5 +1,24 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.14.0
+
+### Minor Changes
+
+- 53b7a0e: Add `decision.model_name`, `decision.request.model_name`, `decision.response.model_name`, `decision.system`, `decision.provider`, `decision.token_count.input`, and `decision.token_count.output` attributes for `DECISION` spans, plus `DecisionSystem` and `DecisionProvider` well-known value enums that alias the matching `LLMSystem` and `LLMProvider` values.
+
+## 2.13.0
+
+### Minor Changes
+
+- a1f276c: Add the `DECISION` span kind to `OpenInferenceSpanKind` for decision model calls that score or select among candidate options.
+- a719562: Add `ORACLE` to the `LLMProvider` enum, giving Oracle Cloud Infrastructure Generative AI (`https://inference.generativeai.<region>.oci.oraclecloud.com`) a well-known `llm.provider` value instead of leaving it to a custom string. Mirrors the same addition in the Python, Java, and Go semantic conventions and in the spec's well-known value table.
+
+## 2.12.0
+
+### Minor Changes
+
+- 5a075b9: Add TypeSafe AI SDK instrumentation with one LLM span per systemOne call, structured JSON input/output payloads, question confidence metadata, token usage, context propagation, and configurable masking. Preserve the SDK's APIPromise interface and support both ESM and CommonJS. Add TypeSafe provider and system values to the semantic conventions and recognize the TypeSafe API hostname in provider inference.
+
 ## 2.11.0
 
 ### Minor Changes

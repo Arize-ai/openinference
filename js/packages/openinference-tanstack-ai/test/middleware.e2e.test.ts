@@ -106,6 +106,7 @@ describe("openInferenceMiddleware e2e", () => {
       "OpenInference makes LLM traces easier to inspect.",
     );
     expect(llmSpan?.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe("fake-model");
+    expect(llmSpan?.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("stop");
     expect(
       llmSpan?.attributes[
         `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`
@@ -235,6 +236,12 @@ describe("openInferenceMiddleware e2e", () => {
 
     expect(agentSpan).toBeDefined();
     expect(llmSpan).toBeDefined();
+    expect(llmSpan?.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("tool_calls");
+    expect(
+      spans.find((span) => span.name === "ai.llm 2")?.attributes[
+        SemanticConventions.LLM_FINISH_REASON
+      ],
+    ).toBe("stop");
     const toolSpans = spans.filter(
       (span) =>
         span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,

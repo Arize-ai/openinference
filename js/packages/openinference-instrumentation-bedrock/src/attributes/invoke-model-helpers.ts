@@ -28,7 +28,11 @@ import {
 } from "../types/bedrock-types";
 
 const isExtendedConversationRole = (value: unknown): value is ExtendedConversationRole =>
-  value === "assistant" || value === "user" || value === "system" || value === "tool";
+  value === "assistant" ||
+  value === "user" ||
+  value === "system" ||
+  value === "tool" ||
+  value === "developer";
 
 const isMessageContentBlock = (
   item: unknown,
@@ -350,13 +354,17 @@ function convertMistralAssistantToolCallsMessage({
     if (typeof fn?.name !== "string" || typeof fn.arguments !== "string") {
       continue;
     }
-    const parsedInput: unknown = JSON.parse(fn.arguments);
-    content.push({
-      type: "tool_use",
-      id: typeof rawToolCall.id === "string" ? rawToolCall.id : "unknown",
-      name: fn.name,
-      input: parsedInput,
-    });
+    try {
+      content.push({
+        type: "tool_use",
+        id: typeof rawToolCall.id === "string" ? rawToolCall.id : "unknown",
+        name: fn.name,
+        input: JSON.parse(fn.arguments),
+      });
+    } catch (error) {
+      // Skip only this tool call so the rest of the history is still recorded
+      diag.warn("Failed to parse tool call arguments:", error);
+    }
   }
 
   // Add text content if present
@@ -476,6 +484,41 @@ function convertMistralChatToBedrockMessages(
     // Handle regular text content (string format)
     // Edge case: Simple text messages mixed in with complex chat completion requests
     return convertMistralTextMessage({ message, role });
+  });
+}
+
+/**
+ * Converts an OpenAI Chat Completions request (gpt-oss, GPT-5.x, GPT-6) to BedrockMessage array.
+ * Reuses the Mistral chat conversion, then restores the `developer` role and links `tool`
+ * messages to their tool call through `tool_call_id`.
+ *
+ * @param requestBody The OpenAI-formatted request body containing messages array
+ * @returns {BedrockMessage[]} Array of converted BedrockMessage objects
+ */
+function convertOpenAIChatToBedrockMessages(
+  requestBody: Record<string, unknown>,
+): BedrockMessage[] {
+  const rawMessages = Array.isArray(requestBody.messages)
+    ? requestBody.messages.filter(isObjectWithStringKeys)
+    : [];
+  return convertMistralChatToBedrockMessages(requestBody).map((converted, index) => {
+    const raw = rawMessages[index];
+    if (raw.role === "developer") {
+      return { ...converted, role: "developer" };
+    }
+    if (raw.role === "tool" && typeof raw.tool_call_id === "string") {
+      return {
+        ...converted,
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: raw.tool_call_id,
+            content: typeof raw.content === "string" ? raw.content : "",
+          },
+        ],
+      };
+    }
+    return converted;
   });
 }
 
@@ -644,6 +687,10 @@ export const normalizeRequestContentBlocks = withSafety({
         return hasStringProperty({ requestBody, key: "prompt" })
           ? convertSimpleTextToBedrockMessages(requestBody, "prompt")
           : fallbackNormalizeRequestContentBlocks(requestBody);
+      case LLMSystem.OPENAI:
+        return isMistralChatRequest(requestBody)
+          ? convertOpenAIChatToBedrockMessages(requestBody)
+          : normalizeMistralRequestContentBlocks(requestBody);
       case LLMSystem.MISTRALAI:
         return normalizeMistralRequestContentBlocks(requestBody);
       case LLMSystem.AI21:
@@ -659,6 +706,50 @@ export const normalizeRequestContentBlocks = withSafety({
 });
 
 // Response Processing Helpers
+
+/**
+ * Extracts the provider-native finish reason from an opaque InvokeModel payload.
+ *
+ * @param responseBody - The raw, unknown response body from the model.
+ * @returns The extracted finish reason string if found, otherwise `undefined`.
+ */
+export function extractFinishReason({
+  responseBody,
+}: {
+  responseBody: unknown;
+}): string | undefined {
+  if (!isObjectWithStringKeys(responseBody)) return undefined;
+
+  for (const key of [
+    "stopReason",
+    "stop_reason",
+    "finishReason",
+    "finish_reason",
+    "completionReason",
+  ]) {
+    const value = responseBody[key];
+    if (typeof value === "string" && value) return value;
+  }
+
+  // Use the first completion for the span-level finish reason.
+  for (const [collectionKey, reasonKey] of [
+    ["results", "completionReason"],
+    ["generations", "finish_reason"],
+    ["outputs", "stop_reason"],
+    ["choices", "finish_reason"],
+    ["completions", "finishReason"],
+  ]) {
+    const collection = responseBody[collectionKey];
+    if (!Array.isArray(collection) || !isObjectWithStringKeys(collection[0])) continue;
+    const value = collection[0][reasonKey];
+    if (typeof value === "string" && value) return value;
+    // AI21 Jurassic returns a nested reason object.
+    if (collectionKey === "completions" && isObjectWithStringKeys(value)) {
+      if (typeof value.reason === "string" && value.reason) return value.reason;
+    }
+  }
+  return undefined;
+}
 
 /**
  * Safely parses the InvokeModel response body with comprehensive error handling
@@ -818,6 +909,12 @@ function convertAI21JambaToMessageContent(responseBody: Record<string, unknown>)
             type: "text",
             text: message.content,
           });
+        } else if (typeof message.refusal === "string") {
+          // OpenAI-style refusals arrive as { content: null, refusal: "..." }
+          content.push({
+            type: "text",
+            text: message.refusal,
+          });
         }
 
         // Handle tool calls - AI21 format: { tool_calls: [{ id, function: { name, arguments } }] }
@@ -952,6 +1049,8 @@ function normalizeResponseContent({
       return typeof responseBody.generation === "string"
         ? convertMetaToMessageContent(responseBody)
         : [];
+    // OpenAI models on Bedrock use the same Chat Completions body as AI21 Jamba.
+    case LLMSystem.OPENAI:
     case LLMSystem.AI21:
       return convertAI21JambaToMessageContent(responseBody);
     default:
@@ -1108,6 +1207,8 @@ export const normalizeUsageAttributes = withSafety({
         return normalizeAnthropicUsage(responseBody);
       case LLMSystem.AMAZON:
         return normalizeAmazonUsage(responseBody);
+      // OpenAI models on Bedrock use the same Chat Completions body as AI21 Jamba.
+      case LLMSystem.OPENAI:
       case LLMSystem.AI21:
         return normalizeAI21Usage(responseBody);
       case LLMSystem.META:

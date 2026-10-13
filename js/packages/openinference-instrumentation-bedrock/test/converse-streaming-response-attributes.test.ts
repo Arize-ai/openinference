@@ -1,10 +1,35 @@
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
+import { LLM_FINISH_REASON } from "@arizeai/openinference-semantic-conventions";
+
 import { consumeConverseStreamChunks } from "../src/attributes/converse-streaming-response-attributes";
 import { toNormalizedConverseStreamEvent } from "../src/types/bedrock-types";
 
 describe("Converse streaming response attributes", () => {
+  it.each(["end_turn", "max_tokens", "tool_use", "content_filtered", undefined])(
+    "records the streamed finish reason %s",
+    async (stopReason) => {
+      const exporter = new InMemorySpanExporter();
+      const provider = new NodeTracerProvider({
+        spanProcessors: [new SimpleSpanProcessor(exporter)],
+      });
+      const span = provider.getTracer("test").startSpan("converse");
+      async function* stream() {
+        yield { contentBlockDelta: { contentBlockIndex: 0, delta: { text: "Hello" } } };
+        if (stopReason !== undefined) yield { messageStop: { stopReason } };
+        yield { metadata: { usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 } } };
+      }
+      await consumeConverseStreamChunks({ stream: stream(), span });
+      span.end();
+      const attributes = exporter.getFinishedSpans()[0].attributes;
+      expect(attributes[LLM_FINISH_REASON]).toBe(stopReason);
+      expect(attributes["llm.stop_reason"]).toBe(stopReason);
+      if (stopReason === undefined) expect(attributes).not.toHaveProperty(LLM_FINISH_REASON);
+      await provider.shutdown();
+    },
+  );
+
   it("preserves one text block across raw-wire deltas", async () => {
     const exporter = new InMemorySpanExporter();
     const provider = new NodeTracerProvider({

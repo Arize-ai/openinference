@@ -47,6 +47,7 @@ function extractBaseResponseAttributes({
   setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
   setSpanAttribute(span, "llm.stop_reason", response.stopReason);
+  setSpanAttribute(span, SemanticConventions.LLM_FINISH_REASON, response.stopReason);
 }
 
 /**

@@ -1,5 +1,33 @@
 # @arizeai/openinference-core
 
+## 2.8.0
+
+### Minor Changes
+
+- 0d26a59: Add decision span helpers: the `traceDecision` wrapper, which creates spans with the `DECISION` OpenInference span kind, and `getDecisionAttributes`, which builds the `decision.*` model identification (`system`, `provider`, model names) and token count attributes with the same semantics as `getLLMAttributes`.
+
+## 2.7.3
+
+### Patch Changes
+
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+
+## 2.7.2
+
+### Patch Changes
+
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+
+## 2.7.1
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+
 ## 2.7.0
 
 ### Minor Changes

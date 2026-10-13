@@ -316,6 +316,7 @@ function setConverseStreamingOutputAttributes({
   // Set stop reason attribute if available
   if (stopReason) {
     setSpanAttribute(span, "llm.stop_reason", stopReason);
+    setSpanAttribute(span, SemanticConventions.LLM_FINISH_REASON, stopReason);
   }
 
   // Set usage attributes
