@@ -1397,7 +1397,10 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             )
             _instrument_func_type_responses(span, kwargs)
 
-            result = self.original_litellm_funcs["responses"](*args, **kwargs)
+            with trace_api.use_span(
+                span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+            ):
+                result = self.original_litellm_funcs["responses"](*args, **kwargs)
             if isinstance(result, SyncResponsesAPIStreamingIterator):
                 return _TracedSyncStream(result, _finalize_responses_streaming_span(span, result))
             span.end()
@@ -1420,7 +1423,10 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 name="aresponses", attributes=dict(get_attributes_from_context())
             )
             _instrument_func_type_responses(span, kwargs)
-            result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
+            with trace_api.use_span(
+                span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+            ):
+                result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
             from litellm.responses.streaming_iterator import ResponsesAPIStreamingIterator
 
             if isinstance(result, ResponsesAPIStreamingIterator):
@@ -1448,7 +1454,10 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             )
             _instrument_func_type_completion(span, kwargs)
 
-            result = self.original_litellm_funcs["completion"](*args, **kwargs)
+            with trace_api.use_span(
+                span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+            ):
+                result = self.original_litellm_funcs["completion"](*args, **kwargs)
 
             if isinstance(result, CustomStreamWrapper):
                 return _TracedSyncStream(result, _finalize_sync_streaming_span(span, result))
@@ -1475,7 +1484,10 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             )
             _instrument_func_type_completion(span, kwargs)
 
-            result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
+            with trace_api.use_span(
+                span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+            ):
+                result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
 
             if hasattr(result, "__aiter__"):
                 return _TracedAsyncStream(result, _finalize_streaming_span(span, result))
