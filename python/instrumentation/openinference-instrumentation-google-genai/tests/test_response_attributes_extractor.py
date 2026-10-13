@@ -93,6 +93,7 @@ def test_get_attributes_from_generate_content_usage_cached(
     )
     assert actual == expected
 
+
 def test_automatic_function_calling_history_is_output_message() -> None:
     first_function_call = types.FunctionCall(
         name="get_weather",
@@ -148,31 +149,21 @@ def test_automatic_function_calling_history_is_output_message() -> None:
     )
 
     assert (
-        actual[
-            "llm.output_messages.1.message.tool_calls.0.tool_call.function.name"
-        ]
+        actual["llm.output_messages.1.message.tool_calls.0.tool_call.function.name"]
         == "get_weather"
     )
     assert (
-        actual[
-            "llm.output_messages.1.message.tool_calls.1.tool_call.function.name"
-        ]
-        == "get_time"
+        actual["llm.output_messages.1.message.tool_calls.1.tool_call.function.name"] == "get_time"
     )
     assert (
-        actual[
-            "llm.output_messages.2.message.tool_calls.0.tool_call.function.name"
-        ]
+        actual["llm.output_messages.2.message.tool_calls.0.tool_call.function.name"]
         == "get_temperature"
     )
 
     assert "llm.output_messages.1.message.role" in actual
     assert "llm.output_messages.2.message.role" in actual
 
-    assert not any(
-        key.startswith("message.tool_calls.")
-        for key in actual
-    )
+    assert not any(key.startswith("message.tool_calls.") for key in actual)
 
 
 def test_afc_history_entry_that_is_the_final_candidate_is_not_published_twice() -> None:
@@ -200,18 +191,14 @@ def test_afc_history_entry_that_is_the_final_candidate_is_not_published_twice() 
         ],
     )
 
-    attributes = dict(
-        _ResponseAttributesExtractor().get_attributes(response, {})
-    )
+    attributes = dict(_ResponseAttributesExtractor().get_attributes(response, {}))
 
     tool_call_keys = [key for key in attributes if "tool_calls" in key]
     duplicate_bucket = "llm.output_messages.1."
 
     assert [key for key in tool_call_keys if key.startswith(duplicate_bucket)] == []
     assert (
-        attributes[
-            "llm.output_messages.0.message.tool_calls.0.tool_call.function.name"
-        ]
+        attributes["llm.output_messages.0.message.tool_calls.0.tool_call.function.name"]
         == "get_weather"
     )
 
@@ -282,15 +269,11 @@ def test_afc_history_seeded_with_the_request_does_not_leak_earlier_turns() -> No
         )
     )
 
-    output_tool_call = (
-        "llm.output_messages.1."
-        "message.tool_calls.0.tool_call.function.arguments"
-    )
+    output_tool_call = "llm.output_messages.1.message.tool_calls.0.tool_call.function.arguments"
 
     assert attributes[output_tool_call] == '{"location": "NY"}'
     assert not any(
-        "San Francisco" in str(value)
-        and key.startswith("llm.output_messages")
+        "San Francisco" in str(value) and key.startswith("llm.output_messages")
         for key, value in attributes.items()
     )
 
@@ -338,12 +321,6 @@ def test_afc_history_after_merged_request_parts_keeps_this_call_turn() -> None:
         )
     )
 
-    tool_call_prefix = (
-        "llm.output_messages.1."
-        "message.tool_calls.0."
-    )
+    tool_call_prefix = "llm.output_messages.1.message.tool_calls.0."
 
-    assert (
-        attributes[f"{tool_call_prefix}tool_call.function.name"]
-        == "get_weather"
-    )
+    assert attributes[f"{tool_call_prefix}tool_call.function.name"] == "get_weather"
