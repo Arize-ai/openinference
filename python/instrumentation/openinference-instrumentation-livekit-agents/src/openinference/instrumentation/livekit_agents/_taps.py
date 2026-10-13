@@ -98,8 +98,10 @@ class _TapAudioOutput(io.AudioOutput):
             logger.exception("Failed to record LiveKit output audio")
 
 
-def attach_audio_taps(session: "AgentSession[Any]", audio: SessionAudio) -> None:
-    if session.input.audio is not None:
+def attach_audio_taps(
+    session: "AgentSession[Any]", audio: SessionAudio, *, inputs: bool, outputs: bool
+) -> None:
+    if inputs and session.input.audio is not None:
         session.input.audio = _TapAudioInput(session.input.audio, audio)
-    if session.output.audio is not None:
+    if outputs and session.output.audio is not None:
         session.output.audio = _TapAudioOutput(session.output.audio, audio)

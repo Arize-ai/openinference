@@ -15,7 +15,11 @@ from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.livekit_agents._audio import SessionAudio
 from openinference.instrumentation.livekit_agents._messages import oi_messages
 from openinference.instrumentation.livekit_agents._recorder import SessionRecorder
-from openinference.instrumentation.livekit_agents._render import render_turn
+from openinference.instrumentation.livekit_agents._render import (
+    hide_input_audio,
+    hide_output_audio,
+    render_turn,
+)
 from openinference.instrumentation.livekit_agents._taps import attach_audio_taps
 from openinference.instrumentation.livekit_agents._turns import ModelStep, RequestedToolCall
 from openinference.semconv.trace import OpenInferenceLLMProviderValues
@@ -114,7 +118,12 @@ class StartWrapper:
             return await wrapped(*args, **kwargs)
         result = await wrapped(*args, **kwargs)
         try:
-            attach_audio_taps(instance, session.audio)
+            attach_audio_taps(
+                instance,
+                session.audio,
+                inputs=not hide_input_audio(self._config),
+                outputs=not hide_output_audio(self._config),
+            )
             session.recorder.session_id = await _room_sid(kwargs.get("room"))
         except Exception:
             logger.exception("Failed to finish observing LiveKit AgentSession")

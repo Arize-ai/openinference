@@ -8,9 +8,10 @@ from collections import deque
 from dataclasses import dataclass
 
 _SAMPLE_WIDTH_BYTES = 2
+_WAV_HEADER_BYTES = 44
 # The input buffer keeps this much audio. A user turn longer than this loses its start.
 _INPUT_RETAIN_NS = 120 * 1_000_000_000
-# Frames arrive after VAD has already started the user turn.
+# VAD reports the user speaking a little after speech begins, so a clip starts this early.
 _INPUT_LEAD_NS = 300_000_000
 
 
@@ -25,7 +26,7 @@ class AudioClip:
         prefix = "data:audio/wav;base64,"
         frame_bytes = _SAMPLE_WIDTH_BYTES * self.num_channels
         max_wav_bytes = (max_length - len(prefix)) // 4 * 3
-        max_frames = (max_wav_bytes - 44) // frame_bytes
+        max_frames = (max_wav_bytes - _WAV_HEADER_BYTES) // frame_bytes
         if max_frames <= 0:
             return None
         buffer = io.BytesIO()

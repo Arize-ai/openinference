@@ -9,7 +9,9 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
 from opentelemetry.trace import Span, Status, StatusCode, set_span_in_context
 
 from openinference.instrumentation import (
+    Message,
     OITracer,
+    ToolCall,
     TraceConfig,
     get_attributes_from_context,
     get_llm_input_message_attributes,
@@ -18,7 +20,12 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.livekit_agents._audio import SessionAudio
 from openinference.instrumentation.livekit_agents._messages import messages_json
-from openinference.instrumentation.livekit_agents._turns import ModelStep, ToolRun, VoiceTurn
+from openinference.instrumentation.livekit_agents._turns import (
+    ModelStep,
+    ToolRun,
+    Utterance,
+    VoiceTurn,
+)
 from openinference.semconv.trace import SpanAttributes
 
 logger = logging.getLogger(__name__)
@@ -37,7 +44,7 @@ _WAV = "audio/wav"
 _TEXT = "text/plain"
 _JSON = "application/json"
 _ENV_BASE64_AUDIO_MAX_LENGTH = "OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH"
-# About 62 seconds of 24 kHz mono PCM16. Arize accepted a 60 second clip.
+# About 62 seconds of 24 kHz mono PCM16. Arize AX ingests and stores clips of this size.
 _DEFAULT_BASE64_AUDIO_MAX_LENGTH = 4_000_000
 
 
@@ -74,7 +81,7 @@ def _render(
             _set_turn_audio(turn_span, turn, audio, config)
         parent = set_span_in_context(turn_span, context_api.Context())
         if turn.user is not None:
-            _render_user(turn, tracer, parent, config)
+            _render_user(turn.user, tracer, parent, config)
         for step in turn.steps:
             _render_step(turn, step, tracer, parent, config)
         for tool in turn.tools:
@@ -101,13 +108,13 @@ def _set_turn_attributes(span: Span, turn: VoiceTurn) -> None:
 
 def _set_turn_audio(span: Span, turn: VoiceTurn, audio: SessionAudio, config: TraceConfig) -> None:
     max_length = _base64_audio_max_length()
-    if turn.user is not None and not _hide_input_audio(config):
+    if turn.user is not None and not hide_input_audio(config):
         heard = audio.heard(turn.user.start_ns, turn.user.end_ns)
         if heard is not None and (url := heard.wav_data_uri(max_length)) is not None:
             span.set_attribute(_INPUT_AUDIO_URL, url)
             span.set_attribute(_INPUT_AUDIO_MIME_TYPE, _WAV)
     spoken = audio.spoken(turn.start_ns, turn.end_ns)
-    if spoken is not None and not _hide_output_audio(config):
+    if spoken is not None and not hide_output_audio(config):
         if (url := spoken.wav_data_uri(max_length)) is not None:
             span.set_attribute(_OUTPUT_AUDIO_URL, url)
             span.set_attribute(_OUTPUT_AUDIO_MIME_TYPE, _WAV)
@@ -116,15 +123,13 @@ def _set_turn_audio(span: Span, turn: VoiceTurn, audio: SessionAudio, config: Tr
 
 
 def _render_user(
-    turn: VoiceTurn, tracer: OITracer, parent: context_api.Context, config: TraceConfig
+    user: Utterance, tracer: OITracer, parent: context_api.Context, config: TraceConfig
 ) -> None:
-    user = turn.user
-    assert user is not None
     span = tracer.start_span(
         "user", context=parent, attributes={_SPAN_KIND: "USER"}, start_time=user.start_ns
     )
     try:
-        if not _hide_input_audio(config):
+        if not hide_input_audio(config):
             span.set_attribute(_INPUT_AUDIO_TRANSCRIPT, user.transcript)
         if user.stt_model is not None:
             span.set_attribute(SpanAttributes.LLM_MODEL_NAME, user.stt_model)
@@ -163,22 +168,22 @@ def _set_step_attributes(span: Span, turn: VoiceTurn, step: ModelStep, config: T
     attributes[SpanAttributes.INPUT_VALUE] = messages_json(list(step.input_messages))
     attributes[SpanAttributes.INPUT_MIME_TYPE] = _JSON
     attributes.update(get_llm_input_message_attributes(list(step.input_messages)))
-    output: dict[str, Any] = {"role": "assistant"}
+    output = Message(role="assistant")
     if step.output_text:
         output["content"] = step.output_text
         attributes[SpanAttributes.OUTPUT_VALUE] = step.output_text
         attributes[SpanAttributes.OUTPUT_MIME_TYPE] = _TEXT
-        if step is _spoken_step(turn) and turn.spoken_text and not _hide_output_audio(config):
+        if step is _spoken_step(turn) and turn.spoken_text and not hide_output_audio(config):
             attributes[_OUTPUT_AUDIO_TRANSCRIPT] = turn.spoken_text
     if step.tool_calls:
         output["tool_calls"] = [
-            {"id": call.call_id, "function": {"name": call.name, "arguments": call.arguments}}
+            ToolCall(id=call.call_id, function={"name": call.name, "arguments": call.arguments})
             for call in step.tool_calls
         ]
         if not step.output_text:
-            attributes[SpanAttributes.OUTPUT_VALUE] = messages_json([output])  # type: ignore[list-item]
+            attributes[SpanAttributes.OUTPUT_VALUE] = messages_json([output])
             attributes[SpanAttributes.OUTPUT_MIME_TYPE] = _JSON
-    attributes.update(get_llm_output_message_attributes([output]))  # type: ignore[list-item]
+    attributes.update(get_llm_output_message_attributes([output]))
     if step.input_tokens is not None:
         attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = step.input_tokens
     if step.output_tokens is not None:
@@ -225,11 +230,11 @@ def _base64_audio_max_length() -> int:
         return _DEFAULT_BASE64_AUDIO_MAX_LENGTH
 
 
-def _hide_input_audio(config: TraceConfig) -> bool:
+def hide_input_audio(config: TraceConfig) -> bool:
     return bool(config.hide_inputs) or _env_bool("OPENINFERENCE_HIDE_INPUT_AUDIO")
 
 
-def _hide_output_audio(config: TraceConfig) -> bool:
+def hide_output_audio(config: TraceConfig) -> bool:
     return bool(config.hide_outputs) or _env_bool("OPENINFERENCE_HIDE_OUTPUT_AUDIO")
 
 

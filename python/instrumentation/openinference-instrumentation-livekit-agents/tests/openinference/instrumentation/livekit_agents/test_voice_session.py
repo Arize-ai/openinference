@@ -177,7 +177,7 @@ def test_spoken_tool_turn(exporter: InMemorySpanExporter) -> None:
     assert tool.parent is not None and tool.parent.span_id == calls_tool.context.span_id
 
     question = "What's the weather in London right now?"
-    answer = "The weather in London right now is 18 degrees and cloudy."
+    answer = "The current weather in London is 18 degrees Celsius and cloudy."
     system = "Answer briefly. Use get_weather for weather."
 
     attributes = dict(turn.attributes or {})
@@ -320,6 +320,23 @@ def test_hide_inputs_drops_what_the_user_said() -> None:
         attributes = dict(step.attributes or {})
         assert attributes["input.value"] == REDACTED_VALUE
         assert not any(key.startswith("llm.input_messages") for key in attributes)
+
+
+@pytest.mark.vcr
+@pytest.mark.default_cassette(_CASSETTE)
+def test_hide_outputs_drops_what_the_agent_said() -> None:
+    with _instrumented(TraceConfig(hide_outputs=True)) as exporter:
+        asyncio.run(_ask_about_the_weather())
+    spans = _by_name(exporter.get_finished_spans())
+    turn = dict(spans["conversation.turn"][0].attributes or {})
+    assert turn["output.value"] == REDACTED_VALUE
+    assert "output.audio.url" not in turn and "input.audio.url" in turn
+    assert "output.audio.transcript" not in turn
+    for step in spans["assistant"]:
+        attributes = dict(step.attributes or {})
+        assert attributes["output.value"] == REDACTED_VALUE
+        assert "output.audio.transcript" not in attributes
+        assert not any(key.startswith("llm.output_messages") for key in attributes)
 
 
 @pytest.mark.vcr
