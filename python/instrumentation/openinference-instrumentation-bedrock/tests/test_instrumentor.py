@@ -1020,6 +1020,37 @@ def test_converse_invocation_parameters_include_additional_model_request_fields(
     }
 
 
+@pytest.mark.parametrize(
+    ("request_fields", "expected_invocation_parameters"),
+    [
+        pytest.param({"additionalModelRequestFields": None}, None, id="null-fields-only"),
+        pytest.param({"inferenceConfig": {}}, {}, id="empty-inference-config"),
+        pytest.param(
+            {"inferenceConfig": {}, "additionalModelRequestFields": None},
+            {},
+            id="empty-inference-config-and-null-fields",
+        ),
+    ],
+)
+def test_converse_invocation_parameters_without_values(
+    request_fields: Dict[str, Any],
+    expected_invocation_parameters: Dict[str, Any] | None,
+) -> None:
+    request = {
+        "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+        **request_fields,
+    }
+    attributes = get_attributes_from_request_data(request)  # type: ignore[arg-type]
+
+    if expected_invocation_parameters is None:
+        assert LLM_INVOCATION_PARAMETERS not in attributes
+    else:
+        assert (
+            json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == expected_invocation_parameters
+        )
+
+
 def test_converse_response_does_not_add_finish_reason_to_invocation_parameters() -> None:
     request = {
         "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
