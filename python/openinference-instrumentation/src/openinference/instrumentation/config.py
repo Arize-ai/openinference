@@ -37,6 +37,7 @@ from ._blob_upload import (
     is_valid_reference_uri,
     load_blob_uploader,
 )
+from ._genai_attributes import GenAIAttributes
 from .logging import logger
 
 
@@ -361,6 +362,23 @@ class TraceConfig:
     ) -> Optional[AttributeValue]:
         if self.hide_llm_invocation_parameters and key == SpanAttributes.LLM_INVOCATION_PARAMETERS:
             return None
+        # Content-bearing gen_ai.* keys mirror the masking of their OpenInference sources.
+        elif (self.hide_inputs or self.hide_input_messages) and key in _GENAI_INPUT_MESSAGE_KEYS:
+            return None
+        elif (self.hide_outputs or self.hide_output_messages) and key in _GENAI_OUTPUT_MESSAGE_KEYS:
+            return None
+        elif (
+            self.hide_inputs or self.hide_llm_tools
+        ) and key == GenAIAttributes.GEN_AI_TOOL_DEFINITIONS:
+            return None
+        elif self.hide_inputs and key in _GENAI_INPUT_CONTENT_KEYS:
+            value = REDACTED_VALUE
+        elif self.hide_outputs and key == GenAIAttributes.GEN_AI_TOOL_CALL_RESULT:
+            value = REDACTED_VALUE
+        elif (
+            self.hide_outputs or self.hide_retrieval_documents
+        ) and key == GenAIAttributes.GEN_AI_RETRIEVAL_DOCUMENTS:
+            value = REDACTED_VALUE
         elif (self.hide_inputs or self.hide_llm_tools) and SpanAttributes.LLM_TOOLS in key:
             return None
         elif self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
@@ -537,6 +555,14 @@ class TraceConfig:
         else:
             return cast_to(value)
 
+
+_GENAI_INPUT_MESSAGE_KEYS = frozenset(
+    {GenAIAttributes.GEN_AI_INPUT_MESSAGES, GenAIAttributes.GEN_AI_SYSTEM_INSTRUCTIONS}
+)
+_GENAI_OUTPUT_MESSAGE_KEYS = frozenset({GenAIAttributes.GEN_AI_OUTPUT_MESSAGES})
+_GENAI_INPUT_CONTENT_KEYS = frozenset(
+    {GenAIAttributes.GEN_AI_TOOL_CALL_ARGUMENTS, GenAIAttributes.GEN_AI_RETRIEVAL_QUERY_TEXT}
+)
 
 _MASK_EXTERNALIZE_SUPPORT: Dict[type, bool] = {}
 

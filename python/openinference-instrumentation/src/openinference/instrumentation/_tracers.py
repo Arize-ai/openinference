@@ -61,7 +61,7 @@ from .config import (
     TraceConfig,
     mask_without_externalization,
 )
-from .context_attributes import get_attributes_from_context
+from .context_attributes import get_attributes_from_context, get_trace_config_from_context
 
 if TYPE_CHECKING:
     from ._types import OpenInferenceSpanKind
@@ -154,6 +154,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         openinference_span_kind: Optional["OpenInferenceSpanKind"] = None,
     ) -> OpenInferenceSpan:
         otel_span: Span
+        # Resolve once at span start; the span keeps this config until it ends.
+        config = get_trace_config_from_context() or self._self_config
         # Apply masking to attributes before passing to sampler to ensure
         # samplers don't see sensitive data that should be masked
         user_attributes = dict(attributes) if attributes else {}
@@ -164,11 +166,12 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         )
         context_attributes = dict(get_attributes_from_context())
         combined_attributes = self._get_masked_attributes_for_sampling(
+            config,
             {
                 **context_attributes,
                 **user_attributes,
                 **span_kind_attributes,
-            }
+            },
         )
 
         if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -187,7 +190,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
                 set_status_on_exception=set_status_on_exception,
             )
 
-        openinference_span = OpenInferenceSpan(otel_span, config=self._self_config)
+        openinference_span = OpenInferenceSpan(otel_span, config=config)
 
         # Use OpenInferenceSpan wrapper's attribute handling
         if user_attributes:
@@ -202,7 +205,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         return openinference_span
 
     def _get_masked_attributes_for_sampling(
-        self, attributes: Dict[str, AttributeValue]
+        self, config: TraceConfig, attributes: Dict[str, AttributeValue]
     ) -> Dict[str, AttributeValue]:
         """Apply masking to attributes before passing to samplers.
 
@@ -219,7 +222,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         """
         masked_attributes: Dict[str, Any] = {}
         for key, value in attributes.items():
-            masked_value = mask_without_externalization(self._self_config, key, value)
+            masked_value = mask_without_externalization(config, key, value)
             if masked_value is not None:
                 masked_attributes[key] = masked_value
         return masked_attributes

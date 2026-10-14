@@ -76,7 +76,9 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
             source_attributes = span._attributes
             for key, value in get_genai_attributes(source_attributes).items():
                 if key not in source_attributes:
-                    span.set_attribute(key, value)
+                    masked_value = mask_without_externalization(self._self_config, key, value)
+                    if masked_value is not None:
+                        span.set_attribute(key, masked_value)
         span.end(end_time)
 
     def set_input(

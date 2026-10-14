@@ -1,6 +1,7 @@
 import inspect
 from functools import partial, wraps
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncGenerator,
     Awaitable,
@@ -19,6 +20,7 @@ from typing import (
 from opentelemetry.context import (
     Context,
     attach,
+    create_key,
     detach,
     get_current,
     get_value,
@@ -30,6 +32,9 @@ from typing_extensions import Self
 from openinference.semconv.trace import SpanAttributes
 
 from .helpers import safe_json_dumps
+
+if TYPE_CHECKING:
+    from .config import TraceConfig
 
 DecoratedCallable = TypeVar("DecoratedCallable", bound=Callable[..., Any])
 
@@ -458,6 +463,45 @@ class using_attributes(_UsingAttributesContextManager):
             prompt_template_version=prompt_template_version,
             prompt_template_variables=prompt_template_variables,
         )
+
+
+_TRACE_CONFIG_KEY = create_key("openinference-trace-config")
+
+
+class using_trace_config(_UsingAttributesContextManager):
+    """
+    Context manager (or decorator) that overrides the ``TraceConfig`` used by
+    ``OITracer`` for spans started within its scope. The override replaces the
+    instrumentor's config wholesale; it is not merged field by field. Unset
+    fields fall back to their environment variables / defaults as usual.
+
+    The config is resolved when a span starts and kept for that span's
+    lifetime, so spans that end after the block exits (e.g. streamed
+    responses) are still masked with the override.
+
+    Examples:
+        with using_trace_config(TraceConfig(hide_inputs=True, hide_outputs=True)):
+            client.chat.completions.create(...)
+
+        @using_trace_config(TraceConfig(hide_inputs=True))
+        def call_fn(*args, **kwargs):
+            ...
+    """
+
+    def __init__(self, config: "TraceConfig") -> None:
+        super().__init__()
+        self._config = config
+
+    def _context_with_attributes(self) -> Context:
+        return set_value(_TRACE_CONFIG_KEY, self._config, get_current())
+
+
+def get_trace_config_from_context() -> Optional["TraceConfig"]:
+    """
+    Return the ``TraceConfig`` set via ``using_trace_config`` in the current
+    OpenTelemetry context, or ``None`` if no override is active.
+    """
+    return cast(Optional["TraceConfig"], get_value(_TRACE_CONFIG_KEY))
 
 
 def get_attributes_from_context() -> Iterator[Tuple[str, AttributeValue]]:

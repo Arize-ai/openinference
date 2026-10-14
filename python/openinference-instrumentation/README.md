@@ -168,3 +168,20 @@ tracer_provider = ...
 # This example uses the OpenAIInstrumentor, but it works with any of our auto instrumentors
 OpenAIInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
 ```
+
+When `enable_genai_semconv=True`, the `hide_*` settings also apply to the content-bearing `gen_ai.*` attributes (`gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.system_instructions`, `gen_ai.tool.definitions`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`, `gen_ai.retrieval.query.text`, `gen_ai.retrieval.documents`).
+
+### Overriding the configuration for a scope
+
+`using_trace_config` overrides the instrumentor's `TraceConfig` for spans started within its scope. It works as a context manager or a decorator, for sync and async code. The override replaces the instrumentor's config entirely (fields are not merged), and it is resolved when a span starts, so spans that finish after the block exits (e.g. streamed responses) still use it.
+
+```python
+from openinference.instrumentation import TraceConfig, using_trace_config
+
+with using_trace_config(TraceConfig(hide_inputs=True, hide_outputs=True)):
+    client.chat.completions.create(...)
+
+@using_trace_config(TraceConfig(hide_inputs=True))
+async def handle_sensitive_request(...):
+    ...
+```
