@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, AsyncIterator, Callable, ContextManager, Iterator, Mapping, Optional, cast
 
 import wrapt
@@ -18,6 +19,28 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+
+class _StreamClosed(StopIteration):
+    """The stream was closed or dropped before it was read to the end."""
+
+
+class _OnceCallback:
+    """Passes events to the callback until the stream ends, then ignores further calls."""
+
+    def __init__(self, callback: _CallbackT[Any]) -> None:
+        self._callback = callback
+        self.finished = False
+
+    def __call__(self, obj: Any) -> Any:
+        if self.finished:
+            return obj
+        if isinstance(obj, BaseException):
+            self.finished = True
+        return self._callback(obj)
+
 
 class _AsyncIterator:
     """
@@ -31,8 +54,11 @@ class _AsyncIterator:
         iterable: AsyncIterator[Any],
         callback: Optional[_CallbackT[_AnyT]] = None,
         context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
+        stream: Any = None,
     ) -> None:
         self._iterator = iterable
+        # Keeps the stream wrapper alive while this iterator is in use.
+        self._stream = stream
         # Ensure we always have a callable callback.
         if callback is None:
             self._callback: Callable[[Any], Any] = lambda _value: None
@@ -70,7 +96,28 @@ class _AsyncIterator:
             raise
 
 
+class _EventStreamIterator(_Iterator[Any]):
+    def __init__(
+        self,
+        stream: _EventStream,
+        callback: Optional[_CallbackT[_AnyT]] = None,
+        context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
+    ) -> None:
+        super().__init__(iter(stream.__wrapped__), callback, context_manager_factory)
+        # Keeps the stream wrapper alive while this iterator is in use.
+        self._self_stream = stream
+
+
 class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """
+    Wraps a botocore event stream so the span ends when the stream is read to the end,
+    fails, is closed, or is dropped.
+
+    A stream that is closed or dropped early ends its span with the output read so far
+    and leaves the status unset. Iterators created from the stream keep it alive, so a
+    stream that is still being read is never treated as dropped.
+    """
+
     __wrapped__: EventStream
 
     def __init__(
@@ -80,14 +127,14 @@ class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-ar
         context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         super().__init__(obj)
-        self._self_callback = callback
+        self._self_callback = _OnceCallback(callback) if callback is not None else None
         self._self_context_manager_factory = context_manager_factory
         # aiobotocore event streams provide __aiter__; botocore's are sync-only.
         self._self_is_async = hasattr(obj, "__aiter__")
 
     def __iter__(self) -> Iterator[Any]:
-        return _Iterator(
-            iter(self.__wrapped__),
+        return _EventStreamIterator(
+            self,
             self._self_callback,
             self._self_context_manager_factory,
         )
@@ -99,7 +146,28 @@ class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-ar
             self.__wrapped__.__aiter__(),
             self._self_callback,
             self._self_context_manager_factory,
+            stream=self,
         )
+
+    def close(self) -> None:
+        try:
+            self.__wrapped__.close()
+        finally:
+            self._finish_early()
+
+    def __del__(self) -> None:
+        try:
+            self._finish_early()
+        except BaseException:
+            pass
+
+    def _finish_early(self) -> None:
+        if (callback := self._self_callback) is None or callback.finished:
+            return
+        try:
+            callback(_StreamClosed())
+        except Exception:
+            logger.exception("Failed to finish the span of a stream that was closed early")
 
 
 def _use_span(span: Span) -> Callable[[], ContextManager[Span]]:
@@ -113,6 +181,7 @@ def _finish(
     span: Span,
     result: Any,
     request_attributes: Mapping[str, AttributeValue],
+    closed: bool = False,
 ) -> None:
     if isinstance(result, BaseException):
         span.record_exception(result)
@@ -126,7 +195,9 @@ def _finish(
         span.set_attribute(OUTPUT_MIME_TYPE, JSON)
     elif result is not None:
         span.set_attribute(OUTPUT_VALUE, str(result))
-    span.set_status(Status(StatusCode.OK))
+    # A stream closed before its end keeps the status unset: the output may be incomplete.
+    if not closed:
+        span.set_status(Status(StatusCode.OK))
     for k, v in request_attributes.items():
         span.set_attribute(k, v)
     span.end()

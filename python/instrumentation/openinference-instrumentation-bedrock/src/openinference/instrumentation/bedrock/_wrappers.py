@@ -39,7 +39,12 @@ if TYPE_CHECKING:
 from openinference.instrumentation.bedrock._converse_stream_callback import _ConverseStreamCallback
 from openinference.instrumentation.bedrock._rag_wrappers import _RagEventStream
 from openinference.instrumentation.bedrock._response_accumulator import _ResponseAccumulator
-from openinference.instrumentation.bedrock.utils import _EventStream, _finish, _use_span
+from openinference.instrumentation.bedrock.utils import (
+    _EventStream,
+    _finish,
+    _StreamClosed,
+    _use_span,
+)
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _AnthropicMessagesCallback,
 )
@@ -110,7 +115,7 @@ class _NovaStreamCallback:
                     pass
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
             self._finalize_output()
-            _finish(span, None, {})
+            _finish(span, None, {}, isinstance(obj, _StreamClosed))
         elif isinstance(obj, BaseException):
             _finish(span, obj, {})
         return obj
@@ -258,7 +263,7 @@ class _OpenAIStreamCallback:
                 if isinstance(value := self._usage.get(key), int):
                     span.set_attribute(attribute, value)
             span.set_attributes(get_openai_output_attributes(self._output_messages()))
-            _finish(span, None, {})
+            _finish(span, None, {}, isinstance(obj, _StreamClosed))
         elif isinstance(obj, BaseException):
             _finish(span, obj, {})
         return obj
@@ -514,7 +519,8 @@ class _ConverseStream(_WithTracer):
     This class wraps the Bedrock converse_stream API, starting a tracing span for each invocation.
     It attaches request attributes to the span, and if the response contains a streaming
     EventStream, it wraps the stream to enable span-aware streaming instrumentation.
-    The span is ended when the stream is fully consumed or if the response is not a stream.
+    The span is ended when the stream is fully consumed, closed, or dropped, or if the
+    response is not a stream.
     """
 
     _name = "bedrock.converse_stream"
