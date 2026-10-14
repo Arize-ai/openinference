@@ -121,45 +121,34 @@ describe("AnthropicInstrumentation - trace config", () => {
     return span.attributes;
   }
 
-  it("keeps cited text and the refusal explanation when nothing is hidden", async () => {
-    instrument({});
-    const metadata = JSON.parse((await traceRequest())[METADATA] as string);
-    expect(metadata.citations["0"][0].cited_text).toBe("SECRET CITED TEXT");
-    expect(metadata.stop_details.explanation).toBe("SECRET EXPLANATION");
-  });
-
-  it("drops the citations and the refusal explanation with hideOutputs", async () => {
-    instrument({ hideOutputs: true });
-    const attributes = await traceRequest();
-    expect(attributes[METADATA]).not.toContain("SECRET");
-    const metadata = JSON.parse(attributes[METADATA] as string);
-    expect(metadata.citations).toBeUndefined();
-    expect(metadata.stop_details).toEqual({ type: "refusal", category: "cyber" });
-  });
-
-  it("drops the citations with hideInputs, as they name and quote the sources", async () => {
-    instrument({ hideInputs: true });
-    const metadata = JSON.parse((await traceRequest())[METADATA] as string);
-    expect(metadata.citations).toBeUndefined();
-    expect(metadata.stop_details.explanation).toBe("SECRET EXPLANATION");
-  });
-
-  it("drops cited text and the refusal explanation with hideOutputText", async () => {
-    instrument({ hideOutputText: true });
-    const attributes = await traceRequest();
-    expect(attributes[METADATA]).not.toContain("SECRET");
-    const metadata = JSON.parse(attributes[METADATA] as string);
-    expect(metadata.citations["0"][0]).toEqual({ ...citation, cited_text: undefined });
-    expect(metadata.stop_details).toEqual({ type: "refusal", category: "cyber" });
-  });
-
-  it.each([{ hideInputText: true }, { hideInputMessages: true }])(
-    "drops cited text with %o, as it quotes the prompt",
-    async (traceConfig) => {
+  // Citations name and quote the sources, so they are left out when the input
+  // or output messages are hidden, and otherwise only their cited text is when
+  // the input or output text is. The refusal explanation is model output.
+  it.each<[TraceConfigOptions, boolean, boolean, boolean]>([
+    [{}, false, false, false],
+    [{ hideInputs: true }, true, true, false],
+    [{ hideInputMessages: true }, true, true, false],
+    [{ hideInputText: true }, false, true, false],
+    [{ hideOutputs: true }, true, true, true],
+    [{ hideOutputMessages: true }, true, true, true],
+    [{ hideOutputText: true }, false, true, true],
+  ])(
+    "with %o, hides citations: %s, cited text: %s, the refusal explanation: %s",
+    async (traceConfig, hidesCitations, hidesCitedText, hidesExplanation) => {
       instrument(traceConfig);
       const metadata = JSON.parse((await traceRequest())[METADATA] as string);
-      expect(metadata.citations["0"][0].cited_text).toBeUndefined();
-      expect(metadata.stop_details.explanation).toBe("SECRET EXPLANATION");
+      if (hidesCitations) {
+        expect(metadata.citations).toBeUndefined();
+      } else if (hidesCitedText) {
+        expect(metadata.citations["0"][0]).toEqual({ ...citation, cited_text: undefined });
+      } else {
+        expect(metadata.citations["0"][0]).toEqual(citation);
+      }
+      expect(metadata.stop_details).toEqual(
+        hidesExplanation
+          ? { type: "refusal", category: "cyber" }
+          : { type: "refusal", category: "cyber", explanation: "SECRET EXPLANATION" },
+      );
     },
   );
 

@@ -999,43 +999,94 @@ function getAnthropicSystemMessageAttributes(
 }
 
 /**
- * Lists the tool definitions of a request: the `tools` param, followed by the
- * tools a `tool_addition` block of a beta request defines inline.
+ * Lists the tools offered to the model at the end of a request's messages: the
+ * `tools` param, plus the tools a beta request's `tool_addition` blocks define
+ * inline, minus those its `tool_removal` blocks withdraw, in conversation
+ * order. A compaction's `tool_changes`, which stand in for the compacted turns',
+ * count too. A `tool_addition` that references a tool by name offers again a
+ * tool that was removed, and a tool is listed once however often it is added.
  */
 function getAnthropicToolDefinitions(body: MessageRequestParams): ToolDefinition[] {
-  const tools: ToolDefinition[] = Array.isArray(body.tools) ? [...body.tools] : [];
+  const tools: ToolDefinition[] = Array.isArray(body.tools) ? body.tools : [];
+  // Maps keep insertion order, so offered lists the tools in the order offered.
+  const offered = new Map<string, ToolDefinition>();
+  tools.forEach((tool, index) => offered.set(getToolKey(tool, index), tool));
+  const defined = new Map(offered);
+  const apply = (change: AnthropicToolChange) => {
+    if (change?.type === "tool_addition") {
+      const tool = change.tool;
+      if (tool?.type === "tool_definition") {
+        if (tool.definition != null) {
+          const key = getToolKey(tool.definition, defined.size);
+          // Deleting first moves a redefined tool to the end.
+          offered.delete(key);
+          offered.set(key, tool.definition);
+          defined.set(key, tool.definition);
+        }
+      } else {
+        const key = getToolReferenceKey(tool);
+        const definition = key != null ? defined.get(key) : undefined;
+        if (key != null && definition != null && !offered.has(key)) {
+          offered.set(key, definition);
+        }
+      }
+    } else if (change?.type === "tool_removal") {
+      const key = getToolReferenceKey(change.tool);
+      if (key != null) {
+        offered.delete(key);
+      }
+    }
+  };
   const messages = Array.isArray(body.messages) ? body.messages : [];
   for (const message of messages) {
     if (!Array.isArray(message?.content)) {
       continue;
     }
     for (const part of message.content) {
-      if (part?.type === "tool_addition") {
-        pushInlineToolDefinition(tools, part);
+      if (part?.type === "tool_addition" || part?.type === "tool_removal") {
+        apply(part);
       } else if (part?.type === "compaction" && Array.isArray(part.tool_changes)) {
         // A compaction carries the tool changes of the turns it replaced.
         for (const change of part.tool_changes) {
-          if (change?.type === "tool_addition") {
-            pushInlineToolDefinition(tools, change);
-          }
+          apply(change);
         }
       }
     }
   }
-  return tools;
+  return [...offered.values()];
+}
+
+type AnthropicToolChange =
+  | Anthropic.Beta.Messages.BetaRequestToolAdditionBlock
+  | Anthropic.Beta.Messages.BetaRequestToolRemovalBlock;
+
+/**
+ * Identifies a tool for the tool changes: an MCP toolset by its server, any
+ * other tool by its name, and a tool with neither by its position.
+ */
+function getToolKey(tool: unknown, index: number): string {
+  if (tool != null && typeof tool === "object") {
+    if ("type" in tool && tool.type === "mcp_toolset" && "mcp_server_name" in tool) {
+      return `mcp_toolset:${String(tool.mcp_server_name)}`;
+    }
+    if ("name" in tool && typeof tool.name === "string") {
+      return `name:${tool.name}`;
+    }
+  }
+  return `index:${index}`;
 }
 
 /**
- * Adds the tool a `tool_addition` block defines inline, if it defines one
- * rather than referring to a tool by name.
+ * The key of the tool a tool change references, as `getToolKey` gives it.
  */
-function pushInlineToolDefinition(
-  tools: ToolDefinition[],
-  block: Anthropic.Beta.Messages.BetaRequestToolAdditionBlock,
-) {
-  if (block.tool?.type === "tool_definition" && block.tool.definition != null) {
-    tools.push(block.tool.definition);
+function getToolReferenceKey(tool: AnthropicToolChange["tool"] | undefined): string | undefined {
+  if (tool?.type === "tool_reference") {
+    return `name:${tool.name}`;
   }
+  if (tool?.type === "mcp_toolset_reference") {
+    return `mcp_toolset:${tool.server_name}`;
+  }
+  return undefined;
 }
 
 /**
@@ -1345,13 +1396,16 @@ function getAnthropicContentMetadata(
   const { content } = message;
   const citations: Record<string, unknown> = {};
   const mcpServerNames: Record<string, string> = {};
-  // Citations name and quote the cited sources, so they are left out when all
-  // of the input or output is hidden. A citation's cited_text quotes the
+  // Citations name and quote the cited sources, so they are left out when the
+  // input or output messages are hidden. A citation's cited_text quotes the
   // prompt's documents and is part of the output text, so it alone is left out
   // when just the input text or the output text is hidden.
-  const hideCitations = traceConfig.hideInputs || traceConfig.hideOutputs;
-  const hideCitedText =
-    traceConfig.hideInputText || traceConfig.hideInputMessages || hidesOutputText(traceConfig);
+  const hideCitations =
+    traceConfig.hideInputs ||
+    traceConfig.hideInputMessages ||
+    traceConfig.hideOutputs ||
+    traceConfig.hideOutputMessages;
+  const hideCitedText = traceConfig.hideInputText || hidesOutputText(traceConfig);
   content.forEach((block, index) => {
     if (
       !hideCitations &&
@@ -1379,7 +1433,7 @@ function getAnthropicContentMetadata(
  * True when the trace config hides the model's output text.
  */
 function hidesOutputText(traceConfig: TraceConfig): boolean {
-  return traceConfig.hideOutputs || traceConfig.hideOutputText;
+  return traceConfig.hideOutputs || traceConfig.hideOutputMessages || traceConfig.hideOutputText;
 }
 
 /**

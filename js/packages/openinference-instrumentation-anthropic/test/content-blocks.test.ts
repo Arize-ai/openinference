@@ -424,10 +424,10 @@ describe("AnthropicInstrumentation - content blocks", () => {
     expect(attributes[inputContent(0, 0, MESSAGE_CONTENT_TEXT)]).toBe("Earlier summary");
     expect(attributes[inputContent(0, 0, MESSAGE_CONTENT_ENCRYPTED_CONTENT)]).toBe("enc-in");
     expect(attributes[outputContent(0, MESSAGE_CONTENT_ENCRYPTED_CONTENT)]).toBe("enc-out");
-    expect(attributes[`${LLM_TOOLS}.0.${TOOL_NAME}`]).toBe("get_weather");
-    expect(attributes[`${LLM_TOOLS}.1.${TOOL_NAME}`]).toBe("lookup");
-    expect(attributes[`${LLM_TOOLS}.1.${TOOL_JSON_SCHEMA}`]).toBe(JSON.stringify(compactedTool));
-    expect(attributes[`${LLM_TOOLS}.2.${TOOL_NAME}`]).toBeUndefined();
+    // the compaction's tool changes add lookup and remove get_weather
+    expect(attributes[`${LLM_TOOLS}.0.${TOOL_NAME}`]).toBe("lookup");
+    expect(attributes[`${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`]).toBe(JSON.stringify(compactedTool));
+    expect(attributes[`${LLM_TOOLS}.1.${TOOL_NAME}`]).toBeUndefined();
   });
 
   describe("tool call callers and toolsets", () => {
@@ -647,7 +647,7 @@ describe("AnthropicInstrumentation - content blocks", () => {
           role: "system",
           content: [
             { type: "tool_addition", tool: { type: "tool_definition", definition: inlineTool } },
-            { type: "tool_removal", tool: { type: "tool_reference", name: "get_weather" } },
+            { type: "tool_removal", tool: { type: "tool_reference", name: "web_search" } },
           ],
         },
       ],
@@ -690,17 +690,62 @@ describe("AnthropicInstrumentation - content blocks", () => {
     expect(attributes[inputContent(3, 2, MESSAGE_CONTENT_TEXT)]).toBe("Earlier summary");
     expect(attributes[inputContent(3, 2, MESSAGE_CONTENT_SIGNATURE)]).toBe("sig");
 
-    // tool changes are recorded in place, and an inline tool is one of llm.tools
+    // tool changes are recorded in place and applied to llm.tools
     expect(attributes[input(4, MESSAGE_ROLE)]).toBe("system");
     expect(attributes[inputContent(4, 0, MESSAGE_CONTENT_TYPE)]).toBe("tool_addition");
     expect(attributes[inputContent(4, 1, MESSAGE_CONTENT_TYPE)]).toBe("tool_removal");
     expect(attributes[`${LLM_TOOLS}.0.${TOOL_NAME}`]).toBe("get_weather");
     expect(attributes[`${LLM_TOOLS}.0.${TOOL_DESCRIPTION}`]).toBe("Get the weather");
-    expect(attributes[`${LLM_TOOLS}.1.${TOOL_NAME}`]).toBe("web_search");
-    expect(attributes[`${LLM_TOOLS}.1.${TOOL_DESCRIPTION}`]).toBeUndefined();
-    expect(attributes[`${LLM_TOOLS}.2.${TOOL_NAME}`]).toBe("lookup");
-    expect(attributes[`${LLM_TOOLS}.2.${TOOL_DESCRIPTION}`]).toBe("Look a word up");
-    expect(attributes[`${LLM_TOOLS}.2.${TOOL_JSON_SCHEMA}`]).toBe(JSON.stringify(inlineTool));
+    expect(attributes[`${LLM_TOOLS}.1.${TOOL_NAME}`]).toBe("lookup");
+    expect(attributes[`${LLM_TOOLS}.1.${TOOL_DESCRIPTION}`]).toBe("Look a word up");
+    expect(attributes[`${LLM_TOOLS}.1.${TOOL_JSON_SCHEMA}`]).toBe(JSON.stringify(inlineTool));
+    expect(attributes[`${LLM_TOOLS}.2.${TOOL_NAME}`]).toBeUndefined();
+  });
+
+  it("applies tool removals and additions to llm.tools, listing each tool once", async () => {
+    const toolF = { name: "f", input_schema: { type: "object" as const } };
+    const toolH = { name: "h", input_schema: { type: "object" as const } };
+    const toolset = { type: "mcp_toolset" as const, mcp_server_name: "echo-server" };
+    const inlineTool = { name: "g", input_schema: { type: "object" as const } };
+    const client = new Anthropic({ apiKey: "fake-api-key", fetch: jsonFetch(responseMessage) });
+    await client.beta.messages.create({
+      ...request,
+      tools: [toolF, toolH, toolset],
+      // tool changes are sent in mid-conversation system messages
+      messages: [
+        { role: "user", content: "hi" },
+        {
+          role: "system",
+          content: [
+            { type: "tool_addition", tool: { type: "tool_definition", definition: inlineTool } },
+            { type: "tool_removal", tool: { type: "tool_reference", name: "f" } },
+            { type: "tool_removal", tool: { type: "tool_reference", name: "g" } },
+            {
+              type: "tool_removal",
+              tool: { type: "mcp_toolset_reference", server_name: "echo-server" },
+            },
+          ],
+        },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "again" },
+        {
+          role: "system",
+          content: [
+            { type: "tool_addition", tool: { type: "tool_reference", name: "f" } },
+            { type: "tool_addition", tool: { type: "tool_definition", definition: inlineTool } },
+          ],
+        },
+      ],
+    });
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    const recorded = [0, 1, 2, 3].map((index) => {
+      const schema = span.attributes[`${LLM_TOOLS}.${index}.${TOOL_JSON_SCHEMA}`];
+      return schema === undefined ? undefined : JSON.parse(schema as string);
+    });
+    // the removed toolset is gone, and the re-added tools are listed once each
+    expect(recorded).toEqual([toolH, toolF, inlineTool, undefined]);
   });
 
   it("redacts base64 data in the array content of a tool result", async () => {
