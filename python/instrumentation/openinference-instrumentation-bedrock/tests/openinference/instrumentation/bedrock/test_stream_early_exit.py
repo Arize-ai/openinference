@@ -21,7 +21,12 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 _CLIENT_KWARGS = {
     "region_name": "us-east-1",
@@ -375,6 +380,18 @@ async def test_async_span_ends_when_stream_is_left(
     status_code: StatusCode,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
+    span = await _async_converse_stream_span(leave, in_memory_span_exporter)
+    assert span.status.status_code == status_code
+    output = str((span.attributes or {}).get(SpanAttributes.OUTPUT_VALUE))
+    assert "one" in output
+    if leave is _async_read_all:
+        assert "two" in output
+
+
+async def _async_converse_stream_span(
+    leave: Callable[[Any], Any],
+    exporter: InMemorySpanExporter,
+) -> ReadableSpan:
     body = b"".join(_frame(t, p) for t, p in _EVENTS["/converse-stream"])
     with aioresponses() as m:
         m.post(
@@ -391,9 +408,106 @@ async def test_async_span_ends_when_stream_is_left(
             )
             await leave(response.pop("stream"))
             del response
-            span = _only_span(in_memory_span_exporter)
-    assert span.status.status_code == status_code
-    output = str((span.attributes or {}).get(SpanAttributes.OUTPUT_VALUE))
-    assert "one" in output
-    if leave is _async_read_all:
-        assert "two" in output
+            return _only_span(exporter)
+
+
+def _assert_closed_converse_stream_span(span: ReadableSpan) -> None:
+    # Three events were read: the message start and the "one " and "two" deltas.
+    assert span.name == "bedrock.converse_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER) == "aws"
+    assert attributes.pop(LLM_MODEL_NAME) == "anthropic.claude-3-haiku-20240307-v1:0"
+    assert attributes.pop(INPUT_VALUE) == json.dumps(
+        [{"role": "user", "content": [{"text": "hi"}]}]
+    )
+    assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{CONTENT_TYPE}") == "text"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{CONTENT_TEXT}") == "hi"
+    assert attributes.pop(OUTPUT_VALUE) == json.dumps(
+        {"role": "assistant", "content": [{"text": "one two"}]}
+    )
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{CONTENT_TYPE}") == "text"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{CONTENT_TEXT}") == "one two"
+    )
+    # No stop reason or usage arrived before the stream was closed.
+    assert not attributes
+
+
+def test_closed_converse_stream_span_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    _close(_converse_stream)
+    _assert_closed_converse_stream_span(_only_span(in_memory_span_exporter))
+
+
+async def test_async_closed_converse_stream_span_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    span = await _async_converse_stream_span(_async_close, in_memory_span_exporter)
+    _assert_closed_converse_stream_span(span)
+
+
+def test_closed_invoke_model_stream_span_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    _close(_invoke_model_stream("anthropic"))
+    span = _only_span(in_memory_span_exporter)
+    # Three events were read: the message start, the block start and the "one " delta.
+    assert span.name == "bedrock.invoke_model_with_response_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_MODEL_NAME) == "anthropic.claude-3-haiku-20240307-v1:0"
+    assert attributes.pop(LLM_INVOCATION_PARAMETERS) == json.dumps({"max_tokens": 50})
+    assert json.loads(str(attributes.pop(INPUT_VALUE))) == {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 50,
+        "messages": [{"role": "user", "content": [{"type": "text", "text": "hi"}]}],
+    }
+    assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{CONTENT_TEXT}") == "hi"
+    assert json.loads(str(attributes.pop(OUTPUT_VALUE))) == {
+        "id": "m",
+        "type": "message",
+        "role": "assistant",
+        "model": "m",
+        "content": [{"text": "one ", "citations": None, "type": "text"}],
+        "stop_reason": None,
+        "stop_sequence": None,
+        "usage": {
+            "input_tokens": 3,
+            "output_tokens": 0,
+            "cache_creation_input_tokens": None,
+            "cache_read_input_tokens": None,
+        },
+    }
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{CONTENT_TEXT}") == "one "
+    # The message start reports the prompt tokens; the completion count comes at the end.
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 3
+    assert not attributes
+
+
+CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
