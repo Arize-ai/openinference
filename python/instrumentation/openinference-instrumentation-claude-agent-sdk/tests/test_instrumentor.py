@@ -1050,6 +1050,28 @@ async def test_client_tool_hooks_create_tool_spans(
 
 @pytest.mark.timeout(30)
 @pytest.mark.asyncio
+async def test_client_query_with_session_id_records_prompt(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+    cassette_transport: Any,
+) -> None:
+    """A positional prompt passed alongside kwargs is still recorded as the span input."""
+    from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
+
+    options = ClaudeAgentOptions(allowed_tools=["Bash"], permission_mode="bypassPermissions")
+    async with ClaudeSDKClient(options=options, transport=cassette_transport) as client:
+        await client.query(_TOOL_PROMPT, session_id="s1")
+        async for _ in client.receive_response():
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    agent_span = _span_by_name(spans, "ClaudeAgentSDK.ClaudeSDKClient.receive_response")
+    attrs = dict(agent_span.attributes or {})
+    assert attrs.get(SpanAttributes.INPUT_VALUE) == _TOOL_PROMPT
+
+
+@pytest.mark.timeout(30)
+@pytest.mark.asyncio
 async def test_query_real_agent_span(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
