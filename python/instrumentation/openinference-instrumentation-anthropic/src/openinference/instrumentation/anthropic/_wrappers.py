@@ -6,7 +6,6 @@ from contextlib import AbstractContextManager, ExitStack, contextmanager, nullco
 from contextvars import ContextVar, Token
 from itertools import chain
 from types import TracebackType
-from weakref import WeakSet
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -18,6 +17,7 @@ from typing import (
     Tuple,
     Type,
 )
+from weakref import WeakSet
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
