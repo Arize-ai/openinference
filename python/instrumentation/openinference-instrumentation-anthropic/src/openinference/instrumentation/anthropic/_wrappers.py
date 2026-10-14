@@ -274,9 +274,7 @@ class _MessagesWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if not self._active or context_api.get_value(
-            context_api._SUPPRESS_INSTRUMENTATION_KEY
-        ):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
@@ -323,9 +321,7 @@ class _AsyncMessagesWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if not self._active or context_api.get_value(
-            context_api._SUPPRESS_INSTRUMENTATION_KEY
-        ):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
@@ -390,9 +386,7 @@ class _CountTokensWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if not self._active or context_api.get_value(
-            context_api._SUPPRESS_INSTRUMENTATION_KEY
-        ):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
@@ -434,9 +428,7 @@ class _AsyncCountTokensWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if not self._active or context_api.get_value(
-            context_api._SUPPRESS_INSTRUMENTATION_KEY
-        ):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
@@ -577,9 +569,7 @@ class _MessagesStreamWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if not self._active or context_api.get_value(
-            context_api._SUPPRESS_INSTRUMENTATION_KEY
-        ):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
         params = _Params(kwargs, get_attributes=self._get_attributes_from_request)
@@ -623,9 +613,7 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if not self._active or context_api.get_value(
-            context_api._SUPPRESS_INSTRUMENTATION_KEY
-        ):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
         params = _Params(kwargs, get_attributes=self._get_attributes_from_request)
