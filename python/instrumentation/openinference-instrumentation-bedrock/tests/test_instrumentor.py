@@ -1,6 +1,8 @@
 import base64
 import io
 import json
+import struct
+import zlib
 from typing import Any, Dict, Generator, List, Tuple
 from unittest.mock import MagicMock
 
@@ -1040,6 +1042,160 @@ def test_converse_response_does_not_add_finish_reason_to_invocation_parameters()
         "maxTokens": 100,
         "top_k": 40,
     }
+    assert attributes[LLM_FINISH_REASON] == "end_turn"
+
+
+class _RawResponse:
+    def __init__(self, *chunks: bytes) -> None:
+        self.chunks = chunks
+
+    def stream(self, *args: Any, **kwargs: Any) -> Any:
+        yield from self.chunks
+
+    def read(self, amt: Any = None) -> bytes:
+        return b"".join(self.chunks)
+
+    def close(self) -> None:
+        pass
+
+    release_conn = close
+
+
+def _event_stream_frame(event_type: str, payload: Dict[str, Any]) -> bytes:
+    def header(name: str, value: str) -> bytes:
+        encoded_name, encoded_value = name.encode(), value.encode()
+        return (
+            struct.pack("B", len(encoded_name))
+            + encoded_name
+            + b"\x07"
+            + struct.pack(">H", len(encoded_value))
+            + encoded_value
+        )
+
+    headers = (
+        header(":event-type", event_type)
+        + header(":content-type", "application/json")
+        + header(":message-type", "event")
+    )
+    body = json.dumps(payload).encode()
+    prelude = struct.pack(">II", 12 + len(headers) + len(body) + 4, len(headers))
+    prelude += struct.pack(">I", zlib.crc32(prelude))
+    message = prelude + headers + body
+    return message + struct.pack(">I", zlib.crc32(message))
+
+
+_CONVERSE_USAGE = {"inputTokens": 3, "outputTokens": 2, "totalTokens": 5}
+_CONVERSE_RESPONSE = {
+    "output": {"message": {"role": "assistant", "content": [{"text": "one two"}]}},
+    "stopReason": "end_turn",
+    "usage": _CONVERSE_USAGE,
+    "metrics": {"latencyMs": 1},
+}
+_CONVERSE_STREAM_EVENTS: List[Tuple[str, Dict[str, Any]]] = [
+    ("messageStart", {"role": "assistant"}),
+    ("contentBlockDelta", {"contentBlockIndex": 0, "delta": {"text": "one "}}),
+    ("contentBlockDelta", {"contentBlockIndex": 0, "delta": {"text": "two"}}),
+    ("contentBlockStop", {"contentBlockIndex": 0}),
+    ("messageStop", {"stopReason": "end_turn"}),
+    ("metadata", {"usage": _CONVERSE_USAGE, "metrics": {"latencyMs": 1}}),
+]
+
+
+@pytest.mark.parametrize("api", ["converse", "converse_stream"])
+@pytest.mark.parametrize(
+    ("additional_fields", "expected_invocation_parameters"),
+    [
+        pytest.param(
+            {"top_k": 40, "thinking": {"type": "enabled"}},
+            {"maxTokens": 50, "temperature": 0.3, "top_k": 40, "thinking": {"type": "enabled"}},
+            id="object",
+        ),
+        pytest.param(
+            ["a", 1],
+            {"maxTokens": 50, "temperature": 0.3, "additionalModelRequestFields": ["a", 1]},
+            id="array",
+        ),
+        pytest.param(
+            "raw",
+            {"maxTokens": 50, "temperature": 0.3, "additionalModelRequestFields": "raw"},
+            id="string",
+        ),
+        pytest.param(
+            40,
+            {"maxTokens": 50, "temperature": 0.3, "additionalModelRequestFields": 40},
+            id="number",
+        ),
+        pytest.param(
+            True,
+            {"maxTokens": 50, "temperature": 0.3, "additionalModelRequestFields": True},
+            id="boolean",
+        ),
+        pytest.param(
+            None,
+            {"maxTokens": 50, "temperature": 0.3},
+            id="null",
+        ),
+    ],
+)
+def test_converse_client_invocation_parameters(
+    api: str,
+    additional_fields: Any,
+    expected_invocation_parameters: Dict[str, Any],
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    if boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+        pytest.xfail(
+            f"Botocore {boto3.__version__} does not support the Converse API. "
+            f"Converse API introduced in {_MINIMUM_CONVERSE_BOTOCORE_VERSION}"
+        )
+    sent_bodies: List[Dict[str, Any]] = []
+
+    def before_send(request: Any, **kwargs: Any) -> AWSResponse:
+        sent_bodies.append(json.loads(request.body))
+        if request.url.endswith("/converse-stream"):
+            return AWSResponse(
+                request.url,
+                200,
+                {"content-type": "application/vnd.amazon.eventstream"},
+                _RawResponse(*(_event_stream_frame(*event) for event in _CONVERSE_STREAM_EVENTS)),
+            )
+        return AWSResponse(
+            request.url,
+            200,
+            {"content-type": "application/json"},
+            _RawResponse(json.dumps(_CONVERSE_RESPONSE).encode()),
+        )
+
+    client = boto3.client(
+        "bedrock-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="x",
+        aws_secret_access_key="x",
+        config=Config(retries={"total_max_attempts": 1}),
+    )
+    client.meta.events.register("before-send.bedrock-runtime.*", before_send)
+    request_kwargs: Dict[str, Any] = {
+        "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+        "messages": [{"role": "user", "content": [{"text": "hi"}]}],
+        "inferenceConfig": {"maxTokens": 50, "temperature": 0.3},
+        "additionalModelRequestFields": additional_fields,
+    }
+
+    if api == "converse":
+        client.converse(**request_kwargs)
+    else:
+        list(client.converse_stream(**request_kwargs)["stream"])
+
+    # The request still reaches the provider with the fields the caller passed.
+    # botocore leaves None out of the request body.
+    assert len(sent_bodies) == 1
+    assert sent_bodies[0].get("additionalModelRequestFields") == additional_fields
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes[LLM_MODEL_NAME] == request_kwargs["modelId"]
+    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == expected_invocation_parameters
     assert attributes[LLM_FINISH_REASON] == "end_turn"
 
 

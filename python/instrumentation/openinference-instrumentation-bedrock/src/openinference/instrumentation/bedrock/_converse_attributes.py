@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Sequence, Union
 
 from openinference.instrumentation import (
     Image,
@@ -188,9 +188,17 @@ def get_attributes_from_request_data(
 
     invocation_parameters: dict[str, Any] = {}
     if "inferenceConfig" in request_data:
-        invocation_parameters.update(request_data["inferenceConfig"])
+        inference_config = request_data["inferenceConfig"]
+        if isinstance(inference_config, Mapping):
+            invocation_parameters.update(inference_config)
     if "additionalModelRequestFields" in request_data:
-        invocation_parameters.update(request_data["additionalModelRequestFields"])
+        # This field is a free-form JSON document, so it is not always an object.
+        # botocore leaves None out of the request, so there is nothing to record for it.
+        additional_fields: Any = request_data["additionalModelRequestFields"]
+        if isinstance(additional_fields, Mapping):
+            invocation_parameters.update(additional_fields)
+        elif additional_fields is not None:
+            invocation_parameters["additionalModelRequestFields"] = additional_fields
     if "inferenceConfig" in request_data or "additionalModelRequestFields" in request_data:
         llm_attributes["invocation_parameters"] = invocation_parameters
 
