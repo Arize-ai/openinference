@@ -13,6 +13,7 @@ from httpx import Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv.attributes.server_attributes import SERVER_ADDRESS, SERVER_PORT
 from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
 
@@ -86,6 +87,8 @@ def _image_span_attributes(
         OpenInferenceSpanKindValues.LLM.value
     )
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "openai"
+    assert attributes.pop(SERVER_ADDRESS) == "api.openai.com"
+    assert attributes.pop(SERVER_PORT) == 443
     assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "openai"
     assert json.loads(cast(str, attributes.pop(SpanAttributes.INPUT_VALUE))) == expected_input
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
@@ -454,6 +457,8 @@ def test_responses_image_generation_records_completed_results_only(
         OpenInferenceSpanKindValues.LLM.value
     )
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "openai"
+    assert attributes.pop(SERVER_ADDRESS) == "api.openai.com"
+    assert attributes.pop(SERVER_PORT) == 443
     assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "openai"
     assert json.loads(cast(str, attributes.pop(SpanAttributes.INPUT_VALUE))) == request
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
