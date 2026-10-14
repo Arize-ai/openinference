@@ -135,6 +135,7 @@ def _text_response(text: str = "It is 21C and sunny in London.", **kwargs: Any) 
 
 def _make_processor(
     config: Optional[TraceConfig] = None,
+    tool_span_kinds: Optional[dict[str, str]] = None,
 ) -> tuple[OpenInferenceTracingProcessor, InMemorySpanExporter]:
     """Build a processor over an OITracer, matching how the instrumentor wires it up so
     that TraceConfig masking is exercised the same way it is in production.
@@ -143,7 +144,10 @@ def _make_processor(
     provider = trace_sdk.TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     tracer = OITracer(provider.get_tracer(__name__), config=config or TraceConfig())
-    return OpenInferenceTracingProcessor(tracer), exporter  # type: ignore[arg-type]
+    return (
+        OpenInferenceTracingProcessor(tracer, tool_span_kinds=tool_span_kinds),  # type: ignore[arg-type]
+        exporter,
+    )
 
 
 def _attrs(span: ReadableSpan) -> dict[str, Any]:
@@ -1125,6 +1129,95 @@ def test_computer_tool_does_not_duplicate_screenshot_in_raw_output(name: str) ->
     attrs = _one_of_kind(list(exporter.get_finished_spans()), "TOOL", name)
     assert json.loads(attrs["output.value"]) == {"type": "computer_screenshot"}
     assert image not in json.dumps(attrs)
+
+
+# --- tool_span_kinds maps function tools to RETRIEVER ---------------------------------
+
+_RETRIEVED_DOCUMENTS = [
+    {"id": "doc-1", "content": "Paris is the capital of France.", "score": 0.92, "source": "wiki"},
+    {"id": 2, "content": "Lyon is in France.", "score": 1},
+]
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        pytest.param(json.dumps(_RETRIEVED_DOCUMENTS), id="json-string"),
+        pytest.param(_RETRIEVED_DOCUMENTS, id="list"),
+    ],
+)
+def test_tool_mapped_to_retriever_records_documents(output: Any) -> None:
+    processor, exporter = _make_processor(tool_span_kinds={"search_documents": "retriever"})
+    data = FunctionSpanData(name="search_documents", input='{"query": "France"}', output=output)
+    _run(processor, _FakeTrace(), [_FakeSpan("tool", None, data)])
+
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "RETRIEVER", "search_documents")
+    assert attrs["tool.name"] == "search_documents"
+    assert attrs["input.value"] == '{"query": "France"}'
+    assert "output.value" in attrs
+    assert attrs["retrieval.documents.0.document.id"] == "doc-1"
+    assert attrs["retrieval.documents.0.document.content"] == "Paris is the capital of France."
+    assert attrs["retrieval.documents.0.document.score"] == 0.92
+    assert json.loads(attrs["retrieval.documents.0.document.metadata"]) == {"source": "wiki"}
+    assert attrs["retrieval.documents.1.document.id"] == "2"
+    assert attrs["retrieval.documents.1.document.score"] == 1.0
+    assert "retrieval.documents.1.document.metadata" not in attrs
+
+
+def test_unmapped_tool_stays_tool_span() -> None:
+    processor, exporter = _make_processor(tool_span_kinds={"search_documents": "RETRIEVER"})
+    data = FunctionSpanData(name="get_weather", input="{}", output=json.dumps(_RETRIEVED_DOCUMENTS))
+    _run(processor, _FakeTrace(), [_FakeSpan("tool", None, data)])
+
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "TOOL", "get_weather")
+    assert not any(key.startswith("retrieval.documents") for key in attrs)
+
+
+def test_tool_span_kinds_apply_to_function_spans_only() -> None:
+    processor, exporter = _make_processor(tool_span_kinds={"search_documents": "RETRIEVER"})
+    _run(processor, _FakeTrace(), [_FakeSpan("a1", None, AgentSpanData(name="search_documents"))])
+
+    _one_of_kind(list(exporter.get_finished_spans()), "AGENT", "search_documents")
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        pytest.param("No documents matched.", id="plain-text"),
+        pytest.param('{"id": "doc-1", "content": "not a list"}', id="json-object"),
+        pytest.param('[{"id": "doc-1"}, "not an object"]', id="mixed-list"),
+    ],
+)
+def test_retriever_output_that_is_not_a_document_list_falls_back(output: str) -> None:
+    processor, exporter = _make_processor(tool_span_kinds={"search_documents": "RETRIEVER"})
+    data = FunctionSpanData(name="search_documents", input="{}", output=output)
+    _run(processor, _FakeTrace(), [_FakeSpan("tool", None, data)])
+
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "RETRIEVER", "search_documents")
+    assert attrs["output.value"] == output
+    assert not any(key.startswith("retrieval.documents") for key in attrs)
+
+
+def test_retriever_document_content_is_masked_by_trace_config() -> None:
+    processor, exporter = _make_processor(
+        config=TraceConfig(hide_outputs=True),
+        tool_span_kinds={"search_documents": "RETRIEVER"},
+    )
+    data = FunctionSpanData(
+        name="search_documents", input="{}", output=json.dumps(_RETRIEVED_DOCUMENTS)
+    )
+    _run(processor, _FakeTrace(), [_FakeSpan("tool", None, data)])
+
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "RETRIEVER", "search_documents")
+    assert attrs["retrieval.documents.0.document.content"] == REDACTED_VALUE
+    assert attrs["retrieval.documents.0.document.metadata"] == REDACTED_VALUE
+    assert attrs["retrieval.documents.0.document.id"] == "doc-1"
+
+
+@pytest.mark.parametrize("kind", ["EMBEDDING", "TOOL", "not-a-kind"])
+def test_unsupported_tool_span_kind_is_rejected(kind: str) -> None:
+    with pytest.raises(ValueError, match="tool_span_kinds"):
+        _make_processor(tool_span_kinds={"search_documents": kind})
 
 
 def test_undumpable_computer_call_output_does_not_break_span() -> None:
