@@ -384,6 +384,45 @@ def test_chat_completions_with_streaming_response(
         assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
 
 
+def test_async_with_streaming_response_cancelled_while_parsing_ends_span(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    # The instrumentor reads the body when it awaits `.parse()`, so a cancellation (e.g. a
+    # timeout) can land there, and the span must still end.
+    openai = import_module("openai")
+
+    async def main() -> None:
+        body_started = asyncio.Event()
+
+        class StalledBody(AsyncByteStream):
+            async def __aiter__(self) -> AsyncIterator[bytes]:
+                body_started.set()
+                yield b'{"choices": ['
+                await asyncio.sleep(60)
+
+        respx_mock.post(urljoin(_OPENAI_BASE_URL, "chat/completions")).mock(
+            return_value=Response(status_code=200, stream=StalledBody())
+        )
+
+        async def task() -> None:
+            client = openai.AsyncOpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL)
+            async with client.chat.completions.with_streaming_response.create(
+                messages=get_messages(), model=randstr()
+            ) as raw:
+                await raw.parse()
+
+        running = asyncio.ensure_future(task())
+        await body_started.wait()
+        running.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await running
+
+    asyncio.run(main())
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
 def test_async_speech_with_streaming_response_is_not_read_by_the_instrumentor(
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
