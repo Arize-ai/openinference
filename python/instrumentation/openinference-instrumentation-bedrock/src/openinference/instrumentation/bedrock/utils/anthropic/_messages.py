@@ -37,7 +37,7 @@ from openinference.instrumentation.bedrock.__generated__.anthropic._types import
     TextDelta,
     ToolUseBlock,
 )
-from openinference.instrumentation.bedrock.utils import _finish
+from openinference.instrumentation.bedrock.utils import _finish, _StreamClosed
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -96,12 +96,13 @@ class _AnthropicMessagesCallback:
                     logger.warning(str(e))
                     pass
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            closed = isinstance(obj, _StreamClosed)
             if (message := self._snapshot) is None:
-                _finish(span, None, self._request_attributes)
+                _finish(span, None, self._request_attributes, closed)
             else:
                 for k, v in _attributes_from_message(message, f"{LLM_OUTPUT_MESSAGES}.{0}."):
                     span.set_attribute(k, v)
-                _finish(span, asdict(message), self._request_attributes)
+                _finish(span, asdict(message), self._request_attributes, closed)
         elif isinstance(obj, BaseException):
             _finish(span, obj, self._request_attributes)
         return obj
