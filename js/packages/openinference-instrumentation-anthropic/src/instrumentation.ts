@@ -1,8 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { APIPromise } from "@anthropic-ai/sdk";
 import type { Stream } from "@anthropic-ai/sdk/streaming";
-import type { Span, Tracer, TracerProvider } from "@opentelemetry/api";
-import { context, diag, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
+import type { Tracer, TracerProvider } from "@opentelemetry/api";
+import { context, diag, SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import type {
   InstrumentationConfig,
   InstrumentationModuleDefinition,
@@ -10,7 +9,6 @@ import type {
 import {
   InstrumentationBase,
   InstrumentationNodeModuleDefinition,
-  safeExecuteInTheMiddle,
 } from "@opentelemetry/instrumentation";
 
 import type { TraceConfig, TraceConfigOptions } from "@arizeai/openinference-core";
@@ -22,17 +20,23 @@ import {
   OITracer,
 } from "@arizeai/openinference-core";
 import {
-  LLMProvider,
   LLMSystem,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
+import { traceAnthropicAPIPromise } from "./apiPromise";
 import { getAnthropicRequestAttributes } from "./attributes/request";
 import { getAnthropicResponseAttributes, safelyGetToolCallMetadata } from "./attributes/response";
 import { MODULE_NAME } from "./constants";
 import { RunnableToolTracer, instrumentToolRunnerTools } from "./runnableTools";
-import { getExecContext, recordSpanError } from "./spanLifecycle";
+import {
+  resolveAnthropicModule,
+  isPatchOf,
+  getAnthropicProvider,
+  isAnthropicMessageResponse,
+  isAnthropicStream,
+} from "./sdk";
 import { instrumentAnthropicStream } from "./stream";
 import { instrumentToolRunner } from "./toolRunner";
 import type { TokensCount, Message, RawMessageStreamEvent, MetadataSources } from "./types";
@@ -49,24 +53,6 @@ const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-anthropic";
  * proposed for it in PR #3531 (`beta.messages.tool_runner`).
  */
 const TOOL_RUNNER_SPAN_NAME = "beta.messages.tool_runner";
-
-type AnthropicModuleWithOptionalBeta = Omit<typeof Anthropic, "Beta"> & {
-  Beta?: { Messages?: typeof Anthropic.Beta.Messages };
-};
-
-/**
- * Resolves the Anthropic namespace and its optional `Beta.Messages` from a
- * module export, unwrapping the ES-module default. `patch` and `unpatch` must
- * agree on the object they (un)wrap, so they share this one resolution.
- */
-function resolveAnthropicModule(moduleExports: typeof Anthropic) {
-  const anthropicModule =
-    (moduleExports as typeof Anthropic & { default?: typeof Anthropic }).default || moduleExports;
-  return {
-    anthropicModule,
-    betaMessages: (anthropicModule as AnthropicModuleWithOptionalBeta).Beta?.Messages,
-  };
-}
 
 /**
  * Flag to check if the anthropic module has been patched
@@ -424,174 +410,4 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
     }
   }
-}
-
-/**
- * Ends a span at most once, and records an error on it before it ends.
- */
-interface SpanLifecycle {
-  endSpan: () => void;
-  recordError: (error: unknown) => void;
-}
-
-/**
- * Calls an SDK method returning an `APIPromise` in the span's context, and
- * hands its parsed result to `onResult`, which records it and ends the span.
- *
- * The result stays an `APIPromise` (through `_thenUnwrap`) so `withResponse()`
- * and `asResponse()` keep working, which `client.messages.stream()` relies on.
- * A request failure is recorded without triggering the parse, and a caller
- * that takes the raw response ends the span, as nothing is parsed for it.
- */
-function traceAnthropicAPIPromise<T>({
-  span,
-  invoke,
-  onResult,
-}: {
-  span: Span;
-  invoke: () => PromiseLike<T>;
-  onResult: (result: T, lifecycle: SpanLifecycle) => T;
-}) {
-  const execContext = getExecContext(span);
-  // The span can be ended by the parse path, the asResponse() override, or
-  // an error, so guard against ending it more than once.
-  let spanEnded = false;
-  const endSpan = () => {
-    if (spanEnded) {
-      return;
-    }
-    spanEnded = true;
-    span.end();
-  };
-  const recordError = (error: unknown) => {
-    if (spanEnded) {
-      return;
-    }
-    recordSpanError(span, error);
-    endSpan();
-  };
-  const lifecycle: SpanLifecycle = { endSpan, recordError };
-
-  const execPromise = safeExecuteInTheMiddle(
-    () => context.with(trace.setSpan(execContext, span), invoke),
-    (error: Error | undefined) => {
-      // Push the error to the span
-      if (error) {
-        recordError(error);
-      }
-    },
-  );
-  const handleResult = (result: T) => onResult(result, lifecycle);
-
-  if (hasThenUnwrap(execPromise)) {
-    const wrappedPromise = execPromise._thenUnwrap(handleResult);
-    const rawResponse = wrappedPromise.asResponse.bind(wrappedPromise);
-
-    // Record request failures without triggering parse (which would consume
-    // the body). Covers the await/withResponse and asResponse paths.
-    rawResponse().catch(recordError);
-
-    // Wrap asResponse() itself so the span is finalized only when the caller
-    // actually chooses the raw-response path. Those callers bypass parsing,
-    // so no parsed output attributes are available.
-    wrappedPromise.asResponse = async () => {
-      const response = await rawResponse();
-      span.setStatus({ code: SpanStatusCode.OK });
-      endSpan();
-      return response;
-    };
-
-    // withResponse() calls this.asResponse() internally; reimplement it
-    // against the raw response so the override above doesn't end the span
-    // before the result is recorded.
-    wrappedPromise.withResponse = async () => {
-      const [data, response] = await Promise.all([
-        wrappedPromise.then((value) => value),
-        rawResponse(),
-      ]);
-      return {
-        data,
-        response,
-        request_id: response.headers.get("request-id"),
-        workspace_id: response.headers.get("anthropic-workspace-id"),
-      };
-    };
-
-    return context.bind(execContext, wrappedPromise);
-  }
-
-  const wrappedPromise = Promise.resolve(execPromise)
-    .then(handleResult)
-    .catch((error: unknown) => {
-      recordError(error);
-      throw error;
-    });
-  return context.bind(execContext, wrappedPromise);
-}
-
-/**
- * Narrows a patched method to the type of the SDK method it replaces. A patch
- * takes the same arguments and returns what the original returns (through
- * `traceAnthropicAPIPromise` or the original call itself), which TypeScript
- * cannot check against the SDK's overloads.
- */
-function isPatchOf<Method extends (...args: never[]) => unknown>(
-  _original: Method,
-  patched: unknown,
-): patched is Method {
-  return typeof patched === "function";
-}
-
-/**
- * True when create() returned an APIPromise we can transform with _thenUnwrap.
- */
-function hasThenUnwrap<T>(promise: PromiseLike<T>): promise is APIPromise<T> {
-  return "_thenUnwrap" in promise && typeof promise._thenUnwrap === "function";
-}
-
-/**
- * Identifies the cloud serving a request from the client the patched resource
- * belongs to: the Bedrock (including Mantle), Vertex and Foundry SDK clients
- * reuse this SDK's `Messages` resource, so the same patch traces them.
- * Detected by class name (AWS / Google Cloud named clients included), and by
- * the fields the Bedrock and Vertex clients carry for when a bundler renames
- * classes.
- */
-function getAnthropicProvider(resource: unknown): LLMProvider {
-  try {
-    const client: unknown =
-      resource != null && typeof resource === "object" ? Reflect.get(resource, "_client") : null;
-    if (client == null || typeof client !== "object") {
-      return LLMProvider.ANTHROPIC;
-    }
-    const name = client.constructor?.name ?? "";
-    if (/Bedrock|AWS/.test(name) || "awsRegion" in client) {
-      return LLMProvider.AWS;
-    }
-    if (/Vertex|GoogleCloud/.test(name) || "projectId" in client) {
-      return LLMProvider.GOOGLE;
-    }
-    if (/Foundry|Azure/.test(name)) {
-      return LLMProvider.AZURE;
-    }
-  } catch (error) {
-    diag.debug(`Failed to identify the ${MODULE_NAME} client's provider`, error);
-  }
-  return LLMProvider.ANTHROPIC;
-}
-
-/**
- * type-guard that checks if the response is an Anthropic message response
- */
-function isAnthropicMessageResponse(response: unknown): response is Message {
-  return (
-    response != null && typeof response === "object" && "content" in response && "role" in response
-  );
-}
-
-/**
- * type-guard that checks if the response is an Anthropic stream
- */
-function isAnthropicStream(response: unknown): response is Stream<RawMessageStreamEvent> {
-  return response != null && typeof response === "object" && "tee" in response;
 }
