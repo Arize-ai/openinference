@@ -1134,6 +1134,7 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
             _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
     except Exception as e:
         span.record_exception(e)
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
         raise
     else:
         _set_span_status(span, aggregated_output)
@@ -1197,6 +1198,7 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
             _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
     except Exception as e:
         span.record_exception(e)
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
         raise
     else:
         _set_span_status(span, aggregated_output)
