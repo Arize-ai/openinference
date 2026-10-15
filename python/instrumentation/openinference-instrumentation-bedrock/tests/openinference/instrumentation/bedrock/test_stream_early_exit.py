@@ -531,6 +531,105 @@ def test_closed_invoke_model_stream_span_attributes(
     assert not attributes
 
 
+def test_closed_nova_invoke_model_stream_span_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    _close(_invoke_model_stream("nova"))
+    span = _only_span(in_memory_span_exporter)
+    # Three events were read: the message start and the "one " and "two" deltas.
+    assert span.name == "bedrock.invoke_model_with_response_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER) == "aws"
+    assert attributes.pop(LLM_MODEL_NAME) == "amazon.nova-lite-v1:0"
+    assert attributes.pop(INPUT_VALUE) == json.dumps(
+        [{"role": "user", "content": [{"text": "hi"}]}]
+    )
+    assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{CONTENT_TYPE}") == "text"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{CONTENT_TEXT}") == "hi"
+    assert attributes.pop(OUTPUT_VALUE) == json.dumps(
+        {"role": "assistant", "content": [{"text": "one two"}]}
+    )
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{CONTENT_TYPE}") == "text"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{CONTENT_TEXT}") == "one two"
+    )
+    # No usage arrived before the stream was closed.
+    assert not attributes
+
+
+def test_closed_openai_invoke_model_stream_span_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    _close(_invoke_model_stream("openai"))
+    span = _only_span(in_memory_span_exporter)
+    # Three events were read: the role and the "one " and "two" deltas.
+    assert span.name == "bedrock.invoke_model_with_response_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER) == "aws"
+    assert attributes.pop(LLM_MODEL_NAME) == "openai.gpt-oss-120b-1:0"
+    assert attributes.pop(LLM_INVOCATION_PARAMETERS) == "{}"
+    assert attributes.pop(INPUT_VALUE) == json.dumps([{"role": "user", "content": "hi"}])
+    assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hi"
+    assert attributes.pop(OUTPUT_VALUE) == "one two"
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "one two"
+    # No finish reason or usage arrived before the stream was closed.
+    assert not attributes
+
+
+def test_closed_invoke_agent_span_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    _close(_invoke_agent)
+    span = _only_span(in_memory_span_exporter)
+    # Three chunks were read: "one ", "two" and ".".
+    assert span.name == "bedrock_agent.invoke_agent"
+    assert span.status.status_code == StatusCode.UNSET
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
+    assert attributes.pop(LLM_PROVIDER) == "aws"
+    assert attributes.pop(INPUT_VALUE) == "hi"
+    assert attributes.pop(OUTPUT_VALUE) == "one two."
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
+    assert not attributes
+
+
+def test_closed_retrieve_and_generate_stream_span_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    _close(_retrieve_and_generate_stream)
+    span = _only_span(in_memory_span_exporter)
+    # Three outputs were read: "one ", "two" and ".".
+    assert span.name == "bedrock_agent.retrieve_and_generate_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
+    model_arn = "arn:aws:bedrock:us-east-1::foundation-model/model"
+    assert attributes.pop(LLM_MODEL_NAME) == model_arn
+    assert json.loads(str(attributes.pop(LLM_INVOCATION_PARAMETERS))) == {
+        "retrieveAndGenerateConfiguration": {
+            "type": "KNOWLEDGE_BASE",
+            "knowledgeBaseConfiguration": {"knowledgeBaseId": "KB", "modelArn": model_arn},
+        }
+    }
+    assert attributes.pop(INPUT_VALUE) == "hi"
+    assert attributes.pop(INPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop(OUTPUT_VALUE) == "one two."
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
+    assert not attributes
+
+
 CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
@@ -541,6 +640,7 @@ LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
