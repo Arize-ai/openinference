@@ -106,6 +106,10 @@
             "package-name": "python-openinference-instrumentation-smolagents",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-qwen-agent": {
+            "package-name": "python-openinference-instrumentation-qwen-agent",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-ag2": {
             "package-name": "python-openinference-instrumentation-ag2",
             "release-type": "python"

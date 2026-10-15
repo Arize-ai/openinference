@@ -1,0 +1,9 @@
+qwen-agent==0.0.34
+# qwen-agent imports these at module load but does not declare them
+numpy
+soundfile
+tqdm
+python-dateutil
+opentelemetry-sdk
+pytest
+pytest-asyncio

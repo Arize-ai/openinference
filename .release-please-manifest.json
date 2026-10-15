@@ -20,6 +20,7 @@
     "python/instrumentation/openinference-instrumentation-typesafe": "0.1.5",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.29",
     "python/instrumentation/openinference-instrumentation-anthropic": "3.0.3",
+    "python/instrumentation/openinference-instrumentation-qwen-agent": "0.1.0",
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.43",
     "python/instrumentation/openinference-instrumentation-ag2": "0.1.12",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.15",
