@@ -90,6 +90,11 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
+        # re-arm the wrappers that cached accessors (like with_raw_response) kept from an
+        # earlier instrument(), with this tracer and config
+        tracer: Any = self._tracer
+        for wrapper in list(_WithTracer._instances):
+            wrapper._tracer, wrapper._config, wrapper._active = tracer, config, True
 
         self._original_messages_create = Messages.create
         wrap_function_wrapper(

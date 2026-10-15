@@ -1046,6 +1046,12 @@ def test_uninstrumentation_stops_cached_accessors(
     assert len(in_memory_span_exporter.get_finished_spans()) == 1
     call()
     assert len(in_memory_span_exporter.get_finished_spans()) == 1
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        call()  # the same cached accessor, traced again and only once
+    finally:
+        AnthropicInstrumentor().uninstrument()
+    assert len(in_memory_span_exporter.get_finished_spans()) == 2
 
 
 @pytest.fixture()
