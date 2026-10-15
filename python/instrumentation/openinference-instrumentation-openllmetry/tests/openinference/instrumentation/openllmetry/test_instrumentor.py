@@ -9,6 +9,7 @@ from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import Status, StatusCode
 from opentelemetry.semconv._incubating.attributes import (
     gen_ai_attributes as GenAIAttributes,
 )
@@ -586,3 +587,83 @@ class TestToolSpanMapping:
         assert SpanAttributes.TOOL_NAME not in attributes
         assert attributes[SpanAttributes.INPUT_VALUE] == entity_input
         assert attributes[SpanAttributes.OUTPUT_VALUE] == entity_output
+
+
+class TestOpenLLMetrySuccessStatus:
+    """Regression tests for https://github.com/Arize-ai/openinference/issues/4057."""
+
+    def test_llm_span_with_json_messages_sets_ok_status(self) -> None:
+        span = SimpleNamespace(
+            name="openai.chat",
+            _attributes={
+                "gen_ai.input.messages": json.dumps(
+                    [{"role": "user", "parts": [{"type": "text", "content": "Hello"}]}]
+                ),
+                "gen_ai.output.messages": json.dumps(
+                    [{"role": "assistant", "parts": [{"type": "text", "content": "Hi"}]}]
+                ),
+                "gen_ai.request.model": "gpt-4.1",
+                "gen_ai.provider.name": "openai",
+            },
+            _status=Status(StatusCode.UNSET),
+        )
+
+        OpenInferenceSpanProcessor().on_end(span)
+
+        assert span._status.status_code is StatusCode.OK
+        assert (
+            span._attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.LLM.value
+        )
+
+    def test_generic_tool_span_sets_ok_status(self) -> None:
+        span = SimpleNamespace(
+            name="search",
+            _attributes={
+                "traceloop.span.kind": "tool",
+                "traceloop.entity.name": "search",
+                "traceloop.entity.input": json.dumps({"inputs": {"q": "x"}}),
+                "traceloop.entity.output": json.dumps({"output": "y"}),
+            },
+            _status=Status(StatusCode.UNSET),
+        )
+
+        OpenInferenceSpanProcessor().on_end(span)
+
+        assert span._status.status_code is StatusCode.OK
+        assert (
+            span._attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.TOOL.value
+        )
+
+    def test_langgraph_operation_span_without_messages_sets_ok_status(self) -> None:
+        """LangGraph operation spans lack TRACELOOP kind and LLM messages."""
+        span = SimpleNamespace(
+            name="invoke_agent LangGraph",
+            _attributes={"gen_ai.operation.name": "invoke_agent"},
+            _status=Status(StatusCode.UNSET),
+        )
+
+        OpenInferenceSpanProcessor().on_end(span)
+
+        assert span._status.status_code is StatusCode.OK
+
+    def test_error_status_is_preserved(self) -> None:
+        span = SimpleNamespace(
+            name="openai.chat",
+            _attributes={
+                "gen_ai.input.messages": json.dumps(
+                    [{"role": "user", "parts": [{"type": "text", "content": "Hello"}]}]
+                ),
+                "gen_ai.output.messages": json.dumps(
+                    [{"role": "assistant", "parts": [{"type": "text", "content": "Hi"}]}]
+                ),
+                "gen_ai.request.model": "gpt-4.1",
+            },
+            _status=Status(StatusCode.ERROR, "provider failed"),
+        )
+
+        OpenInferenceSpanProcessor().on_end(span)
+
+        assert span._status.status_code is StatusCode.ERROR
+        assert span._status.description == "provider failed"
