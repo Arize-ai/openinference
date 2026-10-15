@@ -6,6 +6,7 @@ import { isWrapped } from "@opentelemetry/instrumentation";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { describe, expect, it } from "vitest";
 
+import * as publicAPI from "../src";
 import { AnthropicInstrumentation, isPatched } from "../src/instrumentation";
 
 // Not import.meta.url: this file is also compiled under the package's
@@ -26,6 +27,10 @@ type AnthropicClass = typeof Anthropic & {
 // _isOpenInferencePatched flag made whichever build was patched first block
 // the other forever (#3557).
 describe("dual-build patching", () => {
+  it("keeps internal modules out of the public API", () => {
+    expect(Object.keys(publicAPI).sort()).toEqual(["AnthropicInstrumentation", "isPatched"]);
+  });
+
   it("patches the CJS and ESM builds independently, each at most once", async () => {
     const instrumentation = new AnthropicInstrumentation({
       tracerProvider: new NodeTracerProvider(),
