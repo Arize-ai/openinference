@@ -1116,7 +1116,7 @@ def _event_stream_frame(event_type: str, payload: Dict[str, Any]) -> bytes:
 
 
 _CONVERSE_USAGE = {"inputTokens": 3, "outputTokens": 2, "totalTokens": 5}
-_CONVERSE_RESPONSE = {
+_CONVERSE_RESPONSE: Dict[str, Any] = {
     "output": {"message": {"role": "assistant", "content": [{"text": "one two"}]}},
     "stopReason": "end_turn",
     "usage": _CONVERSE_USAGE,
@@ -1224,10 +1224,32 @@ def test_converse_client_invocation_parameters(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attributes = dict(spans[0].attributes or {})
-    assert attributes[LLM_MODEL_NAME] == request_kwargs["modelId"]
-    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == expected_invocation_parameters
-    assert attributes[LLM_FINISH_REASON] == "end_turn"
+    span = spans[0]
+    assert span.name == f"bedrock.{api}"
+    assert span.status.is_ok
+    attributes: Dict[str, Any] = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
+    assert attributes.pop(LLM_MODEL_NAME) == request_kwargs["modelId"]
+    assert isinstance(invocation_parameters := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters) == expected_invocation_parameters
+    assert attributes.pop(INPUT_VALUE) == safe_json_dumps(request_kwargs["messages"])
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON.value
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert attributes.pop("llm.input_messages.0.message.contents.0.message_content.type") == "text"
+    assert attributes.pop("llm.input_messages.0.message.contents.0.message_content.text") == "hi"
+    assert attributes.pop(OUTPUT_VALUE) == safe_json_dumps(_CONVERSE_RESPONSE["output"]["message"])
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON.value
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    assert attributes.pop("llm.output_messages.0.message.contents.0.message_content.type") == "text"
+    assert (
+        attributes.pop("llm.output_messages.0.message.contents.0.message_content.text") == "one two"
+    )
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 3
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 2
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 5
+    assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
+    assert not attributes
 
 
 @pytest.mark.parametrize(
