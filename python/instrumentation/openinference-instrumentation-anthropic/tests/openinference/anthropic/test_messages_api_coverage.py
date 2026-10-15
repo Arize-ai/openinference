@@ -1126,7 +1126,10 @@ def test_blocks_recorded_as_json_redact_their_data(hide_images: bool) -> None:
             [{"role": "user", "content": _blocks_with_nested_data()}], hide_images=hide_images
         )
     )
-    contents = f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}"
+    # The tool result is its own message before the remaining document blocks.
+    assert attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}"] == "tool"
+    assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}"] == "user"
+    contents = f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}"
     redacted = "__REDACTED__"
     # base64 data is always redacted, keeping the type and media type
     assert json.loads(str(attributes[f"{contents}.0.{MESSAGE_CONTENT_TEXT}"]))["source"] == {
@@ -1158,7 +1161,7 @@ def test_trace_config_hides_images_nested_in_input_blocks(
     client.messages.create(model=MODEL, max_tokens=100, messages=messages)
     attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
     nested = json.loads(
-        str(attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"])
+        str(attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"])
     )
     assert nested["source"]["content"][1]["source"]["url"] == "__REDACTED__"
 

@@ -1,8 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { context } from "@opentelemetry/api";
+import { suppressTracing } from "@opentelemetry/core";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { setAttributes } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 import { AnthropicInstrumentation } from "../src/instrumentation";
@@ -205,5 +208,81 @@ describe("AnthropicInstrumentation - multiple tool_result blocks", () => {
     expect(
       attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.3.${SemanticConventions.MESSAGE_ROLE}`],
     ).toBeUndefined();
+  });
+
+  const toolResultRequest: Anthropic.Messages.MessageCreateParamsNonStreaming = {
+    model: "claude-sonnet-4-6",
+    max_tokens: 100,
+    messages: [
+      assistantToolUseTurn,
+      {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "toolu_01AAA", content: "4" },
+          { type: "tool_result", tool_use_id: "toolu_02BBB", content: "sunny, 22C" },
+        ],
+      },
+    ],
+  };
+
+  function createClient() {
+    return new Anthropic({
+      apiKey: "fake-api-key",
+      fetch: vcrFetch("multi-tool-result-non-streaming"),
+    });
+  }
+
+  it("respects tracing suppression with parallel tool results", async () => {
+    const response = await context.with(suppressTracing(context.active()), () =>
+      createClient().messages.create(toolResultRequest),
+    );
+    expect(response.role).toBe("assistant");
+    expect(memoryExporter.getFinishedSpans()).toHaveLength(0);
+  });
+
+  it("propagates context attributes with parallel tool results", async () => {
+    const attributes = {
+      [SemanticConventions.SESSION_ID]: "session-1",
+      [SemanticConventions.USER_ID]: "user-1",
+      [SemanticConventions.METADATA]: JSON.stringify({ tenant: "acme" }),
+      [SemanticConventions.TAG_TAGS]: JSON.stringify(["parallel-tools"]),
+    };
+    await context.with(setAttributes(context.active(), attributes), () =>
+      createClient().messages.create(toolResultRequest),
+    );
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes).toMatchObject(attributes);
+  });
+
+  it("masks each parallel tool result with TraceConfig", async () => {
+    instrumentation.disable();
+    const maskedInstrumentation = new AnthropicInstrumentation({
+      tracerProvider,
+      traceConfig: { hideInputText: true },
+    });
+    maskedInstrumentation.disable();
+    maskedInstrumentation._modules[0].moduleExports = Anthropic;
+    maskedInstrumentation.enable();
+    try {
+      await createClient().messages.create(toolResultRequest);
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      for (const [index, toolId] of [
+        [1, "toolu_01AAA"],
+        [2, "toolu_02BBB"],
+      ] as const) {
+        const prefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
+        expect(spans[0].attributes[`${prefix}${SemanticConventions.MESSAGE_ROLE}`]).toBe("tool");
+        expect(spans[0].attributes[`${prefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]).toBe(
+          toolId,
+        );
+        expect(spans[0].attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`]).toBe(
+          "__REDACTED__",
+        );
+      }
+    } finally {
+      maskedInstrumentation.disable();
+    }
   });
 });

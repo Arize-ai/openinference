@@ -2,9 +2,10 @@
 parameters, and a tool result in its input messages."""
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, Iterable, List
 
 import httpx2
+import pytest
 from anthropic import NOT_GIVEN, Anthropic, omit
 from anthropic.types import ToolUseBlock
 from opentelemetry.sdk.trace import TracerProvider
@@ -17,6 +18,7 @@ from openinference.instrumentation.anthropic._wrappers import (
 )
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     SpanAttributes,
 )
 
@@ -26,6 +28,9 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 
 MODEL = "claude-sonnet-4-6"
 
@@ -116,7 +121,43 @@ def test_one_tool_result_is_recorded_as_the_message_content() -> None:
     )
     prefix = f"{LLM_INPUT_MESSAGES}.0"
     assert attributes == {
-        f"{prefix}.{MESSAGE_ROLE}": "user",
+        f"{prefix}.{MESSAGE_ROLE}": "tool",
         f"{prefix}.{MESSAGE_TOOL_CALL_ID}": "toolu_1",
         f"{prefix}.{MESSAGE_CONTENT}": "sunny",
     }
+
+
+@pytest.mark.parametrize("container", [list, tuple, iter])
+@pytest.mark.parametrize("with_tool_results", [False, True])
+def test_input_content_iterables_are_preserved(
+    container: Callable[[Iterable[Any]], Iterable[Any]], with_tool_results: bool
+) -> None:
+    blocks: List[Any] = [{"type": "text", "text": "Now answer."}]
+    if with_tool_results:
+        blocks = [_tool_result("toolu_1", "4"), _tool_result("toolu_2", "sunny")] + blocks
+    messages: List[Any] = [
+        {"role": "user", "content": container(blocks)},
+        {"role": "assistant", "content": "done"},
+    ]
+    attributes = dict(_get_llm_input_messages(messages, system="be brief"))
+    prefix = LLM_INPUT_MESSAGES
+    index = 3 if with_tool_results else 1
+    expected = {
+        f"{prefix}.0.{MESSAGE_ROLE}": "system",
+        f"{prefix}.0.{MESSAGE_CONTENT}": "be brief",
+        f"{prefix}.{index}.{MESSAGE_ROLE}": "user",
+        f"{prefix}.{index}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "text",
+        f"{prefix}.{index}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}": "Now answer.",
+        f"{prefix}.{index + 1}.{MESSAGE_ROLE}": "assistant",
+        f"{prefix}.{index + 1}.{MESSAGE_CONTENT}": "done",
+    }
+    if with_tool_results:
+        for i, (tool_id, result) in enumerate([("toolu_1", "4"), ("toolu_2", "sunny")], 1):
+            expected.update(
+                {
+                    f"{prefix}.{i}.{MESSAGE_ROLE}": "tool",
+                    f"{prefix}.{i}.{MESSAGE_TOOL_CALL_ID}": tool_id,
+                    f"{prefix}.{i}.{MESSAGE_CONTENT}": result,
+                }
+            )
+    assert attributes == expected

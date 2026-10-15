@@ -945,7 +945,13 @@ def _get_llm_input_messages(
     i = 1 if system else 0
     for message in messages:
         content = _get(message, "content")
-        blocks = list(content) if not isinstance(content, str) and isinstance(content, Iterable) else []
+        blocks = (
+            list(content) if not isinstance(content, str) and isinstance(content, Iterable) else []
+        )
+        if blocks:
+            # Reuse the materialized content so one-shot SDK iterables are not consumed twice.
+            message = message.copy()
+            message["content"] = blocks
         tool_results = [block for block in blocks if _get(block, "type") == "tool_result"]
         # Each result needs its own message so parallel tool results cannot overwrite one another.
         # Anthropic requires tool results before the remaining content of a user message.
@@ -959,7 +965,7 @@ def _get_llm_input_messages(
             remaining = [block for block in blocks if _get(block, "type") != "tool_result"]
             if not remaining:
                 continue
-            message = {**message, "content": remaining}
+            message["content"] = remaining
         yield from _attributes_or_nothing(_get_llm_input_message, i, message, hide_images)
         i += 1
 
