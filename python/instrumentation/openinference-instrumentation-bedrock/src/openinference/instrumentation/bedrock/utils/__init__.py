@@ -107,6 +107,10 @@ class _EventStreamIterator(_Iterator[Any]):
         # Keeps the stream wrapper alive while this iterator is in use.
         self._self_stream = stream
 
+    def __iter__(self) -> _EventStreamIterator:
+        # Returning a new iterator here would drop the reference to the stream.
+        return self
+
 
 class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """

@@ -7,6 +7,7 @@ botocore ``EventStream`` behaves exactly as it does against Bedrock.
 import base64
 import gc
 import json
+import logging
 import re
 import struct
 import zlib
@@ -337,6 +338,40 @@ def test_close_after_read_all_keeps_span(
     span = _only_span(in_memory_span_exporter)
     assert span.status.status_code == StatusCode.OK
     assert "one two" in str((span.attributes or {}).get(SpanAttributes.OUTPUT_VALUE))
+
+
+@pytest.mark.parametrize("open_stream", _STREAMS.values(), ids=_STREAMS.keys())
+def test_span_does_not_end_when_iterator_is_returned(
+    open_stream: Callable[[], Any],
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    def events() -> Iterator[Any]:
+        return iter(open_stream())
+
+    # The for loop calls iter() on the returned iterator again.
+    for _ in events():
+        gc.collect()
+        assert not in_memory_span_exporter.get_finished_spans()
+    span = _only_span(in_memory_span_exporter)
+    assert span.status.status_code == StatusCode.OK
+    assert "two" in str((span.attributes or {}).get(SpanAttributes.OUTPUT_VALUE))
+
+
+@pytest.mark.parametrize("open_stream", _STREAMS.values(), ids=_STREAMS.keys())
+@pytest.mark.parametrize("close", [True, False], ids=["close", "drop"])
+def test_span_ends_when_stream_is_left_before_first_event(
+    open_stream: Callable[[], Any],
+    close: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stream = open_stream()
+    if close:
+        stream.close()
+    del stream
+    span = _only_span(in_memory_span_exporter)
+    assert span.status.status_code == StatusCode.UNSET
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
 async def _async_read_all(stream: Any) -> None:
