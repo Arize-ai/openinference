@@ -2,12 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaTool } from "@anthropic-ai/sdk/helpers/beta/json-schema";
 import type { BetaRunnableTool } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
 import { BetaToolRunner } from "@anthropic-ai/sdk/lib/tools/BetaToolRunner";
-import { SpanStatusCode } from "@opentelemetry/api";
+import { context, SpanStatusCode } from "@opentelemetry/api";
+import { suppressTracing } from "@opentelemetry/core";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { setSession } from "@arizeai/openinference-core";
 import {
   MimeType,
   OpenInferenceSpanKind,
@@ -182,6 +184,83 @@ describe("AnthropicInstrumentation - other Messages methods", () => {
   });
 
   describe("beta.messages.toolRunner", () => {
+    it("keeps concurrent runs and their tools in separate contexts", async () => {
+      const run = (sessionId: string) =>
+        context.with(setSession(context.active(), { sessionId }), () => {
+          const client = new Anthropic({
+            apiKey: "fake-api-key",
+            fetch: sequenceFetch([
+              () => jsonResponse(toolUseMessage),
+              () => jsonResponse(finalMessage),
+            ]),
+          });
+          return client.beta.messages
+            .toolRunner({ ...request, tools: [weatherTool(() => "sunny")] })
+            .runUntilDone();
+        });
+
+      await Promise.all([run("first"), run("second")]);
+
+      await waitForSpans(8);
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans).toHaveLength(8);
+      for (const sessionId of ["first", "second"]) {
+        const runSpans = spans.filter((span) => span.attributes["session.id"] === sessionId);
+        expect(runSpans).toHaveLength(4);
+        const [chain] = byKind(runSpans, OpenInferenceSpanKind.CHAIN);
+        for (const span of runSpans.filter((span) => span !== chain)) {
+          expect(span.parentSpanId).toBe(chain.spanContext().spanId);
+          expect(span.spanContext().traceId).toBe(chain.spanContext().traceId);
+        }
+      }
+      expect(
+        new Set(
+          byKind(spans, OpenInferenceSpanKind.CHAIN).map((span) => span.spanContext().traceId),
+        ).size,
+      ).toBe(2);
+    });
+
+    it("suppresses the runner and all of its child spans", async () => {
+      const client = new Anthropic({
+        apiKey: "fake-api-key",
+        fetch: sequenceFetch([
+          () => jsonResponse(toolUseMessage),
+          () => jsonResponse(finalMessage),
+        ]),
+      });
+      await context.with(suppressTracing(context.active()), () =>
+        client.beta.messages
+          .toolRunner({ ...request, tools: [weatherTool(() => "sunny")] })
+          .runUntilDone(),
+      );
+      await tracerProvider.forceFlush();
+      expect(memoryExporter.getFinishedSpans()).toHaveLength(0);
+    });
+
+    it("uses a replacement tracer provider after the SDK has been patched", async () => {
+      const exporter = new InMemorySpanExporter();
+      const provider = new NodeTracerProvider({
+        spanProcessors: [new SimpleSpanProcessor(exporter)],
+      });
+      instrumentation.setTracerProvider(provider);
+      try {
+        const client = new Anthropic({
+          apiKey: "fake-api-key",
+          fetch: sequenceFetch([
+            () => jsonResponse(toolUseMessage),
+            () => jsonResponse(finalMessage),
+          ]),
+        });
+        await client.beta.messages.toolRunner({ ...request, tools: [weatherTool(() => "sunny")] });
+        await provider.forceFlush();
+        expect(exporter.getFinishedSpans()).toHaveLength(4);
+        expect(memoryExporter.getFinishedSpans()).toHaveLength(0);
+      } finally {
+        instrumentation.setTracerProvider(tracerProvider);
+        await provider.shutdown();
+      }
+    });
+
     it("parents the LLM and TOOL spans of a run with a CHAIN span", async () => {
       const client = new Anthropic({
         apiKey: "fake-api-key",
