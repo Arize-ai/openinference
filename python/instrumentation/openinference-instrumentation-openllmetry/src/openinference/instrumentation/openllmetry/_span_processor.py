@@ -7,7 +7,7 @@ into OpenInference semantic conventions for Phoenix observability.
 
 import json
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.semconv._incubating.attributes import (
@@ -577,7 +577,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             **get_llm_attributes(
                 provider=provider_val,
                 system=system_val,
-                model_name=request_body["model"],
+                model_name=cast(Optional[str], request_body["model"]),
                 input_messages=inputs,
                 output_messages=outputs,
                 token_count=token_count,
