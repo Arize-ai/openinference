@@ -42,6 +42,7 @@ from ._blob_upload import (
     parse_base64_data_uri,
 )
 from ._capture import capture_span_context
+from ._deferred_input import finalize_deferred_input_value
 from ._projects import dangerously_using_project
 from ._tracer_providers import TracerProvider
 from ._tracers import OITracer
@@ -86,6 +87,7 @@ __path__ = __import__("pkgutil").extend_path(__path__, __name__)
 
 __all__ = [
     "capture_span_context",
+    "finalize_deferred_input_value",
     "get_attributes_from_context",
     "using_attributes",
     "using_metadata",
