@@ -34,6 +34,10 @@
             "package-name": "python-openinference-instrumentation-openai-agents",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-livekit-agents": {
+            "package-name": "python-openinference-instrumentation-livekit-agents",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-vertexai": {
             "package-name": "python-openinference-instrumentation-vertexai",
             "release-type": "python"

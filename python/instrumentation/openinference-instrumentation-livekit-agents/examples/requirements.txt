@@ -1,0 +1,4 @@
+openinference-instrumentation-livekit-agents
+livekit-agents[openai,silero]>=1.8.6
+arize-otel
+arize-phoenix-otel
