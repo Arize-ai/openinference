@@ -90,14 +90,19 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
             OpenInferenceTracingProcessor,
         )
 
+        # Raises on an unsupported span kind before anything is patched.
+        processor = OpenInferenceTracingProcessor(
+            cast(Tracer, tracer), tool_span_kinds=kwargs.get("tool_span_kinds")
+        )
+
         if exclusive_processor:
             from agents import set_trace_processors
 
-            set_trace_processors([OpenInferenceTracingProcessor(cast(Tracer, tracer))])
+            set_trace_processors([processor])
         else:
             from agents import add_trace_processor
 
-            add_trace_processor(OpenInferenceTracingProcessor(cast(Tracer, tracer)))
+            add_trace_processor(processor)
 
         self._original_execute_function_tools = _patch_tool_execution()
 

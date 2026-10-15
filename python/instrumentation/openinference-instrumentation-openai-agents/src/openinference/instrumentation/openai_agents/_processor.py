@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from collections import OrderedDict
@@ -66,6 +67,7 @@ from typing_extensions import assert_never
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.instrumentation.openai_agents._tool_schemas import get_tool_schema
 from openinference.semconv.trace import (
+    DocumentAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -97,8 +99,13 @@ _INCOMPLETE_REASON_TO_FINISH_REASON = {
 class OpenInferenceTracingProcessor(TracingProcessor):
     _MAX_HANDOFFS_IN_FLIGHT = 1000
 
-    def __init__(self, tracer: Tracer) -> None:
+    def __init__(
+        self,
+        tracer: Tracer,
+        tool_span_kinds: Optional[Mapping[str, str]] = None,
+    ) -> None:
         self._tracer = tracer
+        self._tool_span_kinds = _normalize_tool_span_kinds(tool_span_kinds)
         # Guards the capped insert into _reverse_handoffs_dict below, which is the only
         # read-modify-write here: every other access to the dicts on this object is a
         # single subscript, pop or get. Those are atomic because every key here is a str,
@@ -122,6 +129,11 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         # Use an OrderedDict and _MAX_HANDOFFS_IN_FLIGHT to cap the size of the dict
         # in case there are large numbers of orphaned handoffs
         self._reverse_handoffs_dict: OrderedDict[str, str] = OrderedDict()
+
+    def _get_span_kind(self, data: SpanData) -> str:
+        if isinstance(data, FunctionSpanData) and (kind := self._tool_span_kinds.get(data.name)):
+            return kind
+        return _get_span_kind(data)
 
     def on_trace_start(self, trace: Trace) -> None:
         """Called when a trace is started.
@@ -164,7 +176,7 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         )
         context = set_span_in_context(parent_span) if parent_span else None
         span_name = _get_span_name(span)
-        span_kind = _get_span_kind(span.span_data)
+        span_kind = self._get_span_kind(span.span_data)
         attributes: dict[str, AttributeValue] = {OPENINFERENCE_SPAN_KIND: span_kind}
         # llm.system describes the LLM being called, so it belongs on LLM spans only
         # rather than on every agent, tool, and handoff span in the trace.
@@ -217,6 +229,9 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         elif isinstance(data, FunctionSpanData):
             for k, v in _get_attributes_from_function_span_data(data):
                 otel_span.set_attribute(k, v)
+            if self._get_span_kind(data) == OpenInferenceSpanKindValues.RETRIEVER.value:
+                for k, v in _get_retrieval_document_attributes(data.output):
+                    otel_span.set_attribute(k, v)
             # Function spans carry no schema of their own, so read it off the live tool
             # object being invoked. See _tool_schemas for how that is made available.
             if (schema := get_tool_schema(data.name)) is not None:
@@ -285,6 +300,22 @@ def _get_span_name(obj: Span[Any]) -> str:
     if isinstance(obj.span_data, HandoffSpanData) and obj.span_data.to_agent:
         return f"handoff to {obj.span_data.to_agent}"
     return obj.span_data.type  # type: ignore[no-any-return]
+
+
+# Span kinds a function tool can be mapped to with `tool_span_kinds`.
+_SUPPORTED_TOOL_SPAN_KINDS = (OpenInferenceSpanKindValues.RETRIEVER.value,)
+
+
+def _normalize_tool_span_kinds(tool_span_kinds: Optional[Mapping[str, str]]) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    for tool_name, kind in (tool_span_kinds or {}).items():
+        if not isinstance(kind, str) or kind.upper() not in _SUPPORTED_TOOL_SPAN_KINDS:
+            raise ValueError(
+                f"Unsupported span kind {kind!r} for tool {tool_name!r} in tool_span_kinds. "
+                f"Supported kinds: {', '.join(_SUPPORTED_TOOL_SPAN_KINDS)}"
+            )
+        normalized[tool_name] = kind.upper()
+    return normalized
 
 
 def _get_span_kind(obj: SpanData) -> str:
@@ -797,6 +828,38 @@ def _get_attributes_from_function_span_data(
             yield OUTPUT_MIME_TYPE, JSON
 
 
+def _get_retrieval_document_attributes(output: Any) -> Iterator[tuple[str, AttributeValue]]:
+    """Documents from a retriever tool's output, when it is a list of objects.
+
+    The output is the tool's return value: a list of dicts or pydantic models, or a JSON
+    string of one. `id`, `content` and `score` are read from keys of the same name and
+    every other key goes into the document metadata. Any other output is left to
+    `output.value` alone.
+    """
+    if isinstance(output, str):
+        try:
+            output = json.loads(output)
+        except ValueError:
+            return
+    output = _dump_model(output)
+    if not isinstance(output, list) or not all(isinstance(doc, dict) for doc in output):
+        return
+    for i, doc in enumerate(output):
+        prefix = f"{RETRIEVAL_DOCUMENTS}.{i}."
+        doc = dict(doc)
+        if (id_ := doc.pop("id", None)) is not None:
+            yield f"{prefix}{DOCUMENT_ID}", str(id_)
+        if (content := doc.pop("content", None)) is not None:
+            if not isinstance(content, str):
+                content = safe_json_dumps(content)
+            yield f"{prefix}{DOCUMENT_CONTENT}", content
+        score = doc.pop("score", None)
+        if isinstance(score, (int, float)) and not isinstance(score, bool):
+            yield f"{prefix}{DOCUMENT_SCORE}", float(score)
+        if doc:
+            yield f"{prefix}{DOCUMENT_METADATA}", safe_json_dumps(doc)
+
+
 def _get_attributes_from_message_content_list(
     obj: Iterable[Union[ResponseInputContentParam, Content]],
     prefix: str = "",
@@ -1182,12 +1245,18 @@ METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
 GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
 AGENT_NAME = SpanAttributes.AGENT_NAME
+
+DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
+DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
+DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
+DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
 
 IMAGE_URL = ImageAttributes.IMAGE_URL
 
