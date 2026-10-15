@@ -32,6 +32,7 @@ from openinference.instrumentation import (
 from openinference.instrumentation.anthropic._content import (
     _attributes_or_nothing,
     _dump_json,
+    _get,
     _get_message_contents_attributes,
     _get_metadata_attributes,
     _get_offered_tools,
@@ -941,9 +942,32 @@ def _get_llm_input_messages(
     """
     if system:
         yield from _attributes_or_nothing(_get_llm_input_system_message, system, hide_images)
-    start = 1 if system else 0
-    for i, message in enumerate(messages, start=start):
+    i = 1 if system else 0
+    for message in messages:
+        content = _get(message, "content")
+        blocks = (
+            list(content) if not isinstance(content, str) and isinstance(content, Iterable) else []
+        )
+        if blocks:
+            # Reuse the materialized content so one-shot SDK iterables are not consumed twice.
+            message = message.copy()
+            message["content"] = blocks
+        tool_results = [block for block in blocks if _get(block, "type") == "tool_result"]
+        # Each result needs its own message so parallel tool results cannot overwrite one another.
+        # Anthropic requires tool results before the remaining content of a user message.
+        for block in tool_results:
+            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", "tool"
+            yield from _get_message_contents_attributes(
+                f"{LLM_INPUT_MESSAGES}.{i}", [block], hide_images
+            )
+            i += 1
+        if tool_results:
+            remaining = [block for block in blocks if _get(block, "type") != "tool_result"]
+            if not remaining:
+                continue
+            message["content"] = remaining
         yield from _attributes_or_nothing(_get_llm_input_message, i, message, hide_images)
+        i += 1
 
 
 def _get_llm_input_system_message(
