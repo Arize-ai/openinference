@@ -1018,6 +1018,42 @@ def test_uninstrumentation_restores_count_tokens_and_platform_beta_messages(
         assert cls.__dict__[method] is originals[(cls, method)]
 
 
+@pytest.mark.parametrize("accessor", ["with_raw_response", "with_streaming_response"])
+def test_uninstrumentation_stops_cached_accessors(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    accessor: str,
+) -> None:
+    from openinference.instrumentation.anthropic import AnthropicInstrumentor
+
+    client = _mock_anthropic_client(_text_message_handler)
+    kwargs: Dict[str, Any] = dict(
+        model=MODEL, max_tokens=10, messages=[{"role": "user", "content": "hi"}]
+    )
+
+    def call() -> None:
+        if accessor == "with_raw_response":
+            client.messages.with_raw_response.create(**kwargs).parse()
+        else:
+            with client.messages.with_streaming_response.create(**kwargs) as response:
+                response.parse()
+
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        call()  # caches the accessor while instrumented
+    finally:
+        AnthropicInstrumentor().uninstrument()
+    assert len(in_memory_span_exporter.get_finished_spans()) == 1
+    call()
+    assert len(in_memory_span_exporter.get_finished_spans()) == 1
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        call()  # the same cached accessor, traced again and only once
+    finally:
+        AnthropicInstrumentor().uninstrument()
+    assert len(in_memory_span_exporter.get_finished_spans()) == 2
+
+
 @pytest.fixture()
 def instrument_with_config(tracer_provider: TracerProvider) -> Iterator[Callable[..., None]]:
     from openinference.instrumentation import TraceConfig

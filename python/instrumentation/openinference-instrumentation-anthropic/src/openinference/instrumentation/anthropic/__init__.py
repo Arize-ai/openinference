@@ -22,6 +22,7 @@ from openinference.instrumentation.anthropic._wrappers import (
     _MessageStreamManager,
     _MessagesWrapper,
     _PrepareRequestDataWrapper,
+    _WithTracer,
 )
 from openinference.instrumentation.anthropic.version import __version__
 
@@ -89,6 +90,11 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
+        # re-arm the wrappers that cached accessors (like with_raw_response) kept from an
+        # earlier instrument(), with this tracer and config
+        tracer: Any = self._tracer
+        for wrapper in list(_WithTracer._instances):
+            wrapper._tracer, wrapper._config, wrapper._active = tracer, config, True
 
         self._original_messages_create = Messages.create
         wrap_function_wrapper(
@@ -358,6 +364,10 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         for cls, name, original in reversed(getattr(self, "_originals", ())):
             setattr(cls, name, original)
         self._originals = []
+
+        # cached accessors (like with_raw_response) keep the wrapped method
+        for wrapper in list(_WithTracer._instances):
+            wrapper._active = False
 
         if self._original_prepare_request_data is not None:
             setattr(_base_client, "prepare_request_data", self._original_prepare_request_data)
