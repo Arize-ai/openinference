@@ -185,3 +185,12 @@ with using_trace_config(TraceConfig(hide_inputs=True, hide_outputs=True)):
 async def handle_sensitive_request(...):
     ...
 ```
+
+Each field of a span's config is resolved in this order, highest priority first:
+
+1. `TraceConfig` passed to the innermost active `using_trace_config`, if any
+2. `TraceConfig` passed to the instrumentor (`instrument(config=...)`), if no override is active
+3. `OPENINFERENCE_*` environment variable
+4. Built-in default
+
+Because the override replaces the instrumentor's config, a field not set in the override falls back to steps 3 and 4, not to the instrumentor's value. Environment variables are read when the `TraceConfig` is constructed.
