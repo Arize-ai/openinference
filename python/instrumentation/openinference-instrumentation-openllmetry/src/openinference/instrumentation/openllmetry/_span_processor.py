@@ -16,6 +16,7 @@ from opentelemetry.semconv._incubating.attributes import (
 
 # Import OpenLLMetry constants from the official package
 from opentelemetry.semconv_ai import SpanAttributes, TraceloopSpanKindValues
+from opentelemetry.trace import Status, StatusCode
 
 import openinference.instrumentation as oi
 
@@ -455,6 +456,11 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                 pass
         span._attributes = new_attrs
 
+    @staticmethod
+    def _set_ok_status_if_unset(span: Any) -> None:
+        if span.status.status_code == StatusCode.UNSET:
+            span._status = Status(StatusCode.OK)
+
     def on_end(self, span: Any) -> None:
         attrs: Dict[str, Any] = dict(getattr(span, "_attributes", None) or {})
 
@@ -462,6 +468,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         if kind and kind.lower() != "llm":
             generic = _map_generic_span(attrs, span_name=getattr(span, "name", None))
             self._write_attributes(span, generic)
+            self._set_ok_status_if_unset(span)
             return
 
         # Detect which message format is present.
@@ -472,6 +479,8 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
         # Skip if no LLM prompt data in either format
         if not has_json_messages and not has_legacy_attributes:
+            if "gen_ai.operation.name" in attrs:
+                self._set_ok_status_if_unset(span)
             return
 
         # Reconstruct messages, preferring the current format
@@ -581,3 +590,4 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
         attrs.update(oi_attrs)
         self._write_attributes(span, attrs)
+        self._set_ok_status_if_unset(span)
