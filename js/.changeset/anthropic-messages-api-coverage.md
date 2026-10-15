@@ -1,5 +1,5 @@
 ---
-"@arizeai/openinference-instrumentation-anthropic": minor
+"@arizeai/openinference-instrumentation-anthropic": major
 ---
 
 Support the current Anthropic Messages API (stable and beta, `@anthropic-ai/sdk` 0.133)
