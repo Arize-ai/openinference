@@ -1,19 +1,225 @@
 import base64
+import io
 import json
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, cast
+from unittest.mock import MagicMock
 
 import aioboto3
 import boto3
 import pytest
 from aioresponses import aioresponses
+from botocore.eventstream import EventStream
+from botocore.response import StreamingBody
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import Tracer
 
+from openinference.instrumentation import REDACTED_VALUE, OITracer, TraceConfig
+from openinference.instrumentation.bedrock import _model_invocation_wrapper
+from openinference.instrumentation.bedrock._wrappers import _InvokeModelWithResponseStream
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _attributes_from_image_param,
 )
 
 _CASSETTES_DIR = Path(__file__).resolve().parent / "cassettes"
+
+_SECRET = "SECRET-SYSTEM"
+_CLAUDE_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["invoke_model", "stream"])
+@pytest.mark.parametrize(
+    "system",
+    [_SECRET, [{"type": "text", "text": _SECRET}]],
+    ids=["string", "blocks"],
+)
+def test_hide_inputs_redacts_system_prompt(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    system: Any,
+    stream: bool,
+) -> None:
+    _invoke_with_system(tracer_provider, TraceConfig(hide_inputs=True), system, stream)
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.is_ok
+    attributes = dict(span.attributes or {})
+    assert attributes.pop("input.value") == REDACTED_VALUE
+    assert json.loads(str(attributes.pop("llm.invocation_parameters"))) == _invocation_parameters(
+        stream
+    )
+    assert not [key for key in attributes if key.startswith("llm.input_messages.")]
+    _pop_response_attributes(attributes, stream)
+    assert not attributes
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["invoke_model", "stream"])
+@pytest.mark.parametrize(
+    "system, texts",
+    [
+        (_SECRET, [_SECRET]),
+        (
+            [{"type": "text", "text": "first"}, {"type": "text", "text": "second"}],
+            ["first", "second"],
+        ),
+    ],
+    ids=["string", "blocks"],
+)
+def test_system_prompt_is_first_input_message(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    system: Any,
+    texts: list[str],
+    stream: bool,
+) -> None:
+    _invoke_with_system(tracer_provider, TraceConfig(), system, stream)
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.is_ok
+    attributes = dict(span.attributes or {})
+    assert json.loads(str(attributes.pop("input.value")))["system"] == system
+    assert attributes.pop("input.mime_type") == "application/json"
+    assert json.loads(str(attributes.pop("llm.invocation_parameters"))) == _invocation_parameters(
+        stream
+    )
+    assert attributes.pop("llm.input_messages.0.message.role") == "system"
+    for i, text in enumerate(texts):
+        prefix = f"llm.input_messages.0.message.contents.{i}.message_content"
+        assert attributes.pop(f"{prefix}.text") == text
+        if not stream:
+            assert attributes.pop(f"{prefix}.type") == "text"
+    assert attributes.pop("llm.input_messages.1.message.role") == "user"
+    if stream:
+        assert (
+            attributes.pop("llm.input_messages.1.message.contents.0.message_content.text") == "hi"
+        )
+    else:
+        assert attributes.pop("llm.input_messages.1.message.content") == "hi"
+    _pop_response_attributes(attributes, stream)
+    assert not attributes
+
+
+def _invocation_parameters(stream: bool) -> Dict[str, Any]:
+    # The streaming path also leaves anthropic_version out of the invocation parameters.
+    if stream:
+        return {"max_tokens": 10}
+    return {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 10}
+
+
+def _pop_response_attributes(attributes: Dict[str, Any], stream: bool) -> None:
+    assert attributes.pop("openinference.span.kind") == "LLM"
+    assert attributes.pop("llm.model_name") == _CLAUDE_MODEL_ID
+    assert attributes.pop("llm.finish_reason") == "end_turn"
+    assert attributes.pop("llm.token_count.prompt") == 5
+    assert attributes.pop("llm.token_count.completion") == 1
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    if stream:
+        output_text_key = "llm.output_messages.0.message.contents.0.message_content.text"
+    else:
+        output_text_key = "llm.output_messages.0.message.content"
+        assert attributes.pop("llm.provider") == "aws"
+        assert attributes.pop("llm.system") == "anthropic"
+    assert attributes.pop(output_text_key) == "hello"
+    assert attributes.pop("output.mime_type") == "application/json"
+    assert json.loads(attributes.pop("output.value"))["content"][0]["text"] == "hello"
+
+
+def _invoke_with_system(
+    tracer_provider: TracerProvider,
+    config: TraceConfig,
+    system: Any,
+    stream: bool,
+) -> None:
+    tracer = cast(Tracer, OITracer(tracer_provider.get_tracer(__name__), config=config))
+    kwargs = {
+        "modelId": _CLAUDE_MODEL_ID,
+        "body": json.dumps(
+            {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 10,
+                "system": system,
+                "messages": [{"role": "user", "content": "hi"}],
+            }
+        ),
+    }
+    if stream:
+        chunks: Tuple[Dict[str, Any], ...] = (
+            {
+                "type": "message_start",
+                "message": {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": _CLAUDE_MODEL_ID,
+                    "content": [],
+                    "stop_reason": None,
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 5, "output_tokens": 1},
+                },
+            },
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""},
+            },
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": "hello"},
+            },
+            {"type": "content_block_stop", "index": 0},
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                "usage": {"output_tokens": 1},
+            },
+            {"type": "message_stop"},
+        )
+        event_stream = MagicMock(spec=EventStream)
+        event_stream.__iter__.return_value = iter(
+            [{"chunk": {"bytes": json.dumps(c).encode()}} for c in chunks]
+        )
+        response = {"body": event_stream}
+        _InvokeModelWithResponseStream(tracer)._sync_call(lambda **_: response, (), kwargs)
+        for _ in response["body"]:
+            pass
+    else:
+        payload = json.dumps(
+            {
+                "id": "msg_1",
+                "type": "message",
+                "role": "assistant",
+                "model": _CLAUDE_MODEL_ID,
+                "content": [{"type": "text", "text": "hello"}],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 5, "output_tokens": 1},
+            }
+        ).encode()
+        client = MagicMock()
+        client._unwrapped_invoke_model.return_value = {
+            "body": StreamingBody(io.BytesIO(payload), len(payload))
+        }
+        _model_invocation_wrapper(tracer)(client)(**kwargs)
+
+
+def test_invoke_model_system_message_is_not_a_recorded_invocation_parameter() -> None:
+    from openinference.instrumentation.bedrock.utils.anthropic._attributes import (
+        _get_invocation_parameters,
+    )
+
+    kwargs = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "system": "SECRET-SYSTEM",
+        "messages": [],
+        "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+        "max_tokens": 10,
+    }
+    assert _get_invocation_parameters(kwargs) == {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 10,
+    }
 
 
 def test_file_image_source_emits_no_attributes() -> None:
