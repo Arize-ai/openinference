@@ -2,10 +2,12 @@ import asyncio
 import json
 from typing import Any, Dict, Mapping, Optional, Type, Union, cast
 
+import pytest
 from groq import AsyncGroq, Groq
 from groq._base_client import _StreamT
 from groq._types import Body, RequestFiles, RequestOptions, ResponseT
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import SpanAttributes
@@ -165,3 +167,45 @@ def test_async_path_records_only_the_parameters_the_caller_passed(
     assert json.loads(cast(str, attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS])) == {
         "model": MODEL
     }
+
+
+def test_sync_call_interrupted_by_base_exception_ends_span(
+    setup_groq_instrumentation: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    def _interrupted_post(self: Any, *args: Any, **kwargs: Any) -> Any:
+        raise KeyboardInterrupt
+
+    client = Groq(api_key="fake")
+    client.chat.completions._post = _interrupted_post  # type: ignore[assignment]
+    with pytest.raises(KeyboardInterrupt):
+        client.chat.completions.create(
+            messages=[{"role": "user", "content": "hi"}],
+            model=MODEL,
+        )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.ERROR
+
+
+def test_async_call_cancelled_ends_span(
+    setup_groq_instrumentation: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async def _cancelled_post(self: Any, *args: Any, **kwargs: Any) -> Any:
+        raise asyncio.CancelledError
+
+    client = AsyncGroq(api_key="fake")
+    client.chat.completions._post = _cancelled_post  # type: ignore[assignment]
+
+    async def call() -> None:
+        await client.chat.completions.create(
+            messages=[{"role": "user", "content": "hi"}],
+            model=MODEL,
+        )
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(call())
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.ERROR
