@@ -11,6 +11,7 @@ import type { Stream } from "openai/streaming";
 import { safelyJSONStringify } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+import { imageBase64ToDataURL } from "./imageAttributes";
 import { getNumberProperty } from "./typeUtils";
 
 /**
@@ -245,6 +246,28 @@ export function getResponsesOutputMessagesAttributes(response: ResponseType): At
     });
   });
 
+  return attributes;
+}
+
+function getImageGenerationOutputFormat(body: ResponseCreateParamsBase): string | undefined {
+  const imageGenerationTool = body.tools?.find((tool) => tool.type === "image_generation");
+  return imageGenerationTool?.output_format;
+}
+
+export function getResponsesOutputImageAttributes(
+  response: ResponseType,
+  body: ResponseCreateParamsBase,
+): Attributes {
+  const attributes: Attributes = {};
+  const imageFormat = getImageGenerationOutputFormat(body);
+  let imageIndex = 0;
+  for (const item of response.output) {
+    if (item.type !== "image_generation_call" || !item.result) continue;
+    attributes[
+      `${SemanticConventions.OUTPUT_IMAGES}.${imageIndex}.${SemanticConventions.IMAGE_URL}`
+    ] = imageBase64ToDataURL(item.result, item.output_format ?? imageFormat);
+    imageIndex++;
+  }
   return attributes;
 }
 
