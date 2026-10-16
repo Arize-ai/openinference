@@ -321,6 +321,7 @@ class _Span(BaseSpan):
 
     _end_time: Optional[int] = PrivateAttr()
     _last_updated_at: float = PrivateAttr()
+    _context_token: Optional[object] = PrivateAttr()
 
     def __init__(
         self,
@@ -338,6 +339,7 @@ class _Span(BaseSpan):
         self._attributes = {}
         self._end_time = None
         self._last_updated_at = time()
+        self._context_token = None
         self._list_attr_len: DefaultDict[str, int] = defaultdict(int)
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
@@ -346,8 +348,26 @@ class _Span(BaseSpan):
     def record_exception(self, exception: BaseException) -> None:
         self._otel_span.record_exception(exception)
 
+    def _detach_context(self) -> None:
+        """Restore the previous OTEL context after this span is no longer current.
+
+        LlamaIndex spans are attached in ``new_span`` so downstream instrumentors
+        (and user spans) nest under them. Detach when the instrumented call exits
+        or the span ends — including deferred streaming ends — so the caller's
+        context is restored.
+        """
+        token = self._context_token
+        if token is None:
+            return
+        self._context_token = None
+        try:
+            context_api.detach(token)
+        except Exception:
+            logger.debug("Failed to detach LlamaIndex span context", exc_info=True)
+
     def end(self, exception: Optional[BaseException] = None) -> None:
         if not self._active:
+            self._detach_context()
             return
         self._active = False
         if exception is None:
@@ -362,6 +382,7 @@ class _Span(BaseSpan):
         self._otel_span.set_status(status=status)
         self._otel_span.set_attributes(self._attributes)
         self._otel_span.end(end_time=self._end_time)
+        self._detach_context()
 
     @property
     def waiting_for_streaming(self) -> bool:
@@ -1030,6 +1051,10 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             id_=id_,
             parent_id=parent_span_id,
         )
+        # Make this span current so OpenAIInstrumentor / user spans nest under it.
+        # Nested LlamaIndex spans already use parent.context for parenting; attaching
+        # is what exposes the active span to other OTEL instrumentors.
+        span._context_token = context_api.attach(set_span_in_context(otel_span))
         span.process_instance(instance)
         span.process_input(instance, bound_args)
         return span
@@ -1047,6 +1072,9 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         with self.lock:
             span = self.open_spans.get(id_)
         if span:
+            # Restore caller context now that the instrumented call is leaving,
+            # even when ending is deferred for streaming responses.
+            span._detach_context()
             if isinstance(instance, BaseSynthesizer) and isinstance(
                 result, (Generator, AsyncGenerator)
             ):
@@ -1098,6 +1126,8 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         with self.lock:
             span = self.open_spans.get(id_)
         if span:
+            # Match prepare_to_exit_span: clear the current-span attachment on drop.
+            span._detach_context()
             if err and isinstance(err, WorkflowDone):
                 span.end()
                 return span
