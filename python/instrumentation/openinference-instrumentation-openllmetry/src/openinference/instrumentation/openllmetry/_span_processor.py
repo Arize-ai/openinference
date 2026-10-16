@@ -10,6 +10,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 from opentelemetry.sdk.trace import SpanProcessor
+from opentelemetry.trace import Status, StatusCode
 from opentelemetry.semconv._incubating.attributes import (
     gen_ai_attributes as GenAIAttributes,
 )
@@ -427,6 +428,23 @@ def _extract_llm_provider_and_system(
     return provider_val, system_val
 
 
+def _ensure_success_status(span: Any) -> None:
+    """Mark successful spans OK; leave ERROR statuses unchanged.
+
+    OpenLLMetry instrumentors often leave status as UNSET. Phoenix shows those
+    spans as unset even when the call succeeded. ReadableSpan is already ended
+    when ``on_end`` runs, so rebind ``_status`` the same way we rebind
+    ``_attributes``.
+    """
+    status = getattr(span, "_status", None)
+    if status is None:
+        status = getattr(span, "status", None)
+    code = getattr(status, "status_code", None) if status is not None else None
+    if code is StatusCode.ERROR or code is StatusCode.OK:
+        return
+    span._status = Status(StatusCode.OK)
+
+
 class OpenInferenceSpanProcessor(SpanProcessor):
     """
     SpanProcessor that converts OpenLLMetry spans to OpenInference attributes.
@@ -456,6 +474,12 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         span._attributes = new_attrs
 
     def on_end(self, span: Any) -> None:
+        try:
+            self._convert_attributes(span)
+        finally:
+            _ensure_success_status(span)
+
+    def _convert_attributes(self, span: Any) -> None:
         attrs: Dict[str, Any] = dict(getattr(span, "_attributes", None) or {})
 
         kind = attrs.get(SpanAttributes.TRACELOOP_SPAN_KIND)
