@@ -18,6 +18,7 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
+    cast,
 )
 
 import wrapt
@@ -1076,10 +1077,32 @@ class _TracedAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,t
                 await wrapped_aclose()
 
 
+def _set_streaming_output_attributes(
+    span: trace_api.Span,
+    output_messages: Dict[int, Dict[str, Any]],
+    usage_stats: Any,
+) -> str:
+    if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
+        _remove_redundant_reasoning_entries(output_messages, reasoning_items)
+    aggregated_output = cast(str, output_messages.get(0, {}).get("content", ""))
+    _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
+    if finish_reason := output_messages.get(0, {}).get("finish_reason"):
+        _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
+    for idx, msg in output_messages.items():
+        message = _build_message_from_accumulated(msg)
+        for key, value in _get_attributes_from_message_param(message):
+            _set_span_attribute(span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value)
+
+    if usage_stats:
+        _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
+
+    return aggregated_output
+
+
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
     usage_stats = None
-    aggregated_output = None
+    aggregated_output: Optional[str] = None
     try:
         for token in stream:
             if token.choices:
@@ -1117,33 +1140,25 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
             if usage_attrs:
                 usage_stats = usage_attrs
             yield token
-        if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
-            _remove_redundant_reasoning_entries(output_messages, reasoning_items)
-        aggregated_output = output_messages.get(0, {}).get("content", "")
-        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
-        if finish_reason := output_messages.get(0, {}).get("finish_reason"):
-            _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
-        for idx, msg in output_messages.items():
-            message = _build_message_from_accumulated(msg)
-            for key, value in _get_attributes_from_message_param(message):
-                _set_span_attribute(
-                    span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
-                )
-
-        if usage_stats:
-            _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
+        aggregated_output = _set_streaming_output_attributes(span, output_messages, usage_stats)
     except Exception as e:
         span.record_exception(e)
         raise
     else:
         _set_span_status(span, aggregated_output)
     finally:
+        if aggregated_output is None:
+            try:
+                _set_streaming_output_attributes(span, output_messages, usage_stats)
+            except Exception:
+                logger.exception("Failed to record partial streaming span output")
         span.end()
 
 
 async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
     usage_stats = None
+    aggregated_output: Optional[str] = None
     try:
         async for token in stream:
             if token.choices:
@@ -1181,26 +1196,18 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
             if usage_attrs:
                 usage_stats = usage_attrs
             yield token
-        if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
-            _remove_redundant_reasoning_entries(output_messages, reasoning_items)
-        aggregated_output = output_messages.get(0, {}).get("content", "")
-        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
-        if finish_reason := output_messages.get(0, {}).get("finish_reason"):
-            _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
-        for idx, msg in output_messages.items():
-            message = _build_message_from_accumulated(msg)
-            for key, value in _get_attributes_from_message_param(message):
-                _set_span_attribute(
-                    span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
-                )
-        if usage_stats:
-            _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
+        aggregated_output = _set_streaming_output_attributes(span, output_messages, usage_stats)
     except Exception as e:
         span.record_exception(e)
         raise
     else:
         _set_span_status(span, aggregated_output)
     finally:
+        if aggregated_output is None:
+            try:
+                _set_streaming_output_attributes(span, output_messages, usage_stats)
+            except Exception:
+                logger.exception("Failed to record partial streaming span output")
         span.end()
 
 

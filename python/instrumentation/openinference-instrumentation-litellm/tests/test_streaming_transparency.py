@@ -13,6 +13,7 @@ from openinference.instrumentation.litellm import (
     _instrument_func_type_completion,
     _instrument_func_type_responses,
 )
+from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
 
 @pytest.fixture()
@@ -75,6 +76,69 @@ def test_async_streaming_preserves_stream_type(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "acompletion"
+
+
+def test_sync_streaming_early_close_records_partial_output(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    response = litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=[{"content": "What's the capital of China?", "role": "user"}],
+        mock_response="The capital of China is Beijing",
+        stream=True,
+    )
+
+    partial_output = ""
+    for chunk in response:
+        if content := chunk.choices[0].delta.content:
+            partial_output += content
+            break
+    response.close()
+
+    assert partial_output
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == partial_output
+    assert (
+        attributes.get(
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+        )
+        == partial_output
+    )
+
+
+async def test_async_streaming_early_close_records_partial_output(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    response = await litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=[{"content": "What's the capital of China?", "role": "user"}],
+        mock_response="The capital of China is Beijing",
+        stream=True,
+    )
+
+    chunk = await response.__anext__()
+    partial_output = chunk.choices[0].delta.content
+    assert partial_output
+    await response.aclose()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == partial_output
+    assert (
+        attributes.get(
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+        )
+        == partial_output
+    )
 
 
 def test_responses_foreign_stream_type_passes_through(
