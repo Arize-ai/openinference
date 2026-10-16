@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.4.2
+
+### Patch Changes
+
+- 100ce01: Record token usage on `embeddings.create` spans: `llm.token_count.prompt` and `llm.token_count.total` from the response's `usage`, as the Python OpenAI instrumentor does. Previously embedding spans carried no token counts, so embedding usage was missing from traces.
+
 ## 4.4.1
 
 ### Patch Changes
