@@ -2835,8 +2835,12 @@ async def test_google_adk_instrumentor_compaction_span_error_preserves_input(
 
     GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
     try:
-        with pytest.raises(RuntimeError, match="boom"):
+        # google-adk >= 2.12 logs compaction failures and continues the turn;
+        # earlier versions propagate the exception.
+        try:
             await _run_compaction_query(app, app_name)
+        except RuntimeError as e:
+            assert str(e) == "boom"
     finally:
         GoogleADKInstrumentor().uninstrument()
 
