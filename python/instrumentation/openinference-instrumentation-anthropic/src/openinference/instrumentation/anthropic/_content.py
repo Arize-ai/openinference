@@ -147,17 +147,26 @@ def _get_message_contents_attributes(
     message_prefix: str,
     blocks: Iterable[Any],
     hide_images: bool = False,
+    is_exhausted: bool = True,
 ) -> Iterator[Tuple[str, Any]]:
     """
     Yields the attributes of each content block of the message at `message_prefix`, e.g.
     `llm.output_messages.0`. Content indices follow the block indices, and a block that cannot be
     mapped is recorded generically, so no index is skipped and no block is silently dropped.
     `hide_images` redacts the images nested in blocks that are recorded as JSON.
+    `is_exhausted` says whether the stream the blocks come from was read to its end, so that an
+    unfinished stream's placeholder values are not recorded as final ones.
     """
     tool_index = 0
     for j, block in enumerate(blocks):
         attributes = _attributes_or_nothing(
-            _get_content_block_attributes, message_prefix, j, tool_index, block, hide_images
+            _get_content_block_attributes,
+            message_prefix,
+            j,
+            tool_index,
+            block,
+            hide_images,
+            is_exhausted,
         )
         if not attributes:
             attributes = _attributes_or_nothing(
@@ -177,6 +186,7 @@ def _get_content_block_attributes(
     tool_index: int,
     block: Any,
     hide_images: bool = False,
+    is_exhausted: bool = True,
 ) -> Iterator[Tuple[str, Any]]:
     block_type = _require(block, "type")
     prefix = f"{message_prefix}.{MESSAGE_CONTENTS}.{j}"
@@ -194,15 +204,24 @@ def _get_content_block_attributes(
     elif block_type in TOOL_CALL_BLOCK_TYPES:
         tool_call_id = _require(block, "id")
         name = _require(block, "name")
-        arguments = safe_json_dumps(_require(block, "input"))
+        # An unfinished stream leaves the tool input at the SDK's empty placeholder from
+        # content_block_start, because the arguments are only parsed into the snapshot once the
+        # block completes, so that placeholder is not a value the model produced (#3904).
+        arguments = (
+            None
+            if not is_exhausted and not _get(block, "input")
+            else safe_json_dumps(_require(block, "input"))
+        )
         tool_call_prefix = f"{message_prefix}.{MESSAGE_TOOL_CALLS}.{tool_index}"
         yield f"{tool_call_prefix}.{TOOL_CALL_ID}", tool_call_id
         yield f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_NAME}", name
-        yield f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
+        if arguments is not None:
+            yield f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
         yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
         yield f"{prefix}.{TOOL_CALL_ID}", tool_call_id
         yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", name
-        yield f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
+        if arguments is not None:
+            yield f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
     elif block_type == "tool_result":
         yield (
             f"{message_prefix}.{MESSAGE_TOOL_CALL_ID}",
@@ -282,11 +301,15 @@ def _get_generic_content_block_attributes(
     yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", _to_json(block, hide_images)
 
 
-def _get_output_message_attributes(message: Any) -> Iterator[Tuple[str, Any]]:
+def _get_output_message_attributes(
+    message: Any, is_exhausted: bool = True
+) -> Iterator[Tuple[str, Any]]:
     yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", message.role
     if stop_reason := message.stop_reason:
         yield LLM_FINISH_REASON, stop_reason
-    yield from _get_message_contents_attributes(f"{LLM_OUTPUT_MESSAGES}.0", message.content)
+    yield from _get_message_contents_attributes(
+        f"{LLM_OUTPUT_MESSAGES}.0", message.content, is_exhausted=is_exhausted
+    )
 
 
 def _get_response_metadata(

@@ -57,7 +57,7 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
     gives us the complete ParsedMessage at the end.
     """
 
-    __slots__ = ("_self_with_span", "_self_message_stream")
+    __slots__ = ("_self_with_span", "_self_message_stream", "_self_is_exhausted")
 
     def __init__(
         self,
@@ -68,6 +68,9 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
         super().__init__(raw_stream)
         self._self_with_span = with_span
         self._self_message_stream = message_stream
+        # Whether iteration ran to the end of the stream. Leaving the stream early closes this
+        # generator instead, so the SDK snapshot can still hold in-progress values.
+        self._self_is_exhausted = False
 
     def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
         try:
@@ -82,6 +85,7 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
                 )
             )
             raise
+        self._self_is_exhausted = True
         self._finish_tracing(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
 
     async def __aiter__(self) -> AsyncIterator["RawMessageStreamEvent"]:
@@ -97,6 +101,7 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
                 )
             )
             raise
+        self._self_is_exhausted = True
         self._finish_tracing(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
 
     def _finish_tracing(self, status: Optional[trace_api.Status] = None) -> None:
@@ -113,6 +118,7 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
                 context_metadata=self._self_with_span.context_metadata,
                 config=self._self_with_span.config,
                 request_messages=self._self_with_span.request_messages,
+                is_exhausted=self._self_is_exhausted,
             ),
             status=status,
         )
@@ -402,7 +408,7 @@ class _MessageExtractor:
     and the messages.create(stream=True) path (via _MessageResponseAccumulator).
     """
 
-    __slots__ = ("_snapshot", "_context_metadata", "_config", "_request_messages")
+    __slots__ = ("_snapshot", "_context_metadata", "_config", "_request_messages", "_is_exhausted")
 
     def __init__(
         self,
@@ -410,11 +416,13 @@ class _MessageExtractor:
         context_metadata: Optional[AttributeValue] = None,
         config: Optional[TraceConfig] = None,
         request_messages: Any = None,
+        is_exhausted: bool = True,
     ) -> None:
         self._snapshot = snapshot
         self._context_metadata = context_metadata
         self._config = config
         self._request_messages = request_messages
+        self._is_exhausted = is_exhausted
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         snapshot = self._snapshot
@@ -425,7 +433,9 @@ class _MessageExtractor:
         if model_name := getattr(snapshot, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model_name
             yield SpanAttributes.LLM_RESPONSE_MODEL_NAME, model_name
-        yield from _attributes_or_nothing(_get_output_message_attributes, snapshot)
+        yield from _attributes_or_nothing(
+            _get_output_message_attributes, snapshot, self._is_exhausted
+        )
         yield from _attributes_or_nothing(
             _get_metadata_attributes,
             snapshot,
