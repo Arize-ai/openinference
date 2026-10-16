@@ -43,7 +43,8 @@ class suppress_tracing:
     """
     Context manager to pause OpenTelemetry instrumentation.
 
-    Examples:
+    Examples::
+
         with suppress_tracing():
             # No tracing will occur within this block
             ...
