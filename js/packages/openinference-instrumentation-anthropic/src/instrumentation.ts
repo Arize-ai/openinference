@@ -69,6 +69,9 @@ type ToolRunnerParams = Parameters<typeof Anthropic.Beta.Messages.prototype.tool
 type ToolRunner = ReturnType<typeof Anthropic.Beta.Messages.prototype.toolRunner>;
 type RunnableTool = Extract<ToolRunnerParams["tools"][number], { parse: unknown }>;
 type MessageParam = Anthropic.Messages.MessageParam | Anthropic.Beta.Messages.BetaMessageParam;
+type ToolResultBlockParam =
+  | Anthropic.Messages.ToolResultBlockParam
+  | Anthropic.Beta.Messages.BetaToolResultBlockParam;
 type Message = Anthropic.Messages.Message | Anthropic.Beta.Messages.BetaMessage;
 type ContentBlock = Anthropic.Messages.ContentBlock | Anthropic.Beta.Messages.BetaContentBlock;
 type ContentBlockParam =
@@ -964,8 +967,8 @@ function getAnthropicInputMessagesAttributes(
     ...(hasSystem && system != null
       ? [safelyGetAttributes(() => getAnthropicSystemMessageAttributes(system))]
       : []),
-    ...messages.map((message: MessageParam) =>
-      safelyGetAttributes(() => getAnthropicInputMessageAttributes(message, traceConfig)),
+    ...messages.flatMap((message: MessageParam) =>
+      safelyGetAttributesList(() => getAnthropicInputMessageListAttributes(message, traceConfig)),
     ),
   ];
   return messagesAttributes.reduce<Attributes>((acc, messageAttributes, index) => {
@@ -976,6 +979,87 @@ function getAnthropicInputMessagesAttributes(
     }
     return acc;
   }, {});
+}
+
+/**
+ * Like `safelyGetAttributes`, for a request message that maps to several
+ * input messages. A malformed message still takes up one index.
+ */
+function safelyGetAttributesList(getAttributes: () => Attributes[]): Attributes[] {
+  try {
+    return getAttributes();
+  } catch (error) {
+    diag.warn(`Failed to extract ${MODULE_NAME} span attributes`, error);
+    return [{}];
+  }
+}
+
+/**
+ * Maps one request message to its input messages. Each tool_result part
+ * becomes its own message with role "tool", so several results in one
+ * message are all kept. The API requires tool_result parts to lead a user
+ * message, so the tool messages come before the rest of the message, which
+ * keeps the original order.
+ */
+function getAnthropicInputMessageListAttributes(
+  message: MessageParam,
+  traceConfig: TraceConfig,
+): Attributes[] {
+  const content = message.content;
+  if (!Array.isArray(content)) {
+    return [getAnthropicInputMessageAttributes(message, traceConfig)];
+  }
+  const toolResultParts: ToolResultBlockParam[] = [];
+  const remainingParts: ContentBlockParam[] = [];
+  for (const part of content) {
+    if (part != null && typeof part === "object" && part.type === "tool_result") {
+      toolResultParts.push(part);
+    } else {
+      remainingParts.push(part);
+    }
+  }
+  if (toolResultParts.length === 0) {
+    return [getAnthropicInputMessageAttributes(message, traceConfig)];
+  }
+  const toolMessages = toolResultParts.map((part) =>
+    getAnthropicToolResultMessageAttributes(part, traceConfig),
+  );
+  // A message made up only of tool_result parts is just the wrapper around
+  // the tool messages, so it has no content of its own to record
+  if (remainingParts.length === 0) {
+    return toolMessages;
+  }
+  // Dropping the tool_result parts keeps the remaining content-part indices contiguous
+  return [
+    ...toolMessages,
+    getAnthropicInputMessageAttributes(
+      { ...message, content: remainingParts } as MessageParam,
+      traceConfig,
+    ),
+  ];
+}
+
+/**
+ * Converts a tool_result part to an input message with the tool role.
+ */
+function getAnthropicToolResultMessageAttributes(
+  part: ToolResultBlockParam,
+  traceConfig: TraceConfig,
+): Attributes {
+  const attributes: Attributes = {
+    [SemanticConventions.MESSAGE_ROLE]: "tool",
+    [SemanticConventions.MESSAGE_TOOL_CALL_ID]: part.tool_use_id,
+  };
+  if (typeof part.content === "string") {
+    attributes[SemanticConventions.MESSAGE_CONTENT] = part.content;
+  } else if (Array.isArray(part.content)) {
+    // Handle complex tool result content, with its base64 data redacted
+    const contentJSON = getRedactedBlockJSON(part.content, traceConfig);
+    if (contentJSON != null) {
+      attributes[SemanticConventions.MESSAGE_CONTENT] = contentJSON;
+    }
+  }
+  return attributes;
 }
 
 /**
@@ -1135,16 +1219,8 @@ function getAnthropicInputMessageAttributes(
         return;
       }
       if (part.type === "tool_result") {
-        attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = part.tool_use_id;
-        if (typeof part.content === "string") {
-          attributes[SemanticConventions.MESSAGE_CONTENT] = part.content;
-        } else if (Array.isArray(part.content)) {
-          // Handle complex tool result content, with its base64 data redacted
-          const contentJSON = getRedactedBlockJSON(part.content, traceConfig);
-          if (contentJSON != null) {
-            attributes[SemanticConventions.MESSAGE_CONTENT] = contentJSON;
-          }
-        }
+        // tool_result parts are recorded as their own tool messages by
+        // getAnthropicInputMessageListAttributes, so they are skipped here
         return;
       }
       const block = getAnthropicContentBlockAttributes({

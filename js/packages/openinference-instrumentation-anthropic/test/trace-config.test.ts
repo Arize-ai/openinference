@@ -173,16 +173,19 @@ describe("AnthropicInstrumentation - trace config", () => {
   it("never encodes base64 data in a block recorded as JSON", async () => {
     instrument({});
     const attributes = await traceRequest();
+    // The tool_result is recorded as its own tool message ahead of the rest of
+    // the first message, so the document is in message 1 and the web fetch
+    // result in message 2.
     expect(
-      attributes[`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`],
+      attributes[`${LLM_INPUT_MESSAGES}.1.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`],
     ).toBe("document");
-    const documentJSON = JSON.parse(attributes[inputText(0, 0)] as string);
+    const documentJSON = JSON.parse(attributes[inputText(1, 0)] as string);
     expect(documentJSON.source).toEqual({
       type: "base64",
       media_type: "application/pdf",
       data: "__REDACTED__",
     });
-    const resultJSON = attributes[inputText(1, 0)] as string;
+    const resultJSON = attributes[inputText(2, 0)] as string;
     expect(resultJSON).not.toContain("JVBERi0");
     // Without hideInputImages, a nested image is kept.
     expect(resultJSON).toContain("https://example.com/cat.png");
@@ -191,7 +194,7 @@ describe("AnthropicInstrumentation - trace config", () => {
   it("hides nested images of a block recorded as JSON with hideInputImages", async () => {
     instrument({ hideInputImages: true });
     const attributes = await traceRequest();
-    const resultJSON = JSON.parse(attributes[inputText(1, 0)] as string);
+    const resultJSON = JSON.parse(attributes[inputText(2, 0)] as string);
     expect(resultJSON.content.nested).toEqual([{ type: "image", source: "__REDACTED__" }]);
   });
 });
