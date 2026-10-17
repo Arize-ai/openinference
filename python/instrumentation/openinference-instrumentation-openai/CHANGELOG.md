@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+
+### Bug Fixes
+
+* **openai:** accumulate streamed `refusal` and `reasoning_content` deltas for Chat Completions instead of replacing with the last fragment
+
 ## [0.1.65](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.64...python-openinference-instrumentation-openai-v0.1.65) (2026-10-09)
 
 
