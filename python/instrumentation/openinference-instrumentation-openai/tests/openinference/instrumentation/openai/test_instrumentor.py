@@ -21,13 +21,14 @@ from typing import (
     cast,
 )
 from unittest.mock import patch
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import pytest
 from httpx import AsyncByteStream, Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv.attributes.server_attributes import SERVER_ADDRESS, SERVER_PORT
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
@@ -131,6 +132,50 @@ def test_httpx_transport_span_is_emitted(
     )
     assert len(_spans_from(in_memory_span_exporter, _HTTPX_SCOPE)) == 1
     assert len(_spans_from(in_memory_span_exporter, _OPENINFERENCE_SCOPE)) == 1
+
+
+@pytest.mark.parametrize(
+    "base_url,server_address,server_port",
+    (
+        pytest.param("https://ai-gateway.vercel.sh/v1/", "ai-gateway.vercel.sh", 443, id="gateway"),
+        pytest.param("http://localhost:8000/v1/", "localhost", 8000, id="explicit-port"),
+        pytest.param("http://vllm.internal/v1/", "vllm.internal", 80, id="http-default-port"),
+    ),
+)
+def test_server_address_is_recorded_for_hosts_with_no_known_provider(
+    base_url: str,
+    server_address: str,
+    server_port: int,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    respx_mock.post(urljoin(base_url, "chat/completions")).mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "sky is blue"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "model": "gpt-4",
+            },
+        )
+    )
+    openai = import_module("openai")
+    client = openai.OpenAI(api_key="sk-", base_url=base_url)
+    client.chat.completions.create(
+        messages=[{"role": "user", "content": "what color is the sky?"}],
+        model="gpt-4",
+    )
+    attributes = dict(
+        _openinference_span(in_memory_span_exporter, "ChatCompletion").attributes or {}
+    )
+    assert attributes.get(SERVER_ADDRESS) == server_address
+    assert attributes.get(SERVER_PORT) == server_port
+    assert LLM_PROVIDER not in attributes
 
 
 @pytest.mark.parametrize(
@@ -269,6 +314,7 @@ def test_chat_completions(
     assert attributes.pop(LLM_PROVIDER, None) == (
         LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
     )
+    _pop_server_attributes(attributes, base_url)
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
@@ -449,6 +495,7 @@ def test_completions(
     assert attributes.pop(LLM_PROVIDER, None) == (
         LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
     )
+    _pop_server_attributes(attributes, base_url)
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert (
         json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
@@ -591,6 +638,7 @@ def test_embeddings(
     elif base_url == _OPENAI_BASE_URL:
         assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+    _pop_server_attributes(attributes, base_url)
 
     assert (
         json.loads(cast(str, attributes.pop(EMBEDDING_INVOCATION_PARAMETERS, None)))
@@ -710,6 +758,7 @@ def test_embeddings_out_of_order(
 
     # Check provider/system values
     assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    _pop_server_attributes(attributes, base_url)
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
 
     # Check invocation parameters
@@ -1019,6 +1068,7 @@ def test_responses(
     assert attributes.pop(LLM_PROVIDER, None) == (
         LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
     )
+    _pop_server_attributes(attributes, base_url)
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
@@ -1194,6 +1244,7 @@ def test_chat_completions_with_multiple_message_contents(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    _pop_server_attributes(attributes, _OPENAI_BASE_URL)
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
@@ -1310,6 +1361,7 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    _pop_server_attributes(attributes, _OPENAI_BASE_URL)
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     if hide_inputs:
         assert attributes.pop(INPUT_VALUE, None) == REDACTED_VALUE
@@ -1424,6 +1476,7 @@ def test_chat_completions_with_image_url_formats_issue_2188(
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    _pop_server_attributes(attributes, _OPENAI_BASE_URL)
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
 
 
@@ -1486,6 +1539,7 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    _pop_server_attributes(attributes, _OPENAI_BASE_URL)
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
@@ -1609,6 +1663,12 @@ def _check_llm_message(
                 assert attributes.pop(
                     tool_call_function_arguments(prefix, i, j), None
                 ) == function.get("arguments")
+
+
+def _pop_server_attributes(attributes: Dict[str, Any], base_url: str) -> None:
+    url = urlsplit(base_url)
+    assert attributes.pop(SERVER_ADDRESS, None) == url.hostname
+    assert attributes.pop(SERVER_PORT, None) == (url.port or 443)
 
 
 def _check_context_attributes(
