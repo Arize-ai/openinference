@@ -1252,6 +1252,66 @@ def test_get_attributes_from_chat_completions_tool_call_dict(
             {},
             id="zero_tokens",
         ),
+        pytest.param(
+            {
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "total_tokens": 150,
+                "input_tokens_details": {"cached_tokens": 80},
+                "output_tokens_details": {"reasoning_tokens": 20},
+            },
+            {
+                "llm.token_count.prompt": 100,
+                "llm.token_count.completion": 50,
+                "llm.token_count.total": 150,
+                "llm.token_count.prompt_details.cache_read": 80,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="cache_read_and_reasoning_tokens",
+        ),
+        pytest.param(
+            {
+                "input_tokens": 200,
+                "output_tokens": 30,
+                "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 200},
+                "output_tokens_details": {"reasoning_tokens": 0},
+            },
+            {
+                "llm.token_count.prompt": 200,
+                "llm.token_count.completion": 30,
+                "llm.token_count.prompt_details.cache_write": 200,
+            },
+            id="cache_write_zero_cached_zero_reasoning",
+        ),
+        pytest.param(
+            {
+                "input_tokens": 50,
+                "output_tokens": 10,
+                "input_tokens_details": {"cached_tokens": 40, "cache_write_tokens": 10},
+                "output_tokens_details": {"reasoning_tokens": 5},
+            },
+            {
+                "llm.token_count.prompt": 50,
+                "llm.token_count.completion": 10,
+                "llm.token_count.prompt_details.cache_read": 40,
+                "llm.token_count.prompt_details.cache_write": 10,
+                "llm.token_count.completion_details.reasoning": 5,
+            },
+            id="cache_read_write_and_reasoning",
+        ),
+        pytest.param(
+            {
+                "input_tokens": 20,
+                "output_tokens": 8,
+                "input_tokens_details": None,
+                "output_tokens_details": None,
+            },
+            {
+                "llm.token_count.prompt": 20,
+                "llm.token_count.completion": 8,
+            },
+            id="none_details",
+        ),
     ],
 )
 def test_get_attributes_from_chat_completions_usage(
