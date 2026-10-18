@@ -10,8 +10,10 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from openinference.instrumentation.litellm import (
     LiteLLMInstrumentor,
+    _finalize_sync_streaming_span,
     _instrument_func_type_completion,
     _instrument_func_type_responses,
+    _TracedSyncStream,
 )
 
 
@@ -206,3 +208,26 @@ async def test_async_early_close_closes_underlying_stream(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "acompletion"
+
+
+def test_sync_close_closes_wrapped_stream() -> None:
+    # The proxy's close must reach the wrapped stream: litellm's
+    # CustomStreamWrapper.close releases the provider connection, and the
+    # async proxy already forwards aclose the same way.
+    class Wrapped:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    wrapped = Wrapped()
+    proxy = _TracedSyncStream(wrapped, _finalize_sync_streaming_span(MagicMock(), iter([])))
+    proxy.close()
+    assert wrapped.closed
+
+
+def test_sync_close_tolerates_wrapped_without_close() -> None:
+    # Older litellm versions have no close on the wrapped stream.
+    proxy = _TracedSyncStream(object(), _finalize_sync_streaming_span(MagicMock(), iter([])))
+    proxy.close()

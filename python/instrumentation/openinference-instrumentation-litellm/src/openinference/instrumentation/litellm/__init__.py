@@ -1049,7 +1049,14 @@ class _TracedSyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         return next(self._self_finalized_iterator)
 
     def close(self) -> Any:
-        return self._self_finalized_iterator.close()
+        # Mirror aclose: the wrapped stream's own close releases the provider
+        # connection, so closing only the tracing generator leaks it.
+        try:
+            return self._self_finalized_iterator.close()
+        finally:
+            wrapped_close = getattr(self.__wrapped__, "close", None)
+            if wrapped_close is not None:
+                wrapped_close()
 
 
 class _TracedAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
