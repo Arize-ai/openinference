@@ -1,7 +1,7 @@
 import os
 from contextlib import suppress
 from random import random
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 import pytest
 from opentelemetry.sdk import trace as trace_sdk
@@ -11,7 +11,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import TracerProvider, use_span
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation import Message, OITracer, TraceConfig, get_llm_attributes
 from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:ignore[attr-defined]
 from openinference.instrumentation.config import (
     DEFAULT_BASE64_IMAGE_MAX_LENGTH,
@@ -30,6 +30,7 @@ from openinference.instrumentation.config import (
     DEFAULT_HIDE_OUTPUT_TEXT,
     DEFAULT_HIDE_OUTPUTS,
     DEFAULT_HIDE_PROMPTS,
+    DEFAULT_HIDE_REASONING,
     DEFAULT_HIDE_RETRIEVAL_DOCUMENTS,
     OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
     OPENINFERENCE_ENABLE_GENAI_SEMCONV,
@@ -46,12 +47,14 @@ from openinference.instrumentation.config import (
     OPENINFERENCE_HIDE_OUTPUT_TEXT,
     OPENINFERENCE_HIDE_OUTPUTS,
     OPENINFERENCE_HIDE_PROMPTS,
+    OPENINFERENCE_HIDE_REASONING,
     OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS,
     REDACTED_VALUE,
 )
 from openinference.semconv.trace import (
     DocumentAttributes,
     ImageAttributes,
+    MessageAttributes,
     MessageContentAttributes,
     SpanAttributes,
     ToolAttributes,
@@ -75,6 +78,7 @@ def test_default_settings() -> None:
     assert config.hide_prompts == DEFAULT_HIDE_PROMPTS
     assert config.hide_choices == DEFAULT_HIDE_CHOICES
     assert config.hide_retrieval_documents == DEFAULT_HIDE_RETRIEVAL_DOCUMENTS
+    assert config.hide_reasoning == DEFAULT_HIDE_REASONING
     assert config.enable_genai_semconv == DEFAULT_ENABLE_GENAI_SEMCONV
     assert config.base64_image_max_length == DEFAULT_BASE64_IMAGE_MAX_LENGTH
 
@@ -201,6 +205,7 @@ def test_settings_from_env_vars_and_code(
     monkeypatch.setenv(OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS, str(hide_outputs))
     monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_TEXT, str(hide_input_text))
     monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUT_TEXT, str(hide_output_text))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_REASONING, str(hide_output_text))
     monkeypatch.setenv(OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS, str(hide_embeddings_vectors))
     monkeypatch.setenv(OPENINFERENCE_HIDE_EMBEDDINGS_TEXT, str(hide_embeddings_text))
     monkeypatch.setenv(OPENINFERENCE_HIDE_LLM_TOOLS, str(hide_llm_tools))
@@ -215,6 +220,7 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_input_images is parse_bool_from_env(OPENINFERENCE_HIDE_INPUT_IMAGES)
     assert config.hide_input_text is parse_bool_from_env(OPENINFERENCE_HIDE_INPUT_TEXT)
     assert config.hide_output_text is parse_bool_from_env(OPENINFERENCE_HIDE_OUTPUT_TEXT)
+    assert config.hide_reasoning is parse_bool_from_env(OPENINFERENCE_HIDE_REASONING)
     assert config.hide_embeddings_vectors is parse_bool_from_env(
         OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS
     )
@@ -240,6 +246,7 @@ def test_settings_from_env_vars_and_code(
     new_hide_input_images = not hide_input_images
     new_hide_input_text = not hide_input_text
     new_hide_output_text = not hide_output_text
+    new_hide_reasoning = not hide_output_text
     new_hide_embeddings_vectors = not hide_embeddings_vectors
     new_hide_embeddings_text = not hide_embeddings_text
     new_hide_prompts = not hide_prompts
@@ -255,6 +262,7 @@ def test_settings_from_env_vars_and_code(
         hide_input_images=new_hide_input_images,
         hide_input_text=new_hide_input_text,
         hide_output_text=new_hide_output_text,
+        hide_reasoning=new_hide_reasoning,
         hide_embeddings_vectors=new_hide_embeddings_vectors,
         hide_embeddings_text=new_hide_embeddings_text,
         hide_prompts=new_hide_prompts,
@@ -271,6 +279,7 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_input_images is new_hide_input_images
     assert config.hide_input_text is new_hide_input_text
     assert config.hide_output_text is new_hide_output_text
+    assert config.hide_reasoning is new_hide_reasoning
     assert config.hide_embeddings_vectors is new_hide_embeddings_vectors
     assert config.hide_embeddings_text is new_hide_embeddings_text
     assert config.hide_prompts is new_hide_prompts
@@ -584,3 +593,180 @@ def test_base64_image_max_length_applies_to_span_level_images(
     assert config.mask(key, under_limit) == under_limit
     # A plain URI is never subject to the base64 budget.
     assert config.mask(key, "https://example.com/a.png") == "https://example.com/a.png"
+
+
+_REASONING_INPUT_MESSAGES: List[Message] = [
+    {"role": "user", "contents": [{"type": "text", "text": "What is 2+2?"}]},
+    {
+        # A prior assistant turn replayed as input, as reasoning models require.
+        "role": "assistant",
+        "contents": [
+            {"type": "reasoning", "text": "earlier thoughts", "signature": "sig-0"},
+            {"type": "text", "text": "4"},
+        ],
+    },
+    {"role": "user", "contents": [{"type": "text", "text": "And 3+3?"}]},
+]
+_REASONING_OUTPUT_MESSAGES: List[Message] = [
+    {
+        "role": "assistant",
+        "contents": [
+            {"type": "reasoning", "text": "3+3 is six", "signature": "sig-1"},
+            {"type": "text", "text": "6"},
+            {"type": "reasoning", "data": "opaque-redacted-thinking"},
+            {"type": "image", "image": {"url": "https://example.com/six.png"}},
+            {"type": "reasoning", "encrypted_content": "gAAAA"},
+        ],
+    },
+]
+
+
+def _message_contents(
+    attributes: Mapping[str, Any], messages_key: str, message_index: int
+) -> List[Dict[str, Any]]:
+    """Unflattens the content parts of one message, failing on index gaps."""
+    prefix = f"{messages_key}.{message_index}.{MessageAttributes.MESSAGE_CONTENTS}."
+    parts: Dict[int, Dict[str, Any]] = {}
+    for key, value in attributes.items():
+        if key.startswith(prefix):
+            index, _, suffix = key[len(prefix) :].partition(".")
+            parts.setdefault(int(index), {})[suffix] = value
+    assert sorted(parts) == list(range(len(parts))), f"non-contiguous indices: {sorted(parts)}"
+    return [parts[index] for index in range(len(parts))]
+
+
+def _end_llm_span(
+    config: TraceConfig,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> Mapping[str, Any]:
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
+    span = tracer.start_span("llm", openinference_span_kind="llm")
+    span.set_attributes(
+        get_llm_attributes(
+            input_messages=_REASONING_INPUT_MESSAGES,
+            output_messages=_REASONING_OUTPUT_MESSAGES,
+        )
+    )
+    span.end()
+    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes
+    assert attributes is not None
+    return attributes
+
+
+_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+_IMAGE_URL = f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+
+
+def test_hide_reasoning_from_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(OPENINFERENCE_HIDE_REASONING, "true")
+    assert TraceConfig().hide_reasoning is True
+    # A value passed in code takes precedence over the environment variable.
+    assert TraceConfig(hide_reasoning=False).hide_reasoning is False
+
+
+def test_hide_reasoning_drops_reasoning_parts_and_keeps_the_answer(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Reasoning parts are dropped from output messages and from prior turns replayed
+    as input messages; the remaining parts are re-indexed without gaps."""
+    attributes = _end_llm_span(
+        TraceConfig(hide_reasoning=True), tracer_provider, in_memory_span_exporter
+    )
+    output_messages = SpanAttributes.LLM_OUTPUT_MESSAGES
+    input_messages = SpanAttributes.LLM_INPUT_MESSAGES
+    assert _message_contents(attributes, output_messages, 0) == [
+        {_TYPE: "text", _TEXT: "6"},
+        {_TYPE: "image", _IMAGE_URL: "https://example.com/six.png"},
+    ]
+    assert _message_contents(attributes, input_messages, 1) == [{_TYPE: "text", _TEXT: "4"}]
+    assert _message_contents(attributes, input_messages, 0) == [
+        {_TYPE: "text", _TEXT: "What is 2+2?"}
+    ]
+    assert _message_contents(attributes, input_messages, 2) == [{_TYPE: "text", _TEXT: "And 3+3?"}]
+    assert attributes[f"{output_messages}.0.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
+    assert "reasoning" not in attributes.values()
+    for leaked in ("3+3 is six", "earlier thoughts", "opaque-redacted-thinking", "gAAAA"):
+        assert leaked not in attributes.values()
+
+
+def test_hide_reasoning_is_off_by_default(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    attributes = _end_llm_span(TraceConfig(), tracer_provider, in_memory_span_exporter)
+    assert dict(attributes) == {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+        **get_llm_attributes(
+            input_messages=_REASONING_INPUT_MESSAGES,
+            output_messages=_REASONING_OUTPUT_MESSAGES,
+        ),
+    }
+
+
+def test_hide_reasoning_does_not_depend_on_attribute_order(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Instrumentors that flatten messages themselves may set a part's text before its
+    type; the reasoning text must still be dropped."""
+    tracer = OITracer(tracer_provider.get_tracer(__name__), TraceConfig(hide_reasoning=True))
+    prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
+    span = tracer.start_span("llm", openinference_span_kind="llm")
+    span.set_attribute(f"{prefix}.0.{_TEXT}", "secret thoughts")
+    span.set_attribute(f"{prefix}.1.{_TEXT}", "answer")
+    span.set_attribute(f"{prefix}.1.{_TYPE}", "text")
+    span.set_attribute(f"{prefix}.0.{_TYPE}", "reasoning")
+    span.end()
+    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes or {}
+    assert _message_contents(attributes, SpanAttributes.LLM_OUTPUT_MESSAGES, 0) == [
+        {_TYPE: "text", _TEXT: "answer"}
+    ]
+
+
+def test_hide_reasoning_applies_to_start_span_attributes(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Attributes passed to start_span reach the SDK span (and the sampler) directly,
+    so they are filtered there too."""
+    tracer = OITracer(tracer_provider.get_tracer(__name__), TraceConfig(hide_reasoning=True))
+    tracer.start_span(
+        "llm",
+        attributes=dict(get_llm_attributes(output_messages=_REASONING_OUTPUT_MESSAGES)),
+    ).end()
+    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes or {}
+    assert _message_contents(attributes, SpanAttributes.LLM_OUTPUT_MESSAGES, 0) == [
+        {_TYPE: "text", _TEXT: "6"},
+        {_TYPE: "image", _IMAGE_URL: "https://example.com/six.png"},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("hiding_config", "expected_answer"),
+    [
+        ({"hide_output_text": True}, {_TYPE: "text", _TEXT: REDACTED_VALUE}),
+        ({"hide_output_messages": True}, None),
+        ({"hide_outputs": True}, None),
+    ],
+)
+def test_hide_reasoning_composes_with_output_hiding(
+    hiding_config: Dict[str, Any],
+    expected_answer: Optional[Dict[str, Any]],
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """The other hide settings still apply to the parts that remain, at their new
+    indices."""
+    attributes = _end_llm_span(
+        TraceConfig(hide_reasoning=True, **hiding_config),
+        tracer_provider,
+        in_memory_span_exporter,
+    )
+    contents = _message_contents(attributes, SpanAttributes.LLM_OUTPUT_MESSAGES, 0)
+    if expected_answer is None:
+        assert contents == []
+    else:
+        assert contents[0] == expected_answer

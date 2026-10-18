@@ -18,6 +18,7 @@ The possible settings are:
 | OPENINFERENCE_HIDE_INPUT_TEXT                | Hides text from input messages (only applies when input messages are not already hidden)                                       | bool | False   |
 | OPENINFERENCE_HIDE_PROMPTS                   | Hides LLM prompts (completions API)                                                                                            | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_TEXT               | Hides text from output messages (only applies when output messages are not already hidden)                                     | bool | False   |
+| OPENINFERENCE_HIDE_REASONING                 | (Python) Drops `reasoning` content parts (`llm.input_messages.*` / `llm.output_messages.*` `message.contents.*` whose `message_content.type` is `reasoning`), keeping the other parts such as the answer text; the remaining parts are re-indexed contiguously; currently supported by the Python instrumentation only | bool | False   |
 | OPENINFERENCE_HIDE_CHOICES                   | Hides LLM choices (completions API outputs)                                                                                    | bool | False   |
 | OPENINFERENCE_HIDE_EMBEDDING_VECTORS         | Deprecated: use OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS                                                                          | bool | False   |
 | OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS        | Replaces embedding.embeddings.*.embedding.vector values with `"__REDACTED__"`                                                  | bool | False   |
@@ -85,6 +86,7 @@ config = TraceConfig(
     hide_input_images=...,
     hide_input_text=...,
     hide_output_text=...,
+    hide_reasoning=...,  # Drops reasoning content parts, keeps the answer
     hide_embeddings_vectors=...,
     hide_embeddings_text=...,
     base64_image_max_length=...,

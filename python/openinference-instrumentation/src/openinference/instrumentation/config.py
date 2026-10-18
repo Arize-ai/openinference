@@ -1,12 +1,15 @@
 import inspect
 import os
+import re
 from dataclasses import dataclass, field, fields
 from types import TracebackType
 from typing import (
     Any,
     Callable,
     Dict,
+    Mapping,
     Optional,
+    Tuple,
     Type,
     Union,
     get_args,
@@ -95,6 +98,8 @@ OPENINFERENCE_HIDE_INPUT_TEXT = "OPENINFERENCE_HIDE_INPUT_TEXT"
 # Hides text from input messages
 OPENINFERENCE_HIDE_OUTPUT_TEXT = "OPENINFERENCE_HIDE_OUTPUT_TEXT"
 # Hides text from output messages
+OPENINFERENCE_HIDE_REASONING = "OPENINFERENCE_HIDE_REASONING"
+# Drops reasoning content parts from input and output messages
 OPENINFERENCE_HIDE_EMBEDDING_VECTORS = "OPENINFERENCE_HIDE_EMBEDDING_VECTORS"
 # Deprecated: use OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS instead
 OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS = "OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS"
@@ -134,6 +139,7 @@ DEFAULT_HIDE_OUTPUT_MESSAGES = False
 DEFAULT_HIDE_INPUT_IMAGES = False
 DEFAULT_HIDE_INPUT_TEXT = False
 DEFAULT_HIDE_OUTPUT_TEXT = False
+DEFAULT_HIDE_REASONING = False
 
 DEFAULT_HIDE_EMBEDDING_VECTORS = False  # Deprecated
 DEFAULT_HIDE_EMBEDDINGS_VECTORS = False
@@ -225,6 +231,18 @@ class TraceConfig:
         },
     )
     """Hides text from output messages"""
+    hide_reasoning: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_REASONING,
+            "default_value": DEFAULT_HIDE_REASONING,
+        },
+    )
+    """Drops ``reasoning`` content parts (chain of thought) from input and output
+    messages while keeping the other parts, such as the answer text. The parts
+    that remain are re-indexed without gaps. A part's type and text are
+    separate attributes, so this is applied per span by ``OITracer`` rather
+    than by ``mask``."""
     hide_embedding_vectors: Optional[bool] = field(
         default=None,
         metadata={
@@ -562,6 +580,56 @@ def _is_retrieval_document_content(key: str) -> bool:
         key.endswith(DocumentAttributes.DOCUMENT_CONTENT)
         or key.endswith(DocumentAttributes.DOCUMENT_METADATA)
     )
+
+
+_MESSAGES = "|".join(
+    re.escape(key)
+    for key in (SpanAttributes.LLM_INPUT_MESSAGES, SpanAttributes.LLM_OUTPUT_MESSAGES)
+)
+_MESSAGE_CONTENT_PART_KEY = re.compile(
+    rf"^((?:{_MESSAGES})\.\d+\.{re.escape(MessageAttributes.MESSAGE_CONTENTS)})\.(\d+)\.(.+)$"
+)
+"""Splits e.g. ``llm.output_messages.0.message.contents.1.message_content.text`` into
+the message's contents key, the part index and the part attribute."""
+
+
+def _is_message_content_part(key: str) -> bool:
+    """True for an attribute of a content part of an input or output message."""
+    return _MESSAGE_CONTENT_PART_KEY.match(key) is not None
+
+
+_LazyAttributeValue = Union[AttributeValue, Callable[[], AttributeValue]]
+
+
+def _drop_reasoning_content_parts(
+    attributes: "Mapping[str, _LazyAttributeValue]",
+) -> Dict[str, _LazyAttributeValue]:
+    """
+    Drops the message content parts whose ``message_content.type`` is ``reasoning``
+    and re-indexes each message's remaining parts contiguously, in their original
+    order. A part's type is a sibling of its text, so this needs every attribute
+    of the part at once, which ``TraceConfig.mask`` never sees.
+    """
+    result: Dict[str, _LazyAttributeValue] = {}
+    parts: Dict[Tuple[str, int], Dict[str, _LazyAttributeValue]] = {}
+    for key, value in attributes.items():
+        if match := _MESSAGE_CONTENT_PART_KEY.match(key):
+            contents_key, index, part_key = match.groups()
+            parts.setdefault((contents_key, int(index)), {})[part_key] = value
+        else:
+            result[key] = value
+    next_index: Dict[str, int] = {}
+    for (contents_key, _), part in sorted(parts.items(), key=lambda item: item[0]):
+        content_type = part.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE)
+        if callable(content_type):
+            content_type = part[MessageContentAttributes.MESSAGE_CONTENT_TYPE] = content_type()
+        if content_type == "reasoning":
+            continue
+        index = next_index.get(contents_key, 0)
+        next_index[contents_key] = index + 1
+        for part_key, value in part.items():
+            result[f"{contents_key}.{index}.{part_key}"] = value
+    return result
 
 
 def _is_input_image(key: str) -> bool:
