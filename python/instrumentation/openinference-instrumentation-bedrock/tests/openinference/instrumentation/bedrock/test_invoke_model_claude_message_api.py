@@ -51,9 +51,7 @@ def test_hide_inputs_redacts_system_prompt(
     assert span.status.is_ok
     attributes = dict(span.attributes or {})
     assert attributes.pop("input.value") == REDACTED_VALUE
-    assert json.loads(str(attributes.pop("llm.invocation_parameters"))) == _invocation_parameters(
-        stream
-    )
+    assert json.loads(str(attributes.pop("llm.invocation_parameters"))) == {"max_tokens": 10}
     assert not [key for key in attributes if key.startswith("llm.input_messages.")]
     _pop_response_attributes(attributes, stream)
     assert not attributes
@@ -85,9 +83,7 @@ def test_system_prompt_is_first_input_message(
     attributes = dict(span.attributes or {})
     assert json.loads(str(attributes.pop("input.value")))["system"] == system
     assert attributes.pop("input.mime_type") == "application/json"
-    assert json.loads(str(attributes.pop("llm.invocation_parameters"))) == _invocation_parameters(
-        stream
-    )
+    assert json.loads(str(attributes.pop("llm.invocation_parameters"))) == {"max_tokens": 10}
     assert attributes.pop("llm.input_messages.0.message.role") == "system"
     for i, text in enumerate(texts):
         prefix = f"llm.input_messages.0.message.contents.{i}.message_content"
@@ -105,13 +101,6 @@ def test_system_prompt_is_first_input_message(
     assert not attributes
 
 
-def _invocation_parameters(stream: bool) -> Dict[str, Any]:
-    # The streaming path also leaves anthropic_version out of the invocation parameters.
-    if stream:
-        return {"max_tokens": 10}
-    return {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 10}
-
-
 def _pop_response_attributes(attributes: Dict[str, Any], stream: bool) -> None:
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("llm.model_name") == _CLAUDE_MODEL_ID
@@ -119,12 +108,12 @@ def _pop_response_attributes(attributes: Dict[str, Any], stream: bool) -> None:
     assert attributes.pop("llm.token_count.prompt") == 5
     assert attributes.pop("llm.token_count.completion") == 1
     assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    assert attributes.pop("llm.provider") == "aws"
+    assert attributes.pop("llm.system") == "anthropic"
     if stream:
         output_text_key = "llm.output_messages.0.message.contents.0.message_content.text"
     else:
         output_text_key = "llm.output_messages.0.message.content"
-        assert attributes.pop("llm.provider") == "aws"
-        assert attributes.pop("llm.system") == "anthropic"
     assert attributes.pop(output_text_key) == "hello"
     assert attributes.pop("output.mime_type") == "application/json"
     assert json.loads(attributes.pop("output.value"))["content"][0]["text"] == "hello"
@@ -222,7 +211,6 @@ def test_invoke_model_system_message_is_not_a_recorded_invocation_parameter() ->
         "max_tokens": 10,
     }
     assert _get_invocation_parameters(kwargs) == {
-        "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 10,
     }
 
@@ -261,12 +249,10 @@ def test_invoke_model_records_system_prompt_and_tools(system: Any) -> None:
     attributes = get_llm_input_attributes(body, "anthropic.claude-3-haiku-20240307-v1:0")
 
     assert attributes["llm.input_messages.0.message.role"] == "system"
-    system_text = (
-        attributes["llm.input_messages.0.message.content"]
-        if isinstance(system, str)
-        else attributes["llm.input_messages.0.message.contents.0.message_content.text"]
+    assert (
+        attributes["llm.input_messages.0.message.contents.0.message_content.text"]
+        == "You are terse."
     )
-    assert system_text == "You are terse."
     assert attributes["llm.input_messages.1.message.role"] == "user"
     assert attributes["llm.input_messages.1.message.content"] == "hello"
     assert json.loads(attributes["llm.tools.0.tool.json_schema"]) == _TOOL
@@ -338,8 +324,6 @@ def test_request_attributes_agree_across_paths(system: Any) -> None:
             texts = [system] if isinstance(system, str) else [block["text"] for block in system]
             for i, expected in enumerate(texts):
                 key = f"llm.input_messages.0.message.contents.{i}.message_content.text"
-                if isinstance(system, str) and attributes is normal:
-                    key = "llm.input_messages.0.message.content"
                 assert attributes[key] == expected
         else:
             assert not any(k.startswith("llm.input_messages.1.") for k in attributes)
