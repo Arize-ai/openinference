@@ -2,10 +2,10 @@
 """Deterministic convention checks for one OpenInference Python instrumentor.
 
 Usage (from anywhere in the repo):
-  python3 .agents/skills/python-review/scripts/check_package.py <pkg>
-  python3 .agents/skills/python-review/scripts/check_package.py <pkg> --base origin/main
-  python3 .agents/skills/python-review/scripts/check_package.py --all
-  python3 .agents/skills/python-review/scripts/check_package.py --validate
+  python3 .agents/skills/python-code-reviewer/scripts/check_package.py <pkg>
+  python3 .agents/skills/python-code-reviewer/scripts/check_package.py <pkg> --base origin/main
+  python3 .agents/skills/python-code-reviewer/scripts/check_package.py --all
+  python3 .agents/skills/python-code-reviewer/scripts/check_package.py --validate
 
 <pkg> is the tox factor (`openai`, `google_adk`) or the directory name
 (`openinference-instrumentation-openai`). With --base, every finding is tagged

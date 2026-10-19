@@ -8,7 +8,7 @@ an issue is missing.
 The requirements are defined for each language in:
 
 - Python — `python/DEVELOPMENT.md` → *Minimal Feature Set*, and the
-  `python-review` skill (`references/runtime.md` → Suppression, TraceConfig,
+  `python-code-reviewer` skill (`references/runtime.md` → Suppression, TraceConfig,
   Context attributes; `references/tests.md` → Context attributes)
 - JS — `js/CLAUDE.md` → *Every instrumentor must*
 - Java — the `java-code-reviewer` skill (§2 required test coverage, §3

@@ -1,5 +1,5 @@
 ---
-name: python-review
+name: python-code-reviewer
 description: >
   Review an OpenInference Python instrumentor under python/instrumentation/ for
   correctness and project conventions, then prove the findings with the CI tox env and
@@ -15,7 +15,7 @@ compatibility: >
 invocable: true
 ---
 
-# Python Review
+# Python Code Reviewer
 
 A review has three layers, and each one feeds the report:
 
@@ -45,7 +45,7 @@ A review has three layers, and each one feeds the report:
    head and review only this PR's commits.
 2. **Run the script.**
    ```bash
-   python3 .agents/skills/python-review/scripts/check_package.py <pkg> --base origin/main --format json
+   python3 .agents/skills/python-code-reviewer/scripts/check_package.py <pkg> --base origin/main --format json
    ```
    The script accepts a directory name or a tox factor. Use its JSON `package` field as
    `<pkg>` in the tox env names below. `--base` tags each finding `introduced` or

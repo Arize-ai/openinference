@@ -479,7 +479,7 @@ checked-out repo and post what you find as **one comment**. Read the code —
 - for a **requirement bug** (stage 4a): whether the instrumentor builds an
   `OITracer` with a `TraceConfig`, whether the wrapper on that path checks
   suppression, whether it reads context attributes — and which of those the
-  failing path skips. The reviewer skills (`python-review`,
+  failing path skips. The reviewer skills (`python-code-reviewer`,
   `java-code-reviewer`, `js/CLAUDE.md`) define the passing shape; borrow their
   checklists, not their process
 - for an **enhancement**: the instrumentor that already does the closest thing

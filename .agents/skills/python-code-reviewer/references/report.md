@@ -14,7 +14,7 @@ issue rather than one per package.
 ## Template
 
 ```
-## python-review: <pkg> (<kind>)<, PR #n>
+## python-code-reviewer: <pkg> (<kind>)<, PR #n>
 
 | Severity | Finding | Location | Origin | Source |
 | --- | --- | --- | --- | --- |
