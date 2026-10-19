@@ -756,6 +756,148 @@ describe("OpenAIInstrumentation", () => {
       }
     `);
   });
+  describe("parallel tool calls with streaming", () => {
+    // Streams one chunk per entry, each carrying the given tool call deltas
+    const streamToolCallDeltas = async (toolCallDeltas: object[][]) => {
+      vi.spyOn(openai, "post").mockImplementation(
+        mockAPIPromise(openai, async () => {
+          const iterator = () =>
+            (async function* () {
+              for (const tool_calls of toolCallDeltas) {
+                yield {
+                  id: "chatcmpl-parallel",
+                  object: "chat.completion.chunk",
+                  created: 1705535755,
+                  model: "gpt-4o-mini",
+                  choices: [{ index: 0, delta: { tool_calls }, finish_reason: null }],
+                };
+              }
+              yield {
+                id: "chatcmpl-parallel",
+                object: "chat.completion.chunk",
+                created: 1705535755,
+                model: "gpt-4o-mini",
+                choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+              };
+            })();
+          return new Stream(iterator, new AbortController());
+        }),
+      );
+      const stream = await openai.chat.completions.create({
+        messages: [{ role: "user", content: "What's the weather in Paris and Tokyo?" }],
+        model: "gpt-4o-mini",
+        stream: true,
+      });
+      for await (const _chunk of stream) {
+        // consume the stream
+      }
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      return Object.fromEntries(
+        Object.entries(spans[0].attributes).filter(([key]) => key.includes(".tool_calls.")),
+      );
+    };
+
+    it("keys each tool call by its index when calls arrive in separate chunks", async () => {
+      const attributes = await streamToolCallDeltas([
+        [
+          {
+            index: 0,
+            id: "call_paris",
+            type: "function",
+            function: { name: "get_weather", arguments: "" },
+          },
+        ],
+        [{ index: 0, function: { arguments: '{"city":' } }],
+        [{ index: 0, function: { arguments: '"Paris"}' } }],
+        [
+          {
+            index: 1,
+            id: "call_tokyo",
+            type: "function",
+            function: { name: "get_weather", arguments: "" },
+          },
+        ],
+        [{ index: 1, function: { arguments: '{"city":"Tokyo"}' } }],
+      ]);
+      expect(attributes).toEqual({
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_paris",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments":
+          '{"city":"Paris"}',
+        "llm.output_messages.0.message.tool_calls.1.tool_call.id": "call_tokyo",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments":
+          '{"city":"Tokyo"}',
+      });
+    });
+
+    it("keys each tool call by its index when several calls share a chunk", async () => {
+      const attributes = await streamToolCallDeltas([
+        [
+          {
+            index: 0,
+            id: "call_paris",
+            type: "function",
+            function: { name: "get_weather", arguments: "" },
+          },
+          {
+            index: 1,
+            id: "call_tokyo",
+            type: "function",
+            function: { name: "get_weather", arguments: "" },
+          },
+        ],
+        [{ index: 1, function: { arguments: '{"city":"Tokyo"}' } }],
+        [{ index: 0, function: { arguments: '{"city":"Paris"}' } }],
+      ]);
+      expect(attributes).toEqual({
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_paris",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments":
+          '{"city":"Paris"}',
+        "llm.output_messages.0.message.tool_calls.1.tool_call.id": "call_tokyo",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments":
+          '{"city":"Tokyo"}',
+      });
+    });
+
+    it("separates tool calls that arrive without an index", async () => {
+      // Gemini's OpenAI-compatible endpoint omits the index
+      const attributes = await streamToolCallDeltas([
+        [
+          {
+            id: "call_paris",
+            type: "function",
+            function: { name: "get_weather", arguments: '{"city":"Paris"}' },
+          },
+        ],
+        [
+          {
+            id: "call_tokyo",
+            type: "function",
+            function: { name: "get_weather", arguments: '{"city":' },
+          },
+        ],
+        [{ function: { arguments: '"Tokyo"}' } }],
+        [{ type: "function", function: { name: "get_time", arguments: '{"city":"Lima"}' } }],
+      ]);
+      expect(attributes).toEqual({
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_paris",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments":
+          '{"city":"Paris"}',
+        "llm.output_messages.0.message.tool_calls.1.tool_call.id": "call_tokyo",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments":
+          '{"city":"Tokyo"}',
+        "llm.output_messages.0.message.tool_calls.2.tool_call.function.name": "get_time",
+        "llm.output_messages.0.message.tool_calls.2.tool_call.function.arguments":
+          '{"city":"Lima"}',
+      });
+    });
+  });
   it("should capture a function call with streaming", async () => {
     vi.spyOn(openai, "post").mockImplementation(
       mockAPIPromise(openai, async () => {
