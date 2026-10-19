@@ -996,7 +996,10 @@ function getEmbeddingUsageAttributes(response: CreateEmbeddingResponse): Attribu
 }
 
 /**
- * Consumes the stream chunks and adds them to the span
+ * Consumes the stream chunks and adds them to the span.
+ * The span ends with status OK when the stream is read to the end, with status ERROR when
+ * reading it fails, and with the status unset when the request is aborted. In every case it
+ * keeps what was streamed so far.
  */
 async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionChunk>, span: Span) {
   let streamResponse = "";
@@ -1007,35 +1010,42 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   const toolAndFunctionCallAttributes: Attributes = {};
   const getToolCallIndex = createStreamToolCallIndexResolver();
   let finishReason: string | undefined;
-  // The first message is for the assistant response so we start at 1
-  for await (const chunk of stream) {
-    // With `stream_options.include_usage`, the final chunk carries the request's
-    // usage and an empty `choices` array, so read it before the guard below.
-    if (chunk.usage) {
-      span.setAttributes(getUsageAttributes(chunk));
-    }
-    if (chunk.choices.length <= 0) {
-      continue;
-    }
-    const choice = chunk.choices[0];
-    if (choice.delta.content) {
-      streamResponse += choice.delta.content;
-    }
-    if (choice.finish_reason) {
-      finishReason = choice.finish_reason;
-    }
-    // Accumulate the tool and function call attributes
-    const toolAndFunctionCallAttributesDiff = getToolAndFunctionCallAttributesFromStreamChunk(
-      chunk,
-      getToolCallIndex,
-    );
-    for (const [key, value] of Object.entries(toolAndFunctionCallAttributesDiff)) {
-      if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
-        toolAndFunctionCallAttributes[key] += value;
-      } else if (isString(value)) {
-        toolAndFunctionCallAttributes[key] = value;
+  let streamFailed = false;
+  let streamError: unknown;
+  try {
+    for await (const chunk of stream) {
+      // With `stream_options.include_usage`, the final chunk carries the request's
+      // usage and an empty `choices` array, so read it before the guard below.
+      if (chunk.usage) {
+        span.setAttributes(getUsageAttributes(chunk));
+      }
+      if (chunk.choices.length <= 0) {
+        continue;
+      }
+      const choice = chunk.choices[0];
+      if (choice.delta.content) {
+        streamResponse += choice.delta.content;
+      }
+      if (choice.finish_reason) {
+        finishReason = choice.finish_reason;
+      }
+      // Accumulate the tool and function call attributes
+      const toolAndFunctionCallAttributesDiff = getToolAndFunctionCallAttributesFromStreamChunk(
+        chunk,
+        getToolCallIndex,
+      );
+      for (const [key, value] of Object.entries(toolAndFunctionCallAttributesDiff)) {
+        if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
+          toolAndFunctionCallAttributes[key] += value;
+        } else if (isString(value)) {
+          toolAndFunctionCallAttributes[key] = value;
+        }
       }
     }
+  } catch (error) {
+    // The caller reads the other branch of the tee and gets the same error
+    streamFailed = true;
+    streamError = error;
   }
   const messageIndexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
@@ -1054,6 +1064,14 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
   span.setAttributes(attributes);
+  if (streamFailed) {
+    endSpanWithError(span, streamError);
+    return;
+  }
+  // An aborted request ends the stream without an error, but did not run to completion
+  if (!stream.controller.signal.aborted) {
+    span.setStatus({ code: SpanStatusCode.OK });
+  }
   span.end();
 }
 

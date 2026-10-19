@@ -898,6 +898,82 @@ describe("OpenAIInstrumentation", () => {
       });
     });
   });
+  describe("streaming span status", () => {
+    const contentChunk = (content: string, finish_reason: string | null = null) => ({
+      id: "chatcmpl-status",
+      object: "chat.completion.chunk",
+      created: 1705535755,
+      model: "gpt-4o-mini",
+      choices: [{ index: 0, delta: { content }, finish_reason }],
+    });
+    // Mocks a stream that yields the given chunks and then awaits `end`, which can throw
+    const mockStream = (chunks: object[], end?: (signal: AbortSignal) => Promise<void>) => {
+      const controller = new AbortController();
+      vi.spyOn(openai, "post").mockImplementation(
+        mockAPIPromise(openai, async () => {
+          const iterator = () =>
+            (async function* () {
+              for (const chunk of chunks) {
+                yield chunk;
+              }
+              await end?.(controller.signal);
+            })();
+          return new Stream(iterator, controller);
+        }),
+      );
+      return controller;
+    };
+    const createStream = () =>
+      openai.chat.completions.create({
+        messages: [{ role: "user", content: "Say this is a test" }],
+        model: "gpt-4o-mini",
+        stream: true,
+      });
+
+    it("ends the span with status OK when the stream completes", async () => {
+      mockStream([contentChunk("This is "), contentChunk("a test.", "stop")]);
+      for await (const _chunk of await createStream()) {
+        // consume the stream
+      }
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.status).toEqual({ code: SpanStatusCode.OK });
+      expect(span.attributes["output.value"]).toBe("This is a test.");
+    });
+
+    it("ends the span with status ERROR when the stream fails", async () => {
+      mockStream([contentChunk("This is ")], async () => {
+        throw new Error("connection reset");
+      });
+      const stream = await createStream();
+      await expect(async () => {
+        for await (const _chunk of stream) {
+          // consume the stream
+        }
+      }).rejects.toThrow("connection reset");
+      await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: "connection reset" });
+      expect(span.events.map((event) => event.name)).toEqual(["exception"]);
+      expect(span.events[0].attributes?.["exception.message"]).toBe("connection reset");
+      // What was streamed before the failure is still recorded
+      expect(span.attributes["output.value"]).toBe("This is ");
+    });
+
+    it("leaves the status unset when the stream is aborted", async () => {
+      // Like the SDK, the stream waits on the server and then ends quietly once aborted
+      const controller = mockStream(
+        [contentChunk("This is ")],
+        (signal) => new Promise((resolve) => signal.addEventListener("abort", () => resolve())),
+      );
+      for await (const _chunk of await createStream()) {
+        controller.abort();
+      }
+      await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.status).toEqual({ code: SpanStatusCode.UNSET });
+      expect(span.attributes["output.value"]).toBe("This is ");
+    });
+  });
   it("should capture a function call with streaming", async () => {
     vi.spyOn(openai, "post").mockImplementation(
       mockAPIPromise(openai, async () => {
