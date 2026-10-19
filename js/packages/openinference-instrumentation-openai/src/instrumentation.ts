@@ -567,8 +567,17 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 // First split the stream via tee
                 const [leftStream, rightStream] = result.tee();
                 // take the right stream, consuming it and then recording the final chunk
-                // into the span
-                void consumeResponseStreamEvents(rightStream).then(recordSpan);
+                // into the span. If reading it fails, the caller gets the same error from
+                // the left stream and the span ends with status ERROR.
+                void consumeResponseStreamEvents(rightStream).then((response) => {
+                  // An aborted request ends the stream without an error or a completed
+                  // response, so leave the status unset
+                  if (!response && rightStream.controller.signal.aborted) {
+                    span.end();
+                    return;
+                  }
+                  recordSpan(response);
+                }, recordError);
                 // give the left stream back to the caller
                 result = leftStream;
               }
