@@ -147,13 +147,12 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _disable_existing_tracers(self) -> None:
         """Disable existing tracers to prevent double-instrumentation."""
-        from google.adk.runners import (  # type: ignore[attr-defined]
-            tracer,  # pyright: ignore[reportPrivateImportUsage]
-        )
+        from google.adk import runners
 
+        # getattr: google-adk >= 2.12 exports `runners.tracer`; earlier versions
+        # only expose it as an implicit re-export.
+        tracer = getattr(runners, "tracer", None)
         if isinstance(tracer, Tracer):
-            from google.adk import runners
-
             setattr(runners, "tracer", _PassthroughTracer(tracer))
 
         # tracing.tracer drives execute_tool, invoke_agent, and generate_content.
@@ -269,13 +268,10 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _restore_existing_tracers(self) -> None:
         """Restore original tracers that were disabled during instrumentation."""
-        from google.adk.runners import (  # type: ignore[attr-defined]
-            tracer,  # pyright: ignore[reportPrivateImportUsage]
-        )
+        from google.adk import runners
 
-        if isinstance(original := getattr(tracer, "__wrapped__"), Tracer):
-            from google.adk import runners
-
+        tracer = getattr(runners, "tracer", None)
+        if isinstance(original := getattr(tracer, "__wrapped__", None), Tracer):
             setattr(runners, "tracer", original)
 
         from google.adk.telemetry import tracing as adk_tracing
@@ -457,6 +453,18 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
         # Agent / experimental-LLM paths — already covered by our outer wrappers,
         # so suppress to avoid duplicate spans.
         yield get_current_span()
+
+    def start_span(self, name: str, *args: Any, **kwargs: Any) -> Span:
+        # ADK >= 2.12 opens `invoke_workflow` spans with `start_span` rather than
+        # `start_as_current_span`.
+        if isinstance(name, str) and name.startswith(_WORKFLOW_SPAN_PREFIXES):
+            kwargs = dict(kwargs)
+            kwargs["attributes"] = {
+                **(kwargs.get("attributes") or {}),
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            }
+            return self._self_oi_tracer.start_span(name, *args, **kwargs)
+        return cast(Span, self.__wrapped__.start_span(name, *args, **kwargs))
 
 
 def _merged_tool_span_modules() -> List[Any]:
