@@ -1005,6 +1005,7 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   // So the final tool and function calls need to be aggregated
   // across chunks
   const toolAndFunctionCallAttributes: Attributes = {};
+  const getToolCallIndex = createStreamToolCallIndexResolver();
   let finishReason: string | undefined;
   // The first message is for the assistant response so we start at 1
   for await (const chunk of stream) {
@@ -1024,8 +1025,10 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
       finishReason = choice.finish_reason;
     }
     // Accumulate the tool and function call attributes
-    const toolAndFunctionCallAttributesDiff =
-      getToolAndFunctionCallAttributesFromStreamChunk(chunk);
+    const toolAndFunctionCallAttributesDiff = getToolAndFunctionCallAttributesFromStreamChunk(
+      chunk,
+      getToolCallIndex,
+    );
     for (const [key, value] of Object.entries(toolAndFunctionCallAttributesDiff)) {
       if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
         toolAndFunctionCallAttributes[key] += value;
@@ -1055,16 +1058,47 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
 }
 
 /**
+ * Returns a function that gives the position of a streamed tool call delta within the message.
+ * OpenAI sends an index with every delta. Some OpenAI-compatible providers (such as Gemini)
+ * leave it out, so a delta with a new id, or a function name without an id, starts the next
+ * tool call and any other delta continues the latest one.
+ */
+function createStreamToolCallIndexResolver() {
+  let latestIndex = -1;
+  let latestId: string | undefined;
+  let nextIndex = 0;
+  return (toolCall: ChatCompletionChunk.Choice.Delta.ToolCall): number => {
+    // The SDK types the index as required, but some providers omit it
+    if (typeof toolCall.index === "number") {
+      latestIndex = toolCall.index;
+      nextIndex = Math.max(nextIndex, toolCall.index + 1);
+      return toolCall.index;
+    }
+    const startsNewToolCall =
+      latestIndex < 0 || (toolCall.id ? toolCall.id !== latestId : toolCall.function?.name != null);
+    if (startsNewToolCall) {
+      latestIndex = nextIndex++;
+      latestId = toolCall.id;
+    }
+    return latestIndex;
+  };
+}
+
+/**
  * Extracts the semantic attributes from the stream chunk for tool_calls and function_calls
  */
-function getToolAndFunctionCallAttributesFromStreamChunk(chunk: ChatCompletionChunk): Attributes {
+function getToolAndFunctionCallAttributesFromStreamChunk(
+  chunk: ChatCompletionChunk,
+  getToolCallIndex: (toolCall: ChatCompletionChunk.Choice.Delta.ToolCall) => number,
+): Attributes {
   if (chunk.choices.length <= 0) {
     return {};
   }
   const choice = chunk.choices[0];
   const attributes: Attributes = {};
   if (choice.delta.tool_calls) {
-    choice.delta.tool_calls.forEach((toolCall, index) => {
+    choice.delta.tool_calls.forEach((toolCall) => {
+      const index = getToolCallIndex(toolCall);
       const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
       // Add the tool call id if it exists
       if (toolCall.id) {
