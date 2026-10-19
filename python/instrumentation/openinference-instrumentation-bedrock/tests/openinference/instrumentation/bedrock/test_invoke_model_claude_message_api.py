@@ -22,6 +22,7 @@ from openinference.instrumentation.bedrock.utils.anthropic._attributes import (
     get_llm_input_attributes,
 )
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
+    _AnthropicMessagesCallback,
     _attributes_from_image_param,
     _attributes_from_request,
 )
@@ -272,7 +273,6 @@ def test_invoke_model_records_system_prompt_and_tools(system: Any) -> None:
     # the system prompt and tools are not duplicated in invocation parameters, where
     # hide_inputs / hide_input_messages would not mask them
     assert json.loads(attributes["llm.invocation_parameters"]) == {
-        "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 50,
     }
 
@@ -297,6 +297,93 @@ def test_streaming_request_records_system_text_blocks_under_input_messages() -> 
     assert not any(key.startswith("message.") for key in attributes)
 
 
+@pytest.mark.parametrize(
+    "system",
+    [
+        pytest.param("You are terse.", id="string"),
+        pytest.param(
+            [
+                {"type": "text", "text": "You are terse."},
+                {"type": "text", "text": "Answer in English."},
+            ],
+            id="multiple-blocks",
+        ),
+        pytest.param(None, id="absent"),
+        pytest.param([], id="empty-blocks"),
+    ],
+)
+def test_request_attributes_agree_across_paths(system: Any) -> None:
+    body: Dict[str, Any] = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 50,
+        "messages": [{"role": "user", "content": "hello"}],
+        "tools": [_TOOL, {**_TOOL, "name": "lookup_second"}],
+    }
+    if system is not None:
+        body["system"] = system
+    model_id = "anthropic.claude-3-haiku-20240307-v1:0"
+    normal = get_llm_input_attributes(body, model_id)
+    streaming = dict(_attributes_from_request({"modelId": model_id, "body": body}))
+
+    for attributes in (normal, streaming):
+        assert attributes["llm.model_name"] == "claude-3-haiku-20240307-v1:0"
+        assert attributes["llm.provider"] == "aws"
+        assert attributes["llm.system"] == "anthropic"
+        assert json.loads(attributes["llm.invocation_parameters"]) == {"max_tokens": 50}
+        for i, tool in enumerate(body["tools"]):
+            assert json.loads(attributes[f"llm.tools.{i}.tool.json_schema"]) == tool
+        assert attributes["llm.input_messages.0.message.role"] == (
+            "system" if system else "user"
+        )
+        if system:
+            assert attributes["llm.input_messages.1.message.role"] == "user"
+            texts = [system] if isinstance(system, str) else [block["text"] for block in system]
+            for i, expected in enumerate(texts):
+                key = f"llm.input_messages.0.message.contents.{i}.message_content.text"
+                if isinstance(system, str) and attributes is normal:
+                    key = "llm.input_messages.0.message.content"
+                assert attributes[key] == expected
+        else:
+            assert not any(k.startswith("llm.input_messages.1.") for k in attributes)
+        assert not any(k.startswith("message.contents.") for k in attributes)
+
+
+@pytest.mark.parametrize("has_response", [True, False])
+def test_stream_final_model_name(
+    has_response: bool,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    span = tracer_provider.get_tracer(__name__).start_span("stream")
+    callback = _AnthropicMessagesCallback(
+        span,
+        {"modelId": "anthropic.claude-3-haiku-20240307-v1:0", "body": {"messages": []}},
+    )
+    if has_response:
+        event = {
+            "type": "message_start",
+            "message": {
+                "id": "msg_1",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-3-haiku",
+                "content": [],
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {"input_tokens": 7, "output_tokens": 0},
+            },
+        }
+        callback({"chunk": {"bytes": json.dumps(event).encode()}})
+    callback(StopIteration())
+    (finished,) = in_memory_span_exporter.get_finished_spans()
+    assert finished.attributes is not None
+    assert finished.attributes["llm.model_name"] == (
+        "claude-3-haiku" if has_response else "claude-3-haiku-20240307-v1:0"
+    )
+    assert finished.attributes["llm.provider"] == "aws"
+    assert finished.attributes["llm.system"] == "anthropic"
+
+
 def _assert_invoke_model_span_attributes(
     attributes: Dict[str, Any],
     prompt: Dict[str, Any],
@@ -316,8 +403,7 @@ def _assert_invoke_model_span_attributes(
     assert attributes.pop("llm.input_messages.2.message.role") == "user"
     assert (
         attributes.pop("llm.invocation_parameters")
-        == '{"max_tokens": 1000, "temperature": 0.7, "anthropic_version": '
-        '"bedrock-2023-05-31"}'
+        == '{"max_tokens": 1000, "temperature": 0.7}'
     )
     assert attributes.pop("llm.model_name") == "claude-3-haiku-20240307"
     assert attributes.pop("llm.finish_reason") == "end_turn"
@@ -353,8 +439,7 @@ def _assert_invoke_model_with_image_span_attributes(attributes: Dict[str, Any]) 
     assert attributes.pop("llm.input_messages.0.message.contents.1.message_content.type") == "image"
     assert attributes.pop("llm.input_messages.0.message.role") == "user"
     assert (
-        attributes.pop("llm.invocation_parameters") == '{"max_tokens": 1000, "temperature": 0.7, '
-        '"anthropic_version": "bedrock-2023-05-31"}'
+        attributes.pop("llm.invocation_parameters") == '{"max_tokens": 1000, "temperature": 0.7}'
     )
     assert attributes.pop("llm.model_name") == "claude-3-haiku-20240307"
     assert attributes.pop("llm.finish_reason") == "end_turn"
