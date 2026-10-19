@@ -27,8 +27,8 @@ from typing import Literal
 
 Severity = Literal["Critical", "High", "Medium", "Low"]
 Origin = Literal["introduced", "pre-existing", "n/a"]
-Kind = Literal["wrapper", "processor", "propagator", "alias"]
-ALL_KINDS: frozenset[Kind] = frozenset({"wrapper", "processor", "propagator", "alias"})
+Kind = Literal["instrumentor", "processor", "propagator", "alias"]
+ALL_KINDS: frozenset[Kind] = frozenset({"instrumentor", "processor", "propagator", "alias"})
 SEVERITY_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
 
 INSTRUMENTATION = "python/instrumentation"
@@ -133,12 +133,12 @@ class Ctx:
     def _kind(self) -> Kind:
         if self.grep(self.src, r"\bBaseInstrumentor\b"):
             spans = self.grep(self.src, r"start_(as_current_)?span\(|OITracer")
-            return "wrapper" if spans else "propagator"
+            return "instrumentor" if spans else "propagator"
         if self.grep(self.src, r"\(\s*SpanProcessor\s*\)"):
             return "processor"
         if self.grep(self.src, r"^from openinference\.instrumentation\.\w+ import \w+Instrumentor"):
             return "alias"
-        return "wrapper"
+        return "instrumentor"
 
     def _texts(self, prefix: str) -> dict[str, str]:
         return {
@@ -193,8 +193,8 @@ def check(
     return register
 
 
-WRAPPER: frozenset[Kind] = frozenset({"wrapper"})
-OWNS_SPANS: frozenset[Kind] = frozenset({"wrapper", "processor"})
+INSTRUMENTOR: frozenset[Kind] = frozenset({"instrumentor"})
+OWNS_SPANS: frozenset[Kind] = frozenset({"instrumentor", "processor"})
 
 
 @check("tox-registered", "ci-and-packaging.md#tox-install-pattern")
@@ -276,7 +276,7 @@ def _(c: Ctx) -> Iterator[Issue]:
         yield "Critical", "no src/**/version.py; the tox `ci` env fails without it", c.src_dir
 
 
-@check("instruments", "ci-and-packaging.md#packaging", WRAPPER)
+@check("instruments", "ci-and-packaging.md#packaging", INSTRUMENTOR)
 def _(c: Ctx) -> Iterator[Issue]:
     if not c.grep(c.src, r"^_instruments\s*="):
         yield "High", "no `_instruments` tuple declaring the supported library range", c.src_dir
@@ -284,7 +284,7 @@ def _(c: Ctx) -> Iterator[Issue]:
         yield "High", "the instrumentor does not define instrumentation_dependencies()", c.src_dir
 
 
-@check("entry-points", "ci-and-packaging.md#packaging", WRAPPER)
+@check("entry-points", "ci-and-packaging.md#packaging", INSTRUMENTOR)
 def _(c: Ctx) -> Iterator[Issue]:
     path, text = c.file("pyproject.toml")
     for group in ("opentelemetry_instrumentor", "openinference_instrumentor"):
@@ -306,10 +306,12 @@ def _(c: Ctx) -> Iterator[Issue]:
         )
 
 
-@check("suppress-check", "runtime.md#suppression", WRAPPER)
+@check("suppress-check", "runtime.md#suppression", INSTRUMENTOR)
 def _(c: Ctx) -> Iterator[Issue]:
-    if not c.grep(c.src, r"_SUPPRESS_INSTRUMENTATION_KEY|is_instrumentation_enabled\(\)"):
-        yield "High", "no suppression check anywhere in src", c.src_dir
+    if not c.grep(
+        c.src, r"_SUPPRESS_INSTRUMENTATION_KEY|is_instrumentation_enabled\(\)|\bOITracer\b"
+    ):
+        yield "High", "no suppression check in src, and no OITracer to apply one", c.src_dir
 
 
 @check("trace-config", "runtime.md#traceconfig", OWNS_SPANS)
@@ -330,7 +332,7 @@ def _(c: Ctx) -> Iterator[Issue]:
 
 @check("pop-assertions", "tests.md#exhaustive-assertions", OWNS_SPANS)
 def _(c: Ctx) -> Iterator[Issue]:
-    if not c.grep(c.tests, r"assert not \w*attributes\b|assert \w*attributes == \{\}"):
+    if not c.grep(c.tests, r"assert not \w*attr\w*\b|assert \w*attr\w* == \{\}"):
         yield (
             "High",
             "no test ends with `assert not attributes` (or `== {}`), so unexpected attributes go unnoticed",

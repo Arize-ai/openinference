@@ -47,4 +47,4 @@ Compare against `openinference-instrumentation-openai`:
   `[project.entry-points.opentelemetry_instrumentor]` and
   `[project.entry-points.openinference_instrumentor]` (Medium).
 
-Span processors (`kind: processor`) and aliases skip the `_instruments` and entry-point rules.
+Only `kind: instrumentor` packages are held to the `_instruments` and entry-point rules.

@@ -41,30 +41,40 @@ A review has three layers, and each one feeds the report:
 1. **Scope.** For a PR, list touched packages with
    `gh pr diff <n> --name-only | grep '^python/instrumentation/' | cut -d/ -f3 | sort -u`
    and review each one separately. Read the diff, then the code it calls and is called by.
+   For a stacked PR (its body names a parent PR), set `--base` in step 2 to the parent's
+   head and review only this PR's commits.
 2. **Run the script.**
    ```bash
    python3 .agents/skills/python-review/scripts/check_package.py <pkg> --base origin/main --format json
    ```
-   `--base` tags each finding `introduced` or `pre-existing`. Use `--base HEAD` for
-   uncommitted changes, and drop it for an audit. The
-   JSON `kind` field says what the package is (`wrapper`, `processor`, `propagator`,
-   `alias`). Confirm every test and runtime finding by reading its location, because those
-   checks are grep-level. Dismiss a false positive in the report with the reason. Use
-   `--all` to see whether a gap is repo-wide before you report it per package.
+   The script accepts a directory name or a tox factor. Use its JSON `package` field as
+   `<pkg>` in the tox env names below. `--base` tags each finding `introduced` or
+   `pre-existing`. Use `--base HEAD` for uncommitted changes, and drop it for an audit.
+   The JSON `kind` field says which checks apply:
+   - `instrumentor`: a `BaseInstrumentor` that starts spans, by wrapping library calls or
+     by registering a callback or tracing processor with the library
+   - `processor`: an OTel `SpanProcessor` that rewrites spans the library emits itself
+   - `propagator`: a `BaseInstrumentor` that only carries context and starts no spans
+   - `alias`: a shim that re-exports another instrumentor
+   Confirm every test and runtime finding by reading its location, because those checks
+   are grep-level. Dismiss a false positive in the report with the reason. Use `--all` to
+   see whether a gap is repo-wide before you report it per package.
 3. **Start the CI env in the background** while you read code:
    ```bash
    cd python && uvx --with tox-uv tox run -e py314-ci-<pkg>
    ```
    Envs are `py3{10,14}-ci-<pkg>` and `py3{10,14}-ci-<pkg>-latest`. Also run `-latest`
-   when the change is about library compatibility. Add `-r` when `test-requirements.txt`
+   when the change is about library compatibility, or reads private library attributes or
+   version-dependent APIs. Add `-r` when `test-requirements.txt`
    or `commands_pre` changed, because tox reuses a stale env otherwise. A failing env is a
    Critical finding.
-4. **Read the library as ground truth.** After step 3 installs it, the library is at
-   `python/.tox/py314-ci-<pkg>/lib/python3.14/site-packages/<library>/`. The tox factor and
-   the import path often differ (`google_genai` installs `google/genai/`), so take the
-   library name from `test-requirements.txt`. Before you flag a finding, confirm that the
-   patched method exists with that signature and that the edge case can occur. Rate a bug
-   on a path the library really uses High or Critical. Rate a case its types rule out Low.
+4. **Read the library as ground truth.** After step 3 installs it, the library is under
+   `python/.tox/py314-ci-<pkg>/lib/python3.14/site-packages/` (from the repo root). The
+   distribution name in `test-requirements.txt` often differs from the import directory
+   (`openai-agents` installs `agents/`), so read the directory from
+   `site-packages/<dist>-*.dist-info/top_level.txt` or its `RECORD`. Before you flag a
+   finding, confirm that the patched method exists with that signature and that the edge
+   case can occur. Rate by user impact. A case the library's types rule out is at most Low.
 5. **Review by dimension.** Load only the references that match what the change touches:
 
    | Change touches | Read |
@@ -80,8 +90,10 @@ A review has three layers, and each one feeds the report:
    - For each introduced High or Critical finding about span output, and for each claim the
      PR makes about span output, run the `phoenix-verify` skill. Pass it one claim
      sentence, using before/after mode for a fix. Its step 7 output goes into the report
-     verbatim. In headless mode, or when Phoenix is unreachable, record its `NOT VERIFIED`
-     block and keep going.
+     verbatim. When Phoenix is unreachable, in any mode, record its `NOT VERIFIED` block
+     and keep going. Headless mode never waits for Phoenix to start.
+   - When the checkout under review is not the one holding this skill, run phoenix-verify's
+     `scripts/span_tree.sh` from this skill's repository, not from the PR checkout.
    - When the change touches `gen_ai.*` attributes or `_genai_conversion.py`, run the
      `genai-conformance` skill for that provider.
 7. **Report** with [report.md](references/report.md).

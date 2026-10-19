@@ -23,6 +23,7 @@ issue rather than one per package.
 Dismissed script findings: <check> at <location> because <reason>.
 
 CI: `uvx --with tox-uv tox run -e py314-ci-<pkg>` -> <OK, or the failing command and error>
+    (one line per env run, including `-latest`)
 Phoenix: <phoenix-verify step 7 block, one per claim, or "no span-output claims">
 Working well: <checks that passed and patterns worth keeping>
 ```

@@ -6,7 +6,9 @@ read each wrapper.
 
 ## Suppression
 
-Every wrapper that starts a span checks suppression first and calls straight through:
+Spans started through `OITracer` are suppressed for you: `OITracer.start_span` returns an
+invalid span while suppression is on. A wrapper that starts spans another way, or does
+other work before the span, checks suppression first and calls straight through:
 
 ```python
 if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):   # common in this repo
@@ -57,7 +59,18 @@ breaks out of the loop.
 
 ## Uninstrument
 
-`_uninstrument()` restores every patched attribute. A missing restore is High.
+`_uninstrument()` restores every patched attribute and unregisters every processor,
+callback, or hook it registered with the library, restoring whatever an exclusive
+registration replaced. Calls after `uninstrument()` produce no spans. A missing restore
+or unregister is High.
+
+## In-flight work across uninstrument
+
+A run that is in flight when `uninstrument()` is called either finishes with complete
+spans or stops producing them; it never exports half-built spans or orphan roots. An
+`uninstrument()` followed by `instrument()` mid-run exports every span once, in one trace.
+Orphan roots or duplicate spans are High. Prove the claim with `phoenix-verify` in
+before/after mode.
 
 ## Threads and async
 
