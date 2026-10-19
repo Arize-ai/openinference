@@ -12,6 +12,7 @@ description: >
 compatibility: >
   python3 and git for the check script; uv and tox-uv for the CI env; gh for PR review.
   Phoenix verification needs a local Phoenix and the px CLI, as phoenix-verify describes.
+invocable: true
 ---
 
 # Python Review
@@ -44,7 +45,8 @@ A review has three layers, and each one feeds the report:
    ```bash
    python3 .agents/skills/python-review/scripts/check_package.py <pkg> --base origin/main --format json
    ```
-   `--base` tags each finding `introduced` or `pre-existing`. Drop it for an audit. The
+   `--base` tags each finding `introduced` or `pre-existing`. Use `--base HEAD` for
+   uncommitted changes, and drop it for an audit. The
    JSON `kind` field says what the package is (`wrapper`, `processor`, `propagator`,
    `alias`). Confirm every test and runtime finding by reading its location, because those
    checks are grep-level. Dismiss a false positive in the report with the reason. Use

@@ -473,6 +473,8 @@ def main() -> int:
     pkg = resolve(head, args.package)
     findings = run(head, pkg)
     if args.base:
+        if head._git("rev-parse", "--verify", "--quiet", f"{args.base}^{{commit}}").returncode:
+            sys.exit(f"--base {args.base!r} is not a commit here; fetch it or use --base HEAD")
         base = Tree(head.root, args.base)
         in_base = pkg.directory in {p.directory for p in packages(base)}
         findings = tag(findings, run(base, pkg) if in_base else [])
