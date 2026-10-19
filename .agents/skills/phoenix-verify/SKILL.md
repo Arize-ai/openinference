@@ -90,4 +90,4 @@ Read one language file and one read-back file; each is self-contained.
 ## Related
 
 - `phoenix-cli` skill: full `px` command reference, trace and session JSON shapes, GraphQL.
-- `python-code-reviewer` / `java-code-reviewer`: run after the fix is proven, before opening the PR.
+- `python-review` / `java-code-reviewer`: run after the fix is proven, before opening the PR. `python-review` also calls this skill to prove its span-output findings.
