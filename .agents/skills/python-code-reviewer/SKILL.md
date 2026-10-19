@@ -2,12 +2,12 @@
 name: python-code-reviewer
 description: >
   Review Python OpenInference instrumentation code for correctness and completeness.
-  Use this skill when reviewing a Python instrumentor package — whether it's a new
-  instrumentor, a PR that modifies one, or when the user asks to audit/review/check
-  an existing instrumentor's code quality. Trigger on phrases like "review the
-  instrumentor", "check the code", "audit the package", "is this instrumentor correct",
-  or any request to validate an OpenInference Python instrumentation package against
-  project standards.
+  Use this skill when reviewing a package under python/instrumentation/ — a new
+  instrumentor, a PR that modifies one, or an audit of an existing one. Trigger on
+  phrases like "review the Python instrumentor", "review this PR to
+  openinference-instrumentation-<name>", "audit the <name> instrumentor", "is this
+  instrumentor correct", or any request to validate an OpenInference Python
+  instrumentation package against project standards. Not for Java or JS packages.
 invocable: true
 ---
 
@@ -24,6 +24,14 @@ report findings with file paths and line numbers, and surface issues organized b
 - The package lives under `python/instrumentation/openinference-instrumentation-<name>/`
 - Read the key files: `__init__.py`, `_wrappers.py` (or equivalent), `pyproject.toml`,
   and the full `tests/` directory
+- **PR review:** read the diff (`gh pr diff <number>`) and review the changed code plus
+  the code it calls or is called by. Tag every finding **Introduced** (the PR adds it)
+  or **Pre-existing** (already on main). Only Introduced findings block the PR; list
+  Pre-existing ones separately as follow-ups.
+- **Audit of an existing package:** many checks below describe a target the repo has not
+  reached everywhere (for example, many packages do not end tests with
+  `assert not attributes`). Report the gap at its severity, but say when the same gap
+  is repo-wide so the user can file one issue instead of one per package.
 
 **Step 2: Pull the instrumented library source and use it as ground truth**
 
@@ -38,14 +46,18 @@ how the instrumented library works.
 > as `google/genai/` in site-packages. Check `test-requirements.txt` or `pyproject.toml`
 > to find the actual library package name.
 
-1. **Set up the tox environment** to install the pinned library version. Look up the
-   tox envlist in `python/tox.ini` to find the correct env name (use the highest Python
-   version available, e.g., `py314`, `py313`):
+1. **Run the package's CI env.** It installs the pinned library version and runs the
+   same checks as CI: the `version.py` check, `ruff format --diff`, `ruff check`, `mypy`,
+   and `pytest`. Look up the env name in the `python/tox.ini` envlist and use the highest
+   Python version listed (envs are named `py3{10,14}-ci-<pkg>` and
+   `py3{10,14}-ci-<pkg>-latest`):
    ```bash
-   cd python && uvx --with tox-uv tox run -e <pyVER>-ci-<pkg> -- --co -q
+   cd python && uvx --with tox-uv tox run -e py314-ci-<pkg>
    ```
-   (`-- --co -q` tells pytest to collect without running, which triggers the install.)
-   If the `.tox` env already exists, skip this step.
+   Run it in the background while you read code; it can take minutes. Keep its output.
+   A failing check is a **Critical** finding, and passing checks are evidence for the
+   report. Add `-r` to recreate the env when `test-requirements.txt` or the tox
+   `commands_pre` changed, because tox reuses a stale env otherwise.
    If tox setup fails (missing Python version, dependency conflicts), fall back to
    `pip install <library>` in a temporary venv to unblock the review.
 
@@ -129,6 +141,18 @@ And that the `-latest` variant upgrades the library:
 pkg-latest: uv pip install -U <library-name>
 ```
 
+### 1.4 Packaging
+
+Compare against `openinference-instrumentation-openai`:
+- `src/openinference/instrumentation/<pkg>/version.py` with `__version__`. The `ci` env
+  fails without it — **Critical**.
+- `_instruments = ("<library> >= <min>",)` (usually in `package.py`), returned by the
+  instrumentor's `instrumentation_dependencies()`. The minimum should not be lower than
+  the pinned version in `test-requirements.txt` — **High** if it is missing or untested.
+- `pyproject.toml` registers the instrumentor under both
+  `[project.entry-points.opentelemetry_instrumentor]` and
+  `[project.entry-points.openinference_instrumentor]` — **Medium** if either is missing.
+
 ---
 
 ## Section 2: Testing Patterns
@@ -190,10 +214,9 @@ assert not attributes  # Nothing unexpected left
 ```
 
 **What to flag:**
-- Tests that only check a few attributes without the final `assert not attributes` — **High**
+- Missing the final `assert not attributes` — **High**
 - Tests that use `span.attributes[KEY]` or `span.attributes.get(KEY)` instead of pop — **Medium**
   (functional but doesn't catch unexpected extras)
-- Missing `assert not attributes` at the end — **High**
 
 ### 2.4 Context attribute propagation tests
 
@@ -231,40 +254,57 @@ Every span must have:
 MIME types should be `application/json` for structured data (dicts, Pydantic models) and
 `text/plain` for strings. Flag if MIME type is missing when value is set — **High**.
 
-When setting input/output attributes, the instrumentor should use:
+When setting attributes, the instrumentor should use the helpers in
+`python/openinference-instrumentation/src/openinference/instrumentation/_attributes.py`
+(`get_input_attributes`, `get_output_attributes`, `get_llm_attributes`,
+`get_embedding_attributes`, `get_retriever_attributes`, `get_tool_attributes`, and others)
+instead of building keys by hand:
 ```python
 from openinference.instrumentation import get_input_attributes, get_output_attributes
 span.set_attributes(dict(get_input_attributes(val, mime_type=OpenInferenceMimeTypeValues.JSON)))
 ```
+
+Check every attribute name against
+`python/openinference-semantic-conventions/src/openinference/semconv/trace/__init__.py`.
+Many are nested under an indexed prefix, such as
+`llm.input_messages.<i>.message.role`, `embedding.embeddings.<i>.embedding.text`, and
+`retrieval.documents.<i>.document.id`. A flat key where a nested one belongs — **High**.
 
 ### 3.2 LLM libraries (OpenAI, Anthropic, Mistral, LiteLLM, etc.)
 
 These should set:
 - `LLM_MODEL_NAME` — the model identifier
 - `LLM_PROVIDER` — the provider name (e.g., "openai", "anthropic")
+- `LLM_SYSTEM` — the model family (e.g., "openai", "anthropic"), when the library knows it
 - `LLM_INVOCATION_PARAMETERS` — JSON of parameters like temperature, max_tokens
 - `LLM_INPUT_MESSAGES` — array of message objects with role and content
 - `LLM_OUTPUT_MESSAGES` — array of response message objects
+- `LLM_TOOLS` — tool definitions sent with the request (`llm.tools.<i>.tool.json_schema`)
 - `LLM_TOKEN_COUNT_PROMPT` / `LLM_TOKEN_COUNT_COMPLETION` / `LLM_TOKEN_COUNT_TOTAL` — token usage
+- Token detail counts when the response reports them, such as
+  `LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ` and
+  `LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING`
 
 Span kind should be `LLM`.
 
 ### 3.3 Embedding libraries
 
 - `EMBEDDING_MODEL_NAME`
-- `EMBEDDING_EMBEDDINGS` — the embedding vectors (unless masked by TraceConfig)
-- `EMBEDDING_TEXT` — input text
+- `EMBEDDING_EMBEDDINGS` prefix, with per-item `EMBEDDING_TEXT` and `EMBEDDING_VECTOR`
+  (vectors unless masked by TraceConfig)
 
 Span kind should be `EMBEDDING`.
 
 ### 3.4 Tool/function calling
 
-When the library supports tool use or function calling:
-- `TOOL_NAME` — name of the tool/function
-- `TOOL_DESCRIPTION` — description (if available)
-- `TOOL_PARAMETERS` — JSON schema of parameters
-
-Span kind should be `TOOL`.
+How tool use is recorded depends on who runs the tool:
+- **LLM client libraries** (OpenAI, Anthropic, and similar) do not run tools. The LLM span
+  records the tool definitions in `LLM_TOOLS` and the model's tool calls on the output
+  messages (`message.tool_calls.<i>.tool_call.function.name` and `.arguments`). These
+  instrumentors should not create `TOOL` spans. Do not flag a missing `TOOL` span here.
+- **Frameworks that execute tools** (agent frameworks, tool runners) create a `TOOL` span
+  per invocation with `TOOL_NAME`, `TOOL_DESCRIPTION` (if available), and
+  `TOOL_PARAMETERS`.
 
 ### 3.5 Agent/orchestration frameworks (CrewAI, LangChain, DSPy, etc.)
 
@@ -276,8 +316,8 @@ These typically produce multiple span kinds in a hierarchy:
 
 ### 3.6 Retrieval libraries
 
-- `RETRIEVAL_DOCUMENTS` — array of retrieved documents
-- Document attributes: `DOCUMENT_ID`, `DOCUMENT_CONTENT`, `DOCUMENT_SCORE`, `DOCUMENT_METADATA`
+- `RETRIEVAL_DOCUMENTS` prefix, with per-document `DOCUMENT_ID`, `DOCUMENT_CONTENT`,
+  `DOCUMENT_SCORE`, and `DOCUMENT_METADATA`
 
 Span kind should be `RETRIEVER`.
 
@@ -329,10 +369,14 @@ if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
     return wrapped(*args, **kwargs)
 
 # Pattern 2: public API
-from opentelemetry.context import suppress_instrumentation
-if suppress_instrumentation():
+from opentelemetry.instrumentation.utils import is_instrumentation_enabled
+if not is_instrumentation_enabled():
     return wrapped(*args, **kwargs)
 ```
+
+`opentelemetry.instrumentation.utils.suppress_instrumentation()` is a context manager
+that turns suppression on. It is not a check. `if suppress_instrumentation():` is always
+true and skips tracing on every call — **Critical** if you see it.
 
 Missing suppression check — **High**.
 
@@ -342,7 +386,49 @@ The instrumentor should accept and respect `TraceConfig`:
 - Pass it to `OITracer` or use it to mask attributes before setting them
 - At minimum, `hide_inputs` and `hide_outputs` should work
 
-Missing TraceConfig support — **Medium** (functional but incomplete).
+Missing TraceConfig support — **High**. The repo's CLAUDE.md requires it of every
+instrumentor.
+
+### 4.6 Context attribute propagation
+
+Spans must carry the attributes set by `using_attributes()` (session ID, user ID,
+metadata, tags, prompt template). `OITracer` adds them to spans it starts. An instrumentor
+that starts spans another way must add `get_attributes_from_context()` itself. Check the
+source, not only the test in 2.4. Missing propagation — **High**, also required by
+CLAUDE.md.
+
+---
+
+## Section 5: Runtime Safety
+
+### 5.1 Errors
+
+- When the wrapped call raises, the span records the exception, sets status `ERROR`,
+  ends, and the original exception reaches the caller unchanged.
+- A bug in attribute extraction must never raise into user code. Extraction code should
+  catch and log its own exceptions, and the wrapped call's result still returns.
+- At least one test covers the error path and asserts `StatusCode.ERROR`.
+
+A missing error status or exception record — **High**. Extraction that can raise into the
+caller — **Critical**.
+
+### 5.2 Streaming
+
+If the library returns streams or iterators, sync or async:
+- The span stays open until the stream is exhausted, raises, or is closed, and ends
+  exactly once in each case. Check what happens when the caller breaks out early.
+- Output messages and token counts are accumulated from the chunks, not taken from the
+  first chunk.
+- The returned proxy still behaves like the library's own stream type (context manager,
+  `close()`, attribute access). Compare with `openinference-instrumentation-openai`'s
+  `_stream.py`.
+
+A span that never ends or ends early — **Critical**. Untested streaming paths — **High**.
+
+### 5.3 Uninstrument
+
+`_uninstrument()` restores every patched function, and a test shows that calls after
+`uninstrument()` produce no spans. Missing restore — **High**.
 
 ---
 
@@ -350,16 +436,20 @@ Missing TraceConfig support — **Medium** (functional but incomplete).
 
 Organize findings into a table:
 
-| Severity | Section | Finding | Location |
-|----------|---------|---------|----------|
-| Critical | 1.1 | Uses broken tox install pattern | `python/tox.ini:142` |
-| High | 2.3 | Tests don't use exhaustive pop assertions | `tests/test_instrumentor.py:85` |
-| ... | ... | ... | ... |
+| Severity | Section | Finding | Location | Origin |
+|----------|---------|---------|----------|--------|
+| Critical | 1.1 | Uses broken tox install pattern | `python/tox.ini:142` | Pre-existing |
+| High | 2.3 | Tests don't use exhaustive pop assertions | `tests/test_instrumentor.py:85` | Introduced |
+| ... | ... | ... | ... | ... |
 
-Then list what's working well — positive findings help the user understand what doesn't
-need to change.
+Drop the Origin column for an audit of an existing package.
+
+Then report the result of the `py314-ci-<pkg>` run from Step 2, and list what's working
+well — positive findings help the user understand what doesn't need to change.
+
+For a finding that changes what a user sees in Phoenix (span tree, span kind, status,
+attributes), offer to prove it with the `phoenix-verify` skill.
 
 Finally, ask the user what they'd like to do:
 - "Fix the issues" — generate patches
-- "Run the tests" — execute `tox run -e test-<pkg>`
 - "Just reviewing" — done
