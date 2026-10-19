@@ -5,7 +5,7 @@ import logging
 import threading
 from collections import OrderedDict
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, Mapping, Optional, Union
 from urllib.parse import urlparse
 
 from agents import MCPListToolsSpanData
@@ -106,13 +106,14 @@ class OpenInferenceTracingProcessor(TracingProcessor):
     ) -> None:
         self._tracer = tracer
         self._tool_span_kinds = _normalize_tool_span_kinds(tool_span_kinds)
-        # Guards the capped insert into _reverse_handoffs_dict below, which is the only
-        # read-modify-write here: every other access to the dicts on this object is a
-        # single subscript, pop or get. Those are atomic because every key here is a str,
-        # so the operation never re-enters the interpreter to hash or compare -- a key
-        # with a Python-level __hash__ or __eq__ would not get that. The SDK invokes these
-        # callbacks on whichever thread is running the agent, so a process driving
-        # Runner.run_sync from several threads reaches them concurrently.
+        # Guards the capped insert into _reverse_handoffs_dict below and the draining
+        # state (see drain()), the only read-modify-writes here: every other access to
+        # the dicts on this object is a single subscript, pop or get. Those are atomic
+        # because every key here is a str, so the operation never re-enters the
+        # interpreter to hash or compare -- a key with a Python-level __hash__ or __eq__
+        # would not get that. The SDK invokes these callbacks on whichever thread is
+        # running the agent, so a process driving Runner.run_sync from several threads
+        # reaches them concurrently.
         self._lock = threading.Lock()
         # Spans and traces still in flight, deliberately unbounded. The number of
         # simultaneously open spans scales with how many runs are in flight, so any cap
@@ -129,6 +130,36 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         # Use an OrderedDict and _MAX_HANDOFFS_IN_FLIGHT to cap the size of the dict
         # in case there are large numbers of orphaned handoffs
         self._reverse_handoffs_dict: OrderedDict[str, str] = OrderedDict()
+        # Set by drain(): no new traces are started, and on_drained is called once the
+        # traces and spans already in flight have all ended.
+        self._draining = False
+        self._on_drained: Optional[Callable[[], None]] = None
+
+    @property
+    def draining(self) -> bool:
+        return self._draining
+
+    def drain(self, on_drained: Optional[Callable[[], None]] = None) -> None:
+        """Stop tracing new runs, but keep ending the traces and spans already started, so
+        that a run in flight when the instrumentor is removed is still exported whole.
+
+        ``on_drained`` is called once nothing is left in flight -- right away if nothing is
+        -- and is where the caller unregisters this processor, which has to keep receiving
+        the end events until then.
+        """
+        with self._lock:
+            self._draining = True
+            self._on_drained = on_drained
+        self._notify_if_drained()
+
+    def _notify_if_drained(self) -> None:
+        if not self._draining:
+            return
+        with self._lock:
+            if self._root_spans or self._otel_spans or (on_drained := self._on_drained) is None:
+                return
+            self._on_drained = None
+        on_drained()
 
     def _get_span_kind(self, data: SpanData) -> str:
         if isinstance(data, FunctionSpanData) and (kind := self._tool_span_kinds.get(data.name)):
@@ -141,13 +172,18 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         Args:
             trace: The trace that started.
         """
-        otel_span = self._tracer.start_span(
-            name=trace.name,
-            attributes={
-                OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
-            },
-        )
-        self._root_spans[trace.trace_id] = otel_span
+        # Under the lock so that drain() cannot find this processor idle, and have it
+        # unregistered, between the check and the insert -- the trace would never end.
+        with self._lock:
+            if self._draining:
+                return
+            otel_span = self._tracer.start_span(
+                name=trace.name,
+                attributes={
+                    OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+                },
+            )
+            self._root_spans[trace.trace_id] = otel_span
 
     def on_trace_end(self, trace: Trace) -> None:
         """Called when a trace is finished.
@@ -159,6 +195,7 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         if root_span:
             root_span.set_status(Status(StatusCode.OK))
             root_span.end()
+        self._notify_if_drained()
 
     def on_span_start(self, span: Span[Any]) -> None:
         """Called when a span is started.
@@ -167,6 +204,12 @@ class OpenInferenceTracingProcessor(TracingProcessor):
             span: The span that started.
         """
         if not span.started_at:
+            return
+        # Only trace spans of traces this processor started. A processor registered while
+        # a run is in flight (re-instrumenting mid-run) would otherwise record the rest of
+        # that run as orphaned root spans, duplicating what the previous processor, still
+        # draining, records for it.
+        if span.trace_id not in self._root_spans:
             return
         start_time = datetime.fromisoformat(span.started_at)
         parent_span = (
@@ -201,6 +244,8 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         otel_span = self._otel_spans.pop(span.span_id, None)
         if token:
             detach(token)  # type: ignore[arg-type]
+        # Safe before the span is ended below: unregistering only affects later events.
+        self._notify_if_drained()
         if otel_span is None:
             return
         otel_span.update_name(_get_span_name(span))
