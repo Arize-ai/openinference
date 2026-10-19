@@ -37,7 +37,7 @@ Copy this checklist and work through it in order. `$SCRATCH` is your session scr
 5. **Read the spans back.** Fetch once to a file, check the count, then render from the file so every view sees the same spans (the script's own fetch uses px's default of the newest 100):
 
    ```bash
-   S="<this skill's directory>/scripts/span_tree.sh"   # absolute: steps 3 and 8 run from package dirs
+   S="$(git rev-parse --show-toplevel)/.agents/skills/phoenix-verify/scripts/span_tree.sh"   # absolute: steps 3 and 8 run from package dirs
    F="$SCRATCH/<project>.spans.json"
    px span list --project <project> --format raw --no-progress --limit 500 > "$F" && jq length "$F"   # count first
    "$S" "$F"            # name [KIND] status, nested
@@ -47,9 +47,8 @@ Copy this checklist and work through it in order. `$SCRATCH` is your session scr
    "$S" <project> errors -- --last-n-minutes 10 --limit 500    # live fetch instead; any px span list flags after --
    ```
 
-   `<this skill's directory>` is the directory this SKILL.md was loaded from. It equals
-   `$(git rev-parse --show-toplevel)/.agents/skills/phoenix-verify` only when you verify in the checkout that
-   holds this skill; a PR worktree under review can carry an older copy of the script.
+   If you run from a second checkout of this repo (a PR worktree under review), `S` resolves to that
+   branch's copy of the script, which can be older; point `S` at the copy beside this SKILL.md instead.
    Name saved files after the project and keep the `.json` suffix (that is how the script tells a file from a project name). A shared name like `spans.json` gets overwritten by a parallel run. If jq reports `Invalid numeric literal`, px printed an error, not JSON; the script exits 1 with the same diagnosis. Targeted jq recipes and the before/after diff are in [readback-cli.md](references/readback-cli.md). Without px, use [readback-mcp.md](references/readback-mcp.md) instead; it renders the same tree, keys, values, errors, and diff from `getSpans` and follows the same count-first rule.
 6. **Judge the claim.** Compare the output to step 1. If it does not match, the fix is not done. Do not weaken the claim to fit the output. An empty before/after diff is the right answer for a parity claim and the wrong answer for a fix.
 7. **Report the evidence.** Use one of these shapes in the PR body or final message:
