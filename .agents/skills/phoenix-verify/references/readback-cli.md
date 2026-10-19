@@ -5,7 +5,7 @@ views see the same spans. A jq `Invalid numeric literal` error means px wrote an
 not JSON: check the project name and that Phoenix is up.
 
 ```bash
-S="$(git rev-parse --show-toplevel)/.agents/skills/phoenix-verify/scripts/span_tree.sh"
+S="<this skill's directory>/scripts/span_tree.sh"   # the directory SKILL.md was loaded from (SKILL.md step 5)
 F="$SCRATCH/<project>.spans.json"
 px span list --project <project> --format raw --no-progress --limit 500 > "$F" && jq length "$F"
 "$S" "$F"            # name [KIND] status, nested

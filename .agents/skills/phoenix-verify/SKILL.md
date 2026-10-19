@@ -22,8 +22,8 @@ connected. Read only the one you will use.
 
 ## Prerequisites
 
+- **`px` >= 1.0 and `jq` on PATH**, or the Phoenix MCP server connected. Check with `px --version`: a 0.x `px` has no `project list` command, so the next check fails with `unknown command 'project'`. Without a current `px`, use `npx -y @arizeai/phoenix-cli@latest` wherever this skill says `px`. Current releases need the Node version in `npm view @arizeai/phoenix-cli engines` (>= 22 as of 1.18); an older Node fails with `does not provide an export named 'styleText'`. `--attribute` filters need Phoenix server >= 14.9.0.
 - **Phoenix reachable.** CLI: `px project list --format raw --no-progress > /dev/null && echo "phoenix ok at ${PHOENIX_HOST:-http://localhost:6006}"` must print the ok line. MCP: `call_tool("getProjects", {})` must return `data`. If either errors (`fetch failed`), stop and report NOT VERIFIED (template in step 7). `px auth status` also works as a check: it exits 5 and reports `"status":"unverified"` when the server is unreachable, but its output mixes auth state with connectivity, so the `project list` line is the simpler yes/no. Default host is `http://localhost:6006` (OTLP HTTP on `/v1/traces`, gRPC on `4317`); set `PHOENIX_HOST` for px if different, and point the example's exporter at the same host. Start one with `uvx arize-phoenix serve` (or `docker run -p 6006:6006 -p 4317:4317 arizephoenix/phoenix:latest`).
-- **`px` and `jq` on PATH** (`npx @arizeai/phoenix-cli` also works), or the Phoenix MCP server connected. `--attribute` filters need Phoenix server >= 14.9.0.
 - **Provider API keys** exported when the example calls a model. Prefer an offline example (canned replies, tool-only) when the claim does not depend on model output. Some packages have none; say so rather than inventing one.
 
 ## Workflow
@@ -37,7 +37,7 @@ Copy this checklist and work through it in order. `$SCRATCH` is your session scr
 5. **Read the spans back.** Fetch once to a file, check the count, then render from the file so every view sees the same spans (the script's own fetch uses px's default of the newest 100):
 
    ```bash
-   S="$(git rev-parse --show-toplevel)/.agents/skills/phoenix-verify/scripts/span_tree.sh"   # absolute: steps 3 and 8 run from package dirs
+   S="<this skill's directory>/scripts/span_tree.sh"   # absolute: steps 3 and 8 run from package dirs
    F="$SCRATCH/<project>.spans.json"
    px span list --project <project> --format raw --no-progress --limit 500 > "$F" && jq length "$F"   # count first
    "$S" "$F"            # name [KIND] status, nested
@@ -47,6 +47,9 @@ Copy this checklist and work through it in order. `$SCRATCH` is your session scr
    "$S" <project> errors -- --last-n-minutes 10 --limit 500    # live fetch instead; any px span list flags after --
    ```
 
+   `<this skill's directory>` is the directory this SKILL.md was loaded from. It equals
+   `$(git rev-parse --show-toplevel)/.agents/skills/phoenix-verify` only when you verify in the checkout that
+   holds this skill; a PR worktree under review can carry an older copy of the script.
    Name saved files after the project and keep the `.json` suffix (that is how the script tells a file from a project name). A shared name like `spans.json` gets overwritten by a parallel run. If jq reports `Invalid numeric literal`, px printed an error, not JSON; the script exits 1 with the same diagnosis. Targeted jq recipes and the before/after diff are in [readback-cli.md](references/readback-cli.md). Without px, use [readback-mcp.md](references/readback-mcp.md) instead; it renders the same tree, keys, values, errors, and diff from `getSpans` and follows the same count-first rule.
 6. **Judge the claim.** Compare the output to step 1. If it does not match, the fix is not done. Do not weaken the claim to fit the output. An empty before/after diff is the right answer for a parity claim and the wrong answer for a fix.
 7. **Report the evidence.** Use one of these shapes in the PR body or final message:
