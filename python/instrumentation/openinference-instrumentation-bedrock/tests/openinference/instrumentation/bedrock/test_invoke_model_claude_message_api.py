@@ -332,9 +332,7 @@ def test_request_attributes_agree_across_paths(system: Any) -> None:
         assert json.loads(attributes["llm.invocation_parameters"]) == {"max_tokens": 50}
         for i, tool in enumerate(body["tools"]):
             assert json.loads(attributes[f"llm.tools.{i}.tool.json_schema"]) == tool
-        assert attributes["llm.input_messages.0.message.role"] == (
-            "system" if system else "user"
-        )
+        assert attributes["llm.input_messages.0.message.role"] == "system" if system else "user"
         if system:
             assert attributes["llm.input_messages.1.message.role"] == "user"
             texts = [system] if isinstance(system, str) else [block["text"] for block in system]
@@ -401,10 +399,7 @@ def _assert_invoke_model_span_attributes(
         == "Can you explain LLMs in plain English?"
     )
     assert attributes.pop("llm.input_messages.2.message.role") == "user"
-    assert (
-        attributes.pop("llm.invocation_parameters")
-        == '{"max_tokens": 1000, "temperature": 0.7}'
-    )
+    assert attributes.pop("llm.invocation_parameters") == '{"max_tokens": 1000, "temperature": 0.7}'
     assert attributes.pop("llm.model_name") == "claude-3-haiku-20240307"
     assert attributes.pop("llm.finish_reason") == "end_turn"
     assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
@@ -438,9 +433,7 @@ def _assert_invoke_model_with_image_span_attributes(attributes: Dict[str, Any]) 
     assert input_value["messages"][0]["content"][1]["source"]["data"].startswith("R0lGOD")
     assert attributes.pop("llm.input_messages.0.message.contents.1.message_content.type") == "image"
     assert attributes.pop("llm.input_messages.0.message.role") == "user"
-    assert (
-        attributes.pop("llm.invocation_parameters") == '{"max_tokens": 1000, "temperature": 0.7}'
-    )
+    assert attributes.pop("llm.invocation_parameters") == '{"max_tokens": 1000, "temperature": 0.7}'
     assert attributes.pop("llm.model_name") == "claude-3-haiku-20240307"
     assert attributes.pop("llm.finish_reason") == "end_turn"
     assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
