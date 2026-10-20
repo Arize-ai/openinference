@@ -1265,7 +1265,10 @@ async def _finalize_aresponses_streaming_span(span: trace_api.Span, stream: Any)
                     _finalize_span(span, token.response)
                     span.end()
                 yield token
-        except Exception as e:
+        except GeneratorExit:
+            # The caller closed the stream early, which is not an error.
+            raise
+        except BaseException as e:
             if span.is_recording():
                 span.record_exception(e)
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
@@ -1291,7 +1294,10 @@ def _finalize_responses_streaming_span(span: trace_api.Span, stream: Any) -> Any
                     _finalize_span(span, token.response)
                     span.end()
                 yield token
-        except Exception as e:
+        except GeneratorExit:
+            # The caller closed the stream early, which is not an error.
+            raise
+        except BaseException as e:
             if span.is_recording():
                 span.record_exception(e)
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
@@ -1471,7 +1477,10 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_responses(span, kwargs)
 
             try:
-                result = self.original_litellm_funcs["responses"](*args, **kwargs)
+                with trace_api.use_span(
+                    span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+                ):
+                    result = self.original_litellm_funcs["responses"](*args, **kwargs)
             except BaseException as e:
                 _end_span_with_error(span, e)
                 raise
@@ -1500,7 +1509,10 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             )
             _instrument_func_type_responses(span, kwargs)
             try:
-                result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
+                with trace_api.use_span(
+                    span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+                ):
+                    result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
             except BaseException as e:
                 _end_span_with_error(span, e)
                 raise
@@ -1534,7 +1546,10 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_completion(span, kwargs)
 
             try:
-                result = self.original_litellm_funcs["completion"](*args, **kwargs)
+                with trace_api.use_span(
+                    span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+                ):
+                    result = self.original_litellm_funcs["completion"](*args, **kwargs)
             except BaseException as e:
                 _end_span_with_error(span, e)
                 raise
@@ -1565,7 +1580,10 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_completion(span, kwargs)
 
             try:
-                result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
+                with trace_api.use_span(
+                    span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+                ):
+                    result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
             except BaseException as e:
                 _end_span_with_error(span, e)
                 raise

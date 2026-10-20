@@ -7,7 +7,10 @@ from unittest.mock import MagicMock, patch
 import litellm
 import pytest
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
-from litellm.responses.streaming_iterator import ResponsesAPIStreamingIterator
+from litellm.responses.streaming_iterator import (
+    ResponsesAPIStreamingIterator,
+    SyncResponsesAPIStreamingIterator,
+)
 from litellm.types.llms.openai import ResponsesAPIStreamEvents
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -358,6 +361,7 @@ async def test_failed_streaming_call_ends_span(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].status.status_code == StatusCode.ERROR
+    assert [event.name for event in spans[0].events] == ["exception"]
 
 
 async def test_async_stream_discarded_unread_ends_span(
@@ -481,3 +485,158 @@ async def test_aresponses_stream_error_ends_span(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].status.status_code == StatusCode.ERROR
+
+
+class _BlockingResponsesStream(ResponsesAPIStreamingIterator):
+    def __init__(self) -> None:
+        self._sent = False
+        self.blocked = asyncio.Event()
+
+    def __aiter__(self) -> Any:
+        return self
+
+    async def __anext__(self) -> Any:
+        if not self._sent:
+            self._sent = True
+            return SimpleNamespace(type=ResponsesAPIStreamEvents.OUTPUT_TEXT_DELTA)
+        self.blocked.set()
+        await asyncio.Event().wait()
+
+
+class _FakeSyncResponsesStream(SyncResponsesAPIStreamingIterator):
+    def __init__(self, events: List[Any]) -> None:
+        self._events = list(events)
+
+    def __iter__(self) -> Any:
+        return self
+
+    def __next__(self) -> Any:
+        if not self._events:
+            raise StopIteration
+        event = self._events.pop(0)
+        if isinstance(event, BaseException):
+            raise event
+        return event
+
+
+async def test_aresponses_stream_cancelled_mid_stream_ends_span_with_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+    stream = _BlockingResponsesStream()
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["aresponses"]
+
+    async def fake_aresponses(*args: Any, **kwargs: Any) -> Any:
+        return stream
+
+    LiteLLMInstrumentor.original_litellm_funcs["aresponses"] = fake_aresponses
+    try:
+        response = await litellm.aresponses(model="gpt-4o-mini", input="Hi", stream=True)
+
+        async def consume() -> None:
+            async for _ in response:
+                pass
+
+        task = asyncio.create_task(consume())
+        await stream.blocked.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["aresponses"] = original_func
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == StatusCode.ERROR
+    assert [event.name for event in span.events] == ["exception"]
+    assert span.events[0].attributes is not None
+    cancelled = asyncio.CancelledError
+    assert span.events[0].attributes["exception.type"] == (
+        f"{cancelled.__module__}.{cancelled.__qualname__}"
+    )
+
+
+def test_responses_stream_interrupted_mid_stream_ends_span_with_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+    interrupt = KeyboardInterrupt()
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["responses"]
+
+    def fake_responses(*args: Any, **kwargs: Any) -> Any:
+        return _FakeSyncResponsesStream(
+            [SimpleNamespace(type=ResponsesAPIStreamEvents.OUTPUT_TEXT_DELTA), interrupt]
+        )
+
+    LiteLLMInstrumentor.original_litellm_funcs["responses"] = fake_responses
+    try:
+        response = litellm.responses(model="gpt-4o-mini", input="Hi", stream=True)
+        with pytest.raises(KeyboardInterrupt) as excinfo:
+            for _ in response:
+                pass
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["responses"] = original_func
+
+    assert excinfo.value is interrupt
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == StatusCode.ERROR
+    assert [event.name for event in span.events] == ["exception"]
+    assert span.events[0].attributes is not None
+    assert span.events[0].attributes["exception.type"] == "KeyboardInterrupt"
+
+
+async def test_aresponses_stream_closed_early_ends_span_without_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["aresponses"]
+
+    async def fake_aresponses(*args: Any, **kwargs: Any) -> Any:
+        return _FakeResponsesStream(
+            [
+                SimpleNamespace(type=ResponsesAPIStreamEvents.OUTPUT_TEXT_DELTA),
+                SimpleNamespace(type=ResponsesAPIStreamEvents.OUTPUT_TEXT_DELTA),
+            ]
+        )
+
+    LiteLLMInstrumentor.original_litellm_funcs["aresponses"] = fake_aresponses
+    try:
+        response = await litellm.aresponses(model="gpt-4o-mini", input="Hi", stream=True)
+        await response.__anext__()
+        await response.aclose()
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["aresponses"] = original_func
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == StatusCode.UNSET
+    assert not span.events
+
+
+def test_responses_stream_closed_early_ends_span_without_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["responses"]
+
+    def fake_responses(*args: Any, **kwargs: Any) -> Any:
+        return _FakeSyncResponsesStream(
+            [
+                SimpleNamespace(type=ResponsesAPIStreamEvents.OUTPUT_TEXT_DELTA),
+                SimpleNamespace(type=ResponsesAPIStreamEvents.OUTPUT_TEXT_DELTA),
+            ]
+        )
+
+    LiteLLMInstrumentor.original_litellm_funcs["responses"] = fake_responses
+    try:
+        response = litellm.responses(model="gpt-4o-mini", input="Hi", stream=True)
+        next(response)
+        response.close()
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["responses"] = original_func
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == StatusCode.UNSET
+    assert not span.events
