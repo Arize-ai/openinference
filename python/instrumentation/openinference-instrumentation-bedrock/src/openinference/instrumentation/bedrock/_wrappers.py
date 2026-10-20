@@ -63,6 +63,17 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
+def _end_span_on_stream_end(span: Span) -> Callable[[Any], Any]:
+    def callback(obj: Any) -> Any:
+        if isinstance(obj, (StopIteration, StopAsyncIteration)):
+            _finish(span, None, {}, isinstance(obj, _StreamClosed))
+        elif isinstance(obj, BaseException):
+            _finish(span, obj, {})
+        return obj
+
+    return callback
+
+
 class _NovaStreamCallback:
     """
     Processes Amazon Nova invoke_model_with_response_stream events.
@@ -404,14 +415,14 @@ class _InvokeModelWithResponseStream(_WithTracer):
         except Exception:
             logger.warning("Failed to extract input attributes", exc_info=True)
             try:
+                span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
                 if isinstance(response.get("body"), EventStream):
                     response["body"] = _EventStream(
                         response["body"],
-                        lambda obj: _finish(span, obj, {}),
+                        _end_span_on_stream_end(span),
                         _use_span(span),
                     )
                     return response
-                span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
                 span.end()
                 return response
             except Exception:

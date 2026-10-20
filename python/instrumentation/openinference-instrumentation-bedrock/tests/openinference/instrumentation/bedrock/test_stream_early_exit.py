@@ -374,6 +374,55 @@ def test_span_ends_when_stream_is_left_before_first_event(
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
+def _unparsed_body_stream() -> Any:
+    client = _client("bedrock-runtime")
+    return client.invoke_model_with_response_stream(
+        modelId=_MODEL_IDS["anthropic"], body=b"not json"
+    )["body"]
+
+
+def _close_before_first_event(open_stream: Callable[[], Any]) -> None:
+    open_stream().close()
+
+
+@pytest.mark.parametrize(
+    "leave, status_code",
+    [
+        (_read_all, StatusCode.OK),
+        (_break, StatusCode.UNSET),
+        (_close, StatusCode.UNSET),
+        (_drop, StatusCode.UNSET),
+        (_close_before_first_event, StatusCode.UNSET),
+    ],
+    ids=["read_all", "break", "close", "drop", "close_before_first_event"],
+)
+def test_unparsed_body_stream_span_ends_when_stream_is_left(
+    leave: Callable[[Callable[[], Any]], None],
+    status_code: StatusCode,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A captured log record keeps the traceback, and with it the stream, alive.
+    wrappers_logger = logging.getLogger("openinference.instrumentation.bedrock._wrappers")
+    monkeypatch.setattr(wrappers_logger, "disabled", True)
+    leave(_unparsed_body_stream)
+    span = _only_span(in_memory_span_exporter)
+    assert span.name == "bedrock.invoke_model_with_response_stream"
+    assert span.status.status_code == status_code
+    assert not span.events
+    assert dict(span.attributes or {}) == {
+        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value
+    }
+
+
+def test_unparsed_body_stream_span_does_not_end_while_stream_is_read(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    for _ in _unparsed_body_stream():
+        assert not in_memory_span_exporter.get_finished_spans()
+    assert _only_span(in_memory_span_exporter).status.status_code == StatusCode.OK
+
+
 async def _async_read_all(stream: Any) -> None:
     async for _ in stream:
         pass
