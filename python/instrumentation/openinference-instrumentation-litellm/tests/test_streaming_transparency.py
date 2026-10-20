@@ -1,12 +1,13 @@
 import asyncio
 from typing import Any, Dict, Generator
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import litellm
 import pytest
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 
 from openinference.instrumentation.litellm import (
     LiteLLMInstrumentor,
@@ -231,3 +232,28 @@ def test_sync_close_tolerates_wrapped_without_close() -> None:
     # Older litellm versions have no close on the wrapped stream.
     proxy = _TracedSyncStream(object(), _finalize_sync_streaming_span(MagicMock(), iter([])))
     proxy.close()
+
+
+def test_sync_early_close_closes_underlying_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    response: Any = litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=[{"content": "What's the capital of China?", "role": "user"}],
+        mock_response="The capital of China is Beijing",
+        stream=True,
+    )
+    next(response)
+
+    with patch.object(CustomStreamWrapper, "close", create=True) as wrapped_close:
+        response.close()
+
+    wrapped_close.assert_called_once_with()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "completion"
+    assert spans[0].status.status_code == StatusCode.UNSET
+    assert not spans[0].events
