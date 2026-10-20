@@ -393,6 +393,99 @@ describe("OpenAIInstrumentation", () => {
       }
     `);
   });
+  it("keeps streamed parallel tool calls apart", async () => {
+    const toolCall = (index: number, rest: object) => ({
+      choices: [{ delta: { tool_calls: [{ index, ...rest }] } }],
+    });
+    vi.spyOn(openai, "post").mockImplementation(
+      mockAPIPromise(openai, async () => {
+        const iterator = () =>
+          (async function* () {
+            yield toolCall(0, {
+              id: "call_paris",
+              type: "function",
+              function: { name: "getWeather", arguments: "" },
+            });
+            yield toolCall(1, {
+              id: "call_tokyo",
+              type: "function",
+              function: { name: "getWeather", arguments: "" },
+            });
+            yield toolCall(0, { function: { arguments: '{"location":' } });
+            yield toolCall(1, { function: { arguments: '{"location":"Tokyo"}' } });
+            yield toolCall(0, { function: { arguments: '"Paris"}' } });
+            yield { choices: [{ delta: {}, finish_reason: "tool_calls" }] };
+          })();
+        const controller = new AbortController();
+        return new Stream(iterator, controller);
+      }),
+    );
+    const stream = await openai.chat.completions.create({
+      messages: [{ role: "user", content: "Weather in Paris and Tokyo?" }],
+      model: "gpt-3.5-turbo",
+      stream: true,
+    });
+    for await (const _chunk of stream) {
+      // consume the stream so the span is recorded
+    }
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const prefix = "llm.output_messages.0.message.tool_calls";
+    expect(spans[0].attributes).toMatchObject({
+      [`${prefix}.0.tool_call.id`]: "call_paris",
+      [`${prefix}.0.tool_call.function.name`]: "getWeather",
+      [`${prefix}.0.tool_call.function.arguments`]: '{"location":"Paris"}',
+      [`${prefix}.1.tool_call.id`]: "call_tokyo",
+      [`${prefix}.1.tool_call.function.name`]: "getWeather",
+      [`${prefix}.1.tool_call.function.arguments`]: '{"location":"Tokyo"}',
+    });
+  });
+  it("keeps streamed tool calls apart when the provider omits their index", async () => {
+    const wholeCall = (id: string, location: string) => ({
+      choices: [
+        {
+          delta: {
+            tool_calls: [
+              {
+                id,
+                type: "function",
+                function: { name: "getWeather", arguments: JSON.stringify({ location }) },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    vi.spyOn(openai, "post").mockImplementation(
+      mockAPIPromise(openai, async () => {
+        const iterator = () =>
+          (async function* () {
+            yield wholeCall("call_paris", "Paris");
+            yield wholeCall("call_tokyo", "Tokyo");
+            yield { choices: [{ delta: {}, finish_reason: "stop" }] };
+          })();
+        const controller = new AbortController();
+        return new Stream(iterator, controller);
+      }),
+    );
+    const stream = await openai.chat.completions.create({
+      messages: [{ role: "user", content: "Weather in Paris and Tokyo?" }],
+      model: "gemini-3.5-flash",
+      stream: true,
+    });
+    for await (const _chunk of stream) {
+      // consume the stream so the span is recorded
+    }
+
+    const prefix = "llm.output_messages.0.message.tool_calls";
+    expect(memoryExporter.getFinishedSpans()[0].attributes).toMatchObject({
+      [`${prefix}.0.tool_call.id`]: "call_paris",
+      [`${prefix}.0.tool_call.function.arguments`]: '{"location":"Paris"}',
+      [`${prefix}.1.tool_call.id`]: "call_tokyo",
+      [`${prefix}.1.tool_call.function.arguments`]: '{"location":"Tokyo"}',
+    });
+  });
   it("should capture tool calls", async () => {
     // Mock out the embedding create endpoint
     const response1 = {

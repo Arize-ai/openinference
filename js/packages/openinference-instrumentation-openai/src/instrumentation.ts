@@ -1005,6 +1005,7 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   // So the final tool and function calls need to be aggregated
   // across chunks
   const toolAndFunctionCallAttributes: Attributes = {};
+  const streamedToolCalls: StreamedToolCallsState = { maxIndex: -1 };
   let finishReason: string | undefined;
   // The first message is for the assistant response so we start at 1
   for await (const chunk of stream) {
@@ -1024,8 +1025,10 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
       finishReason = choice.finish_reason;
     }
     // Accumulate the tool and function call attributes
-    const toolAndFunctionCallAttributesDiff =
-      getToolAndFunctionCallAttributesFromStreamChunk(chunk);
+    const toolAndFunctionCallAttributesDiff = getToolAndFunctionCallAttributesFromStreamChunk(
+      chunk,
+      streamedToolCalls,
+    );
     for (const [key, value] of Object.entries(toolAndFunctionCallAttributesDiff)) {
       if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
         toolAndFunctionCallAttributes[key] += value;
@@ -1055,16 +1058,57 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
 }
 
 /**
+ * Tracks which tool call a streamed delta belongs to across the chunks of one stream
+ */
+type StreamedToolCallsState = {
+  maxIndex: number;
+  latestIndex?: number;
+  latestId?: string;
+};
+
+/**
+ * Returns the position of the tool call a streamed delta belongs to. Deltas carry the
+ * `index` of their call. Some OpenAI-compatible APIs (e.g. Gemini) omit it and send each
+ * parallel call whole in its own chunk: there, a new id, or a name without an id, starts
+ * a call, and anything else continues the latest one.
+ */
+function resolveStreamedToolCallIndex(
+  toolCall: ChatCompletionChunk.Choice.Delta.ToolCall,
+  state: StreamedToolCallsState,
+): number {
+  let index: number;
+  if (typeof toolCall.index === "number") {
+    index = toolCall.index;
+  } else {
+    const startsCall =
+      state.latestIndex === undefined ||
+      (toolCall.id ? toolCall.id !== state.latestId : Boolean(toolCall.function?.name));
+    index = startsCall || state.latestIndex === undefined ? state.maxIndex + 1 : state.latestIndex;
+  }
+  if (index !== state.latestIndex) {
+    state.latestId = undefined;
+  }
+  state.latestIndex = index;
+  state.latestId = toolCall.id || state.latestId;
+  state.maxIndex = Math.max(state.maxIndex, index);
+  return index;
+}
+
+/**
  * Extracts the semantic attributes from the stream chunk for tool_calls and function_calls
  */
-function getToolAndFunctionCallAttributesFromStreamChunk(chunk: ChatCompletionChunk): Attributes {
+function getToolAndFunctionCallAttributesFromStreamChunk(
+  chunk: ChatCompletionChunk,
+  streamedToolCalls: StreamedToolCallsState,
+): Attributes {
   if (chunk.choices.length <= 0) {
     return {};
   }
   const choice = chunk.choices[0];
   const attributes: Attributes = {};
   if (choice.delta.tool_calls) {
-    choice.delta.tool_calls.forEach((toolCall, index) => {
+    choice.delta.tool_calls.forEach((toolCall) => {
+      const index = resolveStreamedToolCallIndex(toolCall, streamedToolCalls);
       const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
       // Add the tool call id if it exists
       if (toolCall.id) {
