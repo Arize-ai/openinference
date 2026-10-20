@@ -18,6 +18,7 @@ from openinference.semconv.trace import (
     MessageContentAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolCallAttributes,
 )
 
 
@@ -699,6 +700,118 @@ def test_chat_completion_with_failing_generator_content(
             )
     assert not route.called
     _assert_failed_content_span(in_memory_span_exporter)
+
+
+def _tool_calls_completion_payload() -> dict[str, Any]:
+    return {
+        "id": "chatcmpl-tool-calls",
+        "object": "chat.completion",
+        "created": 1750000000,
+        "model": "gpt-4o-mini",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_one",
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": '{"city": "New York"}',
+                            },
+                        },
+                        {
+                            "id": "call_two",
+                            "type": "function",
+                            "function": {
+                                "name": "get_time",
+                                "arguments": '{"timezone": "EST"}',
+                            },
+                        },
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+    }
+
+
+def _assert_tool_calls_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    expected_attributes = {
+        f"{message}.{MessageAttributes.MESSAGE_ROLE}": "assistant",
+        f"{message}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}": (
+            "call_one"
+        ),
+        (
+            f"{message}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        ): "get_weather",
+        (
+            f"{message}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ): '{"city": "New York"}',
+        f"{message}.{MessageAttributes.MESSAGE_TOOL_CALLS}.1.{ToolCallAttributes.TOOL_CALL_ID}": (
+            "call_two"
+        ),
+        (
+            f"{message}.{MessageAttributes.MESSAGE_TOOL_CALLS}.1."
+            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        ): "get_time",
+        (
+            f"{message}.{MessageAttributes.MESSAGE_TOOL_CALLS}.1."
+            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ): '{"timezone": "EST"}',
+        SpanAttributes.LLM_FINISH_REASON: "tool_calls",
+    }
+    for key, expected_value in expected_attributes.items():
+        assert attributes.pop(key, "<missing>") == expected_value
+
+
+def test_chat_completion_records_tool_calls_on_output_message(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(status_code=200, json=_tool_calls_completion_payload())
+        )
+        portkey = import_module("portkey_ai")
+        client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+        client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "What is the weather and time?"}],
+        )
+    _assert_tool_calls_attributes(in_memory_span_exporter)
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_records_tool_calls_on_output_message(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(status_code=200, json=_tool_calls_completion_payload())
+        )
+        portkey = import_module("portkey_ai")
+        client = portkey.AsyncPortkey(api_key="REDACTED", virtual_key="REDACTED")
+        await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "What is the weather and time?"}],
+        )
+    _assert_tool_calls_attributes(in_memory_span_exporter)
 
 
 @pytest.mark.asyncio
