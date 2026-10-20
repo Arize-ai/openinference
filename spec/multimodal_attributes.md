@@ -1,6 +1,6 @@
 # Multimodal Attributes
 
-This document describes how message content arrays represent multimodal content (text, images, audio, video) in OpenInference spans. The same `message.contents` structure is also used for reasoning and provider-native tool-use parts when item ordering must be preserved.
+This document describes how message content arrays represent multimodal content (text, images, audio, video, file documents such as PDFs) in OpenInference spans. The same `message.contents` structure is also used for reasoning and provider-native tool-use parts when item ordering must be preserved.
 
 Vendor mappings live in [`internal_docs/specs/audio_video/`](../internal_docs/specs/audio_video/vendor_comparison.md). openai-agents realtime still emits instrumentor-local `input.audio.*` and `output.audio.*` strings. Those keys are not published `SpanAttributes` yet.
 
@@ -24,6 +24,7 @@ Each content item has a `type` attribute that identifies its kind:
 - `"image"` - Image content (URL or base64)
 - `"audio"` - Audio content (URL or base64)
 - `"video"` - Video content (URL or base64)
+- `"document"` - File document content such as a PDF (URL or base64)
 - `"reasoning"` - Reasoning or thinking content, including visible summaries and Anthropic `redacted_thinking`
 - `"tool_use"` - Provider-native tool-use part when a tool call must remain ordered relative to adjacent content items
 
@@ -78,6 +79,31 @@ llm.input_messages.0.message.contents.3.message_content.video.video.url = "data:
 Do not emit a MIME type attribute for video. Consumers infer MIME type from the URL path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix. Copy `gs://`, `s3://`, and `https://` URIs verbatim. Do not put video in `image.url`. Do not store provider file ids in `video.url`.
 
 The doubled prefix (`message_content.video.video.url`) matches `message_content.image.image.url`. It is the concatenation of `message_content.video` and `video.url`.
+
+### Document Content
+
+File documents passed to a model, such as PDFs, use `message_content.type` `"document"`:
+
+```
+llm.input_messages.0.message.contents.4.message_content.type = "document"
+llm.input_messages.0.message.contents.4.message_content.document.document.url = "https://example.com/report.pdf"
+llm.input_messages.0.message.contents.4.message_content.document.document.mime_type = "application/pdf"
+```
+
+For base64-encoded documents:
+
+```
+llm.input_messages.0.message.contents.4.message_content.type = "document"
+llm.input_messages.0.message.contents.4.message_content.document.document.url = "data:application/pdf;base64,JVBERi0xLjcK..."
+llm.input_messages.0.message.contents.4.message_content.document.document.mime_type = "application/pdf"
+```
+
+- `document.url` may be an absolute URI (`https://`, `s3://`, `gs://`, ...) or a base64 data URI. Copy object-store URIs verbatim. Build a data URI from provider base64 payloads (for example Anthropic `document` blocks with a `base64` source, OpenAI `file_data`, or Gemini `inline_data`). Do not store provider file ids in `document.url`.
+- Emit `document.mime_type` whenever the MIME type is known. Unlike audio and video, document URLs often have no file extension (signed URLs, object keys, provider file references), so consumers cannot reliably infer the type.
+- Do not put documents in `image.url`, even when a provider accepts PDFs on an image field.
+- File documents reuse the `document.*` namespace from retrieval. `document.url` and `document.mime_type` describe the file. The retrieval leaves (`document.id`, `document.content`, `document.score`, `document.metadata`) keep their existing meaning and are not emitted on message content.
+
+The doubled prefix (`message_content.document.document.url`) is the concatenation of `message_content.document` and `document.url`, matching `message_content.image.image.url`.
 
 ## External Storage for Large Media
 
@@ -163,6 +189,44 @@ images:
 Support matches what each SDK already does for message-content images: Python enforces the size
 limit and can externalize to a blob uploader; JavaScript enforces the size limit and redacts
 oversized images to `"__REDACTED__"`; Java and Go apply the hide flags only.
+
+## Span-Kind-Independent Documents
+
+File documents such as PDFs follow the same rules as
+[span-kind-independent images](#span-kind-independent-images). Spans other than `LLM` record them
+with the top-level `input.documents` / `output.documents` attributes, for example a `TOOL` span that
+fills in a PDF form or a `CHAIN` step that receives an uploaded file.
+
+### Attribute Pattern
+
+`<input|output>.documents.<documentIndex>.document.<attribute>`
+
+Where:
+- `<documentIndex>` is the zero-based index of the document
+- `<attribute>` is `url` or `mime_type`
+
+```json
+{
+  "openinference.span.kind": "TOOL",
+  "input.documents.0.document.url": "data:application/pdf;base64,JVBERi0xLjcK...",
+  "input.documents.0.document.mime_type": "application/pdf",
+  "output.documents.0.document.url": "https://example.com/filled-form.pdf",
+  "output.documents.0.document.mime_type": "application/pdf"
+}
+```
+
+### Semantics
+
+- `document.url` and `document.mime_type` mean the same thing as under `message_content.document`
+  (see [Document Content](#document-content)).
+- An `LLM` span records its documents inside the messages (`message.contents`). It SHOULD NOT
+  repeat them under `input.documents` / `output.documents`.
+- `input.documents` / `output.documents` are distinct from `retrieval.documents` and
+  `reranker.*_documents`, which list retrieved text passages and use the `document.id`,
+  `document.content`, `document.score`, and `document.metadata` leaves.
+- Shared `TraceConfig.mask()` does not yet hide or size-gate documents, in
+  `input.documents` / `output.documents` or in `message_content.document`. Inline base64 PDFs can
+  exceed attribute and OTLP payload limits. Hide flags and a size limit are a planned follow-up.
 
 ## Privacy Considerations
 

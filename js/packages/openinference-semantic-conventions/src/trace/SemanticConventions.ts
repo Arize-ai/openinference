@@ -110,6 +110,7 @@ export const MessageContentsAttributePostfixes = {
   image: "image",
   audio: "audio",
   video: "video",
+  document: "document",
   id: "id",
   signature: "signature",
   data: "data",
@@ -136,6 +137,8 @@ export const DocumentAttributePostfixes = {
   content: "content",
   score: "score",
   metadata: "metadata",
+  url: "url",
+  mime_type: "mime_type",
 } as const;
 
 export const TagAttributePostfixes = {
@@ -233,6 +236,11 @@ export const INPUT_MIME_TYPE = `${SemanticAttributePrefixes.input}.mime_type` as
  */
 export const INPUT_IMAGES = `${SemanticAttributePrefixes.input}.images` as const;
 /**
+ * File documents (e.g. PDFs) passed as input to a span of any kind. Flattened
+ * with an index, for example `input.documents.0.document.url`.
+ */
+export const INPUT_DOCUMENTS = `${SemanticAttributePrefixes.input}.documents` as const;
+/**
  * The output of any span
  */
 export const OUTPUT_VALUE = `${SemanticAttributePrefixes.output}.value` as const;
@@ -242,6 +250,11 @@ export const OUTPUT_MIME_TYPE = `${SemanticAttributePrefixes.output}.mime_type` 
  * for example `output.images.0.image.url`.
  */
 export const OUTPUT_IMAGES = `${SemanticAttributePrefixes.output}.images` as const;
+/**
+ * File documents (e.g. PDFs) produced as output by a span of any kind.
+ * Flattened with an index, for example `output.documents.0.document.url`.
+ */
+export const OUTPUT_DOCUMENTS = `${SemanticAttributePrefixes.output}.documents` as const;
 /**
  * The messages sent to the LLM for completions
  * Typically seen in OpenAI chat completions
@@ -575,7 +588,7 @@ export const MESSAGE_CONTENTS =
   `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.contents}` as const;
 /**
  * The type of content sent to the LLM, such as "text", "image", "audio",
- * "reasoning", or "tool_use"
+ * "video", "document", "reasoning", or "tool_use"
  */
 export const MESSAGE_CONTENT_TYPE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.type}` as const;
@@ -599,6 +612,11 @@ export const MESSAGE_CONTENT_AUDIO =
  */
 export const MESSAGE_CONTENT_VIDEO =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.video}` as const;
+/**
+ * The file document content (e.g. a PDF) of the message sent to the LLM
+ */
+export const MESSAGE_CONTENT_DOCUMENT =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.document}` as const;
 /**
  * Provider-assigned identifier for this message content item. For OpenAI
  * Responses reasoning items, this maps to ResponseReasoningItem.id and should
@@ -647,6 +665,18 @@ export const DOCUMENT_SCORE =
 
 export const DOCUMENT_METADATA =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.metadata}` as const;
+
+/**
+ * The URL, object-store URI, or base64 data URI of a file document such as a PDF.
+ */
+export const DOCUMENT_URL =
+  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.url}` as const;
+
+/**
+ * The MIME type of a file document, for example `application/pdf`.
+ */
+export const DOCUMENT_MIME_TYPE =
+  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.mime_type}` as const;
 
 /**
  * The text that was embedded to create the vector
@@ -873,9 +903,11 @@ export const SemanticConventions = {
   INPUT_VALUE,
   INPUT_MIME_TYPE,
   INPUT_IMAGES,
+  INPUT_DOCUMENTS,
   OUTPUT_VALUE,
   OUTPUT_MIME_TYPE,
   OUTPUT_IMAGES,
+  OUTPUT_DOCUMENTS,
   LLM_INPUT_MESSAGES,
   LLM_OUTPUT_MESSAGES,
   LLM_MODEL_NAME,
@@ -932,6 +964,7 @@ export const SemanticConventions = {
   MESSAGE_CONTENT_IMAGE,
   MESSAGE_CONTENT_AUDIO,
   MESSAGE_CONTENT_VIDEO,
+  MESSAGE_CONTENT_DOCUMENT,
   MESSAGE_CONTENT_ID,
   MESSAGE_CONTENT_SIGNATURE,
   MESSAGE_CONTENT_DATA,
@@ -942,6 +975,8 @@ export const SemanticConventions = {
   DOCUMENT_CONTENT,
   DOCUMENT_SCORE,
   DOCUMENT_METADATA,
+  DOCUMENT_URL,
+  DOCUMENT_MIME_TYPE,
   EMBEDDING_EMBEDDINGS,
   EMBEDDING_TEXT,
   EMBEDDING_MODEL_NAME,
