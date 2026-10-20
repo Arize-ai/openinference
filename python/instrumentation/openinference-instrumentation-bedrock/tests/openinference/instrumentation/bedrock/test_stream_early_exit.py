@@ -80,7 +80,7 @@ _EVENTS: Dict[str, List[Tuple[str, Dict[str, Any]]]] = {
                     "id": "m",
                     "type": "message",
                     "role": "assistant",
-                    "model": "m",
+                    "model": "claude-3-haiku-20240307",
                     "content": [],
                     "usage": {"input_tokens": 3, "output_tokens": 0},
                 },
@@ -498,7 +498,9 @@ def test_closed_invoke_model_stream_span_attributes(
     assert span.status.status_code == StatusCode.UNSET
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
-    assert attributes.pop(LLM_MODEL_NAME) == "anthropic.claude-3-haiku-20240307-v1:0"
+    assert attributes.pop(LLM_PROVIDER) == "aws"
+    assert attributes.pop(LLM_SYSTEM) == "anthropic"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-haiku-20240307"
     assert attributes.pop(LLM_INVOCATION_PARAMETERS) == json.dumps({"max_tokens": 50})
     assert json.loads(str(attributes.pop(INPUT_VALUE))) == {
         "anthropic_version": "bedrock-2023-05-31",
@@ -512,7 +514,7 @@ def test_closed_invoke_model_stream_span_attributes(
         "id": "m",
         "type": "message",
         "role": "assistant",
-        "model": "m",
+        "model": "claude-3-haiku-20240307",
         "content": [{"text": "one ", "citations": None, "type": "text"}],
         "stop_reason": None,
         "stop_sequence": None,
@@ -639,6 +641,7 @@ LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
