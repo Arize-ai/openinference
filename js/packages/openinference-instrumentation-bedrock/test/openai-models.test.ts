@@ -294,4 +294,33 @@ describe("OpenAI models", () => {
       "llm.input_messages.0.message.contents.1.message_content.text": "from blocks",
     });
   });
+  it.each([
+    {
+      name: "a string",
+      system: "Be brief.",
+      expected: { "llm.input_messages.0.message.content": "Be brief." },
+    },
+    {
+      name: "text blocks",
+      system: [{ type: "text", text: "Be brief." }],
+      expected: { "llm.input_messages.0.message.contents.0.message_content.text": "Be brief." },
+    },
+  ])("records the system prompt of a Claude request given as $name", ({ system, expected }) => {
+    const span = provider.getTracer("test").startSpan("invoke_model");
+    const command = new InvokeModelCommand({
+      modelId: "anthropic.claude-haiku-4-5-20251001-v1:0",
+      body: JSON.stringify({
+        system,
+        messages: [{ role: "user", content: "Hi" }],
+      }),
+    });
+    extractInvokeModelRequestAttributes({ span, command, system: LLMSystem.ANTHROPIC });
+    span.end();
+    expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
+      "llm.input_messages.0.message.role": "system",
+      ...expected,
+      "llm.input_messages.1.message.role": "user",
+      "llm.input_messages.1.message.content": "Hi",
+    });
+  });
 });
