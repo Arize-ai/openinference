@@ -400,7 +400,9 @@ class _RunWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
+            for response in wrapped(*args, **kwargs):
+                yield response
+            return
 
         # For module-level functions, the agent/team is the first argument
         agent_or_team = _get_agent_or_team(instance, args, kwargs)

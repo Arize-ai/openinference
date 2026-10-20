@@ -516,7 +516,9 @@ class _ModelWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
+            for response in wrapped(*args, **kwargs):
+                yield response
+            return
 
         arguments = _bind_arguments(wrapped, *args, **kwargs)
         model = instance
@@ -592,7 +594,7 @@ class _ModelWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
+            return await wrapped(*args, **kwargs)
 
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
