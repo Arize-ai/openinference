@@ -208,6 +208,7 @@ async def test_async_chat_stream(in_memory_span_exporter: InMemorySpanExporter) 
 
 
 _SSE_CONTENTS = ("1", ",", " 2")
+_ENDED_TWICE = "Calling end() on an ended span."
 
 
 def _chunk(content: str) -> Dict[str, Any]:
@@ -243,7 +244,10 @@ def _streaming_response() -> Response:
     )
 
 
-def test_chat_stream_explicit_close(in_memory_span_exporter: InMemorySpanExporter) -> None:
+def test_chat_stream_explicit_close(
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
         respx_mock.post("/v1/chat/completions").mock(return_value=_streaming_response())
         stream = Together().chat.completions.create(
@@ -254,6 +258,10 @@ def test_chat_stream_explicit_close(in_memory_span_exporter: InMemorySpanExporte
         for _ in stream:
             break
         stream.close()
+    del stream
+    gc.collect()
+
+    assert _ENDED_TWICE not in caplog.text
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -294,6 +302,7 @@ def test_chat_stream_abandoned_after_partial_iteration(
 
 async def test_async_chat_stream_explicit_close(
     in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
         respx_mock.post("/v1/chat/completions").mock(return_value=_streaming_response())
@@ -305,6 +314,10 @@ async def test_async_chat_stream_explicit_close(
         async for _ in stream:
             break
         await stream.close()
+    del stream
+    gc.collect()
+
+    assert _ENDED_TWICE not in caplog.text
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -339,6 +352,32 @@ async def test_async_chat_stream_abandoned_after_partial_iteration(
     assert span.status.status_code == StatusCode.UNSET
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.OUTPUT_VALUE] == "1"
+
+
+def test_chat_stream_context_manager_exit_raises(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _failing_close() -> None:
+        raise RuntimeError("close failed")
+
+    with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_streaming_response())
+        stream = Together().chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "Count from one to five."}],
+            stream=True,
+        )
+        monkeypatch.setattr(stream.response, "close", _failing_close)
+        with pytest.raises(RuntimeError, match="close failed"):
+            with stream:
+                pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "Completions"
+    assert span.status.status_code == StatusCode.OK
 
 
 @pytest.mark.vcr
