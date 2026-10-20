@@ -1,6 +1,6 @@
 import asyncio
 from typing import Any, Dict, Generator
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import litellm
 import pytest
@@ -11,8 +11,10 @@ from opentelemetry.trace import StatusCode
 
 from openinference.instrumentation.litellm import (
     LiteLLMInstrumentor,
+    _finalize_sync_streaming_span,
     _instrument_func_type_completion,
     _instrument_func_type_responses,
+    _TracedSyncStream,
 )
 from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
@@ -275,3 +277,51 @@ async def test_async_early_close_closes_underlying_stream(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "acompletion"
+
+
+def test_sync_close_closes_wrapped_stream() -> None:
+    # The proxy's close must reach the wrapped stream: litellm's
+    # CustomStreamWrapper.close releases the provider connection, and the
+    # async proxy already forwards aclose the same way.
+    class Wrapped:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    wrapped = Wrapped()
+    proxy = _TracedSyncStream(wrapped, _finalize_sync_streaming_span(MagicMock(), iter([])))
+    proxy.close()
+    assert wrapped.closed
+
+
+def test_sync_close_tolerates_wrapped_without_close() -> None:
+    # Older litellm versions have no close on the wrapped stream.
+    proxy = _TracedSyncStream(object(), _finalize_sync_streaming_span(MagicMock(), iter([])))
+    proxy.close()
+
+
+def test_sync_early_close_closes_underlying_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    response: Any = litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=[{"content": "What's the capital of China?", "role": "user"}],
+        mock_response="The capital of China is Beijing",
+        stream=True,
+    )
+    next(response)
+
+    with patch.object(CustomStreamWrapper, "close", create=True) as wrapped_close:
+        response.close()
+
+    wrapped_close.assert_called_once_with()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "completion"
+    assert spans[0].status.status_code == StatusCode.UNSET
+    assert not spans[0].events
