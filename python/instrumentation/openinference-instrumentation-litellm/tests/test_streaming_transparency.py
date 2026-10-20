@@ -7,6 +7,7 @@ import pytest
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 
 from openinference.instrumentation.litellm import (
     LiteLLMInstrumentor,
@@ -101,6 +102,8 @@ def test_sync_streaming_early_close_records_partial_output(
     assert partial_output
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.UNSET
+    assert not spans[0].events
     attributes = dict(spans[0].attributes or {})
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == partial_output
     assert (
@@ -131,6 +134,8 @@ async def test_async_streaming_early_close_records_partial_output(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.UNSET
+    assert not spans[0].events
     attributes = dict(spans[0].attributes or {})
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == partial_output
     assert (
