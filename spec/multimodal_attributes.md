@@ -98,10 +98,27 @@ llm.input_messages.0.message.contents.4.message_content.document.document.url = 
 llm.input_messages.0.message.contents.4.message_content.document.document.mime_type = "application/pdf"
 ```
 
-- `document.url` may be an absolute URI (`https://`, `s3://`, `gs://`, ...) or a base64 data URI. Copy object-store URIs verbatim. Build a data URI from provider base64 payloads (for example Anthropic `document` blocks with a `base64` source, OpenAI `file_data`, or Gemini `inline_data`). Do not store provider file ids in `document.url`.
-- Emit `document.mime_type` whenever the MIME type is known. Unlike audio and video, document URLs often have no file extension (signed URLs, object keys, provider file references), so consumers cannot reliably infer the type.
-- Do not put documents in `image.url`, even when a provider accepts PDFs on an image field.
+- `document.url` may be an absolute URI (`https://`, `s3://`, `gs://`, ...) or a base64 data URI. Copy URIs verbatim. Build a data URI from provider base64 payloads. A data URI uses standard base64 (RFC 4648 section 4): re-encode URL-safe base64, which the Gemini REST API sends, and encode raw bytes from SDK objects.
+- Emit `document.mime_type` whenever the MIME type is known: from an explicit provider field, from the data URI prefix, or from a source type that admits one MIME type (Anthropic `url` sources are PDF-only). Omit it when the provider does not say, for example an OpenAI Responses `file_url`. Unlike audio and video, document URLs often have no file extension (signed URLs, object keys), so consumers cannot reliably infer the type.
+- Do not store provider file ids (OpenAI `file_id`, Anthropic `file` sources) in `document.url`. A part that carries only a file id records `message_content.type` `"document"` with no `document.url`.
+- Documents whose source is not a file, such as Anthropic `content` sources made of nested text and image blocks, are not document content items. Record them with the instrumentor's generic content-block fallback.
+- Do not put documents in `image.url`.
 - File documents reuse the `document.*` namespace from retrieval. `document.url` and `document.mime_type` describe the file. The retrieval leaves (`document.id`, `document.content`, `document.score`, `document.metadata`) keep their existing meaning and are not emitted on message content.
+- Model responses do not return documents today. Provider outputs reference input documents through citations (for example Anthropic `page_location` with `document_index`). File documents appear on output only for non-`LLM` spans, through `output.documents`.
+
+Provider mappings for input document parts:
+
+| Provider part | `document.url` | `document.mime_type` |
+|---|---|---|
+| OpenAI Chat Completions, Azure OpenAI, LiteLLM: `{"type": "file", "file": {...}}` | `file.file_data` (already a data URI) | data URI prefix, or LiteLLM `file.format` |
+| OpenAI Responses, openai-agents: `{"type": "input_file", ...}`, including `ToolOutputFileContent` in `function_call_output` | `file_data` (already a data URI) or `file_url` | data URI prefix; omit for `file_url` |
+| Anthropic, Bedrock InvokeModel: `{"type": "document", "source": {"type": "base64", ...}}` | data URI from `source.data` | `source.media_type` |
+| Anthropic: `source.type` `"url"` | `source.url` | `application/pdf` |
+| Anthropic: `source.type` `"text"` | data URI from the UTF-8 bytes of `source.data` | `source.media_type` (`text/plain`) |
+| Bedrock Converse: `{"document": {"format": ..., "source": {...}}}` | data URI from `source.bytes`, or `source.s3Location.uri` | from `format` (`pdf` maps to `application/pdf`) |
+| Gemini: `inline_data` / `inlineData` | data URI from `data` | `mime_type` |
+| Gemini: `file_data` / `fileData` | `file_uri` (`gs://` or a Files API `https://` URI) | `mime_type` |
+| LangChain `FileContentBlock` (`{"type": "file", ...}`) | data URI from `base64`, or `url` | `mime_type` |
 
 The doubled prefix (`message_content.document.document.url`) is the concatenation of `message_content.document` and `document.url`, matching `message_content.image.image.url`.
 
