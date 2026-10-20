@@ -289,9 +289,10 @@ const (
 	VideoURL = "video.url"
 )
 
-// Document attributes — nested under RetrievalDocuments.{i}. DocumentURL and
-// DocumentMimeType describe file documents such as PDFs, nested under
-// MessageContentDocument, InputDocuments or OutputDocuments.
+// Document attributes — nested under RetrievalDocuments.{i}. DocumentURL,
+// DocumentMimeType and DocumentFilename describe file documents such as PDFs,
+// nested under MessageContentDocument, InputDocuments or OutputDocuments; on a
+// file document, DocumentID is the provider file id.
 const (
 	DocumentID       = "document.id"
 	DocumentScore    = "document.score"
@@ -299,6 +300,7 @@ const (
 	DocumentMetadata = "document.metadata"
 	DocumentURL      = "document.url"
 	DocumentMimeType = "document.mime_type"
+	DocumentFilename = "document.filename"
 )
 
 // Tool-call attributes — nested under MessageToolCalls.{i}; also used under

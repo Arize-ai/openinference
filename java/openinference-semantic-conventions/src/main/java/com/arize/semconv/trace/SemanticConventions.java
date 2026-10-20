@@ -156,6 +156,7 @@ public class SemanticConventions {
         public static final String METADATA = "metadata";
         public static final String URL = "url";
         public static final String MIME_TYPE = "mime_type";
+        public static final String FILENAME = "filename";
     }
 
     @UtilityClass
@@ -719,6 +720,12 @@ public class SemanticConventions {
      */
     public static final String DOCUMENT_MIME_TYPE =
             SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.MIME_TYPE;
+
+    /**
+     * The file name or title of a file document, for example {@code invoice.pdf}.
+     */
+    public static final String DOCUMENT_FILENAME =
+            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.FILENAME;
 
     /**
      * The text that was embedded to create the vector

@@ -468,7 +468,8 @@ class MessageContentAttributes:
     MESSAGE_CONTENT_DOCUMENT = "message_content.document"
     """
     The file document content of the message (e.g. a PDF), if the type is "document".
-    Nested leaves are DocumentAttributes.DOCUMENT_URL and DocumentAttributes.DOCUMENT_MIME_TYPE.
+    Nested leaves are DocumentAttributes.DOCUMENT_URL, DOCUMENT_MIME_TYPE, DOCUMENT_ID,
+    and DOCUMENT_FILENAME.
     """
     MESSAGE_CONTENT_ID = "message_content.id"
     """
@@ -541,7 +542,8 @@ class DocumentAttributes:
 
     DOCUMENT_ID = "document.id"
     """
-    The id of the document.
+    The id of the document. For a file document (e.g. a PDF), the provider file id,
+    such as an OpenAI or Anthropic Files API id.
     """
     DOCUMENT_SCORE = "document.score"
     """
@@ -563,6 +565,10 @@ class DocumentAttributes:
     DOCUMENT_MIME_TYPE = "document.mime_type"
     """
     The MIME type of a file document, e.g. `application/pdf`.
+    """
+    DOCUMENT_FILENAME = "document.filename"
+    """
+    The file name or title of a file document, e.g. `invoice.pdf`.
     """
 
 

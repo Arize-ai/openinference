@@ -152,6 +152,7 @@ func TestAttributeKeys(t *testing.T) {
 		{DocumentMetadata, "document.metadata"},
 		{DocumentURL, "document.url"},
 		{DocumentMimeType, "document.mime_type"},
+		{DocumentFilename, "document.filename"},
 
 		{ToolCallID, "tool_call.id"},
 		{ToolCallFunctionName, "tool_call.function.name"},

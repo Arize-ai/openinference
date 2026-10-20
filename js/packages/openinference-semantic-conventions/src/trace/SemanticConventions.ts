@@ -139,6 +139,7 @@ export const DocumentAttributePostfixes = {
   metadata: "metadata",
   url: "url",
   mime_type: "mime_type",
+  filename: "filename",
 } as const;
 
 export const TagAttributePostfixes = {
@@ -679,6 +680,12 @@ export const DOCUMENT_MIME_TYPE =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.mime_type}` as const;
 
 /**
+ * The file name or title of a file document, for example `invoice.pdf`.
+ */
+export const DOCUMENT_FILENAME =
+  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.filename}` as const;
+
+/**
  * The text that was embedded to create the vector
  */
 export const EMBEDDING_TEXT =
@@ -977,6 +984,7 @@ export const SemanticConventions = {
   DOCUMENT_METADATA,
   DOCUMENT_URL,
   DOCUMENT_MIME_TYPE,
+  DOCUMENT_FILENAME,
   EMBEDDING_EMBEDDINGS,
   EMBEDDING_TEXT,
   EMBEDDING_MODEL_NAME,
