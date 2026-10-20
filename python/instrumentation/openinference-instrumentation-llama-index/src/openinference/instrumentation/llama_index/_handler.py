@@ -5,7 +5,7 @@ import json
 import logging
 import weakref
 from collections import defaultdict
-from contextvars import Context, copy_context
+from contextvars import Context, Token, copy_context
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
@@ -31,11 +31,19 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
+    cast,
 )
 
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
+from opentelemetry.trace import (
+    Span,
+    Status,
+    StatusCode,
+    Tracer,
+    get_current_span,
+    set_span_in_context,
+)
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import PrivateAttr
 from pydantic.v1.json import pydantic_encoder
@@ -45,6 +53,7 @@ from workflows.runtime.types.step_function import (
     WorkflowRunOutputEvent,
     WorkflowStepOutputEvent,
 )
+from wrapt import ObjectProxy
 
 from llama_index.core import QueryBundle
 from llama_index.core.response_synthesizers.base import BaseSynthesizer
@@ -311,6 +320,23 @@ class _StreamingStatus(Enum):
     IN_PROGRESS = auto()
 
 
+class _CurrentSpan(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
+    """Stands in for a LlamaIndex span in the runtime context.
+
+    A call that returns a Future exits from the event loop, outside the Context the span
+    was attached in, so the caller's Context cannot be reset. Once released, the stand-in
+    resolves to the span that was current before, and that Context stops parenting new
+    spans under the finished one.
+    """
+
+    def __init__(self, span: Span) -> None:
+        super().__init__(span)
+        self._self_previous = get_current_span()
+
+    def release(self) -> None:
+        self.__wrapped__ = self._self_previous
+
+
 class _Span(BaseSpan):
     _otel_span: Span = PrivateAttr()
     _attributes: Dict[str, AttributeValue] = PrivateAttr()
@@ -321,7 +347,8 @@ class _Span(BaseSpan):
 
     _end_time: Optional[int] = PrivateAttr()
     _last_updated_at: float = PrivateAttr()
-    _context_token: Optional[object] = PrivateAttr()
+    _current_span: _CurrentSpan = PrivateAttr()
+    _context_token: Optional[Token[context_api.Context]] = PrivateAttr()
 
     def __init__(
         self,
@@ -339,6 +366,7 @@ class _Span(BaseSpan):
         self._attributes = {}
         self._end_time = None
         self._last_updated_at = time()
+        self._current_span = _CurrentSpan(otel_span)
         self._context_token = None
         self._list_attr_len: DefaultDict[str, int] = defaultdict(int)
 
@@ -348,26 +376,24 @@ class _Span(BaseSpan):
     def record_exception(self, exception: BaseException) -> None:
         self._otel_span.record_exception(exception)
 
-    def _detach_context(self) -> None:
-        """Restore the previous OTEL context after this span is no longer current.
+    def attach_context(self) -> None:
+        self._context_token = context_api.attach(
+            set_span_in_context(cast(Span, self._current_span))
+        )
 
-        LlamaIndex spans are attached in ``new_span`` so downstream instrumentors
-        (and user spans) nest under them. Detach when the instrumented call exits
-        or the span ends — including deferred streaming ends — so the caller's
-        context is restored.
-        """
-        token = self._context_token
-        if token is None:
+    def detach_context(self) -> None:
+        if (token := self._context_token) is None:
             return
         self._context_token = None
+        self._current_span.release()
         try:
-            context_api.detach(token)
-        except Exception:
-            logger.debug("Failed to detach LlamaIndex span context", exc_info=True)
+            # context_api.detach would log the expected cross-Context failure as an error.
+            token.var.reset(token)
+        except ValueError:
+            pass
 
     def end(self, exception: Optional[BaseException] = None) -> None:
         if not self._active:
-            self._detach_context()
             return
         self._active = False
         if exception is None:
@@ -382,7 +408,6 @@ class _Span(BaseSpan):
         self._otel_span.set_status(status=status)
         self._otel_span.set_attributes(self._attributes)
         self._otel_span.end(end_time=self._end_time)
-        self._detach_context()
 
     @property
     def waiting_for_streaming(self) -> bool:
@@ -1051,10 +1076,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             id_=id_,
             parent_id=parent_span_id,
         )
-        # Make this span current so OpenAIInstrumentor / user spans nest under it.
-        # Nested LlamaIndex spans already use parent.context for parenting; attaching
-        # is what exposes the active span to other OTEL instrumentors.
-        span._context_token = context_api.attach(set_span_in_context(otel_span))
+        span.attach_context()
         span.process_instance(instance)
         span.process_input(instance, bound_args)
         return span
@@ -1072,9 +1094,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         with self.lock:
             span = self.open_spans.get(id_)
         if span:
-            # Restore caller context now that the instrumented call is leaving,
-            # even when ending is deferred for streaming responses.
-            span._detach_context()
+            span.detach_context()
             if isinstance(instance, BaseSynthesizer) and isinstance(
                 result, (Generator, AsyncGenerator)
             ):
@@ -1126,8 +1146,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         with self.lock:
             span = self.open_spans.get(id_)
         if span:
-            # Match prepare_to_exit_span: clear the current-span attachment on drop.
-            span._detach_context()
+            span.detach_context()
             if err and isinstance(err, WorkflowDone):
                 span.end()
                 return span
