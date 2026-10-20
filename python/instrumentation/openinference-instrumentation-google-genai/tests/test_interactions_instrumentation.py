@@ -3,7 +3,7 @@
 import asyncio
 import gc
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import pytest
 import respx
@@ -430,18 +430,20 @@ def _mock_interactions_stream(mock_router: Any) -> None:
     )
 
 
-def _assert_interactions_span_ended_with_partial_output(
+def _assert_one_interactions_span(
     in_memory_span_exporter: InMemorySpanExporter,
+    status_code: StatusCode = StatusCode.UNSET,
+    output_text: Optional[str] = "hello ",
 ) -> None:
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    assert span.status.status_code == StatusCode.UNSET
+    assert span.status.status_code == status_code
     assert [event.name for event in span.events] == []
     attributes = dict(span.attributes or {})
     assert (
         attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
-        == "hello "
+        == output_text
     )
 
 
@@ -470,7 +472,7 @@ def test_interactions_stream_left_early_ends_span(
                 del iterator
                 gc.collect()
 
-    _assert_interactions_span_ended_with_partial_output(in_memory_span_exporter)
+    _assert_one_interactions_span(in_memory_span_exporter)
 
 
 @pytest.mark.parametrize("abandon", ["break", "aclose"])
@@ -497,7 +499,97 @@ async def test_async_interactions_stream_left_early_ends_span(
                 await iterator.__anext__()
             await iterator.aclose()
 
-    _assert_interactions_span_ended_with_partial_output(in_memory_span_exporter)
+    _assert_one_interactions_span(in_memory_span_exporter)
+
+
+@pytest.mark.parametrize(
+    "consume, status_code, output_text",
+    [
+        ("all", StatusCode.OK, "hello world"),
+        ("break", StatusCode.UNSET, "hello "),
+    ],
+)
+def test_interactions_stream_in_with_block_ends_span(
+    consume: str,
+    status_code: StatusCode,
+    output_text: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="fake-key")
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        _mock_interactions_stream(mock_router)
+        with client.interactions.create(
+            model="gemini-2.5-flash", input="hi", stream=True
+        ) as stream:
+            for event in stream:
+                if consume == "break" and getattr(event, "event_type", None) == "step.delta":
+                    break
+
+    _assert_one_interactions_span(in_memory_span_exporter, status_code, output_text)
+
+
+@pytest.mark.parametrize("abandon", ["close", "drop"])
+def test_interactions_stream_closed_or_dropped_unread_ends_span(
+    abandon: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="fake-key")
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        _mock_interactions_stream(mock_router)
+        stream = client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True)
+        if abandon == "close":
+            stream.close()
+        else:
+            del stream
+            gc.collect()
+
+    _assert_one_interactions_span(in_memory_span_exporter, output_text=None)
+
+
+@pytest.mark.parametrize(
+    "consume, status_code, output_text",
+    [
+        ("all", StatusCode.OK, "hello world"),
+        ("break", StatusCode.UNSET, "hello "),
+    ],
+)
+async def test_async_interactions_stream_in_with_block_ends_span(
+    consume: str,
+    status_code: StatusCode,
+    output_text: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="fake-key").aio
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        _mock_interactions_stream(mock_router)
+        async with await client.interactions.create(
+            model="gemini-2.5-flash", input="hi", stream=True
+        ) as stream:
+            async for event in stream:
+                if consume == "break" and getattr(event, "event_type", None) == "step.delta":
+                    break
+
+    _assert_one_interactions_span(in_memory_span_exporter, status_code, output_text)
+
+
+async def test_async_interactions_stream_closed_unread_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="fake-key").aio
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        _mock_interactions_stream(mock_router)
+        stream = await client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True)
+        await stream.close()
+
+    _assert_one_interactions_span(in_memory_span_exporter, output_text=None)
 
 
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES

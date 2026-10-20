@@ -1,3 +1,4 @@
+import inspect
 import json
 import logging
 from types import SimpleNamespace
@@ -5,6 +6,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AsyncIterator,
+    Awaitable,
     Iterator,
     Mapping,
     Optional,
@@ -95,10 +97,61 @@ class _InteractionsStream(ObjectProxy):  # type: ignore[misc,name-defined,type-a
         )
         self._finish_tracing(status=status)
 
+    # The SDK's Stream and AsyncStream return themselves from __enter__ and __aenter__, so
+    # returning the proxy keeps iteration inside a `with` block traced. Leaving the block,
+    # closing the stream, or dropping it before it is exhausted ends the span with the
+    # output read so far, leaving the status unset.
+
+    def __enter__(self) -> Any:
+        entered = self.__wrapped__.__enter__()
+        return self if entered is self.__wrapped__ else entered
+
+    def __exit__(self, *args: Any) -> Any:
+        try:
+            return self.__wrapped__.__exit__(*args)
+        finally:
+            self._finish_tracing()
+
+    async def __aenter__(self) -> Any:
+        entered = await self.__wrapped__.__aenter__()
+        return self if entered is self.__wrapped__ else entered
+
+    async def __aexit__(self, *args: Any) -> Any:
+        try:
+            return await self.__wrapped__.__aexit__(*args)
+        finally:
+            self._finish_tracing()
+
+    def close(self) -> Any:
+        try:
+            result = self.__wrapped__.close()
+        except BaseException:
+            self._finish_tracing()
+            raise
+        if inspect.isawaitable(result):
+            # AsyncStream.close is a coroutine
+            return self._finish_tracing_after(result)
+        self._finish_tracing()
+        return result
+
+    async def _finish_tracing_after(self, closing: Awaitable[Any]) -> Any:
+        try:
+            return await closing
+        finally:
+            self._finish_tracing()
+
+    def __del__(self) -> None:
+        try:
+            self._finish_tracing()
+        except BaseException:
+            pass
+
     def _finish_tracing(
         self,
         status: Optional[trace_api.Status] = None,
     ) -> None:
+        if self._with_span.is_finished:
+            return
         self._with_span.set_attributes(
             get_attributes_from_response(
                 self.request_parameters, self._response_accumulator.result()
