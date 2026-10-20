@@ -7,8 +7,9 @@ from typing import Any, Callable, Dict, Iterator, List
 
 import httpx2
 import pytest
-from anthropic import Anthropic
+from anthropic import Anthropic, AsyncAnthropic
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.anthropic._content import _get_response_metadata
@@ -1016,6 +1017,102 @@ def test_uninstrumentation_restores_count_tokens_and_platform_beta_messages(
         AnthropicInstrumentor().uninstrument()
     for cls, method in wrapped:
         assert cls.__dict__[method] is originals[(cls, method)]
+
+
+@pytest.mark.parametrize("accessor", ["with_raw_response", "with_streaming_response"])
+def test_uninstrumentation_stops_cached_accessors(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    accessor: str,
+) -> None:
+    from openinference.instrumentation.anthropic import AnthropicInstrumentor
+
+    client = _mock_anthropic_client(_text_message_handler)
+    kwargs: Dict[str, Any] = dict(
+        model=MODEL, max_tokens=10, messages=[{"role": "user", "content": "hi"}]
+    )
+
+    def call() -> None:
+        if accessor == "with_raw_response":
+            client.messages.with_raw_response.create(**kwargs).parse()
+        else:
+            with client.messages.with_streaming_response.create(**kwargs) as response:
+                response.parse()
+
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        call()  # caches the accessor while instrumented
+    finally:
+        AnthropicInstrumentor().uninstrument()
+    assert len(in_memory_span_exporter.get_finished_spans()) == 1
+    call()
+    assert len(in_memory_span_exporter.get_finished_spans()) == 1
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        call()  # the same cached accessor, traced again and only once
+    finally:
+        AnthropicInstrumentor().uninstrument()
+    assert len(in_memory_span_exporter.get_finished_spans()) == 2
+
+
+@pytest.mark.parametrize("accessor", ["with_raw_response", "with_streaming_response"])
+async def test_uninstrumentation_stops_async_cached_accessors(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    accessor: str,
+) -> None:
+    from openinference.instrumentation.anthropic import AnthropicInstrumentor
+
+    client = AsyncAnthropic(
+        api_key="sk-ant-fake",
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(_text_message_handler)),
+    )
+    kwargs: Dict[str, Any] = dict(
+        model=MODEL, max_tokens=10, messages=[{"role": "user", "content": "hi"}]
+    )
+
+    async def call() -> None:
+        if accessor == "with_raw_response":
+            await (await client.messages.with_raw_response.create(**kwargs)).parse()
+        else:
+            async with client.messages.with_streaming_response.create(**kwargs) as response:
+                await response.parse()
+
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        await call()  # caches the accessor while instrumented
+    finally:
+        AnthropicInstrumentor().uninstrument()
+    assert len(in_memory_span_exporter.get_finished_spans()) == 1
+    await call()
+    assert len(in_memory_span_exporter.get_finished_spans()) == 1
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        await call()  # the same cached accessor, traced again and only once
+    finally:
+        AnthropicInstrumentor().uninstrument()
+    assert len(in_memory_span_exporter.get_finished_spans()) == 2
+
+
+def test_reinstrumentation_sends_cached_accessor_spans_to_the_new_tracer_provider() -> None:
+    from openinference.instrumentation.anthropic import AnthropicInstrumentor
+
+    client = _mock_anthropic_client(_text_message_handler)
+    kwargs: Dict[str, Any] = dict(
+        model=MODEL, max_tokens=10, messages=[{"role": "user", "content": "hi"}]
+    )
+    exporters = []
+    for _ in range(2):
+        exporter = InMemorySpanExporter()
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
+        exporters.append(exporter)
+        AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+        try:
+            client.messages.with_raw_response.create(**kwargs).parse()
+        finally:
+            AnthropicInstrumentor().uninstrument()
+    assert [len(exporter.get_finished_spans()) for exporter in exporters] == [1, 1]
 
 
 @pytest.fixture()

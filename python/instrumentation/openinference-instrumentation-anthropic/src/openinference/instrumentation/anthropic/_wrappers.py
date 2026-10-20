@@ -17,6 +17,7 @@ from typing import (
     Tuple,
     Type,
 )
+from weakref import WeakSet
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
@@ -182,6 +183,10 @@ class _WithTracer(ABC):
     Base class for wrappers that need a tracer.
     """
 
+    # every wrapper made, so uninstrument() can turn off the ones the SDK
+    # keeps in cached accessors like client.messages.with_raw_response
+    _instances: WeakSet[_WithTracer] = WeakSet()
+
     def __init__(
         self,
         tracer: trace_api.Tracer,
@@ -195,6 +200,8 @@ class _WithTracer(ABC):
         self._span_name = span_name
         # the trace config, for the attributes that the tracer's masking does not cover
         self._config = config or TraceConfig()
+        self._active = True
+        _WithTracer._instances.add(self)
 
     def _get_attributes_from_request(
         self, kwargs: Mapping[str, Any]
@@ -268,7 +275,7 @@ class _MessagesWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
@@ -315,7 +322,7 @@ class _AsyncMessagesWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
@@ -380,7 +387,7 @@ class _CountTokensWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
@@ -422,7 +429,7 @@ class _AsyncCountTokensWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
@@ -563,7 +570,7 @@ class _MessagesStreamWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
         params = _Params(kwargs, get_attributes=self._get_attributes_from_request)
@@ -607,7 +614,7 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
         params = _Params(kwargs, get_attributes=self._get_attributes_from_request)
