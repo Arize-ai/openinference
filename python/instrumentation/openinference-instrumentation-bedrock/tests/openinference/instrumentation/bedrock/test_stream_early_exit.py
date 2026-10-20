@@ -10,6 +10,7 @@ import json
 import logging
 import re
 import struct
+import threading
 import zlib
 from typing import Any, Callable, Dict, Iterator, List, Tuple
 
@@ -267,6 +268,14 @@ def _drop(open_stream: Callable[[], Any]) -> None:
     del events, stream
 
 
+@pytest.fixture(autouse=True)
+def _no_calls_on_ended_spans(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
+    yield
+    gc.collect()
+    records = caplog.get_records("call") + caplog.get_records("teardown")
+    assert not [r.getMessage() for r in records if r.name == "opentelemetry.sdk.trace"]
+
+
 def _only_span(exporter: InMemorySpanExporter) -> ReadableSpan:
     gc.collect()
     (span,) = exporter.get_finished_spans()
@@ -323,6 +332,22 @@ def test_span_does_not_end_when_first_iterator_is_dropped(
     span = _only_span(in_memory_span_exporter)
     assert span.status.status_code == StatusCode.OK
     assert "one two" in str((span.attributes or {}).get(SpanAttributes.OUTPUT_VALUE))
+
+
+def test_span_ends_when_stream_is_dropped_on_another_thread(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    stream = _converse_stream()
+    events = iter(stream)
+    for _ in range(3):
+        next(events)
+    held = [stream, events]
+    del stream, events
+    thread = threading.Thread(target=held.clear)
+    thread.start()
+    thread.join()
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    _assert_closed_converse_stream_span(span)
 
 
 def test_close_after_read_all_keeps_span(
