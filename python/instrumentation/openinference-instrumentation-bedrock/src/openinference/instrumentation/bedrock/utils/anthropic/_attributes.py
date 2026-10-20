@@ -18,6 +18,7 @@ from openinference.instrumentation import (
     ImageMessageContent,
     Message,
     TextMessageContent,
+    Tool,
     ToolCall,
     ToolCallFunction,
     get_input_attributes,
@@ -109,6 +110,21 @@ def _get_system_message(system: Any) -> Optional[Message]:
         return None
     contents: List[Any] = [TextMessageContent(text=text, type="text") for text in texts]
     return Message(role="system", contents=contents)
+
+
+def _get_tools(tools: Any) -> List[Tool]:
+    """
+    Convert the request's tool definitions to OpenInference Tool objects.
+
+    Args:
+        tools: The ``tools`` value from the request body
+
+    Returns:
+        List of Tool objects whose JSON schema is the full tool definition
+    """
+    if not isinstance(tools, list):
+        return []
+    return [Tool(json_schema=tool) for tool in tools if isinstance(tool, dict)]
 
 
 def _get_llm_token_counts(usage: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -236,7 +252,10 @@ def _validate_invocation_parameter(parameter: Any) -> bool:
     excluded_params = (
         "messages",
         "modelId",
+        # recorded as llm.input_messages / llm.tools, where TraceConfig masking applies
         "system",
+        "tools",
+        "anthropic_version",
     )
     return parameter not in excluded_params
 
@@ -271,6 +290,7 @@ def get_llm_input_attributes(request_body: Dict[str, Any], model_id: str) -> Dic
             provider=OpenInferenceLLMProviderValues.AWS.value,
             invocation_parameters=invocation_parameters,
             input_messages=input_messages,
+            tools=_get_tools(request_body.get("tools")),
         ),
         **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
         **get_input_attributes(request_body),
