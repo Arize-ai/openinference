@@ -1265,7 +1265,10 @@ async def _finalize_aresponses_streaming_span(span: trace_api.Span, stream: Any)
                     _finalize_span(span, token.response)
                     span.end()
                 yield token
-        except Exception as e:
+        except GeneratorExit:
+            # The caller closed the stream early, which is not an error.
+            raise
+        except BaseException as e:
             if span.is_recording():
                 span.record_exception(e)
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
@@ -1291,7 +1294,10 @@ def _finalize_responses_streaming_span(span: trace_api.Span, stream: Any) -> Any
                     _finalize_span(span, token.response)
                     span.end()
                 yield token
-        except Exception as e:
+        except GeneratorExit:
+            # The caller closed the stream early, which is not an error.
+            raise
+        except BaseException as e:
             if span.is_recording():
                 span.record_exception(e)
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
