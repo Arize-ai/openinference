@@ -361,6 +361,7 @@ async def test_failed_streaming_call_ends_span(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].status.status_code == StatusCode.ERROR
+    assert [event.name for event in spans[0].events] == ["exception"]
 
 
 async def test_async_stream_discarded_unread_ends_span(
@@ -607,6 +608,34 @@ async def test_aresponses_stream_closed_early_ends_span_without_error(
         await response.aclose()
     finally:
         LiteLLMInstrumentor.original_litellm_funcs["aresponses"] = original_func
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == StatusCode.UNSET
+    assert not span.events
+
+
+def test_responses_stream_closed_early_ends_span_without_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["responses"]
+
+    def fake_responses(*args: Any, **kwargs: Any) -> Any:
+        return _FakeSyncResponsesStream(
+            [
+                SimpleNamespace(type=ResponsesAPIStreamEvents.OUTPUT_TEXT_DELTA),
+                SimpleNamespace(type=ResponsesAPIStreamEvents.OUTPUT_TEXT_DELTA),
+            ]
+        )
+
+    LiteLLMInstrumentor.original_litellm_funcs["responses"] = fake_responses
+    try:
+        response = litellm.responses(model="gpt-4o-mini", input="Hi", stream=True)
+        next(response)
+        response.close()
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["responses"] = original_func
 
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.status.status_code == StatusCode.UNSET
