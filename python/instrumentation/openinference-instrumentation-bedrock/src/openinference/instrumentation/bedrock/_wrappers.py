@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, cast
 
@@ -42,6 +43,7 @@ from openinference.instrumentation.bedrock.utils import _EventStream, _finish, _
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _AnthropicMessagesCallback,
 )
+from openinference.instrumentation.bedrock.utils.json_utils import parse_invoke_model_body
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -51,6 +53,9 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class _NovaStreamCallback:
@@ -386,9 +391,31 @@ class _InvokeModelWithResponseStream(_WithTracer):
     def handle_response(response: Any, kwargs: Mapping[str, Any], span: Span) -> Any:
         from botocore.eventstream import EventStream
 
-        # Request body is InvokeModel payload (blob: str or bytes); json.loads accepts both.
-        # Construct a parsed view of the request rather than mutating kwargs in place.
-        body = json.loads(kwargs["body"])
+        # Request body is InvokeModel payload (blob: str, bytes, or seekable
+        # file-like object); parse without mutating kwargs in place. Telemetry
+        # must never raise into the application after the request was sent.
+        try:
+            body = parse_invoke_model_body(kwargs["body"])
+        except Exception:
+            logger.warning("Failed to extract input attributes", exc_info=True)
+            try:
+                if isinstance(response.get("body"), EventStream):
+                    response["body"] = _EventStream(
+                        response["body"],
+                        lambda obj: _finish(span, obj, {}),
+                        _use_span(span),
+                    )
+                    return response
+                span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
+                span.end()
+                return response
+            except Exception:
+                logger.exception("Failed to finalize span after input parsing failure")
+                try:
+                    span.end()
+                except Exception:
+                    pass
+                return response
         if isinstance(response["body"], EventStream):
             if "anthropic_version" in body:
                 parsed_request: Mapping[str, Any] = {**kwargs, "body": body}
@@ -433,8 +460,21 @@ class _InvokeModelWithResponseStream(_WithTracer):
             self._name,
             end_on_exit=False,
         ) as span:
-            response = wrapped(*args, **kwargs)
-            self.handle_response(response, kwargs, span)
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise
+            try:
+                self.handle_response(response, kwargs, span)
+            except Exception:
+                logger.exception("Failed to finalize streaming span")
+                try:
+                    span.end()
+                except Exception:
+                    pass
             return response
 
     async def _async_call(
@@ -456,7 +496,14 @@ class _InvokeModelWithResponseStream(_WithTracer):
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
                 raise
-            self.handle_response(response, kwargs, span)
+            try:
+                self.handle_response(response, kwargs, span)
+            except Exception:
+                logger.exception("Failed to finalize streaming span")
+                try:
+                    span.end()
+                except Exception:
+                    pass
             return response
 
 
