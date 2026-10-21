@@ -186,6 +186,11 @@ def is_valid_reference_uri(uri: str) -> bool:
     if not isinstance(uri, str) or uri != uri.strip() or any(c.isspace() for c in uri):
         return False
     parsed = urlparse(uri)
+    if len(parsed.scheme) == 1:
+        # A Windows drive reference (C:\blobs\a.png, c:/blobs/a.png) is a bare file
+        # path: urlparse reports the drive letter as a one-letter scheme, and no
+        # storage scheme is one letter long.
+        return False
     return bool(parsed.scheme) and bool(parsed.netloc or parsed.path)
 
 

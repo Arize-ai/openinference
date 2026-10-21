@@ -250,6 +250,8 @@ def test_parse_and_decode_base64_data_uri() -> None:
         ("memory://abc123", True),
         ("internal_docs/blob_store/a.png", False),  # bare file path — no scheme
         ("/tmp/a.png", False),
+        (r"C:\blob_store\a.png", False),  # bare file path — drive letter is not a scheme
+        ("c:/blob_store/a.png", False),  # bare file path — drive letter is not a scheme
         ("", False),
         ("https://example.com/a b.png", False),  # whitespace
     ],
@@ -266,6 +268,15 @@ def test_mask_redacts_when_uploader_returns_invalid_uri() -> None:
             return "blob_store/not-a-uri.png"  # bare relative path
 
     config = TraceConfig(blob_uploader=PathReturningUploader(), base64_image_max_length=100)
+    assert config.mask(INPUT_IMAGE_URL_KEY, PNG_DATA_URI) == REDACTED_VALUE
+
+
+def test_mask_redacts_when_uploader_returns_a_windows_path() -> None:
+    class DrivePathReturningUploader(InMemoryUploader):
+        def upload(self, blob: Blob) -> Optional[str]:
+            return r"C:\blob_store\not-a-uri.png"  # bare absolute path, not a URI
+
+    config = TraceConfig(blob_uploader=DrivePathReturningUploader(), base64_image_max_length=100)
     assert config.mask(INPUT_IMAGE_URL_KEY, PNG_DATA_URI) == REDACTED_VALUE
 
 
