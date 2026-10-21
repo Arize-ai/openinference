@@ -129,11 +129,18 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         Args:
             trace: The trace that started.
         """
+        attributes: dict[str, AttributeValue] = {
+            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+        }
+        # The SDK's Trace.group_id carries the conversation/thread grouping
+        # (e.g. set via trace(group_id=...)). Map it to session.id so multiple
+        # traces in one conversation correlate.
+        group_id = getattr(trace, "group_id", None)
+        if group_id is not None:
+            attributes[SESSION_ID] = group_id
         otel_span = self._tracer.start_span(
             name=trace.name,
-            attributes={
-                OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
-            },
+            attributes=attributes,
         )
         self._root_spans[trace.trace_id] = otel_span
 
@@ -1188,6 +1195,7 @@ TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
 GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
 AGENT_NAME = SpanAttributes.AGENT_NAME
+SESSION_ID = SpanAttributes.SESSION_ID
 
 IMAGE_URL = ImageAttributes.IMAGE_URL
 
