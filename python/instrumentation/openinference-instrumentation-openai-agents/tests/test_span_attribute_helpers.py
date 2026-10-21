@@ -1324,6 +1324,41 @@ def test_get_attributes_from_chat_completions_usage(
             },
             id="empty_string_output",
         ),
+        pytest.param(
+            FunctionSpanData(name="test_func", input=None, output="sunny"),
+            {
+                "tool.name": "test_func",
+                "output.value": "sunny",
+            },
+            id="plain_text_output",
+        ),
+        pytest.param(
+            FunctionSpanData(name="test_func", input=None, output=json.dumps([{"id": 1}])),
+            {
+                "tool.name": "test_func",
+                "output.value": '[{"id": 1}]',
+                "output.mime_type": "application/json",
+            },
+            id="json_array_string_output",
+        ),
+        pytest.param(
+            FunctionSpanData(name="test_func", input=None, output=[{"id": 1}]),
+            {
+                "tool.name": "test_func",
+                "output.value": '[{"id": 1}]',
+                "output.mime_type": "application/json",
+            },
+            id="list_output",
+        ),
+        pytest.param(
+            FunctionSpanData(name="test_func", input=None, output={"result": "success"}),
+            {
+                "tool.name": "test_func",
+                "output.value": '{"result": "success"}',
+                "output.mime_type": "application/json",
+            },
+            id="dict_output",
+        ),
     ],
 )
 def test_get_attributes_from_function_span_data(

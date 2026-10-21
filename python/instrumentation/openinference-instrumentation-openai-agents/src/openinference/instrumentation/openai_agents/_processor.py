@@ -864,11 +864,12 @@ def _get_attributes_from_function_span_data(
         yield OUTPUT_MIME_TYPE, JSON
     elif obj.output is not None:
         yield OUTPUT_VALUE, _convert_to_primitive(obj.output)
-        if (
+        # Lists and dicts are serialized to JSON above; strings are JSON when they look like
+        # an object or an array.
+        if isinstance(obj.output, (list, tuple, dict)) or (
             isinstance(obj.output, str)
             and len(obj.output) > 1
-            and obj.output[0] == "{"
-            and obj.output[-1] == "}"
+            and (obj.output[0], obj.output[-1]) in (("{", "}"), ("[", "]"))
         ):
             yield OUTPUT_MIME_TYPE, JSON
 

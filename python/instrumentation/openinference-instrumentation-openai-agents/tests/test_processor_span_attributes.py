@@ -1154,7 +1154,8 @@ def test_tool_mapped_to_retriever_records_documents(output: Any) -> None:
     attrs = _one_of_kind(list(exporter.get_finished_spans()), "RETRIEVER", "search_documents")
     assert attrs["tool.name"] == "search_documents"
     assert attrs["input.value"] == '{"query": "France"}'
-    assert "output.value" in attrs
+    assert json.loads(attrs["output.value"]) == _RETRIEVED_DOCUMENTS
+    assert attrs["output.mime_type"] == "application/json"
     assert attrs["retrieval.documents.0.document.id"] == "doc-1"
     assert attrs["retrieval.documents.0.document.content"] == "Paris is the capital of France."
     assert attrs["retrieval.documents.0.document.score"] == 0.92
