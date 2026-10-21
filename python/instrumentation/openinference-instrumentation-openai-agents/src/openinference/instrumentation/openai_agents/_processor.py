@@ -864,14 +864,22 @@ def _get_attributes_from_function_span_data(
         yield OUTPUT_MIME_TYPE, JSON
     elif obj.output is not None:
         yield OUTPUT_VALUE, _convert_to_primitive(obj.output)
-        # Lists and dicts are serialized to JSON above; strings are JSON when they look like
-        # an object or an array.
-        if isinstance(obj.output, (list, tuple, dict)) or (
-            isinstance(obj.output, str)
-            and len(obj.output) > 1
-            and (obj.output[0], obj.output[-1]) in (("{", "}"), ("[", "]"))
-        ):
+        # Lists and dicts are serialized to JSON above.
+        if isinstance(obj.output, (list, tuple, dict)) or _is_json_object_or_array(obj.output):
             yield OUTPUT_MIME_TYPE, JSON
+
+
+def _is_json_object_or_array(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    # json.loads allows whitespace around the value, so the quick check skips it too.
+    stripped = value.strip()
+    if (stripped[:1], stripped[-1:]) not in (("{", "}"), ("[", "]")):
+        return False
+    try:
+        return isinstance(json.loads(value), (dict, list))
+    except (ValueError, RecursionError):
+        return False
 
 
 def _get_retrieval_document_attributes(output: Any) -> Iterator[tuple[str, AttributeValue]]:

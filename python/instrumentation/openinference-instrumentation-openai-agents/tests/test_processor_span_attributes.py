@@ -1143,6 +1143,7 @@ _RETRIEVED_DOCUMENTS = [
     "output",
     [
         pytest.param(json.dumps(_RETRIEVED_DOCUMENTS), id="json-string"),
+        pytest.param(json.dumps(_RETRIEVED_DOCUMENTS) + "\n", id="json-string-with-whitespace"),
         pytest.param(_RETRIEVED_DOCUMENTS, id="list"),
     ],
 )
