@@ -409,11 +409,24 @@ def stop_on_exception(it: Callable[..., Iterator[_AnyT]]) -> Callable[..., Itera
 def _parse_usage_metadata(
     usage_metadata: UsageMetadata,
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    if prompt_token_count := usage_metadata.prompt_token_count:
+    # `thoughts_token_count` only exists in recent releases of the proto, hence the default.
+    prompt_token_count = usage_metadata.prompt_token_count or 0
+    # The cached tokens are already part of `prompt_token_count`.
+    if cached_content_token_count := getattr(usage_metadata, "cached_content_token_count", 0):
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_content_token_count
+    if prompt_token_count:
         yield LLM_TOKEN_COUNT_PROMPT, prompt_token_count
-    if candidates_token_count := usage_metadata.candidates_token_count:
-        yield LLM_TOKEN_COUNT_COMPLETION, candidates_token_count
-    if total_token_count := usage_metadata.total_token_count:
+    # Thinking tokens are billed as output, but `candidates_token_count` leaves them out.
+    completion_token_count = usage_metadata.candidates_token_count or 0
+    if thoughts_token_count := getattr(usage_metadata, "thoughts_token_count", 0):
+        yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts_token_count
+        completion_token_count += thoughts_token_count
+    if completion_token_count:
+        yield LLM_TOKEN_COUNT_COMPLETION, completion_token_count
+    if total_token_count := max(
+        prompt_token_count + completion_token_count,
+        usage_metadata.total_token_count or 0,
+    ):
         yield LLM_TOKEN_COUNT_TOTAL, total_token_count
 
 
@@ -542,7 +555,11 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
