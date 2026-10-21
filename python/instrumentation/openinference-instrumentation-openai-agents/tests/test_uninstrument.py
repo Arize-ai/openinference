@@ -361,6 +361,54 @@ def test_uninstrument_while_runs_are_in_flight_on_other_threads(
     assert _ours() == []
 
 
+def test_two_processors_draining_at_once_are_both_removed(
+    tracer_provider: trace_sdk.TracerProvider,
+    exporter: InMemorySpanExporter,
+    open_spans: _OpenSpans,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = threading.Barrier(2)
+    finish = threading.Event()
+
+    def run(name: str) -> None:
+        with trace(name):
+            started.wait()
+            finish.wait()
+
+    # Each cycle leaves its processor draining one run on its own thread.
+    workers = []
+    for name in ("first", "second"):
+        OpenAIAgentsInstrumentor().instrument(tracer_provider=tracer_provider)
+        worker = threading.Thread(target=run, args=(name,))
+        worker.start()
+        workers.append(worker)
+        started.wait()
+        OpenAIAgentsInstrumentor().uninstrument()
+    assert len(_ours()) == 2
+
+    # Hold each list update until the other thread could also have read the list, so
+    # updates that are not serialized would overwrite each other.
+    multi_processor = get_trace_provider()._multi_processor  # type: ignore[attr-defined]
+    real_set_processors = multi_processor.set_processors
+    both_read = threading.Barrier(2, timeout=0.5)
+
+    def set_processors_slowly(processors: list[TracingProcessor]) -> None:
+        try:
+            both_read.wait()
+        except threading.BrokenBarrierError:
+            pass
+        real_set_processors(processors)
+
+    monkeypatch.setattr(multi_processor, "set_processors", set_processors_slowly)
+    finish.set()
+    for worker in workers:
+        worker.join()
+
+    assert _ours() == []
+    assert sorted(s.name for s in exporter.get_finished_spans()) == ["first", "second"]
+    assert open_spans.never_ended() == []
+
+
 @pytest.mark.parametrize("exclusive_processor", [True, False])
 def test_instrument_uninstrument_cycles(
     tracer_provider: trace_sdk.TracerProvider,
