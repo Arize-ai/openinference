@@ -376,3 +376,71 @@ def test_responses_input_typed_reasoning_item(
     assert attributes.pop("output.mime_type") == "application/json"
     assert isinstance(attributes.pop("output.value"), str)
     assert attributes == {}
+
+
+def _bridged_completion_response() -> litellm.ModelResponse:
+    # A ModelResponse mock (not a str) skips the Responses-level mock, so LiteLLM
+    # bridges the call to chat completions as it does for providers without
+    # native Responses API support.
+    return litellm.ModelResponse(
+        model="gemini-2.5-flash",
+        choices=[
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": "hello"},
+            }
+        ],
+        usage={"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4},
+    )
+
+
+def test_responses_bridged_to_completion_creates_single_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    litellm.responses(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        input="hi",
+        mock_response=_bridged_completion_response(),
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["responses"]
+    attributes = dict(spans[0].attributes or {})
+    assert attributes["llm.model_name"] == "gemini-2.5-flash"
+    assert attributes["llm.token_count.total"] == 4
+
+
+async def test_aresponses_bridged_to_acompletion_creates_single_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    await litellm.aresponses(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        input="hi",
+        mock_response=_bridged_completion_response(),
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["aresponses"]
+    attributes = dict(spans[0].attributes or {})
+    assert attributes["llm.model_name"] == "gemini-2.5-flash"
+    assert attributes["llm.token_count.total"] == 4
+
+
+async def test_acompletion_after_bridged_aresponses_is_still_traced(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    await litellm.aresponses(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        input="hi",
+        mock_response=_bridged_completion_response(),
+    )
+    await litellm.acompletion(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        messages=[{"role": "user", "content": "hi"}],
+        mock_response="hello",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["aresponses", "acompletion"]
