@@ -221,6 +221,39 @@ def test_tool_result_turn_keeps_single_tool_message() -> None:
     assert "llm.input_messages.2.message.role" not in result
 
 
+def test_parallel_tool_results_become_one_message_per_tool_call() -> None:
+    # Agent Framework puts every result of a parallel tool-calling turn into one
+    # Message(role="tool", contents=[...]), so a tool message can carry one
+    # tool_call_response part per call. Each result keeps its own tool_call_id.
+    tool_results = json.dumps(
+        [
+            {
+                "role": "tool",
+                "parts": [
+                    {
+                        "type": "tool_call_response",
+                        "id": "call_1",
+                        "response": "It is sunny in Amsterdam.",
+                    },
+                    {
+                        "type": "tool_call_response",
+                        "id": "call_2",
+                        "response": "It is raining in Paris.",
+                    },
+                ],
+            }
+        ]
+    )
+    result = _attributes(_chat_attrs(**{"gen_ai.input.messages": tool_results}), "chat gpt-5.5")
+
+    assert result["llm.input_messages.1.message.role"] == "tool"
+    assert result["llm.input_messages.1.message.tool_call_id"] == "call_1"
+    assert result["llm.input_messages.1.message.content"] == "It is sunny in Amsterdam."
+    assert result["llm.input_messages.2.message.role"] == "tool"
+    assert result["llm.input_messages.2.message.tool_call_id"] == "call_2"
+    assert result["llm.input_messages.2.message.content"] == "It is raining in Paris."
+
+
 def test_agent_span_has_system_prompt_and_plain_text_io() -> None:
     output = json.dumps(
         [
