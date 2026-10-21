@@ -329,6 +329,28 @@ def test_uninstrument_stops_tracing_when_processors_cannot_be_read(
     assert exporter.get_finished_spans() == ()
 
 
+def test_uninstrument_stops_tracing_when_processors_cannot_be_replaced(
+    tracer_provider: trace_sdk.TracerProvider,
+    exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the SDK fails to replace its processor list, the processor stays registered but
+    traces nothing new."""
+    set_trace_processors([_Recorder()])
+    OpenAIAgentsInstrumentor().instrument(tracer_provider=tracer_provider)
+    (processor,) = _ours()
+
+    def fail(processors: list[TracingProcessor]) -> None:
+        raise RuntimeError("cannot set processors")
+
+    multi_processor = get_trace_provider()._multi_processor  # type: ignore[attr-defined]
+    monkeypatch.setattr(multi_processor, "set_processors", fail)
+    OpenAIAgentsInstrumentor().uninstrument()
+    assert _registered() == (processor,)
+    _run_trace()
+    assert exporter.get_finished_spans() == ()
+
+
 def test_uninstrument_while_runs_are_in_flight_on_other_threads(
     tracer_provider: trace_sdk.TracerProvider,
     exporter: InMemorySpanExporter,

@@ -105,23 +105,23 @@ def _unregister_processor(
     """
     from agents import set_trace_processors
 
-    with _processors_lock:
-        registered = _get_trace_processors()
-        if registered is not None and any(p is processor for p in registered):
-            restored = [p for p in displaced if not any(p is r for r in registered)]
-            set_trace_processors([*restored, *registered])
-    if registered is None:
-        # Nothing can be put back or taken out, so the best left is to stop tracing.
-        processor.drain()
-        return
-
     def remove() -> None:
         with _processors_lock:
             registered = _get_trace_processors()
             if registered is not None and any(p is processor for p in registered):
                 set_trace_processors([p for p in registered if p is not processor])
 
-    processor.drain(remove)
+    registered = None
+    try:
+        with _processors_lock:
+            registered = _get_trace_processors()
+            if registered is not None and any(p is processor for p in registered):
+                restored = [p for p in displaced if not any(p is r for r in registered)]
+                set_trace_processors([*restored, *registered])
+    finally:
+        # Stop tracing new runs even if the processors could not be put back. When the
+        # list cannot be read, nothing can be taken out either, so it stays registered.
+        processor.drain(remove if registered is not None else None)
 
 
 class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
