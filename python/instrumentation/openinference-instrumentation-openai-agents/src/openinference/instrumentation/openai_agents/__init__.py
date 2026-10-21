@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import TYPE_CHECKING, Any, Collection, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Collection, Optional, cast
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
@@ -28,6 +28,7 @@ _REALTIME_CLOSE_ATTR = "RealtimeSession.close"
 
 # Held while reading and then replacing the SDK's processor list, so that two of our own
 # updates (say, two processors finishing their runs at once) cannot overwrite each other.
+# See _update_trace_processors for updates made through the SDK's own API at the same time.
 _processors_lock = threading.Lock()
 
 
@@ -91,6 +92,44 @@ def _get_trace_processors() -> Optional[list["TracingProcessor"]]:
     return list(processors)
 
 
+def _update_trace_processors(
+    update: Callable[[list["TracingProcessor"]], Optional[list["TracingProcessor"]]],
+) -> bool:
+    """Replace the processors registered with the Agents SDK by ``update(registered)``,
+    leaving them as they are when it returns ``None``. Returns ``False`` when they cannot
+    be read, without calling ``update``.
+
+    Reading the list and then calling ``set_trace_processors`` would drop a processor that
+    another thread adds with ``add_trace_processor`` in between. So the update is made
+    under the lock the SDK takes for that, setting the list the way ``set_trace_processors``
+    does (it cannot be called with the lock held). Without that lock it falls back to
+    ``set_trace_processors``.
+    """
+    from agents import set_trace_processors
+    from agents.tracing import get_trace_provider
+
+    with _processors_lock:
+        multi_processor: Any = None
+        sdk_lock: Any = None
+        try:
+            multi_processor = getattr(get_trace_provider(), "_multi_processor", None)
+            sdk_lock = getattr(multi_processor, "_lock", None)
+        except Exception:
+            logger.debug("could not read the trace processors lock", exc_info=True)
+        if multi_processor is None or not hasattr(sdk_lock, "__enter__"):
+            if (registered := _get_trace_processors()) is None:
+                return False
+            if (processors := update(registered)) is not None:
+                set_trace_processors(processors)
+            return True
+        with sdk_lock:
+            if (registered := _get_trace_processors()) is None:
+                return False
+            if (processors := update(registered)) is not None:
+                multi_processor._processors = tuple(processors)
+        return True
+
+
 def _unregister_processor(
     processor: "OpenInferenceTracingProcessor",
     displaced: list["TracingProcessor"],
@@ -103,25 +142,32 @@ def _unregister_processor(
     itself stays registered, tracing no new run, until the runs it is tracing have ended --
     it has to receive their end events to end their spans.
     """
-    from agents import set_trace_processors
+
+    def restore(registered: list["TracingProcessor"]) -> Optional[list["TracingProcessor"]]:
+        if not any(p is processor for p in registered):
+            return None
+        restored = [p for p in displaced if not any(p is r for r in registered)]
+        return [*restored, *registered]
+
+    def take_out(registered: list["TracingProcessor"]) -> Optional[list["TracingProcessor"]]:
+        if not any(p is processor for p in registered):
+            return None
+        return [p for p in registered if p is not processor]
 
     def remove() -> None:
-        with _processors_lock:
-            registered = _get_trace_processors()
-            if registered is not None and any(p is processor for p in registered):
-                set_trace_processors([p for p in registered if p is not processor])
+        _update_trace_processors(take_out)
 
-    registered = None
+    # Stop tracing new runs before the processors change, so that no run starting while
+    # this is under way is traced.
+    processor.drain()
+    readable = False
     try:
-        with _processors_lock:
-            registered = _get_trace_processors()
-            if registered is not None and any(p is processor for p in registered):
-                restored = [p for p in displaced if not any(p is r for r in registered)]
-                set_trace_processors([*restored, *registered])
+        readable = _update_trace_processors(restore)
     finally:
-        # Stop tracing new runs even if the processors could not be put back. When the
-        # list cannot be read, nothing can be taken out either, so it stays registered.
-        processor.drain(remove if registered is not None else None)
+        # Even if the processors could not be put back, take this one out once its runs
+        # have ended. When the list cannot be read, nothing can be taken out either, so it
+        # stays registered, tracing nothing new.
+        processor.drain(remove if readable else None)
 
 
 class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
@@ -168,20 +214,22 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
 
         self._processor: Optional["OpenInferenceTracingProcessor"] = processor
         self._displaced_processors: list["TracingProcessor"] = []
-        with _processors_lock:
-            registered = _get_trace_processors() or []
+
+        def replace(registered: list["TracingProcessor"]) -> list["TracingProcessor"]:
             # A processor an earlier uninstrument() left draining a run still in flight keeps
             # receiving that run's events even in exclusive mode, so its spans still end.
             draining = [
                 p for p in registered if isinstance(p, OpenInferenceTracingProcessor) and p.draining
             ]
-            if exclusive_processor:
-                self._displaced_processors = [
-                    p for p in registered if not any(p is d for d in draining)
-                ]
-                set_trace_processors([*draining, processor])
-            else:
-                add_trace_processor(processor)
+            self._displaced_processors = [
+                p for p in registered if not any(p is d for d in draining)
+            ]
+            return [*draining, processor]
+
+        if not exclusive_processor:
+            add_trace_processor(processor)
+        elif not _update_trace_processors(replace):
+            set_trace_processors([processor])
 
         self._original_execute_function_tools = _patch_tool_execution()
 

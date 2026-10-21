@@ -343,11 +343,85 @@ def test_uninstrument_stops_tracing_when_processors_cannot_be_replaced(
     def fail(processors: list[TracingProcessor]) -> None:
         raise RuntimeError("cannot set processors")
 
+    # Without the SDK's lock the list is replaced through set_trace_processors.
     multi_processor = get_trace_provider()._multi_processor  # type: ignore[attr-defined]
+    monkeypatch.setattr(multi_processor, "_lock", None)
     monkeypatch.setattr(multi_processor, "set_processors", fail)
     OpenAIAgentsInstrumentor().uninstrument()
     assert _registered() == (processor,)
     _run_trace()
+    assert exporter.get_finished_spans() == ()
+
+
+def _on_first_read(monkeypatch: pytest.MonkeyPatch, action: Any) -> None:
+    """Run `action` right after the instrumentor first reads the SDK's processor list."""
+    import openinference.instrumentation.openai_agents as module
+
+    real = module._get_trace_processors
+    calls = 0
+
+    def read() -> Optional[list[TracingProcessor]]:
+        nonlocal calls
+        registered = real()
+        calls += 1
+        if calls == 1:
+            action()
+        return registered
+
+    monkeypatch.setattr(module, "_get_trace_processors", read)
+
+
+@pytest.mark.parametrize("exclusive_processor", [True, False])
+def test_processor_added_on_another_thread_during_uninstrument_is_kept(
+    tracer_provider: trace_sdk.TracerProvider,
+    monkeypatch: pytest.MonkeyPatch,
+    exclusive_processor: bool,
+) -> None:
+    OpenAIAgentsInstrumentor().instrument(
+        tracer_provider=tracer_provider, exclusive_processor=exclusive_processor
+    )
+    added = _Recorder()
+    adder = threading.Thread(target=add_trace_processor, args=(added,))
+
+    def add_concurrently() -> None:
+        adder.start()
+        # Long enough for the add to land unless the list update holds it off.
+        adder.join(timeout=0.2)
+
+    _on_first_read(monkeypatch, add_concurrently)
+    OpenAIAgentsInstrumentor().uninstrument()
+    adder.join()
+    assert _registered() == (added,)
+
+
+def test_processor_added_on_another_thread_during_instrument_is_restored(
+    tracer_provider: trace_sdk.TracerProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    added = _Recorder()
+    adder = threading.Thread(target=add_trace_processor, args=(added,))
+
+    def add_concurrently() -> None:
+        adder.start()
+        adder.join(timeout=0.2)
+
+    _on_first_read(monkeypatch, add_concurrently)
+    OpenAIAgentsInstrumentor().instrument(tracer_provider=tracer_provider)
+    adder.join()
+    monkeypatch.undo()
+    OpenAIAgentsInstrumentor().uninstrument()
+    assert _registered() == (added,)
+
+
+def test_trace_started_during_uninstrument_is_not_traced(
+    tracer_provider: trace_sdk.TracerProvider,
+    exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    set_trace_processors([_Recorder()])
+    OpenAIAgentsInstrumentor().instrument(tracer_provider=tracer_provider)
+    _on_first_read(monkeypatch, lambda: _run_trace("started-during-uninstrument"))
+    OpenAIAgentsInstrumentor().uninstrument()
     assert exporter.get_finished_spans() == ()
 
 
@@ -409,9 +483,10 @@ def test_two_processors_draining_at_once_are_both_removed(
     assert len(_ours()) == 2
 
     # Hold each list update until the other thread could also have read the list, so
-    # updates that are not serialized would overwrite each other.
+    # updates that are not serialized would overwrite each other. Without the SDK's lock
+    # only our own lock serializes them.
     multi_processor = get_trace_provider()._multi_processor  # type: ignore[attr-defined]
-    real_set_processors = multi_processor.set_processors
+    monkeypatch.setattr(multi_processor, "_lock", None)
     both_read = threading.Barrier(2, timeout=0.5)
 
     def set_processors_slowly(processors: list[TracingProcessor]) -> None:
@@ -419,7 +494,7 @@ def test_two_processors_draining_at_once_are_both_removed(
             both_read.wait()
         except threading.BrokenBarrierError:
             pass
-        real_set_processors(processors)
+        multi_processor._processors = tuple(processors)
 
     monkeypatch.setattr(multi_processor, "set_processors", set_processors_slowly)
     finish.set()
