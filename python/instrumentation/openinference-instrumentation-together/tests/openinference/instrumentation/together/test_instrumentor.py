@@ -640,6 +640,64 @@ def test_chat_with_multimodal_input(in_memory_span_exporter: InMemorySpanExporte
     assert not attrs
 
 
+@pytest.mark.parametrize(
+    "tools",
+    [_TOOLS[0], "all", "get_current_weather"],
+    ids=["single-mapping", "string", "tool-name"],
+)
+def test_tools_that_are_not_a_sequence_record_no_tool_attributes(tools: Any) -> None:
+    # Iterating a single tool mapping yields its keys and a string yields its
+    # characters, so neither is a tool definition to record on the span.
+    attributes = dict(
+        _RequestAttributesExtractor().get_extra_attributes_from_request(
+            {"model": _MODEL, "messages": [{"role": "user", "content": "hi"}], "tools": tools}
+        )
+    )
+    assert not [key for key in attributes if key.startswith(SpanAttributes.LLM_TOOLS)]
+    assert attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS]
+
+
+def test_tools_as_generator_are_sent_and_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    in_memory_span_exporter.clear()
+    tools: Iterator[Any] = (tool for tool in [_TOOLS[0]])
+
+    with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
+        route = respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(
+                status_code=200,
+                json={
+                    "id": "chatcmpl-tools-generator",
+                    "object": "chat.completion",
+                    "created": 1750000000,
+                    "model": _MODEL,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": "Paris."},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                },
+            )
+        )
+        Together().chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "What is the weather in Paris?"}],
+            tools=tools,
+        )
+
+    # Recording the tool schema must not consume the generator before the SDK sends it.
+    assert json.loads(route.calls.last.request.content)["tools"] == [_TOOLS[0]]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert json.loads(str(attrs["llm.tools.0.tool.json_schema"])) == _TOOLS[0]
+    assert "llm.tools.1.tool.json_schema" not in attrs
+
+
 def test_message_content_as_tuple() -> None:
     # The SDKs accept any iterable of content parts, not only lists.
     message = {
