@@ -46,11 +46,13 @@ from langchain_core.runnables import RunnableLambda, RunnableSerializable
 from langchain_google_vertexai import VertexAI
 from langchain_openai import ChatOpenAI
 from opentelemetry import trace as trace_api
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.sdk.trace.sampling import ALWAYS_OFF
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
 from opentelemetry.util._importlib_metadata import entry_points
+from pydantic import BaseModel
 from respx import MockRouter
 from typing_extensions import assert_never
 
@@ -132,6 +134,23 @@ def test_get_current_span_when_there_is_no_tracer() -> None:
         None,
         [],
     )
+
+
+def test_sampled_out_run_skips_io_serialization() -> None:
+    dumps = 0
+
+    class Payload(BaseModel):
+        text: str = "hello"
+
+        def model_dump(self, **kwargs: Any) -> Any:
+            nonlocal dumps
+            dumps += 1
+            return super().model_dump(**kwargs)
+
+    LangChainInstrumentor().uninstrument()
+    LangChainInstrumentor().instrument(tracer_provider=TracerProvider(sampler=ALWAYS_OFF))
+    RunnableLambda(lambda p: p).invoke(Payload())
+    assert dumps == 0
 
 
 async def test_get_ancestor_spans(
