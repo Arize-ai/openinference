@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 from unittest.mock import MagicMock
 
 import pytest
@@ -1704,3 +1704,46 @@ def test_output_messages_keep_content_without_finish_reason(
     assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "answer two"
     assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
     assert not text_attributes
+
+
+if TYPE_CHECKING:
+    # Visible to mypy, but never imported at runtime -- `Decimal` is absent from this
+    # module's runtime globals, so `get_type_hints` on a function annotated with it raises
+    # `NameError`, the same as a type only ever available under `TYPE_CHECKING` in real
+    # component code.
+    from decimal import Decimal
+
+
+@component
+class _RankerWithUnresolvableTypeHint:
+    """A ranker-named component whose `run` signature carries a type hint that cannot be
+    resolved by `typing.get_type_hints` from this module's namespace -- a realistic
+    situation a component author can hit without doing anything wrong.
+    """
+
+    @component.output_types(documents=list)
+    def run(self, documents: "Decimal") -> Dict[str, Any]:
+        return {"documents": documents}
+
+
+def test_component_type_detection_does_not_crash_on_unresolvable_type_hints(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    """A component-type-detection failure (get_type_hints raising on a real but
+    unresolvable annotation) must degrade tracing gracefully, not break the pipeline run.
+    """
+    pipe = Pipeline()
+    pipe.add_component("ranker", _RankerWithUnresolvableTypeHint())
+
+    result = pipe.run({"ranker": {"documents": ["a", "b"]}})
+
+    assert result == {"ranker": {"documents": ["a", "b"]}}
+
+    spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
+    ranker_span = spans["_RankerWithUnresolvableTypeHint.run"]
+    assert ranker_span.status.is_ok
+    attributes = dict(ranker_span.attributes or {})
+    # Falls back to CHAIN, same as a component with no type hints at all -- the component
+    # type simply couldn't be determined, rather than the run failing outright.
+    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "CHAIN"

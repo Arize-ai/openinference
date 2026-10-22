@@ -1,3 +1,4 @@
+import logging
 from enum import Enum, auto
 from inspect import BoundArguments, Parameter, signature
 from typing import (
@@ -43,6 +44,9 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from haystack import Document, Pipeline
     from haystack.core.component import Component
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class _PipelineRunComponentWrapper:
@@ -396,8 +400,18 @@ def _get_run_method_output_types(run_method: Callable[..., Any]) -> Optional[Dic
 def _get_run_method_input_types(run_method: Callable[..., Any]) -> Optional[Dict[str, type]]:
     """
     Gets input types of parameters to the `run` method.
+
+    `get_type_hints` evaluates every annotation, including string/forward-reference ones, and
+    raises (e.g. `NameError`) if any can't be resolved in the function's defining module
+    namespace -- which can happen for a perfectly valid component (a `TYPE_CHECKING`-only
+    import, `from __future__ import annotations`, etc). A type-detection failure here must not
+    crash the component's actual run, so this falls back to "unknown" like a missing hint does.
     """
-    return get_type_hints(run_method)
+    try:
+        return get_type_hints(run_method)
+    except Exception:
+        logger.exception("Failed to resolve type hints for %r", run_method)
+        return None
 
 
 def _has_generator_output_type(run_method: Callable[..., Any]) -> bool:
