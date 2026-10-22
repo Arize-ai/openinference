@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from itertools import chain
 from types import ModuleType
 from typing import (
-    TYPE_CHECKING,
     Any,
     Awaitable,
     Callable,
@@ -24,12 +23,15 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
 from openinference.instrumentation import (
+    REDACTED_VALUE,
+    OITracer,
+    TraceConfig,
     get_attributes_from_context,
     infer_llm_provider_from_host,
 )
 from openinference.instrumentation.openai._image_utils import (
     get_attributes_from_image_files,
-    redact_images_from_request_parameters,
+    serialize_request_input,
 )
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -45,7 +47,6 @@ from openinference.instrumentation.openai._response_attributes_extractor import 
 )
 from openinference.instrumentation.openai._stream import _ResponseAccumulator, _Stream
 from openinference.instrumentation.openai._utils import (
-    _as_input_attributes,
     _as_output_attributes,
     _finish_tracing,
     _get_decision_type,
@@ -55,6 +56,7 @@ from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import (
     OpenInferenceDecisionSystemValues,
     OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -70,9 +72,16 @@ logger.addHandler(logging.NullHandler())
 
 
 class _WithTracer(ABC):
-    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
+        self._config = config
 
     @contextmanager
     def _start_as_current_span(
@@ -81,15 +90,21 @@ class _WithTracer(ABC):
         attributes: Iterable[Tuple[str, AttributeValue]],
         context_attributes: Iterable[Tuple[str, AttributeValue]],
         extra_attributes: Iterable[Tuple[str, AttributeValue]],
+        request_parameters: Mapping[str, Any],
     ) -> Iterator[_WithSpan]:
         # Because OTEL has a default limit of 128 attributes, we split our attributes into
         # two tiers, where the addition of "extra_attributes" is deferred until the end
         # and only after the "attributes" are added.
+        span: trace_api.Span
         try:
             span = self._tracer.start_span(name=span_name, attributes=dict(attributes))
         except Exception:
             logger.exception("Failed to start span")
             span = INVALID_SPAN
+        else:
+            span.finalize_deferred_input_value(
+                lambda: serialize_request_input(request_parameters, self._config),
+            )
         with trace_api.use_span(
             span,
             end_on_exit=False,
@@ -184,7 +199,7 @@ class _WithOpenAI(ABC):
     def _get_attributes_from_request(
         self,
         cast_to: type,
-        request_parameters: Mapping[str, Any],
+        config: TraceConfig,
         request_files: Any = None,
         image_file_attributes: Optional[Iterable[Tuple[str, AttributeValue]]] = None,
         extract_image_files: bool = True,
@@ -194,44 +209,22 @@ class _WithOpenAI(ABC):
             yield SpanAttributes.DECISION_SYSTEM, OpenInferenceDecisionSystemValues.OPENAI.value
         else:
             yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
-        try:
-            # Get the configuration from the tracer to check image hiding settings
-            if TYPE_CHECKING:
-                assert hasattr(self, "_tracer")
-            config = getattr(getattr(self, "_tracer", None), "_self_config", None)
-
-            # Apply image redaction if configured
-            hide_inputs = bool(config and getattr(config, "hide_inputs", False))
-            hide_images = bool(config and getattr(config, "hide_input_images", False))
-            max_length = int(getattr(config, "base64_image_max_length", 0) if config else 0)
-
-            if hide_images or (config and max_length > 0):
-                # Redact images if hide_input_images=True OR if base64_image_max_length is set
-                processed_params = redact_images_from_request_parameters(
-                    dict(request_parameters),
-                    hide_input_images=hide_images,
-                    base64_image_max_length=max_length,
-                )
-            else:
-                processed_params = dict(request_parameters)
-
-            yield from _as_input_attributes(_io_value_and_type(processed_params))
-            if (
-                extract_image_files
-                and cast_to is self._openai.types.ImagesResponse
-                and not hide_inputs
-                and not hide_images
-            ):
+        yield SpanAttributes.INPUT_VALUE, REDACTED_VALUE
+        yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+        if (
+            extract_image_files
+            and cast_to is self._openai.types.ImagesResponse
+            and not config.hide_inputs
+            and not config.hide_input_images
+        ):
+            try:
                 yield from (
                     image_file_attributes
                     if image_file_attributes is not None
                     else get_attributes_from_image_files(request_files)
                 )
-        except Exception:
-            logger.exception(
-                f"Failed to get input attributes from request parameters of "
-                f"type {type(request_parameters)}"
-            )
+            except Exception:
+                logger.exception("Failed to extract image file attributes")
 
     def _get_extra_attributes_from_request(
         self,
@@ -369,7 +362,7 @@ class _Request(_WithTracer, _WithOpenAI):
                 self._get_attributes_from_instance(instance, cast_to=cast_to),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
-                    request_parameters=request_parameters,
+                    config=self._config,
                     request_files=request_files,
                 ),
             ),
@@ -378,6 +371,7 @@ class _Request(_WithTracer, _WithOpenAI):
                 cast_to=cast_to,
                 request_parameters=request_parameters,
             ),
+            request_parameters=request_parameters,
         ) as with_span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -426,12 +420,8 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
             logger.exception("Failed to parse request args")
             return await wrapped(*args, **kwargs)
         image_file_attributes: Optional[Tuple[Tuple[str, AttributeValue], ...]] = None
-        config = getattr(self._tracer, "_self_config", None)
         if cast_to is self._openai.types.ImagesResponse and not (
-            config
-            and (
-                getattr(config, "hide_inputs", False) or getattr(config, "hide_input_images", False)
-            )
+            self._config.hide_inputs or self._config.hide_input_images
         ):
             try:
                 image_file_attributes = await anyio.to_thread.run_sync(
@@ -446,7 +436,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 self._get_attributes_from_instance(instance, cast_to=cast_to),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
-                    request_parameters=request_parameters,
+                    config=self._config,
                     request_files=request_files,
                     image_file_attributes=image_file_attributes,
                     extract_image_files=extract_image_files,
@@ -457,6 +447,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 cast_to=cast_to,
                 request_parameters=request_parameters,
             ),
+            request_parameters=request_parameters,
         ) as with_span:
             try:
                 response = await wrapped(*args, **kwargs)
