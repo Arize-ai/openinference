@@ -1,0 +1,340 @@
+interactions:
+- request:
+    body: '{"max_tokens":1024,"messages":[{"role":"user","content":"Using web search,
+      what year did the Sydney Opera House open? Cite a source."}],"model":"claude-haiku-5-5","tools":[{"type":"web_search_20250305","name":"web_search","max_uses":1}],"stream":true}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: 'event: message_start
+
+        data: {"type":"message_start","message":{"model":"claude-haiku-5-5","id":"msg_011Cg175t4E6ruHbCLZTYNss","type":"message","role":"assistant","content":[],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2849,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":6,"service_tier":"standard","inference_geo":"global"},"diagnostics":null}              }
+
+
+        event: content_block_start
+
+        data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}   }
+
+
+        event: ping
+
+        data: {"type": "ping"}
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":""}}
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"CAQSkAgKEAgSGAI4AUIIdGhpbmtpbmcSDEJxv2P+WIzejkpIRBoM/SO0CfplBs7vPKdxIjBESo7QcMrc5HKa0xSxqpiySCsFFdMWNHSTMDkyfI2q/gEYeHsHiVS2cUxV7vuG0GwqrQcdGDkB/QWH9eKzibY+wt0mE/XTFObm5TpXN4s4FJsU8B2/wkXTn9Zy0/sXSaD8AsN6PVyb8QrVHlhcC5jt3gYi64whCzPgYfVdhXiwPB2E7S+DrVJvRFKsrbeX4W1F9gC9JwaLjPDuyBq6p9CHGZG8yE7MdxgmNIQQV4rTTcbf64h0nt5OPIXEzYsVMfl8x/vLIFit2Ttkd63m33NFr7fZ00ja1aAIp/kwuTHeA1gAWX1Me5YHZ5SIwqiW29TlwUx3AQlXcPqIzkXdWs1rmy6/W/S6zKpeMRDdxTuwvuY0ZHJ9WqfWtjnrVcBrKBqSrSegozc55FyTHNbU8qZ068FIgedM/1Jt1xAu5mj1dSA3ANuFfDk45iOW6eimfejenb75TjRnrspHy+C7ov5gmYX6uP5VKP8QnJAqIWRE1Vasq53FwLXDKtzgB8WARnVlSZOvF7lyYvpGI+jGGsEJ4KCOtX5iWC+pdwgMbAjFCP3Ku321X39zBm8D8JHt3MpV27L1fVlMddu4kD/kEHpOcwLp55vfoeZ/1/YLW+OnleCjlgMUFweS/F8ZJYYmC8YEwyTL+PMZWf1HeAt6d9Ldbe+HmM33Vd/FBPAByf4+mHHVNkKcvvmft1dmsi7IPgk1yPyDcGbRyCMxFb2QEkwj/uOSa/pG2Lck4SXPDr7NMdBW5Wp4/qlFZmgw9Bc9+FKZsB3UbCCyWf/Up62PWmw9gl3I94PcYZOYuL0+uVJKhGbGw1f7YGwH06DDJlvfS8CLAkJYkZBk5F12h2Z5j/nxmh3jGB5GU6g+0Eys3v0dfQYaVQjcAYWhn0DzMkWmlHdnrbv2B0+K0LV44JWqk1mrZxl9raFahWUpngV8KcwRpkWvogQ3PNGLGquCMtoT7mTQ0WdRZbwVJRuqafBJHZYNlyQCA9qdqFrHzLMqUyUhO+Rxkl6DBuQ4KCOlS3xiFE/P3zXn2ma/EDryICpdVtrfc9sQ94RXDiZ0ilSqFu23yEsD9sJj08p1XLtAEtz9FQUcWsdgP0OoEs7r6X+Du+8HLldIgsbNQVhGhM13aQodwLSh3/DTCmevQiUKkCNqGdZ+PkBf86KFtEffNnY4mUZpZIawJ13rzxYbvSP8Dw8MmEiT1CNgEf4+u5OTu9xIG7vREMKeKEfWk4w+G1mDdpGbBZYLEKUN3NZ4Fc6+oR2Qni3TODZ5Z3kHzt8kqeQ1ifL+wOKaGkqdWz6MGDK+ro5M83eZNpJnrT6AVMoO3ATxWhgB"}            }
+
+
+        event: content_block_stop
+
+        data: {"type":"content_block_stop","index":0       }
+
+
+        event: content_block_start
+
+        data: {"type":"content_block_start","index":1,"content_block":{"type":"server_tool_use","id":"srvtoolu_01SmXom6nNGRfeiXeGfqrevu","name":"web_search","input":{}}               }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}            }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"query"}    }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\":
+        \"Syd"}          }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"ney
+        Ope"}  }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"ra
+        Hous"}         }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"e
+        openi"} }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"ng
+        year"}    }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"}"}             }
+
+
+        event: content_block_stop
+
+        data: {"type":"content_block_stop","index":1 }
+
+
+        event: content_block_start
+
+        data: {"type":"content_block_start","index":2,"content_block":{"type":"web_search_tool_result","tool_use_id":"srvtoolu_01SmXom6nNGRfeiXeGfqrevu","content":[{"type":"web_search_result","title":"Sydney
+        Opera House Opens","url":"https://www.ebsco.com/research-starters/drama-and-theater-arts/sydney-opera-house-opens","encrypted_content":"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","page_age":null},{"type":"web_search_result","title":"Sydney
+        Opera House collection","url":"https://www.nfsa.gov.au/collection/curated/sydney-opera-house","encrypted_content":"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","page_age":null},{"type":"web_search_result","title":"Sydney
+        Opera House opens","url":"https://www.history.com/this-day-in-history/sydney-opera-house-opens","encrypted_content":"Eo8JCioIFBgCIiQ4YTU3ZTA2NC00N2M3LTRhOTUtYWMzNy0yMjgzZThjZjQ2ZDUSDMKQs/nWfqQd4ocBvBoMBMZtIYJhzclbMFY3IjAElSCDNU2DsEktvhjeztSDQy3IXER7C5gNkV5UYE3NZ12N1bpHOMpJ15HNxhdnWLsqkghQA/ne89uxx5sjusiMphRXXUGkuzu5kGDO2kp+FroY1hhr75CI5GXivsVPLu3wlh/X1zkd3yym5rPRAzi1GoJi9zTozMbBhlVbAq0v2MWaLiMJ6zyogGZNm4yJOowDbiRewAGNTbDrdDH63vZGIqTP9zv8huxBPHE99JgGiDN8J2onB4TrJ/pZHb39PNSj2HFjgSMFT8wZZ8Un8cyPP32X6WdBGNDP6rRpGtpTlb8oj/CS4GzxWymJrK5tzzBfeAyOJfc/pQlN3SmKEFKVIhxBcuHD5beI1SRx64UUu5XO7qWIUB+Zukh7BcHHVTgQ8Itol4EspZllVjQ6DYYDqeVajaS3kzLfI6wIORONyebDekaAel6QO6n3JMF/GCt80YMxV1uHHQEgQhFof8t6HKl2bzZtRv3iWbkxJA+OnIt9awmoPvPobEa1B0dInAUm+ywso8L+hWr9SelKzCgcWq54vjLQLDnv1VGWMb2uaVsYFoWxYoda7dWUuj5Zy1ZbTxpZhCJdel7Ek3IwH+37dzjRmNJWLe/G/UtmwTTT7HgUJ07016xrvS0TKzBVU57O6vK0KOISuvNCg5yPsIZJKFWZ6zE2vAPMppGvkVALksyYs8pr6ZU+1fdk9A80yofhxnj/d/ZqlN+CQLOWAFPrfZPyFYM/N39Ng3rw4pfqprAR0W/c3roz9O/9rMSHUQ3NK/Bh+wdOMCR8rUiXJNNvSmFJTz3NVOwJXLF8bn9bCiuzcqCZKgBuDH9lIdxKse2kjjlEA+HyRjWBcpQ/sFRdY3ipZoUvsaYLHJVnv6HKjahUNwYIHB0Na7QZHbcxftNHexQ5Xe4qpUtpApkvjKo55hgaPkxKFC/zZ5o+EMym8v1xcVdN7kQeZ/qvOVzdo1lTAO1OM6OPs4cCsiOqjadn/1YF6je87LcaSLRvXUZuvLVxoTXR78Sq2ggO79DGncUqPbYKVGGE6inJti3d5fL+X726QEa9/DxaEgbyiGgpL1oCUHbKTKcG6VYbyz8dkAT+Kc+UsRAulcRAJmPxRvDDav544UN29gvOrDzzXGwPUAINApmYRmDPwhcRkAYDB4D0GmjNy+Ioke4xgoZk82i/ZuzUrCfMhnrBzPlVfDz5tRftZ0Zaa8LMXcT2Gws13QHt1JE1VuamwTpo+fhpM7saMlRPMqjxUgtZvSZKEUUigB8lrDVWk6u5FRejpcTGcO09UPMB8LFL3Kv0PS7MoFMstDmxr6BtpIyKipWF/rn1axPSyZEOXZqSbWc9weCbGMcCU1i736W3nWdqEez0Kf29KMylsCdvnl7sd0M8F2pVBYRgkDzc9YhomO68abJycbIOKneXa7JhPRUcR306jb+gP+dNmBu7UOinelEu8SnV0kPRsDuwGAM=","page_age":"725
+        days ago"},{"type":"web_search_result","title":"Sydney Opera House","url":"https://www.nma.gov.au/defining-moments/resources/sydney-opera-house","encrypted_content":"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","page_age":"546
+        days ago"},{"type":"web_search_result","title":"Peter Hall (architect)","url":"https://en.wikipedia.org/wiki/Peter_Hall_(architect)","encrypted_content":"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","page_age":null},{"type":"web_search_result","title":"Sydney
+        Opera House - DCCEEW","url":"https://www.dcceew.gov.au/parks-heritage/heritage/places/national/sydney-opera-house","encrypted_content":"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","page_age":"180
+        days ago"},{"type":"web_search_result","title":"Our story","url":"https://www.sydneyoperahouse.com/our-story","encrypted_content":"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","page_age":null},{"type":"web_search_result","title":"Sydney
+        Opera House - UNESCO World Heritage Centre","url":"https://whc.unesco.org/en/list/166/","encrypted_content":"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","page_age":"5216
+        days ago"},{"type":"web_search_result","title":"Sydney Opera House - 7 Wonders","url":"https://7wonders.org/oceania/australia/sydney/sydney-opera-house/","encrypted_content":"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","page_age":"638
+        days ago"}],"caller":{"type":"direct"}}               }
+
+
+        event: content_block_stop
+
+        data: {"type":"content_block_stop","index":2          }
+
+
+        event: content_block_start
+
+        data: {"type":"content_block_start","index":3,"content_block":{"type":"thinking","thinking":"","signature":""}               }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":3,"delta":{"type":"thinking_delta","thinking":""}          }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":3,"delta":{"type":"signature_delta","signature":"CAQSuAkKEAgSGAI4AUIIdGhpbmtpbmcSDBMbr+oG8nT8p+V3xRoMSE2tKVT26kdUpu/8IjCK8Q8kbSdHGxkXw8e0R/QmG+wLHdn3STJt5uzb6jUG2TS9LnM+Vai5qwzQIOEcf8Aq1QjOt3Py7mANSzx+SaVQjNUKUgMGW+Z5bJpZyFBIQS07mnxu4wf2oG31C5saAePYJe2BlbecVmotvWQv+u6d1mAd6abi0sqh4caPIxn01LI3hxCLkkZt0TmLS6D9/yKsrb31QacQF/mVcL2wFcnUJ8qPiQPHQkpbmcXa/yn7jpc+fZ6dF/t9YlaObChHEcCCV6/XQgAUDbD4WCoF5hg9Kaoof5odkrdDnNJjtB+soX9Lwd4OgJjgopAHzFy4a9grBPtBlVIgYtdVSL/wk8QhhJ6l2biI3dkkY6o6p4bl2NhV47OB32t+UO2zbfi1UO5UCdlgFzTPw5Onx6bur9DRw3Gr4orG7ZMmAWMJnqpiunC14A8a6ESmT3rZqc50Ru9iWSXP794nhNnQaxYzmPI7v19fBf3QGk1Pub2ekFlr0pu4yp3wdAPjInJ98sjBJnAHDZFaquaqiKnLl1nLlP2swHlLuDrAJH3mo/PAdq+Fbw6sE2MwVOWZDf/P2mwPUPz2scGh65lsD2d5ViOSjjttPLcKbzLTN7JZcX4uyPFqG+87bvbUKIGQ79j/1eamNJSWfaTETqkjZxkM/GiIpage70pLEpbEDWgWQG4r0l29OjHFMkeTFiNYQ1aGgz+4qxu8T499U1oKV/ddSt60mU/baYGMNzL8XszWGlEG/vPQTnbTuZri5Ryp29YSBpsQ/syj8czsa4mTgVnfF/e3nXunrpUHtmq66+1minVqW85za6gviWNWs5gWptiT0f/1lSNbk7OnbeobbuYl+u/Y/LDIrS3kdzEkapHj5wEtcY3LdcD+CuMu1klAp04pRs472I993/Gt1Fb9BEjlyrUM1ziVat1WzRGsu2Z95RVTuRyQbQG6+lMJv6utCOvnEBYtz0O51zKdT/QHnFUZTznb0iu4YaoUfo52aEpkhyMS4ZYMVpxakLdzjaOhgtEwPcet6cPa5e56h+yZ0o4ZMhmLVj0IaVwGsTGK/dXNsQ+u61+PJKQhGRCH5xf7SBmvSS6dt2iSxXlFSv6GxZzSkdqFqQEJDXeieVLzNYwwkvJqn+97DEp7iGltqcN1wQoY85CB33VnZtggtfhu8CsRYbYZ/6OXOOZ+N12qqTQ2noWBpfVLIn9fKuzNtp0L9yuqCXAM0zXdN/q+4VOXhQK07fKRSwqR9hyLPYT3Up96TDCIV0tSRjqzhfUu8+FkMQ7SLdY0nCVA0Iq5KiXp6Mi+zBqKT9/y5EiMCNe2/5by8QTPxl6PQUjA2wxdjHtOkDq9vEjFjNQP34FqFN3vWgvvDLx2s0/+oyBWuPlMBrTdXa0JAhK04ENLAsvtpF0/eQo3D0jK/Q7VWHn+lUcY8dyuGCBiSbAt4VROLHvr28d/LSZK9OWDy73ikVp3TiA4J/MgZO+01pRq8ZoM4WqVnpyk7yZsj1UOKGZW+VhEjs5DMBVtclAzTdoFF74H3M6XA72dAgkaJuOYATgnr4j/wBgB"}              }
+
+
+        event: content_block_stop
+
+        data: {"type":"content_block_stop","index":3 }
+
+
+        event: content_block_start
+
+        data: {"type":"content_block_start","index":4,"content_block":{"type":"text","text":""}          }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"The
+        S"}            }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"ydney
+        Opera House opened"}    }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"
+        in **1973**."}}
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"
+        Que"}         }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"en
+        Elizabeth II"}               }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"
+        dedicated the ven"}              }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"ue
+        on 20 October of"}    }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"
+        that year, according"}        }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"
+        to the "}         }
+
+
+        event: content_block_stop
+
+        data: {"type":"content_block_stop","index":4            }
+
+
+        event: content_block_start
+
+        data: {"type":"content_block_start","index":5,"content_block":{"citations":[],"type":"text","text":""}      }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":5,"delta":{"type":"citations_delta","citation":{"type":"web_search_result_location","cited_text":"Queen
+        Elizabeth II, nominal sovereign of Australia, dedicated the new Sydney Opera
+        House on October 20, 1973.\n\n","url":"https://www.ebsco.com/research-starters/drama-and-theater-arts/sydney-opera-house-opens","title":"Sydney
+        Opera House Opens","encrypted_index":"Eo8BCioIFBgCIiQ4YTU3ZTA2NC00N2M3LTRhOTUtYWMzNy0yMjgzZThjZjQ2ZDUSDItmMoehH4sgRMbD+RoMymNl/tuZPiMi5AGPIjBK8EVughMFJQWv8Lm74FHgYriPAPhjCw5adG6rODXLmVbhytkHvoDdKmXuJta/gGwqE9VHZljQw3nS9cT9E/kPNpo+JWsYBA=="}}    }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":5,"delta":{"type":"text_delta","text":"E"}
+        }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":5,"delta":{"type":"text_delta","text":"BSCO"}    }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":5,"delta":{"type":"text_delta","text":"
+        Research Starters"}              }
+
+
+        event: content_block_stop
+
+        data: {"type":"content_block_stop","index":5     }
+
+
+        event: content_block_start
+
+        data: {"type":"content_block_start","index":6,"content_block":{"type":"text","text":""}    }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":6,"delta":{"type":"text_delta","text":"
+        entry. The"}}
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":6,"delta":{"type":"text_delta","text":"
+        "}}
+
+
+        event: content_block_stop
+
+        data: {"type":"content_block_stop","index":6      }
+
+
+        event: content_block_start
+
+        data: {"type":"content_block_start","index":7,"content_block":{"citations":[],"type":"text","text":""}      }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":7,"delta":{"type":"citations_delta","citation":{"type":"web_search_result_location","cited_text":"Finally,
+        the Sydney Opera House was opened by Queen Elizabeth II on 20 October 1973.
+        ","url":"https://www.nma.gov.au/defining-moments/resources/sydney-opera-house","title":"Sydney
+        Opera House","encrypted_index":"EpABCioIFBgCIiQ4YTU3ZTA2NC00N2M3LTRhOTUtYWMzNy0yMjgzZThjZjQ2ZDUSDO4akJr8zm305H0W3RoMfA3h5ZYUnlwQ8J+dIjDwBrpHP8qNlGi//7StdD1AGEOIvhKgkoeC7+STl48Z9V/4jgHgHt/gRNgJ5kcUY0IqFBF1Qv7/BfFiUzQscLttslgCN0dRGAQ="}}              }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":7,"delta":{"type":"text_delta","text":"National
+        Museum of"}             }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":7,"delta":{"type":"text_delta","text":"
+        Australia"}}
+
+
+        event: content_block_stop
+
+        data: {"type":"content_block_stop","index":7     }
+
+
+        event: content_block_start
+
+        data: {"type":"content_block_start","index":8,"content_block":{"type":"text","text":""}          }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":8,"delta":{"type":"text_delta","text":"
+        g"} }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":8,"delta":{"type":"text_delta","text":"ives
+        the same date, noting it"}             }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":8,"delta":{"type":"text_delta","text":"
+        was 10 years beh"}             }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":8,"delta":{"type":"text_delta","text":"ind
+        sch"}             }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":8,"delta":{"type":"text_delta","text":"edule."}        }
+
+
+        event: content_block_stop
+
+        data: {"type":"content_block_stop","index":8              }
+
+
+        event: message_delta
+
+        data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"container":null},"usage":{"input_tokens":13719,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":556,"output_tokens_details":{"thinking_tokens":370},"server_tool_use":{"web_search_requests":1,"web_fetch_requests":0}}         }
+
+
+        event: message_stop
+
+        data: {"type":"message_stop"          }
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

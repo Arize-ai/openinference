@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.1.60](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.59...python-openinference-instrumentation-bedrock-v0.1.60) (2026-10-10)
+
+
+### Bug Fixes
+
+* **bedrock:** include cache tokens in Converse prompt token count ([#3855](https://github.com/Arize-ai/openinference/issues/3855)) ([279c238](https://github.com/Arize-ai/openinference/commit/279c2385f46f29f7e823d77a4c0a2ecb34344d94))
+
+## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.58...python-openinference-instrumentation-bedrock-v0.1.59) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
+## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.57...python-openinference-instrumentation-bedrock-v0.1.58) (2026-10-08)
+
+
+### Bug Fixes
+
+* **bedrock:** record every toolResult block of a Converse message ([#3787](https://github.com/Arize-ai/openinference/issues/3787)) ([be777f6](https://github.com/Arize-ai/openinference/commit/be777f681f6a6216e1db40e19918d3ac14af7d30))
+
+## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.56...python-openinference-instrumentation-bedrock-v0.1.57) (2026-10-07)
+
+
+### Bug Fixes
+
+* **bedrock:** record input and output for OpenAI models (GPT-6, GPT-5.x, gpt-oss) on InvokeModel ([#3833](https://github.com/Arize-ai/openinference/issues/3833)) ([f4908d6](https://github.com/Arize-ai/openinference/commit/f4908d6d113255849e7774e62c752cba4db33577))
+* **bedrock:** restore instrumented clients on uninstrument ([#3970](https://github.com/Arize-ai/openinference/issues/3970)) ([641a073](https://github.com/Arize-ai/openinference/commit/641a0737f13cc2e9aae19bc871049dd044aec223))
+
+## [0.1.56](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.55...python-openinference-instrumentation-bedrock-v0.1.56) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.69 ([#3911](https://github.com/Arize-ai/openinference/issues/3911)) ([ac30a8f](https://github.com/Arize-ai/openinference/commit/ac30a8f3df9da1c0fb00f923a5281ad5cec94674))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.41 ([#3907](https://github.com/Arize-ai/openinference/issues/3907)) ([04fe33f](https://github.com/Arize-ai/openinference/commit/04fe33f2b10147ec4481983f725d89a9ca42fc5f))
+
+## [0.1.55](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.54...python-openinference-instrumentation-bedrock-v0.1.55) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+
+## [0.1.54](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.53...python-openinference-instrumentation-bedrock-v0.1.54) (2026-09-29)
+
+
+### Bug Fixes
+
+* **bedrock:** use local AttributeValue alias for opentelemetry-api 1.45.0 mypy compatibility ([#3867](https://github.com/Arize-ai/openinference/issues/3867)) ([780bb90](https://github.com/Arize-ai/openinference/commit/780bb90e3956e46a04683850a39b5d62c9b488b9))
+
 ## [0.1.53](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.52...python-openinference-instrumentation-bedrock-v0.1.53) (2026-09-10)
 
 

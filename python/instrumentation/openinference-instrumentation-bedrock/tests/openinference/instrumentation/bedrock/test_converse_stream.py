@@ -255,7 +255,7 @@ def _assert_converse_stream_text_message_attrs(attributes: Dict[str, Any]) -> No
     assert attributes.pop(f"{im}.0.message.contents.0.message_content.text").startswith(
         "What is sum of 1 to 10?"
     )
-    assert attributes.pop("llm.invocation_parameters").startswith('{"stop_reason": "end_turn"}')
+    assert "llm.invocation_parameters" not in attributes
     assert attributes.pop("llm.model_name").startswith("anthropic.claude-3-haiku-20240307-v1:0")
     assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert attributes.pop(f"{om}.0.message.contents.0.message_content.text").startswith(
@@ -285,7 +285,7 @@ def _assert_converse_stream_tool_message_attrs(attributes: Dict[str, Any]) -> No
     assert attributes.pop(
         "llm.input_messages.0.message.contents.0.message_content.text"
     ).startswith("What is the most popular song on WZPZ?")
-    assert attributes.pop("llm.invocation_parameters").startswith('{"stop_reason": "tool_use"}')
+    assert "llm.invocation_parameters" not in attributes
     assert attributes.pop("llm.model_name").startswith("anthropic.claude-3-haiku-20240307-v1:0")
     assert attributes.pop(LLM_FINISH_REASON, None) == "tool_use"
     assert attributes.pop(f"{om}.0.message.tool_calls.0.tool_call.function.arguments").startswith(
@@ -314,7 +314,7 @@ def _assert_converse_stream_tool_response_message_attrs(
         == "top_song"
     )
     assert attributes.pop("llm.input_messages.2.message.content") == "Rock and Roll Hall"
-    assert attributes.pop("llm.input_messages.2.message.role") == "user"
+    assert attributes.pop("llm.input_messages.2.message.role") == "tool"
     assert (
         attributes.pop("llm.input_messages.2.message.tool_call_id")
         == "tooluse_ZQEZysOVRqitr-89GxHizA"
@@ -340,7 +340,7 @@ def _assert_converse_stream_tool_response_message_attrs(
     assert attributes.pop("llm.input_messages.1.message.tool_calls.0.tool_call.id").startswith(
         "tooluse_"
     )
-    assert '{"stop_reason": "end_turn"}' in attributes.pop("llm.invocation_parameters")
+    assert "llm.invocation_parameters" not in attributes
     assert "anthropic.claude-3-haiku-20240307" in attributes.pop("llm.model_name")
     assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert "song played on radio station WZPZ" in attributes.pop(
@@ -396,7 +396,7 @@ def test_converse_tool_use_message(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].status.is_ok
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == "mistral.devstral-2-123b"
@@ -413,8 +413,7 @@ def test_converse_tool_use_message(
         == "What is the most popular song on Radio XYZ?"
     )
 
-    assert isinstance(inv_params_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(inv_params_str).get("stop_reason") == "tool_use"
+    assert LLM_INVOCATION_PARAMETERS not in attributes
 
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 90
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 14

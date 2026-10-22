@@ -127,7 +127,7 @@ def _cache_token_counts(
     assert len(spans) == 2
     usages = []
     for span in spans:
-        usage = {}
+        usage: Dict[str, int] = {}
         for key in (
             LLM_TOKEN_COUNT_PROMPT,
             LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,

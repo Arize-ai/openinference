@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, cast
 
@@ -28,6 +29,8 @@ from openinference.instrumentation.bedrock.utils._extract_invoke_model_attribute
     _build_nova_input_messages,
     _build_nova_output_messages,
     _build_nova_tools,
+    get_openai_output_attributes,
+    set_input_attributes,
 )
 
 if TYPE_CHECKING:
@@ -36,10 +39,16 @@ if TYPE_CHECKING:
 from openinference.instrumentation.bedrock._converse_stream_callback import _ConverseStreamCallback
 from openinference.instrumentation.bedrock._rag_wrappers import _RagEventStream
 from openinference.instrumentation.bedrock._response_accumulator import _ResponseAccumulator
-from openinference.instrumentation.bedrock.utils import _EventStream, _finish, _use_span
+from openinference.instrumentation.bedrock.utils import (
+    _EventStream,
+    _finish,
+    _StreamClosed,
+    _use_span,
+)
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _AnthropicMessagesCallback,
 )
+from openinference.instrumentation.bedrock.utils.json_utils import parse_invoke_model_body
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -49,6 +58,20 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+
+def _end_span_on_stream_end(span: Span) -> Callable[[Any], Any]:
+    def callback(obj: Any) -> Any:
+        if isinstance(obj, (StopIteration, StopAsyncIteration)):
+            _finish(span, None, {}, isinstance(obj, _StreamClosed))
+        elif isinstance(obj, BaseException):
+            _finish(span, obj, {})
+        return obj
+
+    return callback
 
 
 class _NovaStreamCallback:
@@ -103,7 +126,7 @@ class _NovaStreamCallback:
                     pass
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
             self._finalize_output()
-            _finish(span, None, {})
+            _finish(span, None, {}, isinstance(obj, _StreamClosed))
         elif isinstance(obj, BaseException):
             _finish(span, obj, {})
         return obj
@@ -198,6 +221,124 @@ class _NovaStreamCallback:
             span.set_attributes(get_llm_output_message_attributes(output_messages))
 
 
+class _OpenAIStreamCallback:
+    """
+    Processes OpenAI (gpt-oss, GPT-5.x, GPT-6) invoke_model_with_response_stream events.
+
+    Each chunk is a Chat Completions ``chat.completion.chunk``. Every choice (keyed by
+    ``choices[].index``) streams its text in ``delta.content``, a refusal in
+    ``delta.refusal``, tool calls in ``delta.tool_calls`` (split into fragments keyed by
+    their own ``index``) and ends with ``finish_reason``. GPT-5.x/GPT-6 send ``usage``
+    with the finish reason (again in a trailing chunk with empty ``choices`` when
+    ``stream_options.include_usage`` is set). gpt-oss sends ``usage`` only with
+    ``include_usage``, so token counts fall back to the
+    ``amazon-bedrock-invocationMetrics`` of the last chunk.
+    """
+
+    def __init__(self, span: Span) -> None:
+        self._span = span
+        # Accumulated message state per ``choice.index`` (more than one when ``n > 1``).
+        self._choices: Dict[int, Dict[str, Any]] = {}
+        self._usage: Dict[str, Any] = {}
+
+    def __call__(self, obj: Any) -> Any:
+        span = self._span
+        if isinstance(obj, dict):
+            if "chunk" in obj and "bytes" in obj["chunk"]:
+                try:
+                    payload = json.loads(obj["chunk"]["bytes"])
+                    for choice in payload.get("choices") or []:
+                        self._add_choice_delta(choice)
+                    if isinstance(usage := payload.get("usage"), dict):
+                        self._usage = usage
+                    elif isinstance(
+                        metrics := payload.get("amazon-bedrock-invocationMetrics"), dict
+                    ):
+                        prompt = metrics.get("inputTokenCount")
+                        completion = metrics.get("outputTokenCount")
+                        self._usage = {"prompt_tokens": prompt, "completion_tokens": completion}
+                        if isinstance(prompt, int) and isinstance(completion, int):
+                            self._usage["total_tokens"] = prompt + completion
+                except Exception:
+                    pass
+        elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            if self._choices and (
+                finish_reason := self._choices[min(self._choices)]["finish_reason"]
+            ):
+                span.set_attribute(LLM_FINISH_REASON, finish_reason)
+            for key, attribute in (
+                ("prompt_tokens", LLM_TOKEN_COUNT_PROMPT),
+                ("completion_tokens", LLM_TOKEN_COUNT_COMPLETION),
+                ("total_tokens", LLM_TOKEN_COUNT_TOTAL),
+            ):
+                if isinstance(value := self._usage.get(key), int):
+                    span.set_attribute(attribute, value)
+            span.set_attributes(get_openai_output_attributes(self._output_messages()))
+            _finish(span, None, {}, isinstance(obj, _StreamClosed))
+        elif isinstance(obj, BaseException):
+            _finish(span, obj, {})
+        return obj
+
+    def _add_choice_delta(self, choice: Any) -> None:
+        if not isinstance(choice, dict):
+            return
+        index = choice.get("index")
+        state = self._choices.setdefault(
+            index if isinstance(index, int) else 0,
+            {
+                "role": "assistant",
+                "content": "",
+                "refusal": "",
+                "tool_calls": {},
+                "finish_reason": None,
+            },
+        )
+        delta = choice.get("delta") or {}
+        if role := delta.get("role"):
+            state["role"] = role
+        if content := delta.get("content"):
+            state["content"] += content
+        if refusal := delta.get("refusal"):
+            state["refusal"] += refusal
+        for tool_call in delta.get("tool_calls") or []:
+            self._add_tool_call_delta(state["tool_calls"], tool_call)
+        if finish_reason := choice.get("finish_reason"):
+            state["finish_reason"] = finish_reason
+
+    @staticmethod
+    def _add_tool_call_delta(tool_calls: Dict[int, Dict[str, Any]], tool_call: Any) -> None:
+        if not isinstance(tool_call, dict):
+            return
+        index = tool_call.get("index")
+        if not isinstance(index, int):
+            index = len(tool_calls)
+        accumulated = tool_calls.setdefault(
+            index, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}}
+        )
+        if tool_call_id := tool_call.get("id"):
+            accumulated["id"] = tool_call_id
+        function = tool_call.get("function") or {}
+        if name := function.get("name"):
+            accumulated["function"]["name"] = name
+        if arguments := function.get("arguments"):
+            accumulated["function"]["arguments"] += arguments
+
+    def _output_messages(self) -> list[Dict[str, Any]]:
+        messages: list[Dict[str, Any]] = []
+        for index in sorted(self._choices):
+            state = self._choices[index]
+            if not (state["content"] or state["refusal"] or state["tool_calls"]):
+                continue
+            message: Dict[str, Any] = {"role": state["role"], "content": state["content"] or None}
+            if state["refusal"]:
+                message["refusal"] = state["refusal"]
+            if state["tool_calls"]:
+                tool_calls = state["tool_calls"]
+                message["tool_calls"] = [tool_calls[i] for i in sorted(tool_calls)]
+            messages.append(message)
+        return messages
+
+
 def _is_async_at_decoration(wrapped: Callable[..., Any]) -> bool:
     """
     Decide sync vs async at decoration time (same heuristic as call-time check).
@@ -266,9 +407,31 @@ class _InvokeModelWithResponseStream(_WithTracer):
     def handle_response(response: Any, kwargs: Mapping[str, Any], span: Span) -> Any:
         from botocore.eventstream import EventStream
 
-        # Request body is InvokeModel payload (blob: str or bytes); json.loads accepts both.
-        # Construct a parsed view of the request rather than mutating kwargs in place.
-        body = json.loads(kwargs["body"])
+        # Request body is InvokeModel payload (blob: str, bytes, or seekable
+        # file-like object); parse without mutating kwargs in place. Telemetry
+        # must never raise into the application after the request was sent.
+        try:
+            body = parse_invoke_model_body(kwargs["body"])
+        except Exception:
+            logger.warning("Failed to extract input attributes", exc_info=True)
+            try:
+                span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
+                if isinstance(response.get("body"), EventStream):
+                    response["body"] = _EventStream(
+                        response["body"],
+                        _end_span_on_stream_end(span),
+                        _use_span(span),
+                    )
+                    return response
+                span.end()
+                return response
+            except Exception:
+                logger.exception("Failed to finalize span after input parsing failure")
+                try:
+                    span.end()
+                except Exception:
+                    pass
+                return response
         if isinstance(response["body"], EventStream):
             if "anthropic_version" in body:
                 parsed_request: Mapping[str, Any] = {**kwargs, "body": body}
@@ -287,9 +450,17 @@ class _InvokeModelWithResponseStream(_WithTracer):
                     _use_span(span),
                 )
                 return response
-        span.set_attribute(LLM_INVOCATION_PARAMETERS, body)
+            if "openai." in model_id:
+                set_input_attributes(span, body, dict(kwargs))
+                response["body"] = _EventStream(
+                    response["body"],
+                    _OpenAIStreamCallback(span),
+                    _use_span(span),
+                )
+                return response
+        span.set_attribute(LLM_INVOCATION_PARAMETERS, safe_json_dumps(body))
         span.set_attribute(INPUT_MIME_TYPE, JSON)
-        span.set_attribute(INPUT_VALUE, body)
+        span.set_attribute(INPUT_VALUE, safe_json_dumps(body))
         span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
         span.end()
 
@@ -305,8 +476,21 @@ class _InvokeModelWithResponseStream(_WithTracer):
             self._name,
             end_on_exit=False,
         ) as span:
-            response = wrapped(*args, **kwargs)
-            self.handle_response(response, kwargs, span)
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise
+            try:
+                self.handle_response(response, kwargs, span)
+            except Exception:
+                logger.exception("Failed to finalize streaming span")
+                try:
+                    span.end()
+                except Exception:
+                    pass
             return response
 
     async def _async_call(
@@ -328,7 +512,14 @@ class _InvokeModelWithResponseStream(_WithTracer):
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
                 raise
-            self.handle_response(response, kwargs, span)
+            try:
+                self.handle_response(response, kwargs, span)
+            except Exception:
+                logger.exception("Failed to finalize streaming span")
+                try:
+                    span.end()
+                except Exception:
+                    pass
             return response
 
 
@@ -339,7 +530,8 @@ class _ConverseStream(_WithTracer):
     This class wraps the Bedrock converse_stream API, starting a tracing span for each invocation.
     It attaches request attributes to the span, and if the response contains a streaming
     EventStream, it wraps the stream to enable span-aware streaming instrumentation.
-    The span is ended when the stream is fully consumed or if the response is not a stream.
+    The span is ended when the stream is fully consumed, closed, or dropped, or if the
+    response is not a stream.
     """
 
     _name = "bedrock.converse_stream"

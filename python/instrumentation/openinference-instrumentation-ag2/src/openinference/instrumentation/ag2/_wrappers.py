@@ -36,7 +36,8 @@ def _arguments(
 
 
 def _io_attributes(
-    value: Any, get_attributes: Callable[[Any], dict[str, AttributeValue]]
+    value: Any,
+    get_attributes: Callable[[Any], dict[str, AttributeValue]],
 ) -> dict[str, AttributeValue]:
     """Build input or output attributes, substituting a placeholder if serialization fails."""
     try:

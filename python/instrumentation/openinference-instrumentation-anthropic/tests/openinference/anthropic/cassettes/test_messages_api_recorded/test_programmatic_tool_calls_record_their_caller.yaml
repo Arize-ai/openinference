@@ -1,0 +1,18 @@
+interactions:
+- request:
+    body: '{"max_tokens":1024,"messages":[{"role":"user","content":"Write code that
+      calls get_weather for Paris, then report the result."}],"model":"claude-haiku-5-5","tools":[{"type":"code_execution_20260120","name":"code_execution"},{"name":"get_weather","description":"The
+      get weather.","input_schema":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]},"allowed_callers":["code_execution_20260120"]}]}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages?beta=true
+  response:
+    body:
+      string: '{"model":"claude-haiku-5-5","id":"msg_011Cg176nYcWxjnw6EGsusAL","type":"message","role":"assistant","content":[{"type":"server_tool_use","id":"srvtoolu_01HFKs74odJtxpC82TB5V26s","name":"code_execution","input":{"code":"import
+        json\nresult = await get_weather({\"city\": \"Paris\"})\ntry:\n    parsed
+        = json.loads(result)\n    print(json.dumps(parsed, indent=2))\nexcept Exception:\n    print(result)"}},{"type":"tool_use","id":"toolu_01Dw3rY9fZtBWdmgUAmz9CMh","name":"get_weather","input":{"city":"Paris"},"caller":{"type":"code_execution_20260120","tool_id":"srvtoolu_01HFKs74odJtxpC82TB5V26s"}}],"container":{"id":"container_01RZid9agoiDQ4Qp7PqRfJ9g","expires_at":"2026-10-13T23:34:55.149785Z"},"stop_reason":"tool_use","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":4126,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":114,"output_tokens_details":{"thinking_tokens":0},"service_tier":"standard","inference_geo":"global","server_tool_use":{"web_search_requests":0,"web_fetch_requests":0}},"diagnostics":null}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

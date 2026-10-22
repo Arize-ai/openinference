@@ -14,7 +14,6 @@ from openinference.instrumentation import (
     REDACTED_VALUE,
     OITracer,
     TraceConfig,
-    finalize_deferred_input_value,
     suppress_tracing,
 )
 from openinference.semconv.trace import SpanAttributes
@@ -76,7 +75,7 @@ def _start_with_deferred_input(tracer: OITracer, serialize: Callable[[], str]) -
         "llm",
         attributes={SpanAttributes.INPUT_VALUE: REDACTED_VALUE},
     )
-    finalize_deferred_input_value(span, serialize)
+    span.finalize_deferred_input_value(serialize)
     span.end()
 
 
@@ -98,7 +97,7 @@ def test_deferred_input_value_is_finalized_for_recording_spans(decision: Decisio
         "llm",
         attributes={SpanAttributes.INPUT_VALUE: REDACTED_VALUE},
     )
-    finalize_deferred_input_value(span, serialize)
+    span.finalize_deferred_input_value(serialize)
     span.end()
 
     assert sampler.attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
@@ -151,7 +150,7 @@ def test_deferred_input_value_is_not_finalized_for_suppressed_span() -> None:
             "llm",
             attributes={SpanAttributes.INPUT_VALUE: REDACTED_VALUE},
         )
-        finalize_deferred_input_value(span, serialize)
+        span.finalize_deferred_input_value(serialize)
         span.end()
 
     assert exporter.get_finished_spans() == ()
@@ -177,7 +176,7 @@ def test_finalize_deferred_input_value_inside_start_as_current_span() -> None:
         "llm",
         attributes={SpanAttributes.INPUT_VALUE: REDACTED_VALUE},
     ) as span:
-        finalize_deferred_input_value(span, lambda: "final")
+        span.finalize_deferred_input_value(lambda: "final")
 
     assert sampler.attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     (exported_span,) = exporter.get_finished_spans()
@@ -195,20 +194,8 @@ def test_deferred_input_value_is_not_finalized_for_invalid_span() -> None:
         "llm",
         attributes={SpanAttributes.INPUT_VALUE: REDACTED_VALUE},
     )
-    finalize_deferred_input_value(span, serialize)
+    span.finalize_deferred_input_value(serialize)
     span.end()
-
-
-def test_deferred_input_value_is_not_finalized_for_raw_invalid_span() -> None:
-    callback_count = 0
-
-    def serialize() -> str:
-        nonlocal callback_count
-        callback_count += 1
-        return "visible"
-
-    finalize_deferred_input_value(trace_api.INVALID_SPAN, serialize)
-    assert callback_count == 0
 
 
 def test_deferred_input_value_is_not_finalized_after_on_start_ends_span() -> None:
@@ -236,7 +223,7 @@ def test_deferred_input_value_is_not_finalized_after_on_start_ends_span() -> Non
         "llm",
         attributes={SpanAttributes.INPUT_VALUE: REDACTED_VALUE},
     )
-    finalize_deferred_input_value(span, serialize)
+    span.finalize_deferred_input_value(serialize)
 
 
 def test_mask_never_receives_a_callable_for_deferred_input_value() -> None:

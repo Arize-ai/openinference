@@ -1,10 +1,13 @@
 import type { Attributes } from "@opentelemetry/api";
-import { context, SpanStatusCode, trace } from "@opentelemetry/api";
+import { context, SpanStatusCode, trace, TraceFlags } from "@opentelemetry/api";
+import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { BasicTracerProvider, InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
 
 import { setSession, setUser } from "@arizeai/openinference-core";
 import {
+  DecisionProvider,
+  DecisionSystem,
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
@@ -12,11 +15,15 @@ import {
 
 import type { SpanFilter } from "../src";
 import {
+  enrichSpanWithOpenInference,
   isOpenInferenceSpan,
   OpenInferenceBatchSpanProcessor,
   OpenInferenceSimpleSpanProcessor,
 } from "../src";
-import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
+import {
+  EveOperationNameToSpanKindMap,
+  VercelSDKFunctionNameToSpanKindMap,
+} from "../src/constants";
 import { VercelAISemanticConventions } from "../src/VercelAISemanticConventions";
 import embedDoEmbedFixture from "./__fixtures__/v6-spans/ai-embed-doEmbed.json";
 import generateObjectDoGenerateFixture from "./__fixtures__/v6-spans/ai-generateObject-doGenerate.json";
@@ -273,6 +280,232 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
           index: 0,
           score: 0.9,
         }),
+      },
+    },
+  ],
+  [
+    "eve agent.step span",
+    {
+      vercelFunctionName: "agent.step",
+      vercelAttributes: {
+        "operation.name": "agent.step",
+        "agent.framework.name": "eve",
+        "agent.step.index": 0,
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+        "gen_ai.generation.id": "gen_01M3MT17AY0GD5CM9F9EJGJMHY",
+        "gen_ai.usage.cost": 0.0020226,
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+    },
+  ],
+  [
+    "eve agent.action span",
+    {
+      vercelFunctionName: "agent.action",
+      vercelAttributes: {
+        "operation.name": "agent.action",
+        "agent.action.kind": "tool-call",
+        "agent.action.name": "get_weather",
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+        "gen_ai.tool.call.arguments": JSON.stringify({ city: "Brooklyn" }),
+        "gen_ai.tool.call.result": JSON.stringify({ city: "Brooklyn", condition: "Sunny" }),
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+    },
+  ],
+  [
+    "eve agent.action span for a subagent call",
+    {
+      vercelFunctionName: "agent.action",
+      vercelAttributes: {
+        "operation.name": "agent.action",
+        "agent.action.kind": "subagent-call",
+        "agent.action.name": "researcher",
+        "agent.invocation.role": "caller",
+        "gen_ai.agent.name": "researcher",
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+        [SemanticConventions.AGENT_NAME]: "researcher",
+      },
+    },
+  ],
+  [
+    "eve agent.action span for a remote-agent call",
+    {
+      vercelFunctionName: "agent.action",
+      vercelAttributes: {
+        "operation.name": "agent.action",
+        "agent.action.kind": "remote-agent-call",
+        "agent.action.name": "billing",
+        "agent.invocation.role": "caller",
+        "gen_ai.agent.name": "billing",
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+      },
+    },
+  ],
+  [
+    "eve agent.action span for a workflow",
+    {
+      vercelFunctionName: "invoke_workflow",
+      vercelAttributes: {
+        "operation.name": "invoke_workflow",
+        "agent.action.kind": "tool-call",
+        "gen_ai.operation.name": "invoke_workflow",
+        "gen_ai.workflow.name": "refund",
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+      },
+    },
+  ],
+  [
+    "eve agent.approval span",
+    {
+      vercelFunctionName: "agent.approval",
+      vercelAttributes: {
+        "operation.name": "agent.approval",
+        "agent.approval.kind": "tool-approval",
+        "agent.approval.outcome": "approved",
+        "agent.action.name": "issue_refund",
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+    },
+  ],
+  [
+    // eve 0.76+: operation.name is "workflow" and the span name moves to resource.name.
+    "eve 0.76 agent.step span",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "operation.name": "workflow",
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.step",
+        "agent.framework.name": "eve",
+        "agent.name": "eve-agent",
+        "agent.step.index": 0,
+        "agent.model.id": "anthropic/claude-sonnet-4.6",
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+        "gen_ai.generation.id": "gen_01M4HDKFBBK6AHEKX0MEJMZAX4",
+        "gen_ai.usage.cost": 0.01799025,
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+    },
+  ],
+  [
+    "eve 0.76 agent.approval span",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "operation.name": "workflow",
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.approval",
+        "agent.approval.kind": "tool-approval",
+        "agent.approval.outcome": "approved",
+        "agent.step.index": 0,
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+    },
+  ],
+  [
+    // eve 0.75 and earlier set both operation.name and resource.name to the span name.
+    "eve 0.75 agent.step span with resource.name",
+    {
+      vercelFunctionName: "agent.step",
+      vercelAttributes: {
+        "operation.name": "agent.step",
+        "resource.name": "agent.step",
+        "agent.framework.name": "eve",
+        "agent.step.index": 0,
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+      },
+    },
+  ],
+  [
+    // An agent identity keeps the eve map from applying, as it does for operation.name.
+    "eve 0.76-shaped span with an agent identity",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "operation.name": "workflow",
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.step",
+        "gen_ai.agent.name": "researcher",
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+      },
+    },
+  ],
+  [
+    // A recognized gen_ai.operation.name takes precedence over resource.name.
+    "span with resource.name agent.step and gen_ai.operation.name chat",
+    {
+      vercelFunctionName: "custom.operation",
+      vercelAttributes: {
+        "operation.name": "custom.operation",
+        "gen_ai.operation.name": "chat",
+        "resource.name": "agent.step",
+        "gen_ai.request.model": "gpt-4o",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      },
+    },
+  ],
+  [
+    // Without gen_ai.operation.name "workflow", resource.name is not matched against the eve map.
+    "span with resource.name agent.step and no gen_ai.operation.name",
+    {
+      vercelFunctionName: "custom.operation",
+      vercelAttributes: {
+        "operation.name": "custom.operation",
+        "resource.name": "agent.step",
+        "gen_ai.conversation.id": "conversation-1",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      },
+    },
+  ],
+  [
+    // The AI SDK sets resource.name to the functionId; its operation.name kind still applies.
+    "AI SDK span whose functionId is agent.step",
+    {
+      vercelFunctionName: "ai.generateText",
+      vercelAttributes: {
+        "operation.name": "ai.generateText",
+        "resource.name": "agent.step",
+        "ai.telemetry.functionId": "agent.step",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
       },
     },
   ],
@@ -1076,6 +1309,119 @@ function setupTraceProvider({
   trace.setGlobalTracerProvider(traceProvider);
 }
 
+describe("enrichSpanWithOpenInference", () => {
+  it("classifies the decide operation as CHAIN and the decision model call as DECISION", () => {
+    expect(
+      enrichSpanWithOpenInference({
+        spanType: "operation",
+        operationId: "ai.decide",
+        callId: "test-call",
+        runtimeContext: undefined,
+      }),
+    ).toEqual({ [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN });
+    expect(
+      enrichSpanWithOpenInference({
+        spanType: "experimental_decision",
+        operationId: "ai.decide.doDecide",
+        callId: "test-call",
+        runtimeContext: undefined,
+      }),
+    ).toEqual({ [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.DECISION });
+  });
+
+  it("leaves other spans to the processor's mapping", () => {
+    expect(
+      enrichSpanWithOpenInference({
+        spanType: "languageModel",
+        operationId: "ai.generateText",
+        callId: "test-call",
+        runtimeContext: undefined,
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe.each([
+  ["OpenInferenceSimpleSpanProcessor", OpenInferenceSimpleSpanProcessor],
+  ["OpenInferenceBatchSpanProcessor", OpenInferenceBatchSpanProcessor],
+] as const)("%s with enrichSpanWithOpenInference", (_name, Processor) => {
+  beforeEach(() => {
+    setupTraceProvider({ Processor });
+  });
+  afterEach(() => {
+    trace.disable();
+  });
+
+  it("distinguishes the decide operation from the decision model call", async () => {
+    const tracer = trace.getTracer("test-tracer");
+    // The AI SDK emits the same gen_ai.* attributes on both spans.
+    const decisionAttributes = {
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "typesafe.decision",
+      "gen_ai.request.model": "jev-latest",
+      "ai.decision.state": JSON.stringify("Customer asks about an invoice."),
+      "ai.decision.questions": JSON.stringify({ route: { type: "choice" } }),
+    };
+    const operationAttributes = enrichSpanWithOpenInference({
+      spanType: "operation",
+      operationId: "ai.decide",
+      callId: "test-call",
+      runtimeContext: undefined,
+    });
+    const modelCallAttributes = enrichSpanWithOpenInference({
+      spanType: "experimental_decision",
+      operationId: "ai.decide.doDecide",
+      callId: "test-call",
+      runtimeContext: undefined,
+    });
+
+    const operation = tracer.startSpan("decide jev-latest", {
+      attributes: { ...decisionAttributes, ...operationAttributes },
+    });
+    const modelCall = tracer.startSpan(
+      "decide jev-latest",
+      { attributes: { ...decisionAttributes, ...modelCallAttributes } },
+      trace.setSpan(context.active(), operation),
+    );
+    modelCall.setAttributes({
+      "gen_ai.usage.input_tokens": 24,
+      "gen_ai.usage.output_tokens": 2,
+      "ai.decision.answers": JSON.stringify({ route: { choice: "billing" } }),
+    });
+    modelCall.end();
+    operation.setAttribute("ai.decision.answers", JSON.stringify({ route: { choice: "billing" } }));
+    operation.end();
+    await processor.forceFlush();
+
+    const spans = memoryExporter.getFinishedSpans();
+    const exportedOperation = spans.find(
+      (span) => span.spanContext().spanId === operation.spanContext().spanId,
+    );
+    const exportedModelCall = spans.find(
+      (span) => span.spanContext().spanId === modelCall.spanContext().spanId,
+    );
+    expect(exportedOperation?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.CHAIN,
+    );
+    expect(exportedModelCall?.parentSpanId).toBe(operation.spanContext().spanId);
+    expect(exportedModelCall?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.DECISION,
+    );
+    expect(exportedModelCall?.attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe(
+      "jev-latest",
+    );
+    expect(exportedModelCall?.attributes[SemanticConventions.DECISION_TOKEN_COUNT_INPUT]).toBe(24);
+    expect(exportedOperation?.attributes[SemanticConventions.INPUT_VALUE]).toBeDefined();
+    expect(exportedOperation?.attributes[SemanticConventions.OUTPUT_VALUE]).toBeDefined();
+    // Model identity and usage live on the DECISION span only, so they are not double counted.
+    expect(
+      Object.keys(exportedOperation?.attributes ?? {}).some(
+        (key) => key.startsWith("decision.") || key.startsWith("llm."),
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("OpenInferenceSimpleSpanProcessor", () => {
   beforeEach(() => {
     setupTraceProvider({ Processor: OpenInferenceSimpleSpanProcessor });
@@ -1095,6 +1441,59 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
       expect(spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(spanKind);
       memoryExporter.reset();
     });
+  });
+
+  it("should get the span kind from eve operation names", () => {
+    const tracer = trace.getTracer("test-tracer");
+    EveOperationNameToSpanKindMap.forEach((spanKind, operationName) => {
+      const span = tracer.startSpan(operationName);
+      // eve control-flow spans carry gen_ai.* context but no gen_ai.operation.name.
+      span.setAttributes({
+        "operation.name": operationName,
+        "gen_ai.conversation.id": "conversation-1",
+      });
+      span.end();
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(spanKind);
+      memoryExporter.reset();
+    });
+  });
+
+  it("should give eve 0.76 control-flow spans the same attributes as eve 0.75", () => {
+    const tracer = trace.getTracer("test-tracer");
+    // The attributes eve sets on an agent.step span other than its operation names.
+    const shared = {
+      "resource.name": "agent.step",
+      "agent.framework.name": "eve",
+      "agent.name": "eve-agent",
+      "agent.step.index": 0,
+      "agent.model.id": "anthropic/claude-sonnet-4.6",
+      "agent.usage.input_tokens": 4582,
+      "agent.usage.output_tokens": 54,
+      "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      "gen_ai.generation.id": "gen_01M4HDKFBBK6AHEKX0MEJMZAX4",
+      "gen_ai.usage.cost": 0.01799025,
+    };
+    const v075 = tracer.startSpan("agent.step");
+    v075.setAttributes({ ...shared, "operation.name": "agent.step" });
+    v075.end();
+    const v076 = tracer.startSpan("agent.step");
+    v076.setAttributes({
+      ...shared,
+      "operation.name": "workflow",
+      "gen_ai.operation.name": "workflow",
+    });
+    v076.end();
+    const [span075, span076] = memoryExporter.getFinishedSpans();
+    const { "operation.name": _op075, ...rest075 } = span075.attributes;
+    const {
+      "operation.name": _op076,
+      "gen_ai.operation.name": _genAIOp076,
+      ...rest076
+    } = span076.attributes;
+    expect(rest076).toEqual(rest075);
+    expect(rest076[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(OpenInferenceSpanKind.CHAIN);
   });
 
   test.each(generateVercelAttributeTestCases())(
@@ -1147,6 +1546,155 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
       });
     },
   );
+
+  it("converts AI SDK v7 decision model telemetry without LLM attributes", () => {
+    const span = trace.getTracer("test-tracer").startSpan("decide jev-latest");
+    span.setAttributes({
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "typesafe.decision",
+      "gen_ai.request.model": "jev-latest",
+      "gen_ai.usage.input_tokens": 24,
+      "gen_ai.usage.output_tokens": 2,
+      "ai.decision.state": JSON.stringify("Customer asks about an invoice."),
+      "ai.decision.questions": JSON.stringify({ route: { type: "choice" } }),
+      "ai.decision.answers": JSON.stringify({ route: { type: "choice", choice: "billing" } }),
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.DECISION,
+    );
+    expect(attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe("jev-latest");
+    expect(attributes[SemanticConventions.DECISION_REQUEST_MODEL_NAME]).toBe("jev-latest");
+    expect(attributes[SemanticConventions.DECISION_RESPONSE_MODEL_NAME]).toBeUndefined();
+    expect(attributes[SemanticConventions.DECISION_SYSTEM]).toBe(DecisionSystem.TYPESAFE);
+    expect(attributes[SemanticConventions.DECISION_PROVIDER]).toBe(DecisionProvider.TYPESAFE);
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_INPUT]).toBe(24);
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT]).toBe(2);
+    expect(JSON.parse(attributes[SemanticConventions.INPUT_VALUE] as string)).toEqual({
+      state: "Customer asks about an invoice.",
+      questions: { route: { type: "choice" } },
+    });
+    expect(JSON.parse(attributes[SemanticConventions.OUTPUT_VALUE] as string)).toEqual({
+      route: { type: "choice", choice: "billing" },
+    });
+    expect(attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(MimeType.JSON);
+    expect(attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(MimeType.JSON);
+    expect(Object.keys(attributes).filter((key) => key.startsWith("llm."))).toEqual([]);
+    // The GenAI model and usage keys are removed so downstream GenAI converters do not
+    // re-label the decision model as an LLM.
+    expect(attributes["gen_ai.provider.name"]).toBeUndefined();
+    expect(attributes["gen_ai.request.model"]).toBeUndefined();
+    expect(attributes["gen_ai.usage.input_tokens"]).toBeUndefined();
+    expect(attributes["gen_ai.operation.name"]).toBe("decide");
+  });
+
+  it("records partial decision input when only the state is recorded", () => {
+    const span = trace.getTracer("test-tracer").startSpan("decide jev-latest");
+    span.setAttributes({
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "typesafe.decision",
+      "gen_ai.request.model": "jev-latest",
+      "ai.decision.state": JSON.stringify("Customer asks about an invoice."),
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(JSON.parse(attributes[SemanticConventions.INPUT_VALUE] as string)).toEqual({
+      state: "Customer asks about an invoice.",
+    });
+    expect(attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(MimeType.JSON);
+    expect(attributes[SemanticConventions.OUTPUT_VALUE]).toBeUndefined();
+  });
+
+  it("normalizes decision provider names to OpenInference provider values", () => {
+    const span = trace.getTracer("test-tracer").startSpan("decide decision-1");
+    span.setAttributes({
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "OpenAI.decision",
+      "gen_ai.request.model": "decision-1",
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.DECISION_SYSTEM]).toBe(DecisionSystem.OPENAI);
+    expect(attributes[SemanticConventions.DECISION_PROVIDER]).toBe(DecisionProvider.OPENAI);
+  });
+
+  it("identifies a gateway-hosted decision model from its model ID", () => {
+    const span = trace.getTracer("test-tracer").startSpan("decide typesafe-ai/jev");
+    span.setAttributes({
+      "gen_ai.operation.name": "decide",
+      "gen_ai.provider.name": "vercel",
+      "gen_ai.request.model": "typesafe-ai/jev",
+      "ai.response.model": "jev-1.13.0",
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.DECISION_SYSTEM]).toBe(DecisionSystem.TYPESAFE);
+    expect(attributes[SemanticConventions.DECISION_PROVIDER]).toBe("vercel");
+    expect(attributes[SemanticConventions.DECISION_REQUEST_MODEL_NAME]).toBe("typesafe-ai/jev");
+    expect(attributes[SemanticConventions.DECISION_RESPONSE_MODEL_NAME]).toBe("jev-1.13.0");
+    expect(attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe("jev-1.13.0");
+  });
+
+  it("converts legacy AI SDK decision attributes", () => {
+    const span = trace.getTracer("test-tracer").startSpan("ai.decide.doDecide");
+    span.setAttributes({
+      "operation.name": "ai.decide.doDecide",
+      "ai.model.id": "jev-latest",
+      "ai.model.provider": "typesafe-ai",
+      "ai.usage.inputTokens": 12,
+      "ai.usage.outputTokens": 1,
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.DECISION,
+    );
+    expect(attributes[SemanticConventions.DECISION_MODEL_NAME]).toBe("jev-latest");
+    expect(attributes[SemanticConventions.DECISION_REQUEST_MODEL_NAME]).toBe("jev-latest");
+    expect(attributes[SemanticConventions.DECISION_PROVIDER]).toBe(DecisionProvider.TYPESAFE);
+    expect(attributes[SemanticConventions.DECISION_SYSTEM]).toBe(DecisionSystem.TYPESAFE);
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_INPUT]).toBe(12);
+    expect(attributes[SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT]).toBe(1);
+    expect(Object.keys(attributes).filter((key) => key.startsWith("llm."))).toEqual([]);
+  });
+
+  it("converts the legacy AI SDK decide operation to a CHAIN without model attributes", () => {
+    const span = trace.getTracer("test-tracer").startSpan("ai.decide");
+    span.setAttributes({
+      "operation.name": "ai.decide",
+      "ai.model.id": "jev-latest",
+      "ai.model.provider": "typesafe-ai",
+      "ai.usage.inputTokens": 12,
+      "ai.usage.outputTokens": 1,
+      "ai.decision.state": JSON.stringify("Customer asks about an invoice."),
+      "ai.decision.questions": JSON.stringify({ route: { type: "choice" } }),
+      "ai.decision.answers": JSON.stringify({ route: { choice: "billing" } }),
+    });
+    span.end();
+
+    const attributes = memoryExporter.getFinishedSpans()[0].attributes;
+    expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      OpenInferenceSpanKind.CHAIN,
+    );
+    expect(JSON.parse(attributes[SemanticConventions.INPUT_VALUE] as string)).toEqual({
+      state: "Customer asks about an invoice.",
+      questions: { route: { type: "choice" } },
+    });
+    expect(JSON.parse(attributes[SemanticConventions.OUTPUT_VALUE] as string)).toEqual({
+      route: { choice: "billing" },
+    });
+    expect(
+      Object.keys(attributes).filter(
+        (key) => key.startsWith("decision.") || key.startsWith("llm."),
+      ),
+    ).toEqual([]);
+  });
 
   it("should expand AI SDK v7 multi-tool response messages into separate tool messages", () => {
     const tracer = trace.getTracer("test-tracer");
@@ -2209,6 +2757,30 @@ describe.each([
       expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("session-123");
     });
 
+    it("keeps a context session.id over gen_ai.conversation.id", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const ctx = setSession(context.active(), { sessionId: "session-123" });
+      const span = tracer.startSpan(
+        "chat gpt-4o-mini",
+        {
+          attributes: {
+            "gen_ai.operation.name": "chat",
+            "gen_ai.conversation.id": "conversation-456",
+          },
+        },
+        ctx,
+      );
+      span.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.length).toBe(1);
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("session-123");
+    });
+
     it("propagates multiple context attributes (session + user)", async () => {
       const { exporter, provider, tracer } = build(true);
 
@@ -2309,6 +2881,156 @@ describe.each([
       for (const s of spans) {
         expect(s.attributes[SemanticConventions.SESSION_ID]).toBe("session-xyz");
       }
+    });
+  },
+);
+
+describe.each([
+  ["OpenInferenceSimpleSpanProcessor", OpenInferenceSimpleSpanProcessor],
+  ["OpenInferenceBatchSpanProcessor", OpenInferenceBatchSpanProcessor],
+] as [string, typeof OpenInferenceSimpleSpanProcessor | typeof OpenInferenceBatchSpanProcessor][])(
+  "%s — OpenTelemetry SDK 2.x span shape",
+  (_name, Processor) => {
+    // OpenTelemetry JS SDK 2.x removed `ReadableSpan.parentSpanId`; the parent is only
+    // available as `parentSpanContext`. This processor runs first and rewrites each span
+    // into that shape so the OpenInference processor sees what it would see under SDK 2.x.
+    const toSdk2SpanShape: SpanProcessor = {
+      onStart: (span) => {
+        const parentSpanId: unknown = Reflect.get(span, "parentSpanId");
+        Reflect.deleteProperty(span, "parentSpanId");
+        Reflect.set(
+          span,
+          "parentSpanContext",
+          typeof parentSpanId === "string"
+            ? {
+                traceId: span.spanContext().traceId,
+                spanId: parentSpanId,
+                traceFlags: TraceFlags.SAMPLED,
+              }
+            : undefined,
+        );
+      },
+      onEnd: () => {},
+      forceFlush: () => Promise.resolve(),
+      shutdown: () => Promise.resolve(),
+    };
+
+    const build = (reparentOrphanedSpans?: boolean, spanFilter?: SpanFilter) => {
+      const exporter = new InMemorySpanExporter();
+      const openInferenceSpanProcessor = new Processor({
+        exporter,
+        reparentOrphanedSpans,
+        spanFilter,
+      });
+      const provider = new BasicTracerProvider({
+        spanProcessors: [toSdk2SpanShape, openInferenceSpanProcessor],
+      });
+      return { exporter, provider, tracer: provider.getTracer("test") };
+    };
+
+    it("treats only the parentless span as the trace root", async () => {
+      const { exporter, provider, tracer } = build();
+
+      const root = tracer.startSpan("ai.generateText", {
+        attributes: { "operation.name": "ai.generateText my-fn" },
+      });
+      const rootCtx = trace.setSpan(context.active(), root);
+      const failed = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        { attributes: { "operation.name": "ai.generateText.doGenerate my-fn" } },
+        rootCtx,
+      );
+      failed.setStatus({ code: SpanStatusCode.ERROR, message: "Test error" });
+      failed.end();
+      const retried = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        { attributes: { "operation.name": "ai.generateText.doGenerate my-fn" } },
+        rootCtx,
+      );
+      retried.end();
+      root.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      const findExportedSpanById = (id: string) =>
+        spans.find((exportedSpan) => exportedSpan.spanContext().spanId === id);
+      const exportedRoot = findExportedSpanById(root.spanContext().spanId);
+      const exportedFailed = findExportedSpanById(failed.spanContext().spanId);
+      const exportedRetried = findExportedSpanById(retried.spanContext().spanId);
+
+      // The root is renamed and carries the aggregated trace error.
+      expect(exportedRoot?.name).toBe("ai.generateText my-fn");
+      expect(exportedRoot?.status).toEqual({ code: SpanStatusCode.ERROR, message: "Test error" });
+
+      // Children keep their names and their own status; an earlier sibling's error does not
+      // stick to a later sibling that succeeded.
+      expect(exportedFailed?.name).toBe("ai.generateText.doGenerate");
+      expect(exportedFailed?.status).toEqual({ code: SpanStatusCode.ERROR, message: "Test error" });
+      expect(exportedRetried?.name).toBe("ai.generateText.doGenerate");
+      expect(exportedRetried?.status).toEqual({ code: SpanStatusCode.OK });
+    });
+
+    it("does not promote a kind-less AI span nested under an AI parent", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const top = tracer.startSpan("ai.generateText", {
+        attributes: { "operation.name": "ai.generateText" },
+      });
+      const nested = tracer.startSpan(
+        "ai.eve.turn",
+        { attributes: { "operation.name": "ai.eve.turn" } },
+        trace.setSpan(context.active(), top),
+      );
+      nested.end();
+      top.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      const exportedNested = spans.find(
+        (exportedSpan) => exportedSpan.spanContext().spanId === nested.spanContext().spanId,
+      );
+      expect(exportedNested).toBeDefined();
+      expect(
+        exportedNested?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
+      ).toBeUndefined();
+    });
+
+    it("re-roots and promotes a kind-less AI wrapper under a non-AI parent", async () => {
+      const { exporter, provider, tracer } = build(true, isOpenInferenceSpan);
+
+      const workflow = tracer.startSpan("vercel.workflow");
+      const turn = tracer.startSpan(
+        "ai.eve.turn",
+        { attributes: { "operation.name": "ai.eve.turn" } },
+        trace.setSpan(context.active(), workflow),
+      );
+      const llm = tracer.startSpan(
+        "ai.streamText.doStream",
+        { attributes: { "operation.name": "ai.streamText.doStream" } },
+        trace.setSpan(context.active(), turn),
+      );
+      llm.end();
+      turn.end();
+      workflow.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.find((exportedSpan) => exportedSpan.name === "vercel.workflow")).toBeUndefined();
+      const promoted = spans.find((exportedSpan) => exportedSpan.name === "ai.eve.turn");
+      expect(Reflect.get(promoted ?? {}, "parentSpanContext")).toBeUndefined();
+      expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+        OpenInferenceSpanKind.AGENT,
+      );
+      const child = spans.find((exportedSpan) => exportedSpan.name === "ai.streamText.doStream");
+      expect(Reflect.get(child ?? {}, "parentSpanContext")).toMatchObject({
+        spanId: turn.spanContext().spanId,
+      });
     });
   },
 );

@@ -1,6 +1,13 @@
 from ._attributes import (
     get_annotation_attributes,
     get_context_attributes,
+    get_decision_attributes,
+    get_decision_model_name_attributes,
+    get_decision_provider_attributes,
+    get_decision_request_model_name_attributes,
+    get_decision_response_model_name_attributes,
+    get_decision_system_attributes,
+    get_decision_token_count_attributes,
     get_embedding_attributes,
     get_evaluation_attributes,
     get_input_attributes,
@@ -35,13 +42,13 @@ from ._blob_upload import (
     parse_base64_data_uri,
 )
 from ._capture import capture_span_context
-from ._deferred_input import finalize_deferred_input_value
 from ._projects import dangerously_using_project
 from ._tracer_providers import TracerProvider
 from ._tracers import OITracer
 from ._types import (
     Annotation,
     AnnotationScope,
+    DecisionTokenCount,
     Document,
     Embedding,
     Image,
@@ -79,7 +86,6 @@ __path__ = __import__("pkgutil").extend_path(__path__, __name__)
 
 __all__ = [
     "capture_span_context",
-    "finalize_deferred_input_value",
     "get_attributes_from_context",
     "using_attributes",
     "using_metadata",
@@ -101,6 +107,13 @@ __all__ = [
     "TracerProvider",
     "get_context_attributes",
     "get_annotation_attributes",
+    "get_decision_attributes",
+    "get_decision_model_name_attributes",
+    "get_decision_provider_attributes",
+    "get_decision_request_model_name_attributes",
+    "get_decision_response_model_name_attributes",
+    "get_decision_system_attributes",
+    "get_decision_token_count_attributes",
     "get_embedding_attributes",
     "get_evaluation_attributes",
     "get_input_attributes",
@@ -128,6 +141,7 @@ __all__ = [
     "infer_llm_system_from_model_name",
     "Annotation",
     "AnnotationScope",
+    "DecisionTokenCount",
     "Document",
     "Embedding",
     "Image",
