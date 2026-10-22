@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { BetaRunnableTool } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
 import type { SpanContext } from "@opentelemetry/api";
-import { context, SpanStatusCode, trace } from "@opentelemetry/api";
+import { context, ProxyTracerProvider, SpanStatusCode, trace } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
@@ -158,7 +158,15 @@ const CALLS: Record<string, (client: Anthropic) => Promise<unknown>> = {
     client.beta.messages.countTokens({ model: MODEL, messages: PARAMS.messages }),
 };
 
-describe("AnthropicInstrumentation - the SDK's own spans", () => {
+/** Whether this SDK starts spans of its own, which it does from 0.134.0. */
+const SDK_HAS_SPANS = "openTelemetry" in Anthropic.prototype;
+
+function traceparentOf(span: { spanContext(): SpanContext }): string {
+  const { traceId, spanId, traceFlags } = span.spanContext();
+  return `00-${traceId}-${spanId}-${traceFlags.toString(16).padStart(2, "0")}`;
+}
+
+describe.skipIf(!SDK_HAS_SPANS)("AnthropicInstrumentation - the SDK's own spans", () => {
   const instrumentation = new AnthropicInstrumentation({ tracerProvider });
   instrumentation.disable();
   instrumentation._modules[0].moduleExports = Anthropic;
@@ -201,6 +209,47 @@ describe("AnthropicInstrumentation - the SDK's own spans", () => {
       expect(spans[0].parentSpanId).toBe(parent.spanContext().spanId);
       expect(spans[0].spanContext().traceId).toBe(parent.spanContext().traceId);
       expectRequestContinues(server, spans[0]);
+    });
+  }
+
+  it("keeps concurrent calls apart", async () => {
+    const client = makeClient(server);
+    const names = Object.keys(CALLS).filter((name) => !name.includes("listener"));
+    await Promise.all([...names, ...names, ...names].map((name) => CALLS[name](client)));
+    const spans = await settle();
+    expect(scopes(spans)).toEqual(Array(names.length * 3).fill(OI_SCOPE));
+    expect([...server.traceparents].sort()).toEqual(spans.map(traceparentOf).sort());
+  });
+
+  it("leaves a call span that the caller passed alone", async () => {
+    const callerSpan = tracerProvider.getTracer("test").startSpan("caller's call span");
+    const options = {
+      __span: { span: callerSpan, name: "anthropic.messages.create", startTime: Date.now() },
+    };
+    await makeClient(server).messages.create(PARAMS, options);
+    await makeClient(server).messages.stream(PARAMS, options).finalMessage();
+    callerSpan.end();
+    const spans = await settle();
+    expect(scopes(spans)).toEqual([OI_SCOPE, OI_SCOPE]);
+    expect(server.traceparents).toEqual([traceparentOf(callerSpan), traceparentOf(callerSpan)]);
+  });
+
+  for (const name of ["create", "stream()", "countTokens"]) {
+    it(`keeps the SDK's span of ${name} when the LLM span has no valid context`, async () => {
+      // A tracer provider that makes no spans, while the client's does.
+      const noSpans = new AnthropicInstrumentation({ tracerProvider: new ProxyTracerProvider() });
+      instrumentation.disable();
+      noSpans.disable();
+      noSpans._modules[0].moduleExports = Anthropic;
+      noSpans.enable();
+      try {
+        await CALLS[name](makeClient(server));
+      } finally {
+        noSpans.disable();
+      }
+      const spans = await settle();
+      expect(scopes(spans)).toEqual([SDK_SCOPE]);
+      expect(server.traceparents).toEqual([traceparentOf(spans[0])]);
     });
   }
 

@@ -485,7 +485,8 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
   /**
    * Patches stable and beta messages.stream: the helper starts the SDK's span
    * of the call before it calls the patched create(), so it is handed the call
-   * span that create() then gives the LLM span's context.
+   * span that create() then gives the LLM span's context. Only an SDK with
+   * spans of its own (0.134.0 and later) is patched.
    */
   private patchStreams(
     anthropicModule: ReturnType<typeof resolveAnthropicModule>["anthropicModule"],
@@ -507,6 +508,9 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       };
       return isPatchOf(original, patched) ? patched : original;
     };
+    if (!startsOwnSpans(anthropicModule)) {
+      return;
+    }
     if (typeof anthropicModule.Messages.prototype.stream === "function") {
       this._wrap(anthropicModule.Messages.prototype, "stream", patchStream);
     }
@@ -528,11 +532,13 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     if (typeof anthropicModule.Messages.prototype.countTokens === "function") {
       this._unwrap(anthropicModule.Messages.prototype, "countTokens");
     }
-    if (typeof anthropicModule.Messages.prototype.stream === "function") {
-      this._unwrap(anthropicModule.Messages.prototype, "stream");
-    }
-    if (betaMessages?.prototype?.stream) {
-      this._unwrap(betaMessages.prototype, "stream");
+    if (startsOwnSpans(anthropicModule)) {
+      if (typeof anthropicModule.Messages.prototype.stream === "function") {
+        this._unwrap(anthropicModule.Messages.prototype, "stream");
+      }
+      if (betaMessages?.prototype?.stream) {
+        this._unwrap(betaMessages.prototype, "stream");
+      }
     }
     if (betaMessages?.prototype?.create) {
       this._unwrap(betaMessages.prototype, "create");
@@ -577,6 +583,11 @@ interface SDKCallSpan {
   startTime: number;
 }
 
+/** Whether the SDK's client starts spans of its own, which its `openTelemetry` option says. */
+function startsOwnSpans(anthropicModule: typeof Anthropic): boolean {
+  return "openTelemetry" in anthropicModule.prototype;
+}
+
 const SDK_MESSAGES_CREATE_SPAN_NAME = "anthropic.messages.create";
 const SDK_MESSAGES_COUNT_TOKENS_SPAN_NAME = "anthropic.messages.count_tokens";
 
@@ -599,6 +610,15 @@ function hasSDKCallSpan(options: object | undefined): boolean {
   return options !== undefined && Reflect.get(options, "__span") !== undefined;
 }
 
+function withoutSDKCallSpan<Options extends object>(options: Options | undefined) {
+  if (options === undefined) {
+    return options;
+  }
+  const copy = Object.assign({}, options);
+  Reflect.deleteProperty(copy, "__span");
+  return copy;
+}
+
 /**
  * The request options of a call traced by `llmSpan`, with a call span for the
  * SDK that has the LLM span's context. Options that have a call span made
@@ -611,10 +631,12 @@ function withSDKCallSpan<Options extends object>(
 ): Options | undefined {
   try {
     const spanContext = llmSpan.spanContext();
-    if (!trace.isSpanContextValid(spanContext)) {
-      return options;
-    }
     const existing: unknown = options === undefined ? undefined : Reflect.get(options, "__span");
+    if (!trace.isSpanContextValid(spanContext)) {
+      // No LLM span was recorded, e.g. the instrumentation's tracer provider
+      // makes none, so the SDK starts its span as it would without us.
+      return isSDKCallSpanMadeHere(existing) ? withoutSDKCallSpan(options) : options;
+    }
     if (isSDKCallSpanMadeHere(existing)) {
       existing.span = trace.wrapSpanContext(spanContext);
       return options;
