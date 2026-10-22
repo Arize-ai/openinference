@@ -118,7 +118,7 @@ llm.input_messages.0.message.contents.4.message_content.document.document.mime_t
 A document part carries its payload in exactly one of three leaves:
 
 - `document.url` for bytes and URIs. It may be an absolute URI (`https://`, `s3://`, `gs://`, ...) or a base64 data URI. Copy URIs verbatim. Build a data URI from provider base64 payloads. A data URI uses standard base64 (RFC 4648 section 4): re-encode URL-safe base64, which the Gemini REST API sends, and encode raw bytes from SDK objects. Text files sent as bytes (for example Bedrock `txt` or `md` documents) also go here, with their MIME type.
-- `document.content` for inline text that the provider receives as a string (Anthropic `text` sources, Bedrock `text` sources, LangChain `text-plain` blocks). Record the string verbatim. Do not wrap it in a data URI.
+- `document.content` for inline text that the provider receives as a string (Anthropic `text` sources, Bedrock `text` sources, LangChain `text-plain` blocks). Do not wrap it in a data URI. Record the string byte-for-byte: no trimming, no line-ending normalization, and no truncation. Provider citations index into this string by character offset (Anthropic `char_location` and Bedrock `documentChar` give `start` / `end` positions, and `cited_text` equals the slice between them, trailing whitespace included), so any change shifts or invalidates them. If the text must be hidden or is too large to record, replace the whole value with `"__REDACTED__"` or omit it. Never record a shortened prefix.
 - `document.file_id` for a file uploaded through a provider Files API (OpenAI and LangChain `file_id`, Anthropic `file` sources). Never put a file id in `document.url`.
 
 The other leaves describe the document:
