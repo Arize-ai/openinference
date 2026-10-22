@@ -692,6 +692,35 @@ def test_hide_reasoning_drops_reasoning_parts_and_keeps_the_answer(
         assert leaked not in attributes.values()
 
 
+@pytest.mark.parametrize("hide_outputs", [False, True])
+def test_hide_reasoning_only_filters_message_contents(
+    hide_outputs: bool,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Reasoning recorded outside the message contents, such as a raw provider response
+    in output.value, is not filtered; hide_outputs is what removes it."""
+    raw_response = '{"reasoning": "3+3 is six", "answer": "6"}'
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__),
+        config=TraceConfig(hide_reasoning=True, hide_outputs=hide_outputs),
+    )
+    span = tracer.start_span("llm", openinference_span_kind="llm")
+    span.set_attributes(
+        {
+            SpanAttributes.OUTPUT_VALUE: raw_response,
+            SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        }
+    )
+    span.end()
+    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes
+    assert attributes is not None
+    if hide_outputs:
+        assert attributes[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    else:
+        assert attributes[SpanAttributes.OUTPUT_VALUE] == raw_response
+
+
 def test_hide_reasoning_is_off_by_default(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,

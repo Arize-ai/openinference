@@ -242,7 +242,11 @@ class TraceConfig:
     messages while keeping the other parts, such as the answer text. The parts
     that remain are re-indexed without gaps. A part's type and text are
     separate attributes, so this is applied per span by ``OITracer`` rather
-    than by ``mask``."""
+    than by ``mask``. Only these structured message parts are filtered: reasoning
+    that an instrumentor also records elsewhere, such as a raw provider response
+    in ``output.value``, is kept. Combine with ``hide_outputs`` (and
+    ``hide_inputs`` for replayed turns) if reasoning must not be exported at
+    all."""
     hide_embedding_vectors: Optional[bool] = field(
         default=None,
         metadata={
