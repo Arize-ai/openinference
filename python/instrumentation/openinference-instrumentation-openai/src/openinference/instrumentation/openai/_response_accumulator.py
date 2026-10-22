@@ -17,9 +17,10 @@ from typing import (
     Type,
 )
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._image_utils import image_b64_to_data_url
-from openinference.instrumentation.openai._types import AttributeValue
 from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
     _io_value_and_type,
@@ -161,6 +162,12 @@ class _ChatCompletionAccumulator:
                 lambda: _ValuesAccumulator(
                     message=_ValuesAccumulator(
                         content=_StringAccumulator(),
+                        # streamed across chunks like content: `refusal` is a first-party
+                        # delta field, `reasoning_content` (DeepSeek, Qwen3) and `reasoning`
+                        # (current vLLM) come from OpenAI-compatible servers
+                        refusal=_StringAccumulator(),
+                        reasoning_content=_StringAccumulator(),
+                        reasoning=_StringAccumulator(),
                         function_call=_ValuesAccumulator(arguments=_StringAccumulator()),
                         tool_calls=_IndexedAccumulator(
                             lambda: _ValuesAccumulator(

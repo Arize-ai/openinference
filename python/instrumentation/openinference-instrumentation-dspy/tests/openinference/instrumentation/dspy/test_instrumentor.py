@@ -13,6 +13,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
+from opentelemetry.util.types import AttributeValue
 from pytest import MonkeyPatch
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -21,7 +22,6 @@ from openinference.instrumentation.dspy import (
     LLM_PROVIDER,
     DSPyInstrumentor,
 )
-from openinference.instrumentation.dspy._types import AttributeValue
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -41,8 +41,7 @@ def _litellm_kwargs() -> Dict[str, str]:
 
 
 def _span_attributes(span: trace_sdk.ReadableSpan) -> Dict[str, AttributeValue]:
-    # Use the local alias because OpenTelemetry's AnyValue is not narrowed by mypy.
-    return dict(cast(Mapping[str, AttributeValue], span.attributes or {}))
+    return dict(span.attributes or {})
 
 
 @pytest.fixture()

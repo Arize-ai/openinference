@@ -227,7 +227,6 @@ class TestInvokeModelWithStreamResponse:
 def _assert_invoke_stream_span(span: Any, data: dict[str, Any]) -> None:
     """Assert span attributes for invoke_model_with_response_stream (Claude Messages API)."""
     request_body = data["request_body"]
-    model_id = data["model_id"]
     system_message = data["system_message"]
     messages = data["messages"]
     tools = data["tools"]
@@ -336,7 +335,9 @@ def _assert_invoke_stream_span(span: Any, data: dict[str, Any]) -> None:
     assert json.loads(parameters) == invocation_parameters
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
-    assert attributes.pop(LLM_MODEL_NAME) == model_id
+    assert attributes.pop(LLM_MODEL_NAME) == json.loads(output_value)["model"]
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "anthropic"
     assert attributes.pop(LLM_FINISH_REASON) == "tool_use"
     assert not attributes
 
@@ -395,3 +396,20 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 USER_ID = SpanAttributes.USER_ID
+
+
+def test_system_message_block_attributes_include_message_prefix() -> None:
+    from openinference.instrumentation.bedrock.utils.anthropic._messages import (
+        _attributes_from_system_message,
+    )
+
+    attributes = dict(
+        _attributes_from_system_message(
+            [{"type": "text", "text": "SECRET-SYSTEM"}],
+            "llm.input_messages.0.",
+        )
+    )
+    assert attributes == {
+        "llm.input_messages.0.message.role": "system",
+        "llm.input_messages.0.message.contents.0.message_content.text": "SECRET-SYSTEM",
+    }

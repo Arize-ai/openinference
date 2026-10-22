@@ -112,6 +112,55 @@ Set `SEARCH_MODEL` to use a different model and `PHOENIX_PROJECT` to separate ru
 Phoenix, open the first `response` LLM span to see the `file_search_call` in its output
 messages, then the second to see it replayed as input alongside the new `web_search_call`.
 
+## Retriever tools
+
+Function tools are recorded as `TOOL` spans, because the Agents SDK gives the instrumentor
+no way to tell what a tool does. If a function tool does retrieval, map it to a `RETRIEVER`
+span with `tool_span_kinds`:
+
+```python
+OpenAIAgentsInstrumentor().instrument(
+    tracer_provider=tracer_provider,
+    tool_span_kinds={"search_documents": "RETRIEVER"},
+)
+```
+
+The key is the tool name as it appears on the span (`<namespace>.<name>` for a namespaced
+tool). `RETRIEVER` is the only supported kind; to get `EMBEDDING` spans, instrument the
+OpenAI client with `openinference-instrumentation-openai` as well.
+
+A mapped tool's span keeps its `input.value`, `output.value` and `tool.*` attributes. When
+the tool returns a list of objects (dicts, pydantic models, or a JSON string of either),
+each one is also recorded as `retrieval.documents.<i>.document.*`: `id`, `content` and
+`score` come from keys of the same name, and every other key goes into `metadata`. Any
+other output is left in `output.value` only. The SDK records a tool's output only when
+`trace_include_sensitive_data` is enabled (the default).
+
+To record a retriever span without this option, or with a different document shape, open
+one inside the tool. The processor makes each tool span current, so it nests under it:
+
+```python
+from openinference.instrumentation import get_retriever_attributes
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
+
+@function_tool
+def search_documents(query: str) -> list[dict]:
+    with tracer.start_as_current_span(
+        "retrieve",
+        attributes={"openinference.span.kind": "RETRIEVER", "input.value": query},
+    ) as span:
+        hits = vector_store.search(query)
+        span.set_attributes(
+            get_retriever_attributes(
+                documents=[{"id": h.id, "content": h.text, "score": h.score} for h in hits]
+            )
+        )
+    return [{"id": h.id, "content": h.text, "score": h.score} for h in hits]
+```
+
 ## Computer use
 
 The instrumentor records the OpenAI Agents SDK's built-in computer tool (`ComputerTool`)

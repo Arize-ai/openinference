@@ -1,5 +1,6 @@
 # ruff: noqa: E501
 import asyncio
+import gc
 import json
 import random
 import string
@@ -1678,7 +1679,144 @@ def test_anthropic_instrumentation_tool_use_in_input(
         attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
         == '{"weather": "sunny", "temperature": "75"}'
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
+    assert (
+        attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALL_ID}")
+        == "toolu_01KBqpqR73qWGsMaW3vBzEjz"
+    )
+
+
+@pytest.mark.vcr
+def test_anthropic_instrumentation_multiple_tool_results_in_input(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = anthropic.Anthropic(api_key="sk-ant-fake")
+    messages = [
+        {"role": "user", "content": "Add 2+2 and get the weather in Paris."},
+        {
+            "role": "assistant",
+            "content": [
+                ToolUseBlockParam(
+                    id="toolu_01AAA",
+                    input={"expression": "2+2"},
+                    name="calculator",
+                    type="tool_use",
+                ),
+                ToolUseBlockParam(
+                    id="toolu_02BBB",
+                    input={"city": "Paris"},
+                    name="get_weather",
+                    type="tool_use",
+                ),
+            ],
+        },
+        MessageParam(
+            content=[
+                ToolResultBlockParam(
+                    tool_use_id="toolu_01AAA",
+                    content="4",
+                    type="tool_result",
+                    is_error=False,
+                ),
+                ToolResultBlockParam(
+                    tool_use_id="toolu_02BBB",
+                    content="sunny, 22C",
+                    type="tool_result",
+                    is_error=False,
+                ),
+            ],
+            role="user",
+        ),
+    ]
+
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=messages,  # type: ignore
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    attributes = dict(spans[0].attributes or {})
+
+    # each tool_result block becomes its own tool message, in order
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALL_ID}") == "toolu_01AAA"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}") == "4"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_TOOL_CALL_ID}") == "toolu_02BBB"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny, 22C"
+
+
+def test_anthropic_instrumentation_mixed_tool_results_and_text_in_input(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(_message_handler)
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[
+            {"role": "user", "content": "Add 2+2 and get the weather in Paris."},
+            {
+                "role": "assistant",
+                "content": [
+                    ToolUseBlockParam(
+                        id="toolu_01AAA",
+                        input={"expression": "2+2"},
+                        name="calculator",
+                        type="tool_use",
+                    ),
+                    ToolUseBlockParam(
+                        id="toolu_02BBB",
+                        input={"city": "Paris"},
+                        name="get_weather",
+                        type="tool_use",
+                    ),
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    ToolResultBlockParam(
+                        tool_use_id="toolu_01AAA", content="4", type="tool_result"
+                    ),
+                    ToolResultBlockParam(
+                        tool_use_id="toolu_02BBB", content="sunny, 22C", type="tool_result"
+                    ),
+                    {"type": "text", "text": "Now answer in one sentence."},
+                ],
+            },
+        ],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    # the tool messages come first, matching the order the API requires
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALL_ID}") == "toolu_01AAA"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}") == "4"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_TOOL_CALL_ID}") == "toolu_02BBB"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny, 22C"
+    # then the rest of the message, with contiguous content-part indices
+    prefix = f"{LLM_INPUT_MESSAGES}.4"
+    assert attributes.get(f"{prefix}.{MESSAGE_ROLE}") == "user"
+    assert f"{prefix}.{MESSAGE_TOOL_CALL_ID}" not in attributes
+    assert attributes.get(f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.get(f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "Now answer in one sentence."
+    )
+    assert [key for key in attributes if key.startswith(f"{prefix}.{MESSAGE_CONTENTS}.")] == [
+        f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}",
+        f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}",
+    ]
+    assert f"{LLM_INPUT_MESSAGES}.5.{MESSAGE_ROLE}" not in attributes
 
 
 @pytest.mark.vcr
@@ -2799,13 +2937,180 @@ async def test_closing_async_generator_holding_streaming_create_context_is_not_a
     assert not span.events
 
 
+def _output_texts(span: ReadableSpan) -> List[str]:
+    output = json.loads(str(dict(span.attributes or {})[OUTPUT_VALUE]))
+    return [block["text"] for block in output["content"]]
+
+
+@pytest.mark.parametrize(
+    "exhaust,status_code",
+    [
+        pytest.param(True, trace_api.StatusCode.OK, id="exhausted"),
+        pytest.param(False, trace_api.StatusCode.UNSET, id="closed_early"),
+    ],
+)
+def test_closing_streaming_create_is_recorded(
+    exhaust: bool,
+    status_code: trace_api.StatusCode,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Closing the stream ends the span with the events read so far."""
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    stream = client.messages.create(**_REQUEST_KWARGS, stream=True)
+    events = iter(stream)
+    if exhaust:
+        list(events)
+    else:
+        for _ in range(3):  # up to the text delta
+            next(events)
+    stream.close()
+
+    assert stream.response.is_closed
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == status_code
+    assert _output_texts(span) == ["hi"]
+
+
+@pytest.mark.parametrize(
+    "exhaust,status_code",
+    [
+        pytest.param(True, trace_api.StatusCode.OK, id="exhausted"),
+        pytest.param(False, trace_api.StatusCode.UNSET, id="closed_early"),
+    ],
+)
+async def test_async_closing_streaming_create_is_recorded(
+    exhaust: bool,
+    status_code: trace_api.StatusCode,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_event_stream_handler)
+
+    stream = await client.messages.create(**_REQUEST_KWARGS, stream=True)
+    events = stream.__aiter__()
+    if exhaust:
+        async for _ in events:
+            pass
+    else:
+        for _ in range(3):  # up to the text delta
+            await events.__anext__()
+    closing = stream.close()
+    if not exhaust:
+        # the span ends once the close has been awaited
+        assert not in_memory_span_exporter.get_finished_spans()
+    await closing
+
+    assert stream.response.is_closed
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == status_code
+    assert _output_texts(span) == ["hi"]
+
+
+def test_exception_closing_streaming_create_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    class FailingToCloseStream(httpx2.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            yield _event_stream_body()
+
+        def close(self) -> None:
+            raise OSError("close failed")
+
+    def handler(request: Any) -> Any:
+        return httpx2.Response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            stream=FailingToCloseStream(),
+        )
+
+    client = _mock_anthropic_client(handler)
+
+    stream = client.messages.create(**_REQUEST_KWARGS, stream=True)
+    next(iter(stream))
+    with pytest.raises(OSError):
+        stream.close()
+
+    _assert_error_span(in_memory_span_exporter, OSError)
+
+
+@pytest.mark.parametrize(
+    "events_read,texts",
+    [
+        pytest.param(0, None, id="never_iterated"),
+        pytest.param(3, ["hi"], id="left_early"),
+    ],
+)
+def test_abandoned_streaming_create_is_recorded(
+    events_read: int,
+    texts: Optional[List[str]],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """A stream dropped without being exhausted or closed still ends its span."""
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    stream = client.messages.create(**_REQUEST_KWARGS, stream=True)
+    if events_read:
+        for i, _ in enumerate(stream, 1):
+            if i == events_read:
+                break
+    del stream
+    gc.collect()
+
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    if texts is None:
+        assert OUTPUT_VALUE not in (span.attributes or {})
+    else:
+        assert _output_texts(span) == texts
+
+
+@pytest.mark.parametrize(
+    "events_read,texts",
+    [
+        pytest.param(0, None, id="never_iterated"),
+        pytest.param(3, ["hi"], id="left_early"),
+    ],
+)
+async def test_async_abandoned_streaming_create_is_recorded(
+    events_read: int,
+    texts: Optional[List[str]],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_event_stream_handler)
+
+    stream = await client.messages.create(**_REQUEST_KWARGS, stream=True)
+    if events_read:
+        i = 0
+        async for _ in stream:
+            i += 1
+            if i == events_read:
+                break
+    del stream
+    # the event loop closes the abandoned iteration, which holds the stream, on a later turn
+    for _ in range(5):
+        await asyncio.sleep(0)
+    gc.collect()
+
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    if texts is None:
+        assert OUTPUT_VALUE not in (span.attributes or {})
+    else:
+        assert _output_texts(span) == texts
+
+
 async def test_cancellation_leaving_async_streaming_create_context_is_recorded(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """
-    A task cancelled while awaiting the next event raises CancelledError, which is a
-    BaseException that iteration does not catch, so the context has to record it.
+    A task cancelled while awaiting the next event raises CancelledError, which both iteration
+    and leaving the context see, and which is recorded once.
     """
     first_event_read = asyncio.Event()
 
@@ -2832,6 +3137,85 @@ async def test_cancellation_leaving_async_streaming_create_context_is_recorded(
         await task
 
     _assert_error_span(in_memory_span_exporter, asyncio.CancelledError)
+
+
+async def test_cancellation_iterating_async_streaming_create_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Cancelled while awaiting the next event, without a context, and the stream still held."""
+    first_event_read = asyncio.Event()
+
+    def handler(request: Any) -> Any:
+        async def content() -> Any:
+            yield _event_stream_body().split(b"\n\n", 1)[0] + b"\n\n"
+            await asyncio.Event().wait()  # the next event never arrives
+
+        return httpx2.Response(
+            status_code=200, headers={"content-type": "text/event-stream"}, content=content()
+        )
+
+    client = _mock_async_anthropic_client(handler)
+    stream = await client.messages.create(**_REQUEST_KWARGS, stream=True)
+
+    async def consume() -> None:
+        async for _ in stream:
+            first_event_read.set()
+
+    task = asyncio.create_task(consume())
+    await first_event_read.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    _assert_error_span(in_memory_span_exporter, asyncio.CancelledError)
+    await stream.close()
+
+
+def test_interrupt_iterating_streaming_create_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    class InterruptedStream(httpx2.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            yield _event_stream_body().split(b"\n\n", 1)[0] + b"\n\n"
+            raise KeyboardInterrupt
+
+    def handler(request: Any) -> Any:
+        return httpx2.Response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            stream=InterruptedStream(),
+        )
+
+    client = _mock_anthropic_client(handler)
+    stream = client.messages.create(**_REQUEST_KWARGS, stream=True)
+
+    with pytest.raises(KeyboardInterrupt):
+        for _ in stream:
+            pass
+
+    _assert_error_span(in_memory_span_exporter, KeyboardInterrupt)
+    stream.close()
+
+
+def test_streaming_create_read_again_after_leaving_the_loop_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Leaving a loop early does not end the span, since the rest of the stream can still be read."""
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    stream = client.messages.create(**_REQUEST_KWARGS, stream=True)
+    for _ in stream:
+        break
+    assert not in_memory_span_exporter.get_finished_spans()
+    for _ in stream:
+        pass
+
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert _output_texts(span) == ["hi"]
 
 
 @pytest.mark.parametrize(
@@ -3281,10 +3665,22 @@ def test_token_count_total_matches_across_paths(
     )
 
 
-def test_token_count_total_omitted_when_all_counts_are_zero() -> None:
-    """A zero total is skipped rather than emitted as 0, like the other counts."""
-    usage = Usage(input_tokens=0, output_tokens=0)
-    assert LLM_TOKEN_COUNT_TOTAL not in dict(_get_llm_token_counts(usage))
+def test_zero_token_counts_are_recorded() -> None:
+    """A reported 0 is a count, so it is recorded, except for the cache and reasoning counts."""
+    from anthropic.types import OutputTokensDetails
+
+    usage = Usage(
+        input_tokens=0,
+        output_tokens=0,
+        cache_read_input_tokens=0,
+        cache_creation_input_tokens=0,
+        output_tokens_details=OutputTokensDetails(thinking_tokens=0),
+    )
+    assert dict(_get_llm_token_counts(usage)) == {
+        LLM_TOKEN_COUNT_PROMPT: 0,
+        LLM_TOKEN_COUNT_COMPLETION: 0,
+        LLM_TOKEN_COUNT_TOTAL: 0,
+    }
 
 
 def test_cache_token_details_match_between_streaming_and_non_streaming(
@@ -3720,6 +4116,7 @@ MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_A
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT

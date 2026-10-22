@@ -201,7 +201,7 @@ def _assert_fallback_content_block_span(span: Any) -> None:
                 {"type": "text", "text": "Partial response"},
                 {
                     "type": "fallback",
-                    "from_": {"model": REQUESTED_MODEL},
+                    "from": {"model": REQUESTED_MODEL},
                     "to": {"model": FALLBACK_MODEL},
                     "trigger": {"type": "refusal", "category": "reasoning_extraction"},
                 },
@@ -231,6 +231,14 @@ def _assert_fallback_content_block_span(span: Any) -> None:
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
         == "Partial response"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "fallback"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}")
+        == f"{REQUESTED_MODEL} -> {FALLBACK_MODEL} (refusal: reasoning_extraction)"
     )
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}")
@@ -329,6 +337,13 @@ def test_anthropic_instrumentation_beta_messages_streaming_fallback(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 42
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 128
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 170
+    # a reasoning count of 0, reported when thinking did not run, is left out
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING not in attributes
+    # the fallback that served the response is in the metadata, among the usage iterations
+    assert_json_contains(
+        json.loads(str(attributes.pop(SpanAttributes.METADATA))),
+        {"usage_iterations": [{"type": "fallback_message", "model": FALLBACK_MODEL}]},
+    )
 
     assert attributes.pop(LLM_REQUEST_MODEL_NAME) == REQUESTED_MODEL
     assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == FALLBACK_MODEL

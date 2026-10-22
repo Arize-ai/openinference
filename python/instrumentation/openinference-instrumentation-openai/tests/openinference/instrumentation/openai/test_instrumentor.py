@@ -29,11 +29,11 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
+from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
 
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
-from openinference.instrumentation.openai._types import AttributeValue
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
