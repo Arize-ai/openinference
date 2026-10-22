@@ -33,7 +33,7 @@ def _accumulated_message(chunks: List[ChatCompletionChunk]) -> Dict[str, Any]:
     return message
 
 
-@pytest.mark.parametrize("field", ["content", "refusal", "reasoning_content"])
+@pytest.mark.parametrize("field", ["content", "refusal", "reasoning_content", "reasoning"])
 def test_streamed_string_fields_are_concatenated(field: str) -> None:
     chunks = [
         _chunk({"role": "assistant", field: "I can"}),
