@@ -122,7 +122,7 @@ function decide(facts) {
   return { kind: "noop", reason: `already ${facts.state.toLowerCase()}` };
 }
 
-function ruleLinks(contributingText, repoFullName, branch) {
+function ruleLinks(contributingText, repoFullName, ref) {
   const lines = contributingText.split("\n");
   const links = {};
   for (const [rule, prefix] of Object.entries(RULE_LINE_PREFIXES)) {
@@ -130,7 +130,7 @@ function ruleLinks(contributingText, repoFullName, branch) {
     if (index === -1)
       throw new Error(`CONTRIBUTING no longer states the "${prefix}" rule`);
     links[rule] =
-      `https://github.com/${repoFullName}/blob/${branch}/CONTRIBUTING#L${index + 1}`;
+      `https://github.com/${repoFullName}/blob/${ref}/CONTRIBUTING#L${index + 1}`;
   }
   return links;
 }
@@ -244,12 +244,15 @@ module.exports = async ({
   contributingPath,
 }) => {
   const { owner, repo } = context.repo;
-  const branch = context.payload.repository?.default_branch ?? "main";
   const contributing = fs.readFileSync(
     contributingPath ?? path.join(__dirname, "..", "..", "CONTRIBUTING"),
     "utf8",
   );
-  const links = ruleLinks(contributing, `${owner}/${repo}`, branch);
+  const links = ruleLinks(
+    contributing,
+    `${owner}/${repo}`,
+    context.sha ?? "main",
+  );
 
   const targets = context.payload.pull_request
     ? [
