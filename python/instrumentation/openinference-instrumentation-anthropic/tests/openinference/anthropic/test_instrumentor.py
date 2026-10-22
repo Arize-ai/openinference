@@ -3274,7 +3274,7 @@ def test_completed_empty_tool_before_unfinished_tool_keeps_its_arguments(
     second = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     assert attributes[first] == "{}"
     assert second not in attributes
-    output = json.loads(attributes[SpanAttributes.OUTPUT_VALUE])
+    output = json.loads(attributes[SpanAttributes.OUTPUT_VALUE])  # type: ignore[arg-type]
     assert output["content"][0]["input"] == {}
     assert "input" not in output["content"][1]
 
@@ -3356,7 +3356,7 @@ def test_stream_without_usage_delta_omits_unknown_completion_and_total(
     assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
     assert LLM_TOKEN_COUNT_COMPLETION not in attributes
     assert LLM_TOKEN_COUNT_TOTAL not in attributes
-    output = json.loads(attributes[SpanAttributes.OUTPUT_VALUE])
+    output = json.loads(attributes[SpanAttributes.OUTPUT_VALUE])  # type: ignore[arg-type]
     assert "output_tokens" not in output["usage"]
 
 
