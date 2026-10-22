@@ -9,7 +9,7 @@ Reference: agent_framework/observability.py OtelAttr enum
 
 import json
 import logging
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Tuple
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -242,9 +242,7 @@ def _parse_messages(messages_raw: Any) -> List[Dict[str, Any]]:
             if not isinstance(msg, dict):
                 continue
 
-            parsed_msg = _parse_single_message(msg)
-            if parsed_msg:
-                messages.append(parsed_msg)
+            messages.extend(_parse_single_message(msg))
 
     except (json.JSONDecodeError, TypeError) as e:
         logger.debug(f"Failed to parse messages: {e}")
@@ -252,8 +250,14 @@ def _parse_messages(messages_raw: Any) -> List[Dict[str, Any]]:
     return messages
 
 
-def _parse_single_message(msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Parse a single message from MS Agent Framework format to OpenInference format."""
+def _parse_single_message(msg: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+    """Parse a single message from MS Agent Framework format to OpenInference format.
+
+    A message can carry several tool results: Agent Framework puts every result of a
+    parallel tool-calling turn into one ``Message(role="tool", contents=[...])``. A
+    result is tied to its call by the scalar ``message.tool_call_id``, so each tool
+    result becomes a message of its own.
+    """
     role = msg.get("role", "user")
     parts = msg.get("parts") or []
 
@@ -261,6 +265,7 @@ def _parse_single_message(msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     text_content: List[str] = []
     tool_calls: List[Dict[str, Any]] = []
+    tool_results: List[Dict[str, Any]] = []
 
     for part in parts:
         if not isinstance(part, dict):
@@ -289,23 +294,25 @@ def _parse_single_message(msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             tool_calls.append(tool_call)
 
         elif part_type == "tool_call_response":
-            result["message.role"] = "tool"
-            result["message.tool_call_id"] = part.get("id", "")
             response = part.get("response", {})
-            if isinstance(response, dict):
-                text_content.append(safe_json_dumps(response))
-            else:
-                text_content.append(str(response))
+            tool_results.append(
+                {
+                    "message.role": "tool",
+                    "message.tool_call_id": part.get("id", ""),
+                    "message.content": (
+                        safe_json_dumps(response) if isinstance(response, dict) else str(response)
+                    ),
+                }
+            )
 
     if text_content:
         result["message.content"] = " ".join(text_content)
     if tool_calls:
         result["message.tool_calls"] = tool_calls
 
-    if "message.content" not in result and "message.tool_calls" not in result:
-        return None
-
-    return result
+    if "message.content" in result or "message.tool_calls" in result:
+        yield result
+    yield from tool_results
 
 
 def _parse_system_instructions(instructions_raw: Any) -> List[Dict[str, Any]]:
