@@ -493,7 +493,10 @@ class _OpenInferenceJSONEncoder(json.JSONEncoder):
 
         # Handle Pydantic models
         if hasattr(obj, "model_dump") and callable(obj.model_dump):
-            return obj.model_dump()
+            try:
+                return obj.model_dump()
+            except Exception:
+                return str(obj)
 
         # Handle dataclasses
         if dataclasses.is_dataclass(obj):
@@ -529,8 +532,7 @@ class _OpenInferenceJSONEncoder(json.JSONEncoder):
         if isinstance(obj, set):
             return list(obj)
 
-        # Let the base class handle everything else (will raise TypeError for unsupported types)
-        return super().default(obj)
+        return str(obj)
 
 
 def _serialize_langchain_message(message: BaseMessage) -> Any:
@@ -615,17 +617,11 @@ def _json_dumps(obj: Any) -> str:
     Simple JSON serialization using standard library with custom encoder.
 
     This approach is much simpler and more robust than manual recursive processing.
-    It handles most common types while falling back to safe_json_dumps for edge cases.
+    Values the encoder does not recognize are stringified in place.
     """
     if isinstance(obj, dict):
         obj = {str(k): v for k, v in obj.items()}
-
-    try:
-        # Use standard json.dumps with our custom encoder
-        return json.dumps(obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)
-    except (TypeError, ValueError, OverflowError):
-        # Fallback to safe_json_dumps for any unsupported types or circular references
-        return safe_json_dumps(obj)
+    return json.dumps(obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)
 
 
 @stop_on_exception
