@@ -179,19 +179,21 @@ def _load_blob_uploader_uncached(name: str) -> Optional[BlobUploader]:
 
 def is_valid_reference_uri(uri: str) -> bool:
     """
-    True when ``uri`` is an absolute URI with a scheme (``https://…``,
+    True when ``uri`` is an absolute ``scheme://`` URI (``https://…``,
     ``s3://…``, ``gs://…``, ...) — the shape a ``BlobUploader`` must return
     so that span attributes never carry bare file paths or opaque strings.
+    ``urlparse`` reads a Windows drive letter as a one-letter scheme, and
+    ``host:port`` or an NTFS stream (``a.png:stream``) as a scheme without
+    ``//``, so both are rejected.
     """
     if not isinstance(uri, str) or uri != uri.strip() or any(c.isspace() for c in uri):
         return False
     parsed = urlparse(uri)
-    if len(parsed.scheme) == 1:
-        # A Windows drive reference (C:\blobs\a.png, c:/blobs/a.png) is a bare file
-        # path: urlparse reports the drive letter as a one-letter scheme, and no
-        # storage scheme is one letter long.
-        return False
-    return bool(parsed.scheme) and bool(parsed.netloc or parsed.path)
+    return (
+        len(parsed.scheme) > 1
+        and uri[len(parsed.scheme) :].startswith("://")
+        and bool(parsed.netloc or parsed.path)
+    )
 
 
 def decode_base64_data_uri_to_blob(url: str, attribute_key: Optional[str] = None) -> Optional[Blob]:

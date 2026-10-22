@@ -252,6 +252,11 @@ def test_parse_and_decode_base64_data_uri() -> None:
         ("/tmp/a.png", False),
         (r"C:\blob_store\a.png", False),  # bare file path — drive letter is not a scheme
         ("c:/blob_store/a.png", False),  # bare file path — drive letter is not a scheme
+        ("C://blob_store/a.png", False),  # Windows accepts doubled slashes after the drive
+        ("localhost:8080", False),  # host:port — parsed as scheme "localhost"
+        ("a.png:stream", False),  # NTFS alternate data stream — parsed as scheme "a.png"
+        ("urn:uuid:9f1c2e4a", False),  # opaque URI — no // authority
+        ("s3://", False),  # scheme only
         ("", False),
         ("https://example.com/a b.png", False),  # whitespace
     ],
