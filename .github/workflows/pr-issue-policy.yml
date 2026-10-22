@@ -1,0 +1,43 @@
+name: PR issue policy
+
+on:
+    pull_request_target: # zizmor: ignore[dangerous-triggers] Needs a write token to label and close fork PRs. Only the base branch is checked out, so PR code never runs.
+        types: [opened, edited, reopened]
+    workflow_dispatch:
+        inputs:
+            enforce:
+                description: "Close every open PR that breaks the policy. Leave off to only log what would close."
+                type: boolean
+                default: false
+
+permissions: {}
+
+concurrency:
+    group: pr-issue-policy-${{ github.event.pull_request.number || 'sweep' }}
+    cancel-in-progress: false
+
+jobs:
+    enforce:
+        name: Require a linked issue and one PR per issue
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            issues: write
+            pull-requests: write
+        steps:
+            - name: Checkout base branch scripts
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+              with:
+                  persist-credentials: false
+                  sparse-checkout: |
+                      .github/.scripts
+            - name: Apply policy
+              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+              env:
+                  # Event runs only log until the repo variable PR_ISSUE_POLICY_ENFORCE is "true".
+                  ENFORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.enforce || github.event_name == 'pull_request_target' && vars.PR_ISSUE_POLICY_ENFORCE == 'true' }}
+              with:
+                  script: |
+                      const run = require(".github/.scripts/pr-issue-policy.js");
+                      await run({ github, context, core, enforce: process.env.ENFORCE === "true" });
