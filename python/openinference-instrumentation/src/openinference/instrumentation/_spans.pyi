@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import Any, Dict, Mapping, Optional, Type, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Type, Union
 
 from opentelemetry.trace import Span, SpanContext, Status, StatusCode
 from opentelemetry.util.types import Attributes, AttributeValue
@@ -55,6 +55,7 @@ class OpenInferenceSpan(Span):
         *,
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None: ...
+    def finalize_deferred_input_value(self, serialize: Callable[[], str]) -> None: ...
     def set_output(
         self,
         value: Any,
