@@ -59,6 +59,7 @@ from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
 from .config import (
     TraceConfig,
+    _drop_reasoning_content_parts,
     mask_without_externalization,
 )
 from .context_attributes import get_attributes_from_context
@@ -217,6 +218,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         (the real, uploader-enabled masking happens exactly once in
         ``OpenInferenceSpan.set_attribute`` after the span exists).
         """
+        if self._self_config.hide_reasoning:
+            attributes = cast(Dict[str, AttributeValue], _drop_reasoning_content_parts(attributes))
         masked_attributes: Dict[str, Any] = {}
         for key, value in attributes.items():
             masked_value = mask_without_externalization(self._self_config, key, value)
