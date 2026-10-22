@@ -6,7 +6,7 @@ import { SpanStatusCode } from "@opentelemetry/api";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   MimeType,
@@ -182,6 +182,16 @@ describe("AnthropicInstrumentation - other Messages methods", () => {
   });
 
   describe("beta.messages.toolRunner", () => {
+    // The SDK's own spans of a run (`@anthropic-ai/sdk` >= 0.134.0) are left
+    // out, so that these tests see only the instrumentation's.
+    beforeAll(() => {
+      vi.stubEnv("ANTHROPIC_OPEN_TELEMETRY", "false");
+    });
+
+    afterAll(() => {
+      vi.unstubAllEnvs();
+    });
+
     it("parents the LLM and TOOL spans of a run with a CHAIN span", async () => {
       const client = new Anthropic({
         apiKey: "fake-api-key",
