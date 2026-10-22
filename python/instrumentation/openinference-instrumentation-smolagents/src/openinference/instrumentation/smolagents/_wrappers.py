@@ -430,7 +430,7 @@ def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
                         reasoning_content := getattr(message, "reasoning_content", None)
                     ) is not None:
                         oi_message_contents.append(
-                            oi.TextMessageContent(type="text", text=reasoning_content)
+                            oi.ReasoningMessageContent(type="reasoning", text=reasoning_content)
                         )
 
     oi_message["contents"] = oi_message_contents
