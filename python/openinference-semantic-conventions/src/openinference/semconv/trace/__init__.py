@@ -40,12 +40,12 @@ class SpanAttributes:
     """
     INPUT_DOCUMENTS = "input.documents"
     """
-    A list of file Document Objects (e.g. PDFs) that are inputs to an operation, independent of
+    A list of Document Objects (e.g. PDFs) that are inputs to an operation, independent of
     span kind. Flattened with indexed prefixes, e.g. `input.documents.0.document.url`.
     """
     OUTPUT_DOCUMENTS = "output.documents"
     """
-    A list of file Document Objects (e.g. PDFs) produced by an operation, independent of span
+    A list of Document Objects (e.g. PDFs) produced by an operation, independent of span
     kind. Flattened with indexed prefixes, e.g. `output.documents.0.document.url`.
     """
 
@@ -467,9 +467,9 @@ class MessageContentAttributes:
     """
     MESSAGE_CONTENT_DOCUMENT = "message_content.document"
     """
-    The file document content of the message (e.g. a PDF), if the type is "document".
-    Nested leaves are DocumentAttributes.DOCUMENT_URL, DOCUMENT_MIME_TYPE, DOCUMENT_ID,
-    and DOCUMENT_FILENAME.
+    The document content of the message (e.g. a PDF, an uploaded file, or inline
+    text), if the type is "document".
+    Nested leaves come from DocumentAttributes.
     """
     MESSAGE_CONTENT_ID = "message_content.id"
     """
@@ -542,8 +542,8 @@ class DocumentAttributes:
 
     DOCUMENT_ID = "document.id"
     """
-    The id of the document. For a file document (e.g. a PDF), the provider file id,
-    such as an OpenAI or Anthropic Files API id.
+    The id of the document or chunk in the application or retrieval system,
+    independent of any provider upload.
     """
     DOCUMENT_SCORE = "document.score"
     """
@@ -551,7 +551,8 @@ class DocumentAttributes:
     """
     DOCUMENT_CONTENT = "document.content"
     """
-    The content of the document.
+    The text content of the document: a retrieved passage, or an inline text document
+    passed to a model.
     """
     DOCUMENT_METADATA = "document.metadata"
     """
@@ -564,11 +565,21 @@ class DocumentAttributes:
     """
     DOCUMENT_MIME_TYPE = "document.mime_type"
     """
-    The MIME type of a file document, e.g. `application/pdf`.
+    The MIME type of a document, e.g. `application/pdf`.
+    """
+    DOCUMENT_FILE_ID = "document.file_id"
+    """
+    The provider-issued id of an uploaded file used as model input, e.g. an OpenAI or
+    Anthropic Files API id.
     """
     DOCUMENT_FILENAME = "document.filename"
     """
-    The file name or title of a file document, e.g. `invoice.pdf`.
+    The file name of a document, including its extension when present, e.g. `invoice.pdf`.
+    Not a unique identifier.
+    """
+    DOCUMENT_TITLE = "document.title"
+    """
+    A descriptive title supplied with a document, independent of its file name.
     """
 
 

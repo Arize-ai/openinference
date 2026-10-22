@@ -139,7 +139,9 @@ export const DocumentAttributePostfixes = {
   metadata: "metadata",
   url: "url",
   mime_type: "mime_type",
+  file_id: "file_id",
   filename: "filename",
+  title: "title",
 } as const;
 
 export const TagAttributePostfixes = {
@@ -237,7 +239,7 @@ export const INPUT_MIME_TYPE = `${SemanticAttributePrefixes.input}.mime_type` as
  */
 export const INPUT_IMAGES = `${SemanticAttributePrefixes.input}.images` as const;
 /**
- * File documents (e.g. PDFs) passed as input to a span of any kind. Flattened
+ * Documents (e.g. PDFs) passed as input to a span of any kind. Flattened
  * with an index, for example `input.documents.0.document.url`.
  */
 export const INPUT_DOCUMENTS = `${SemanticAttributePrefixes.input}.documents` as const;
@@ -252,7 +254,7 @@ export const OUTPUT_MIME_TYPE = `${SemanticAttributePrefixes.output}.mime_type` 
  */
 export const OUTPUT_IMAGES = `${SemanticAttributePrefixes.output}.images` as const;
 /**
- * File documents (e.g. PDFs) produced as output by a span of any kind.
+ * Documents (e.g. PDFs) produced as output by a span of any kind.
  * Flattened with an index, for example `output.documents.0.document.url`.
  */
 export const OUTPUT_DOCUMENTS = `${SemanticAttributePrefixes.output}.documents` as const;
@@ -614,7 +616,8 @@ export const MESSAGE_CONTENT_AUDIO =
 export const MESSAGE_CONTENT_VIDEO =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.video}` as const;
 /**
- * The file document content (e.g. a PDF) of the message sent to the LLM
+ * The document content (e.g. a PDF, an uploaded file, or inline text) of the
+ * message sent to the LLM
  */
 export const MESSAGE_CONTENT_DOCUMENT =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.document}` as const;
@@ -674,16 +677,30 @@ export const DOCUMENT_URL =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.url}` as const;
 
 /**
- * The MIME type of a file document, for example `application/pdf`.
+ * The MIME type of a document, for example `application/pdf`.
  */
 export const DOCUMENT_MIME_TYPE =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.mime_type}` as const;
 
 /**
- * The file name or title of a file document, for example `invoice.pdf`.
+ * The provider-issued id of an uploaded file used as model input, for example
+ * an OpenAI or Anthropic Files API id.
+ */
+export const DOCUMENT_FILE_ID =
+  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.file_id}` as const;
+
+/**
+ * The file name of a document, including its extension when present, for
+ * example `invoice.pdf`. Not a unique identifier.
  */
 export const DOCUMENT_FILENAME =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.filename}` as const;
+
+/**
+ * A descriptive title supplied with a document, independent of its file name.
+ */
+export const DOCUMENT_TITLE =
+  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.title}` as const;
 
 /**
  * The text that was embedded to create the vector
@@ -984,7 +1001,9 @@ export const SemanticConventions = {
   DOCUMENT_METADATA,
   DOCUMENT_URL,
   DOCUMENT_MIME_TYPE,
+  DOCUMENT_FILE_ID,
   DOCUMENT_FILENAME,
+  DOCUMENT_TITLE,
   EMBEDDING_EMBEDDINGS,
   EMBEDDING_TEXT,
   EMBEDDING_MODEL_NAME,

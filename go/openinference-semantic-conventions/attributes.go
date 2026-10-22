@@ -22,7 +22,7 @@ const (
 	// InputImages is the span-kind-independent list of input images,
 	// flattened with indexed prefixes (e.g. "input.images.0.image.url").
 	InputImages = "input.images"
-	// InputDocuments is the span-kind-independent list of input file documents
+	// InputDocuments is the span-kind-independent list of input documents
 	// such as PDFs, flattened with indexed prefixes (e.g. "input.documents.0.document.url").
 	InputDocuments = "input.documents"
 
@@ -33,7 +33,7 @@ const (
 	// OutputImages is the span-kind-independent list of output images,
 	// flattened with indexed prefixes (e.g. "output.images.0.image.url").
 	OutputImages = "output.images"
-	// OutputDocuments is the span-kind-independent list of output file documents
+	// OutputDocuments is the span-kind-independent list of output documents
 	// such as PDFs, flattened with indexed prefixes (e.g. "output.documents.0.document.url").
 	OutputDocuments = "output.documents"
 
@@ -289,10 +289,11 @@ const (
 	VideoURL = "video.url"
 )
 
-// Document attributes — nested under RetrievalDocuments.{i}. DocumentURL,
-// DocumentMimeType and DocumentFilename describe file documents such as PDFs,
-// nested under MessageContentDocument, InputDocuments or OutputDocuments; on a
-// file document, DocumentID is the provider file id.
+// Document attributes — nested under RetrievalDocuments.{i}, MessageContentDocument,
+// InputDocuments or OutputDocuments. DocumentID is the application or retrieval
+// system id; DocumentFileID is the provider-issued id of an uploaded file.
+// DocumentURL, DocumentMimeType, DocumentFilename and DocumentTitle describe
+// documents passed to a model, such as PDFs.
 const (
 	DocumentID       = "document.id"
 	DocumentScore    = "document.score"
@@ -300,7 +301,9 @@ const (
 	DocumentMetadata = "document.metadata"
 	DocumentURL      = "document.url"
 	DocumentMimeType = "document.mime_type"
+	DocumentFileID   = "document.file_id"
 	DocumentFilename = "document.filename"
+	DocumentTitle    = "document.title"
 )
 
 // Tool-call attributes — nested under MessageToolCalls.{i}; also used under

@@ -1,6 +1,6 @@
 # Multimodal Attributes
 
-This document describes how message content arrays represent multimodal content (text, images, audio, video, file documents such as PDFs) in OpenInference spans. The same `message.contents` structure is also used for reasoning and provider-native tool-use parts when item ordering must be preserved.
+This document describes how message content arrays represent multimodal content (text, images, audio, video, and documents such as PDFs or inline text) in OpenInference spans. The same `message.contents` structure is also used for reasoning and provider-native tool-use parts when item ordering must be preserved.
 
 Vendor mappings live in [`internal_docs/specs/audio_video/`](../internal_docs/specs/audio_video/vendor_comparison.md). openai-agents realtime still emits instrumentor-local `input.audio.*` and `output.audio.*` strings. Those keys are not published `SpanAttributes` yet.
 
@@ -24,7 +24,7 @@ Each content item has a `type` attribute that identifies its kind:
 - `"image"` - Image content (URL or base64)
 - `"audio"` - Audio content (URL or base64)
 - `"video"` - Video content (URL or base64)
-- `"document"` - File document content such as a PDF (URL or base64)
+- `"document"` - Document content such as a PDF (URL or base64), an uploaded file, or inline text
 - `"reasoning"` - Reasoning or thinking content, including visible summaries and Anthropic `redacted_thinking`
 - `"tool_use"` - Provider-native tool-use part when a tool call must remain ordered relative to adjacent content items
 
@@ -82,7 +82,7 @@ The doubled prefix (`message_content.video.video.url`) matches `message_content.
 
 ### Document Content
 
-File documents passed to a model, such as PDFs, use `message_content.type` `"document"`:
+Documents passed to a model, such as PDFs or inline text documents, use `message_content.type` `"document"`:
 
 ```
 llm.input_messages.0.message.contents.4.message_content.type = "document"
@@ -97,38 +97,56 @@ For base64-encoded documents:
 llm.input_messages.0.message.contents.4.message_content.type = "document"
 llm.input_messages.0.message.contents.4.message_content.document.document.url = "data:application/pdf;base64,JVBERi0xLjcK..."
 llm.input_messages.0.message.contents.4.message_content.document.document.mime_type = "application/pdf"
+llm.input_messages.0.message.contents.4.message_content.document.document.title = "Q3 report"
 ```
 
 For a document uploaded with a provider Files API:
 
 ```
 llm.input_messages.0.message.contents.4.message_content.type = "document"
-llm.input_messages.0.message.contents.4.message_content.document.document.id = "file-abc123"
+llm.input_messages.0.message.contents.4.message_content.document.document.file_id = "file-abc123"
 ```
 
-- `document.url` may be an absolute URI (`https://`, `s3://`, `gs://`, ...) or a base64 data URI. Copy URIs verbatim. Build a data URI from provider base64 payloads. A data URI uses standard base64 (RFC 4648 section 4): re-encode URL-safe base64, which the Gemini REST API sends, and encode raw bytes from SDK objects.
-- Emit `document.mime_type` whenever the MIME type is known: from an explicit provider field, from the data URI prefix, or from a source type that admits one MIME type (Anthropic `url` sources are PDF-only). Omit it when the provider does not say, for example an OpenAI Responses `file_url`. Unlike audio and video, document URLs often have no file extension (signed URLs, object keys), so consumers cannot reliably infer the type.
-- Record provider file ids (OpenAI and LangChain `file_id`, Anthropic `file` sources) in `document.id`, never in `document.url`. A part that carries only a file id has `document.id` and no `document.url`.
-- Record the provider's file name or title verbatim in `document.filename` (OpenAI `filename`, Anthropic `title`, Bedrock `name`, Gemini `display_name`).
-- Documents whose source is not a file, such as Anthropic `content` sources made of nested text and image blocks, are not document content items. Record them with the instrumentor's generic content-block fallback.
+For an inline text document:
+
+```
+llm.input_messages.0.message.contents.4.message_content.type = "document"
+llm.input_messages.0.message.contents.4.message_content.document.document.content = "Clause 1. The tenant pays rent monthly."
+llm.input_messages.0.message.contents.4.message_content.document.document.mime_type = "text/plain"
+```
+
+A document part carries its payload in exactly one of three leaves:
+
+- `document.url` for bytes and URIs. It may be an absolute URI (`https://`, `s3://`, `gs://`, ...) or a base64 data URI. Copy URIs verbatim. Build a data URI from provider base64 payloads. A data URI uses standard base64 (RFC 4648 section 4): re-encode URL-safe base64, which the Gemini REST API sends, and encode raw bytes from SDK objects. Text files sent as bytes (for example Bedrock `txt` or `md` documents) also go here, with their MIME type.
+- `document.content` for inline text that the provider receives as a string (Anthropic `text` sources, Bedrock `text` sources, LangChain `text-plain` blocks). Record the string verbatim. Do not wrap it in a data URI.
+- `document.file_id` for a file uploaded through a provider Files API (OpenAI and LangChain `file_id`, Anthropic `file` sources). Never put a file id in `document.url`.
+
+The other leaves describe the document:
+
+- Emit `document.mime_type` whenever the MIME type is known: from an explicit provider field, from the data URI prefix, from a Bedrock `format`, or from a source type that admits one MIME type (Anthropic `url` sources are PDF-only, Anthropic `text` sources are `text/plain`). Omit it when the provider does not say, for example an OpenAI Responses `file_url`. Unlike audio and video, document URLs often have no file extension (signed URLs, object keys), so consumers cannot reliably infer the type.
+- `document.filename` is the actual file name, including its extension when present. It is not a unique identifier.
+- `document.title` is a descriptive title supplied with the document, independent of its file name. Anthropic `title`, Bedrock `name` (which cannot contain `.`), and Gemini `display_name` are titles.
+- `document.id` keeps its meaning from retrieval: the id of the document or chunk in the application or retrieval system, independent of any provider upload. Set it only when the application supplies one. Provider request payloads do not carry it.
+- Documents built from nested content blocks, such as Anthropic and Bedrock `content` sources, are not document content items. Record them with the instrumentor's generic content-block fallback.
 - Do not put documents in `image.url`.
-- File documents reuse the `document.*` namespace from retrieval. `document.url`, `document.mime_type`, and `document.filename` describe the file, and `document.id` identifies it. The other retrieval leaves (`document.content`, `document.score`, `document.metadata`) keep their existing meaning and are not emitted on message content.
-- Model responses do not return documents today. Provider outputs reference input documents through citations (for example Anthropic `page_location` with `document_index`). File documents appear on output only for non-`LLM` spans, through `output.documents`.
+- `document.score` and `document.metadata` are retrieval leaves and are not emitted on message content.
+- Model responses do not return documents today. Provider outputs reference input documents through citations (for example Anthropic `page_location` with `document_index`). Documents appear on output only for non-`LLM` spans, through `output.documents`.
 
 Provider mappings for input document parts:
 
-| Provider part | `document.url` | `document.mime_type` | `document.id` | `document.filename` |
-|---|---|---|---|---|
-| OpenAI Chat Completions, Azure OpenAI, LiteLLM: `{"type": "file", "file": {...}}` | `file.file_data` (already a data URI) | data URI prefix, or LiteLLM `file.format` | `file.file_id` | `file.filename` |
-| OpenAI Responses, openai-agents: `{"type": "input_file", ...}`, including `ToolOutputFileContent` in `function_call_output` | `file_data` (already a data URI) or `file_url` | data URI prefix; omit for `file_url` | `file_id` | `filename` |
-| Anthropic, Bedrock InvokeModel: `{"type": "document", "source": {"type": "base64", ...}}` | data URI from `source.data` | `source.media_type` | | `title` |
-| Anthropic: `source.type` `"url"` | `source.url` | `application/pdf` | | `title` |
-| Anthropic: `source.type` `"text"` | data URI from the UTF-8 bytes of `source.data` | `source.media_type` (`text/plain`) | | `title` |
-| Anthropic: `source.type` `"file"` | | | `source.file_id` | `title` |
-| Bedrock Converse: `{"document": {"format": ..., "source": {...}}}` | data URI from `source.bytes`, or `source.s3Location.uri` | from `format` (`pdf` maps to `application/pdf`) | | `name` |
-| Gemini: `inline_data` / `inlineData` | data URI from `data` | `mime_type` | | `display_name` |
-| Gemini: `file_data` / `fileData` | `file_uri` (`gs://` or a Files API `https://` URI) | `mime_type` | | `display_name` |
-| LangChain `FileContentBlock` (`{"type": "file", ...}`) | data URI from `base64`, or `url` | `mime_type` | `file_id` | `extras.filename` |
+| Provider part | `document.url` | `document.content` | `document.mime_type` | `document.file_id` | `document.filename` | `document.title` |
+|---|---|---|---|---|---|---|
+| OpenAI Chat Completions, Azure OpenAI, LiteLLM: `{"type": "file", "file": {...}}` | `file.file_data` (already a data URI) | | data URI prefix, or LiteLLM `file.format` | `file.file_id` | `file.filename` | |
+| OpenAI Responses, openai-agents: `{"type": "input_file", ...}`, including `ToolOutputFileContent` in `function_call_output` | `file_data` (already a data URI) or `file_url` | | data URI prefix; omit for `file_url` | `file_id` | `filename` | |
+| Anthropic, Bedrock InvokeModel: `{"type": "document", "source": {"type": "base64", ...}}` | data URI from `source.data` | | `source.media_type` | | | `title` |
+| Anthropic: `source.type` `"url"` | `source.url` | | `application/pdf` | | | `title` |
+| Anthropic: `source.type` `"text"` | | `source.data` | `source.media_type` (`text/plain`) | | | `title` |
+| Anthropic: `source.type` `"file"` | | | | `source.file_id` | | `title` |
+| Bedrock Converse: `{"document": {"format": ..., "source": {...}}}` | data URI from `source.bytes`, or `source.s3Location.uri` | `source.text` | from `format` (`pdf` maps to `application/pdf`, `txt` to `text/plain`, `md` to `text/markdown`) | | | `name` |
+| Gemini: `inline_data` / `inlineData` | data URI from `data` | | `mime_type` | | | `display_name` |
+| Gemini: `file_data` / `fileData` | `file_uri` (`gs://` or a Files API `https://` URI) | | `mime_type` | | | `display_name` |
+| LangChain `FileContentBlock` (`{"type": "file", ...}`) | data URI from `base64`, or `url` | | `mime_type` | `file_id` | `extras.filename` | |
+| LangChain `PlainTextContentBlock` (`{"type": "text-plain", ...}`) | | `text` | `mime_type` (`text/plain`) | | | |
 
 The doubled prefix (`message_content.document.document.url`) is the concatenation of `message_content.document` and `document.url`, matching `message_content.image.image.url`.
 
@@ -219,7 +237,7 @@ oversized images to `"__REDACTED__"`; Java and Go apply the hide flags only.
 
 ## Span-Kind-Independent Documents
 
-File documents such as PDFs follow the same rules as
+Documents such as PDFs follow the same rules as
 [span-kind-independent images](#span-kind-independent-images). Spans other than `LLM` record them
 with the top-level `input.documents` / `output.documents` attributes, for example a `TOOL` span that
 fills in a PDF form or a `CHAIN` step that receives an uploaded file.
@@ -230,7 +248,7 @@ fills in a PDF form or a `CHAIN` step that receives an uploaded file.
 
 Where:
 - `<documentIndex>` is the zero-based index of the document
-- `<attribute>` is `url`, `mime_type`, `id`, or `filename`
+- `<attribute>` is `url`, `content`, `mime_type`, `file_id`, `filename`, `title`, or `id`
 
 ```json
 {
@@ -244,7 +262,7 @@ Where:
 
 ### Semantics
 
-- `document.url`, `document.mime_type`, `document.id`, and `document.filename` mean the same thing as under `message_content.document`
+- Each `document.*` leaf means the same thing as under `message_content.document`
   (see [Document Content](#document-content)).
 - An `LLM` span records its documents inside the messages (`message.contents`). It SHOULD NOT
   repeat them under `input.documents` / `output.documents`.

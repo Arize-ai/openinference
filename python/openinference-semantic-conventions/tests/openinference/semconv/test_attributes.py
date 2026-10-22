@@ -342,7 +342,7 @@ class TestVideoAttributes:
 class TestDocumentAttributes:
     """Tests for DocumentAttributes namespace structure.
 
-    Verifies that document-related attributes (content, filename, id, metadata, mime_type, score, url)
+    Verifies that document-related attributes (content, file_id, filename, id, metadata, mime_type, score, title, url)
     from flat spans are properly organized under the document namespace.
     """
 
@@ -351,11 +351,13 @@ class TestDocumentAttributes:
         assert _nested_dict(attributes) == {
             "document": {
                 "content": DocumentAttributes.DOCUMENT_CONTENT,
+                "file_id": DocumentAttributes.DOCUMENT_FILE_ID,
                 "filename": DocumentAttributes.DOCUMENT_FILENAME,
                 "id": DocumentAttributes.DOCUMENT_ID,
                 "metadata": DocumentAttributes.DOCUMENT_METADATA,
                 "mime_type": DocumentAttributes.DOCUMENT_MIME_TYPE,
                 "score": DocumentAttributes.DOCUMENT_SCORE,
+                "title": DocumentAttributes.DOCUMENT_TITLE,
                 "url": DocumentAttributes.DOCUMENT_URL,
             }
         }

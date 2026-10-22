@@ -156,7 +156,9 @@ public class SemanticConventions {
         public static final String METADATA = "metadata";
         public static final String URL = "url";
         public static final String MIME_TYPE = "mime_type";
+        public static final String FILE_ID = "file_id";
         public static final String FILENAME = "filename";
+        public static final String TITLE = "title";
     }
 
     @UtilityClass
@@ -266,7 +268,7 @@ public class SemanticConventions {
     public static final String INPUT_IMAGES = SemanticAttributePrefixes.INPUT + ".images";
 
     /**
-     * File documents (e.g. PDFs) passed as input to a span of any kind. Flattened with an index, for
+     * Documents (e.g. PDFs) passed as input to a span of any kind. Flattened with an index, for
      * example {@code input.documents.0.document.url}.
      */
     public static final String INPUT_DOCUMENTS = SemanticAttributePrefixes.INPUT + ".documents";
@@ -285,7 +287,7 @@ public class SemanticConventions {
     public static final String OUTPUT_IMAGES = SemanticAttributePrefixes.OUTPUT + ".images";
 
     /**
-     * File documents (e.g. PDFs) produced as output by a span of any kind. Flattened with an index,
+     * Documents (e.g. PDFs) produced as output by a span of any kind. Flattened with an index,
      * for example {@code output.documents.0.document.url}.
      */
     public static final String OUTPUT_DOCUMENTS = SemanticAttributePrefixes.OUTPUT + ".documents";
@@ -655,7 +657,7 @@ public class SemanticConventions {
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.VIDEO;
 
     /**
-     * The file document content (e.g. a PDF) of the message sent to the LLM
+     * The document content (e.g. a PDF, an uploaded file, or inline text) of the message sent to the LLM
      */
     public static final String MESSAGE_CONTENT_DOCUMENT =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.DOCUMENT;
@@ -716,16 +718,30 @@ public class SemanticConventions {
     public static final String DOCUMENT_URL = SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.URL;
 
     /**
-     * The MIME type of a file document, for example {@code application/pdf}.
+     * The MIME type of a document, for example {@code application/pdf}.
      */
     public static final String DOCUMENT_MIME_TYPE =
             SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.MIME_TYPE;
 
     /**
-     * The file name or title of a file document, for example {@code invoice.pdf}.
+     * The provider-issued id of an uploaded file used as model input, for example an OpenAI or
+     * Anthropic Files API id.
+     */
+    public static final String DOCUMENT_FILE_ID =
+            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.FILE_ID;
+
+    /**
+     * The file name of a document, including its extension when present, for example
+     * {@code invoice.pdf}. Not a unique identifier.
      */
     public static final String DOCUMENT_FILENAME =
             SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.FILENAME;
+
+    /**
+     * A descriptive title supplied with a document, independent of its file name.
+     */
+    public static final String DOCUMENT_TITLE =
+            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.TITLE;
 
     /**
      * The text that was embedded to create the vector
