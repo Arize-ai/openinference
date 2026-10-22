@@ -8,6 +8,12 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.anthropic._utils import _finish_tracing, _get_token_counts
 from openinference.instrumentation.anthropic._with_span import _WithSpan
+from openinference.semconv.trace import SpanAttributes
+
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
 
 
 class _Attributes:
@@ -46,16 +52,19 @@ def test_get_token_counts_with_null_input_tokens_does_not_raise() -> None:
     """
     usage = _make_usage(input_tokens=None, output_tokens=10)
     attrs = dict(_get_token_counts(usage))  # must not raise
-    # prompt_tokens = 0, so LLM_TOKEN_COUNT_PROMPT is absent
-    assert "llm.token_count.prompt" not in attrs
-    assert attrs["llm.token_count.completion"] == 10
-    assert attrs["llm.token_count.total"] == 10
+    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 0
+    assert attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
+    assert attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 10
+    assert attrs == {}
 
 
 def test_get_token_counts_with_all_none_fields_does_not_raise() -> None:
-    """When all Usage fields are None, _get_token_counts must yield nothing."""
+    """When all Usage fields are None, the counts are recorded as 0."""
     usage = _make_usage()
     attrs = dict(_get_token_counts(usage))
+    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 0
+    assert attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 0
+    assert attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 0
     assert attrs == {}
 
 
@@ -64,10 +73,11 @@ def test_get_token_counts_with_normal_usage() -> None:
     usage = _make_usage(input_tokens=100, output_tokens=50, cache_read_input_tokens=20)
     attrs = dict(_get_token_counts(usage))
     # prompt = 100 + 20 = 120
-    assert attrs["llm.token_count.prompt"] == 120
-    assert attrs["llm.token_count.completion"] == 50
-    assert attrs["llm.token_count.total"] == 170
-    assert attrs["llm.token_count.prompt_details.cache_read"] == 20
+    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 120
+    assert attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 50
+    assert attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 170
+    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 20
+    assert attrs == {}
 
 
 def test_finish_tracing_logs_and_recovers_when_finalization_fails(
