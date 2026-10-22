@@ -116,7 +116,7 @@ def get_genai_usage_attributes(
         ),
         (
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-            GenAIAttributes.GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS,
+            GenAIAttributes.GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
         ),
     ):
         value = attributes.get(oi_key)
@@ -138,7 +138,7 @@ def get_genai_message_attributes(
         _output_messages if _output_messages is not None else _get_output_messages(attributes)
     )
 
-    # `any`-typed OTel GenAI attrs are JSON-string-encoded on spans per semconv v1.41.1;
+    # `any`-typed OTel GenAI attrs are JSON-string-encoded on spans per the GenAI semconv;
     # span attribute values can't be nested structures.
     if input_messages:
         genai_attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES] = safe_json_dumps(input_messages)
@@ -1267,7 +1267,7 @@ def _coerce_string_sequence(value: Any) -> Optional[Tuple[str, ...]]:
 _PARAMETER_MAPPINGS: Tuple[Tuple[str, Tuple[str, ...], Any], ...] = (
     (GenAIAttributes.GEN_AI_REQUEST_TEMPERATURE, ("temperature",), _coerce_float),
     (GenAIAttributes.GEN_AI_REQUEST_TOP_P, ("top_p",), _coerce_float),
-    (GenAIAttributes.GEN_AI_REQUEST_TOP_K, ("top_k",), _coerce_float),
+    (GenAIAttributes.GEN_AI_REQUEST_TOP_K, ("top_k",), _coerce_int),
     (
         GenAIAttributes.GEN_AI_REQUEST_MAX_TOKENS,
         ("max_tokens", "max_completion_tokens", "max_output_tokens"),
