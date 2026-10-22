@@ -2,10 +2,14 @@ from typing import Any
 
 import pytest
 from google.genai import types
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.google_genai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
+from openinference.instrumentation.google_genai._wrappers import _SyncGenerateContent
 
 
 @pytest.mark.parametrize(
@@ -324,3 +328,69 @@ def test_afc_history_after_merged_request_parts_keeps_this_call_turn() -> None:
     tool_call_prefix = "llm.output_messages.1.message.tool_calls.0."
 
     assert attributes[f"{tool_call_prefix}tool_call.function.name"] == "get_weather"
+
+
+@pytest.mark.parametrize(
+    "config, hidden",
+    [
+        pytest.param(TraceConfig(), False, id="default"),
+        pytest.param(TraceConfig(hide_output_messages=True), True, id="hide-output-messages"),
+        pytest.param(TraceConfig(hide_outputs=True), True, id="hide-outputs"),
+    ],
+)
+def test_afc_tool_calls_follow_output_message_masking(
+    config: TraceConfig,
+    hidden: bool,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    response = types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                index=0,
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part.from_text(text="65 degrees and foggy.")],
+                ),
+            )
+        ],
+        automatic_function_calling_history=[
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text="weather in SF?")],
+            ),
+            types.Content(
+                role="model",
+                parts=[
+                    types.Part(
+                        function_call=types.FunctionCall(
+                            name="get_weather",
+                            args={"location": "SF"},
+                        )
+                    )
+                ],
+            ),
+        ],
+    )
+
+    def generate_content(*, model: str, contents: Any) -> types.GenerateContentResponse:
+        return response
+
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
+    _SyncGenerateContent(tracer=tracer)(
+        generate_content,
+        None,
+        (),
+        {"model": "gemini-2.0-flash", "contents": "weather in SF?"},
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    assert not any(key.startswith("message.tool_calls.") for key in attributes)
+    tool_call_name = "llm.output_messages.1.message.tool_calls.0.tool_call.function.name"
+    if hidden:
+        assert not any("tool_calls" in key for key in attributes)
+    else:
+        assert attributes[tool_call_name] == "get_weather"
