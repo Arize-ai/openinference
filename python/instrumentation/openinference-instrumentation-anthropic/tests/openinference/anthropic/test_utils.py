@@ -1,8 +1,8 @@
 import logging
-from types import SimpleNamespace
-from typing import Iterator, Tuple
+from typing import Iterator, Optional, Tuple
 
 import pytest
+from anthropic.types import Usage
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.util.types import AttributeValue
 
@@ -20,16 +20,19 @@ def _failing_params() -> Iterator[Tuple[str, AttributeValue]]:
     raise RuntimeError("span finalization blew up")
 
 
-def _make_usage(**kwargs: object) -> object:
-    """Build a minimal Usage-like namespace for testing _get_token_counts."""
-    defaults = {
-        "input_tokens": None,
-        "cache_creation_input_tokens": None,
-        "cache_read_input_tokens": None,
-        "output_tokens": None,
-    }
-    defaults.update(kwargs)
-    return SimpleNamespace(**defaults)
+def _make_usage(
+    input_tokens: Optional[int] = None,
+    output_tokens: Optional[int] = None,
+    cache_creation_input_tokens: Optional[int] = None,
+    cache_read_input_tokens: Optional[int] = None,
+) -> Usage:
+    """Build a Usage without validation, so any field can be None."""
+    return Usage.model_construct(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cache_creation_input_tokens=cache_creation_input_tokens,
+        cache_read_input_tokens=cache_read_input_tokens,
+    )
 
 
 def test_get_token_counts_with_null_input_tokens_does_not_raise() -> None:
