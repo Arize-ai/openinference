@@ -1,6 +1,6 @@
 """
 Traces two concurrent ``AsyncTypeSafeClient.system_one`` calls, each with one Noul question.
-Produces two LLM spans named ``AsyncTypeSafeClient``.
+Produces two DECISION spans named ``AsyncTypeSafeClient``.
 
 1. Run a local OTLP collector such as Phoenix: `uvx arize-phoenix serve`
 2. Install dependencies: `pip install -r requirements.txt`

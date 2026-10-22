@@ -3,18 +3,23 @@
 Python autoinstrumentation library for the [Anthropic](https://www.anthropic.com/api) package
 
 This package implements the following Anthropic clients:
-- `Messages`
+- `Messages` (`create`, `stream`, `parse`, `count_tokens`)
 - `AsyncMessages`
-- `BetaMessagesParse`
-- `AsyncBetaMessagesParse`
+- Beta `Messages` and `AsyncMessages`, including those of the Bedrock and Vertex AI clients
+
+`llm.provider` is the platform hosting the model: `aws` for Bedrock, `google` for Vertex AI,
+`azure` for Microsoft Foundry, and `anthropic` otherwise.
 
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
 ## Compatibility
 
-| `openinference-instrumentation-anthropic` | `anthropic`       | Python          |
+| `openinference-instrumentation-anthropic`  | `anthropic`       | Python          |
 | ------------------------------------------ | ----------------- | --------------- |
-| `>=2.0`                                    | `>=1.0.0`         | `>=3.10, <3.15` |
+| `>=3.0.0`                                  | `>=1.8.0`         | `>=3.10, <3.15` |
+| `>=2.1.6, <3.0.0`                         | `>=1.0.0`         | `>=3.10, <3.15` |
+| `2.1.5`                                    | `>=1.0.0, <1.8`   | `>=3.10, <3.15` |
+| `>=2.0, <2.1.5`                            | `>=1.0.0, <1.5`   | `>=3.10, <3.15` |
 | `>=1.0.1, <2.0`                            | `>=0.84.0, <1.0`  | `>=3.10, <3.15` |
 | `1.0.0`                                    | `>=0.84.0, <1.0`  | `>=3.9, <3.15`  |
 

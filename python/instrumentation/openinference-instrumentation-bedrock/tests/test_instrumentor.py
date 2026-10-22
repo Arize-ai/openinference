@@ -1,11 +1,15 @@
 import base64
 import io
 import json
+import struct
+import zlib
 from typing import Any, Dict, Generator, List, Tuple
 from unittest.mock import MagicMock
 
 import boto3
 import pytest
+from botocore.awsrequest import AWSResponse
+from botocore.config import Config
 from botocore.response import StreamingBody
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
@@ -20,6 +24,7 @@ from openinference.instrumentation.bedrock import (
     BedrockInstrumentor,
 )
 from openinference.instrumentation.bedrock._converse_attributes import (
+    get_attributes_from_request_data,
     get_attributes_from_response_data,
 )
 from openinference.instrumentation.bedrock.utils._extract_invoke_model_attributes import (
@@ -178,7 +183,7 @@ def test_invoke_model_nova(
     assert len(spans) == 1
     span = spans[0]
     assert span.status.is_ok
-    attributes = dict(span.attributes or dict())
+    attributes: Dict[str, Any] = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == model_id
     assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
@@ -265,7 +270,7 @@ def test_invoke_client(
     assert len(spans) == 1
     span = spans[0]
     assert span.status.is_ok
-    attributes = dict(span.attributes or dict())
+    attributes: Dict[str, Any] = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
     assert attributes.pop(INPUT_VALUE) == body["prompt"]
@@ -356,7 +361,7 @@ def test_invoke_client_with_missing_tokens(
     assert len(spans) == 1
     span = spans[0]
     assert span.status.is_ok
-    attributes = dict(span.attributes or dict())
+    attributes: Dict[str, Any] = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
     assert attributes.pop(INPUT_VALUE) == body["prompt"]
@@ -937,7 +942,7 @@ def _run_converse_checks(
     invocation_parameters: Dict[str, Any],
 ) -> None:
     assert span.status.is_ok
-    attributes = dict(span.attributes or dict())
+    attributes: Dict[str, Any] = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == model_name
     assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
@@ -996,6 +1001,255 @@ def _run_converse_checks(
             prompt_template_variables,
         )
     assert attributes == {}
+
+
+def test_converse_invocation_parameters_include_additional_model_request_fields() -> None:
+    request = {
+        "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+        "inferenceConfig": {"maxTokens": 100, "temperature": 0.3},
+        "additionalModelRequestFields": {"top_k": 40, "thinking": {"type": "enabled"}},
+    }
+    attributes = get_attributes_from_request_data(request)  # type: ignore[arg-type]
+
+    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
+        "maxTokens": 100,
+        "temperature": 0.3,
+        "top_k": 40,
+        "thinking": {"type": "enabled"},
+    }
+
+
+@pytest.mark.parametrize(
+    ("request_fields", "expected_invocation_parameters"),
+    [
+        pytest.param({"additionalModelRequestFields": None}, None, id="null-fields-only"),
+        pytest.param({"inferenceConfig": {}}, {}, id="empty-inference-config"),
+        pytest.param(
+            {"inferenceConfig": {}, "additionalModelRequestFields": None},
+            {},
+            id="empty-inference-config-and-null-fields",
+        ),
+    ],
+)
+def test_converse_invocation_parameters_without_values(
+    request_fields: Dict[str, Any],
+    expected_invocation_parameters: Dict[str, Any] | None,
+) -> None:
+    request = {
+        "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+        **request_fields,
+    }
+    attributes = get_attributes_from_request_data(request)  # type: ignore[arg-type]
+
+    if expected_invocation_parameters is None:
+        assert LLM_INVOCATION_PARAMETERS not in attributes
+    else:
+        assert (
+            json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == expected_invocation_parameters
+        )
+
+
+def test_converse_response_does_not_add_finish_reason_to_invocation_parameters() -> None:
+    request = {
+        "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+        "inferenceConfig": {"maxTokens": 100},
+        "additionalModelRequestFields": {"top_k": 40},
+    }
+    response = {
+        "output": {"message": {"role": "assistant", "content": [{"text": "hi"}]}},
+        "usage": {"inputTokens": 5, "outputTokens": 2, "totalTokens": 7},
+        "stopReason": "end_turn",
+    }
+
+    attributes = get_attributes_from_request_data(request)  # type: ignore[arg-type]
+    attributes.update(
+        get_attributes_from_response_data(request, response)  # type: ignore[arg-type]
+    )
+
+    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
+        "maxTokens": 100,
+        "top_k": 40,
+    }
+    assert attributes[LLM_FINISH_REASON] == "end_turn"
+
+
+class _RawResponse:
+    def __init__(self, *chunks: bytes) -> None:
+        self.chunks = chunks
+
+    def stream(self, *args: Any, **kwargs: Any) -> Any:
+        yield from self.chunks
+
+    def read(self, amt: Any = None) -> bytes:
+        return b"".join(self.chunks)
+
+    def close(self) -> None:
+        pass
+
+    release_conn = close
+
+
+def _event_stream_frame(event_type: str, payload: Dict[str, Any]) -> bytes:
+    def header(name: str, value: str) -> bytes:
+        encoded_name, encoded_value = name.encode(), value.encode()
+        return (
+            struct.pack("B", len(encoded_name))
+            + encoded_name
+            + b"\x07"
+            + struct.pack(">H", len(encoded_value))
+            + encoded_value
+        )
+
+    headers = (
+        header(":event-type", event_type)
+        + header(":content-type", "application/json")
+        + header(":message-type", "event")
+    )
+    body = json.dumps(payload).encode()
+    prelude = struct.pack(">II", 12 + len(headers) + len(body) + 4, len(headers))
+    prelude += struct.pack(">I", zlib.crc32(prelude))
+    message = prelude + headers + body
+    return message + struct.pack(">I", zlib.crc32(message))
+
+
+_CONVERSE_USAGE = {"inputTokens": 3, "outputTokens": 2, "totalTokens": 5}
+_CONVERSE_RESPONSE: Dict[str, Any] = {
+    "output": {"message": {"role": "assistant", "content": [{"text": "one two"}]}},
+    "stopReason": "end_turn",
+    "usage": _CONVERSE_USAGE,
+    "metrics": {"latencyMs": 1},
+}
+_CONVERSE_STREAM_EVENTS: List[Tuple[str, Dict[str, Any]]] = [
+    ("messageStart", {"role": "assistant"}),
+    ("contentBlockDelta", {"contentBlockIndex": 0, "delta": {"text": "one "}}),
+    ("contentBlockDelta", {"contentBlockIndex": 0, "delta": {"text": "two"}}),
+    ("contentBlockStop", {"contentBlockIndex": 0}),
+    ("messageStop", {"stopReason": "end_turn"}),
+    ("metadata", {"usage": _CONVERSE_USAGE, "metrics": {"latencyMs": 1}}),
+]
+
+
+@pytest.mark.parametrize("api", ["converse", "converse_stream"])
+@pytest.mark.parametrize(
+    ("additional_fields", "expected_invocation_parameters"),
+    [
+        pytest.param(
+            {"top_k": 40, "thinking": {"type": "enabled"}},
+            {"maxTokens": 50, "temperature": 0.3, "top_k": 40, "thinking": {"type": "enabled"}},
+            id="object",
+        ),
+        pytest.param(
+            ["a", 1],
+            {"maxTokens": 50, "temperature": 0.3, "additionalModelRequestFields": ["a", 1]},
+            id="array",
+        ),
+        pytest.param(
+            "raw",
+            {"maxTokens": 50, "temperature": 0.3, "additionalModelRequestFields": "raw"},
+            id="string",
+        ),
+        pytest.param(
+            40,
+            {"maxTokens": 50, "temperature": 0.3, "additionalModelRequestFields": 40},
+            id="number",
+        ),
+        pytest.param(
+            True,
+            {"maxTokens": 50, "temperature": 0.3, "additionalModelRequestFields": True},
+            id="boolean",
+        ),
+        pytest.param(
+            None,
+            {"maxTokens": 50, "temperature": 0.3},
+            id="null",
+        ),
+    ],
+)
+def test_converse_client_invocation_parameters(
+    api: str,
+    additional_fields: Any,
+    expected_invocation_parameters: Dict[str, Any],
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    if boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+        pytest.xfail(
+            f"Botocore {boto3.__version__} does not support the Converse API. "
+            f"Converse API introduced in {_MINIMUM_CONVERSE_BOTOCORE_VERSION}"
+        )
+    sent_bodies: List[Dict[str, Any]] = []
+
+    def before_send(request: Any, **kwargs: Any) -> AWSResponse:
+        sent_bodies.append(json.loads(request.body))
+        if request.url.endswith("/converse-stream"):
+            return AWSResponse(
+                request.url,
+                200,
+                {"content-type": "application/vnd.amazon.eventstream"},
+                _RawResponse(*(_event_stream_frame(*event) for event in _CONVERSE_STREAM_EVENTS)),
+            )
+        return AWSResponse(
+            request.url,
+            200,
+            {"content-type": "application/json"},
+            _RawResponse(json.dumps(_CONVERSE_RESPONSE).encode()),
+        )
+
+    client = boto3.client(
+        "bedrock-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="x",
+        aws_secret_access_key="x",
+        config=Config(retries={"total_max_attempts": 1}),
+    )
+    client.meta.events.register("before-send.bedrock-runtime.*", before_send)
+    request_kwargs: Dict[str, Any] = {
+        "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+        "messages": [{"role": "user", "content": [{"text": "hi"}]}],
+        "inferenceConfig": {"maxTokens": 50, "temperature": 0.3},
+        "additionalModelRequestFields": additional_fields,
+    }
+
+    if api == "converse":
+        client.converse(**request_kwargs)
+    else:
+        list(client.converse_stream(**request_kwargs)["stream"])
+
+    # The request still reaches the provider with the fields the caller passed.
+    # botocore leaves None out of the request body.
+    assert len(sent_bodies) == 1
+    assert sent_bodies[0].get("additionalModelRequestFields") == additional_fields
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == f"bedrock.{api}"
+    assert span.status.is_ok
+    attributes: Dict[str, Any] = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
+    assert attributes.pop(LLM_MODEL_NAME) == request_kwargs["modelId"]
+    assert isinstance(invocation_parameters := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters) == expected_invocation_parameters
+    assert attributes.pop(INPUT_VALUE) == safe_json_dumps(request_kwargs["messages"])
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON.value
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert attributes.pop("llm.input_messages.0.message.contents.0.message_content.type") == "text"
+    assert attributes.pop("llm.input_messages.0.message.contents.0.message_content.text") == "hi"
+    assert attributes.pop(OUTPUT_VALUE) == safe_json_dumps(_CONVERSE_RESPONSE["output"]["message"])
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON.value
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    assert attributes.pop("llm.output_messages.0.message.contents.0.message_content.type") == "text"
+    assert (
+        attributes.pop("llm.output_messages.0.message.contents.0.message_content.text") == "one two"
+    )
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 3
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 2
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 5
+    assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
+    assert not attributes
 
 
 @pytest.mark.parametrize(
@@ -1068,3 +1322,73 @@ JSON = OpenInferenceMimeTypeValues.JSON
 SESSION_ID = SpanAttributes.SESSION_ID
 USER_ID = SpanAttributes.USER_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
+
+
+def test_uninstrument_stops_spans_on_existing_clients(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Existing clients must stop emitting spans after uninstrument (#3969)."""
+    if boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+        pytest.xfail(
+            f"Botocore {boto3.__version__} does not support the Converse API. "
+            f"Converse API introduced in {_MINIMUM_CONVERSE_BOTOCORE_VERSION}"
+        )
+
+    class _Raw:
+        def __init__(self, data: bytes) -> None:
+            self.data = data
+
+        def stream(self, *args: Any, **kwargs: Any) -> Any:
+            yield self.data
+
+        def read(self, amt: Any = None) -> bytes:
+            return self.data
+
+        def close(self) -> None:
+            pass
+
+        release_conn = close
+
+    def before_send(request: Any, **kwargs: Any) -> AWSResponse:
+        out = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "hi"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 3, "outputTokens": 1, "totalTokens": 4},
+            "metrics": {"latencyMs": 1},
+        }
+        return AWSResponse(
+            request.url,
+            200,
+            {"content-type": "application/json"},
+            _Raw(json.dumps(out).encode()),
+        )
+
+    client = boto3.client(
+        "bedrock-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="x",
+        aws_secret_access_key="x",
+        config=Config(retries={"total_max_attempts": 1}),
+    )
+    client.meta.events.register("before-send.bedrock-runtime.*", before_send)
+    assert "converse" in vars(client)
+    # Saved alias of the wrapper: must not AttributeError after uninstrument.
+    wrapped_converse = client.converse
+
+    message = {"role": "user", "content": [{"text": "hello"}]}
+    model_id = "anthropic.claude-3-haiku-20240307-v1:0"
+    client.converse(modelId=model_id, messages=[message])
+    assert len(in_memory_span_exporter.get_finished_spans()) == 1
+
+    BedrockInstrumentor().uninstrument()
+    in_memory_span_exporter.clear()
+
+    assert "converse" not in vars(client)
+    client.converse(modelId=model_id, messages=[message])
+    assert in_memory_span_exporter.get_finished_spans() == ()
+
+    # Kept _unwrapped_* so a saved wrapper alias does not AttributeError.
+    wrapped_converse(modelId=model_id, messages=[message])
+
+    BedrockInstrumentor().instrument(tracer_provider=tracer_provider)

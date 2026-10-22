@@ -1,5 +1,6 @@
 """Tests for OpenInferenceObserver."""
 
+import asyncio
 import os
 import tempfile
 import time
@@ -8,6 +9,8 @@ from unittest.mock import Mock
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pipecat.frames.frames import (
+    BotStartedSpeakingFrame,
+    EndFrame,
     FunctionCallResultFrame,
     LLMContextFrame,
     LLMFullResponseEndFrame,
@@ -15,6 +18,7 @@ from pipecat.frames.frames import (
     MetricsFrame,
     TranscriptionFrame,
     TTSStartedFrame,
+    UserStartedSpeakingFrame,
     VADUserStartedSpeakingFrame,
     VADUserStoppedSpeakingFrame,
 )
@@ -25,6 +29,7 @@ from pipecat.metrics.metrics import (
 )
 from pipecat.observers.base_observer import FramePushed
 from pipecat.processors.aggregators.llm_context import LLMContext
+from pipecat.processors.frame_processor import FrameDirection
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
@@ -858,3 +863,40 @@ class TestToolCallTracking:
         spans = in_memory_span_exporter.get_finished_spans()
         tool_spans = [s for s in spans if "pipecat.tool" in s.name]
         assert len(tool_spans) == 1
+
+
+@pytest.mark.asyncio
+async def test_later_hops_do_not_repeat_turns_or_latency(
+    observer: OpenInferenceObserver,
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_stt_service: Mock,
+) -> None:
+    latencies = []
+
+    @observer._latency_observer.event_handler("on_latency_measured")
+    async def on_latency_measured(_observer, latency):
+        latencies.append(latency)
+
+    frames = [
+        UserStartedSpeakingFrame(),
+        VADUserStoppedSpeakingFrame(),
+        BotStartedSpeakingFrame(),
+    ]
+    for first_push in (True, False, False):
+        for frame in frames:
+            data = create_frame_pushed(
+                mock_stt_service, None, frame, direction=FrameDirection.DOWNSTREAM
+            )
+            data.first_push = first_push
+            await observer.on_push_frame(data)
+            await asyncio.sleep(0)
+
+    await observer.on_push_frame(create_frame_pushed(mock_stt_service, None, EndFrame()))
+    turns = [
+        span
+        for span in in_memory_span_exporter.get_finished_spans()
+        if span.name == "pipecat.conversation.turn"
+    ]
+    assert len(turns) == 1
+    assert len(latencies) == 1
+    assert latencies[0] >= 0

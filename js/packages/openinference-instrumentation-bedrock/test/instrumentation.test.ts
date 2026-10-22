@@ -276,6 +276,8 @@ describe("BedrockInstrumentation", () => {
   "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{"location":"Paris, France"}",
   "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "get_weather",
   "llm.input_messages.1.message.tool_calls.0.tool_call.id": "toolu_123",
+  "llm.input_messages.2.message.contents.0.message_content.text": "The weather in Paris is currently 22°C and sunny.",
+  "llm.input_messages.2.message.contents.0.message_content.type": "text",
   "llm.input_messages.2.message.contents.1.message_content.text": "Great! What should I wear?",
   "llm.input_messages.2.message.contents.1.message_content.type": "text",
   "llm.input_messages.2.message.role": "user",
@@ -1017,7 +1019,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.model_name": "claude-3-sonnet-20240229",
   "llm.output_messages.0.message.content": "Okay, let's get the current weather for San Francisco:",
   "llm.output_messages.0.message.role": "assistant",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA","unit":"fahrenheit"}",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
   "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg",
   "llm.provider": "aws",
@@ -1027,7 +1029,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.tools.0.tool.json_schema": "{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}",
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
-  "output.value": "{"text":"Okay, let's get the current weather for San Francisco:","tool_calls":[{"id":"toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg","name":"get_weather","input":{}}],"usage":{"input_tokens":273,"output_tokens":88},"streaming":true}",
+  "output.value": "{"text":"Okay, let's get the current weather for San Francisco:","tool_calls":[{"id":"toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg","name":"get_weather","input":{"location":"San Francisco, CA","unit":"fahrenheit"}}],"usage":{"input_tokens":273,"output_tokens":88},"streaming":true}",
 }
 `);
       });

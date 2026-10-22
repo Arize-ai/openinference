@@ -1,5 +1,24 @@
 # @arizeai/openinference-genai
 
+## 0.4.0
+
+### Minor Changes
+
+- 945c024: Map `gen_ai.conversation.id` to the OpenInference `session.id` attribute, so GenAI-convention spans carry the session id for any OpenInference backend.
+
+### Patch Changes
+
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+
+## 0.3.11
+
+### Patch Changes
+
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+
 ## 0.3.10
 
 ### Patch Changes
