@@ -24,7 +24,6 @@ from openinference.instrumentation import (
     REDACTED_VALUE,
     OITracer,
     TraceConfig,
-    finalize_deferred_input_value,
     get_attributes_from_context,
     infer_llm_provider_from_host,
 )
@@ -95,8 +94,7 @@ class _WithTracer(ABC):
             logger.exception("Failed to start span")
             span = INVALID_SPAN
         else:
-            finalize_deferred_input_value(
-                span,
+            span.finalize_deferred_input_value(
                 lambda: serialize_request_input(request_parameters, self._config),
             )
         with trace_api.use_span(
