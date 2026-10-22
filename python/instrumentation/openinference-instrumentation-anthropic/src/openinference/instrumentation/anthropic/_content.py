@@ -9,7 +9,18 @@ response models (e.g. a response passed back as input), so both are read with `_
 import json
 import logging
 import warnings
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+)
 
 from opentelemetry.util.types import AttributeValue
 
@@ -147,15 +158,14 @@ def _get_message_contents_attributes(
     message_prefix: str,
     blocks: Iterable[Any],
     hide_images: bool = False,
-    is_exhausted: bool = True,
+    unfinished_block_indexes: Optional[Set[int]] = None,
 ) -> Iterator[Tuple[str, Any]]:
     """
     Yields the attributes of each content block of the message at `message_prefix`, e.g.
     `llm.output_messages.0`. Content indices follow the block indices, and a block that cannot be
     mapped is recorded generically, so no index is skipped and no block is silently dropped.
     `hide_images` redacts the images nested in blocks that are recorded as JSON.
-    `is_exhausted` says whether the stream the blocks come from was read to its end, so that an
-    unfinished stream's placeholder values are not recorded as final ones.
+    `unfinished_block_indexes` identifies blocks that never received content_block_stop.
     """
     tool_index = 0
     for j, block in enumerate(blocks):
@@ -166,7 +176,7 @@ def _get_message_contents_attributes(
             tool_index,
             block,
             hide_images,
-            is_exhausted,
+            unfinished_block_indexes,
         )
         if not attributes:
             attributes = _attributes_or_nothing(
@@ -186,7 +196,7 @@ def _get_content_block_attributes(
     tool_index: int,
     block: Any,
     hide_images: bool = False,
-    is_exhausted: bool = True,
+    unfinished_block_indexes: Optional[Set[int]] = None,
 ) -> Iterator[Tuple[str, Any]]:
     block_type = _require(block, "type")
     prefix = f"{message_prefix}.{MESSAGE_CONTENTS}.{j}"
@@ -204,12 +214,11 @@ def _get_content_block_attributes(
     elif block_type in TOOL_CALL_BLOCK_TYPES:
         tool_call_id = _require(block, "id")
         name = _require(block, "name")
-        # An unfinished stream leaves the tool input at the SDK's empty placeholder from
-        # content_block_start, because the arguments are only parsed into the snapshot once the
-        # block completes, so that placeholder is not a value the model produced (#3904).
+        # The SDK starts a tool block with an empty input placeholder. It parses the accumulated
+        # JSON when the block stops. A completed block with real empty arguments must be kept.
         arguments = (
             None
-            if not is_exhausted and not _get(block, "input")
+            if unfinished_block_indexes is not None and j in unfinished_block_indexes
             else safe_json_dumps(_require(block, "input"))
         )
         tool_call_prefix = f"{message_prefix}.{MESSAGE_TOOL_CALLS}.{tool_index}"
@@ -302,13 +311,15 @@ def _get_generic_content_block_attributes(
 
 
 def _get_output_message_attributes(
-    message: Any, is_exhausted: bool = True
+    message: Any, unfinished_block_indexes: Optional[Set[int]] = None
 ) -> Iterator[Tuple[str, Any]]:
     yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", message.role
     if stop_reason := message.stop_reason:
         yield LLM_FINISH_REASON, stop_reason
     yield from _get_message_contents_attributes(
-        f"{LLM_OUTPUT_MESSAGES}.0", message.content, is_exhausted=is_exhausted
+        f"{LLM_OUTPUT_MESSAGES}.0",
+        message.content,
+        unfinished_block_indexes=unfinished_block_indexes,
     )
 
 
