@@ -1181,6 +1181,7 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
         aggregated_output = _set_streaming_output_attributes(span, output_messages, usage_stats)
     except Exception as e:
         span.record_exception(e)
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
         raise
     else:
         _set_span_status(span, aggregated_output)
@@ -1237,6 +1238,7 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
         aggregated_output = _set_streaming_output_attributes(span, output_messages, usage_stats)
     except Exception as e:
         span.record_exception(e)
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
         raise
     else:
         _set_span_status(span, aggregated_output)
