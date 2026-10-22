@@ -1,7 +1,9 @@
 """anthropic>=1.14.0 starts a span of its own for each API call. A call that the instrumentor
 traces has its LLM span instead, which the SDK's request continues."""
 
+import asyncio
 import json
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Awaitable, Callable, Dict, Iterator, List, Optional
 
 import httpx2
@@ -62,10 +64,14 @@ class _Server:
     def __init__(self) -> None:
         self.current_spans: List[trace_api.SpanContext] = []
         self.traceparents: List[Optional[str]] = []
+        # called while a Messages request is being sent
+        self.on_message_request: Optional[Callable[[], None]] = None
 
     def __call__(self, request: httpx2.Request) -> httpx2.Response:
         self.current_spans.append(trace_api.get_current_span().get_span_context())
         self.traceparents.append(request.headers.get("traceparent"))
+        if request.url.path == "/v1/messages" and self.on_message_request is not None:
+            self.on_message_request()
         if request.url.path.endswith("/count_tokens"):
             return httpx2.Response(200, json={"input_tokens": 10})
         if request.url.path.endswith("/models"):
@@ -82,6 +88,15 @@ class _Server:
         return httpx2.Response(200, json=MESSAGE)
 
 
+def _sdk_spans_to(tracer_provider: TracerProvider) -> Dict[str, Any]:
+    # the SDK's spans go to the global tracer provider by default
+    return {"open_telemetry": {"tracer_provider": tracer_provider}}
+
+
+def _no_sdk_spans() -> Dict[str, Any]:
+    return {"open_telemetry": False}
+
+
 @pytest.fixture
 def server() -> _Server:
     return _Server()
@@ -92,8 +107,7 @@ def client(server: _Server, tracer_provider: TracerProvider) -> Anthropic:
     return Anthropic(
         api_key="sk-ant-fake",
         http_client=httpx2.Client(transport=httpx2.MockTransport(server)),
-        # the SDK's spans go to the global tracer provider by default
-        open_telemetry={"tracer_provider": tracer_provider},
+        **_sdk_spans_to(tracer_provider),
     )
 
 
@@ -106,7 +120,7 @@ def async_client(server: _Server, tracer_provider: TracerProvider) -> AsyncAnthr
     return AsyncAnthropic(
         api_key="sk-ant-fake",
         http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
-        open_telemetry={"tracer_provider": tracer_provider},
+        **_sdk_spans_to(tracer_provider),
     )
 
 
@@ -288,6 +302,94 @@ def test_failed_call_has_one_span(
     assert span.status.status_code == trace_api.StatusCode.ERROR
 
 
+def _traceparent(span: ReadableSpan) -> str:
+    context = span.get_span_context()
+    assert context is not None
+    return f"00-{context.trace_id:032x}-{context.span_id:016x}-{int(context.trace_flags):02x}"
+
+
+def test_concurrent_calls_in_threads(
+    client: Anthropic,
+    server: _Server,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: None,
+) -> None:
+    calls = [_create, _stream, _create_streaming, _count_tokens] * 4
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(lambda call: call(client), calls))
+    spans = _spans(in_memory_span_exporter)
+    assert _scopes(in_memory_span_exporter) == [OI_SCOPE] * len(calls)
+    assert sorted(map(str, server.traceparents)) == sorted(_traceparent(span) for span in spans)
+
+
+async def test_concurrent_async_calls(
+    async_client: AsyncAnthropic,
+    server: _Server,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: None,
+) -> None:
+    calls = [_async_create, _async_stream, _async_create_streaming, _async_count_tokens] * 4
+    await asyncio.gather(*(call(async_client) for call in calls))
+    spans = _spans(in_memory_span_exporter)
+    assert _scopes(in_memory_span_exporter) == [OI_SCOPE] * len(calls)
+    assert sorted(map(str, server.traceparents)) == sorted(_traceparent(span) for span in spans)
+
+
+@pytest.mark.parametrize("own_span", [False, True], ids=["without_span", "with_span"])
+def test_another_call_made_while_the_request_is_sent_keeps_the_sdk_span(
+    own_span: bool,
+    client: Anthropic,
+    server: _Server,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: None,
+) -> None:
+    def list_models() -> None:
+        server.on_message_request = None
+        if own_span:
+            with tracer_provider.get_tracer("test").start_as_current_span("middleware"):
+                client.models.list()
+        else:
+            client.models.list()
+
+    server.on_message_request = list_models
+    client.messages.create(**KWARGS)
+    spans = {
+        span.instrumentation_scope.name: span
+        for span in _spans(in_memory_span_exporter)
+        if span.instrumentation_scope is not None
+    }
+    assert sorted(spans) == [SDK_SCOPE, OI_SCOPE]
+    sdk_span, llm_span = spans[SDK_SCOPE], spans[OI_SCOPE]
+    assert sdk_span.parent is not None
+    middlewares = [
+        span for span in in_memory_span_exporter.get_finished_spans() if span.name == "middleware"
+    ]
+    assert len(middlewares) == (1 if own_span else 0)
+    parent = middlewares[0] if own_span else llm_span
+    context = parent.get_span_context()
+    assert context is not None
+    assert sdk_span.parent.span_id == context.span_id
+
+
+def test_sdk_span_stays_when_the_llm_span_is_invalid(
+    client: Anthropic,
+    server: _Server,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """The instrumentor's tracer provider makes no spans, and the client's does."""
+    instrumentor = AnthropicInstrumentor()
+    instrumentor.instrument(tracer_provider=trace_api.NoOpTracerProvider())
+    try:
+        _stream(client)
+    finally:
+        instrumentor.uninstrument()
+    (span,) = _spans(in_memory_span_exporter)
+    assert span.instrumentation_scope is not None
+    assert span.instrumentation_scope.name == SDK_SCOPE
+    assert server.traceparents == [_traceparent(span)]
+
+
 def test_calls_that_are_not_traced_keep_the_sdk_span(
     client: Anthropic,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -317,7 +419,7 @@ def test_sdk_spans_disabled(
     client = Anthropic(
         api_key="sk-ant-fake",
         http_client=httpx2.Client(transport=httpx2.MockTransport(server)),
-        open_telemetry=False,
+        **_no_sdk_spans(),
     )
     _stream(client)
     assert _scopes(in_memory_span_exporter) == [OI_SCOPE]

@@ -8,7 +8,7 @@ While the LLM span of a traced call is current, the SDK is handed a non-recordin
 LLM span's context in place of the span it would start. That is what the SDK gets when a sampler
 drops its span: nothing is recorded, the request carries the LLM span's trace context if the
 client propagates one, and the spans of HTTP instrumentation are children of the LLM span. Any
-other call keeps the SDK's span.
+other call keeps the SDK's span, and so does a call whose LLM span has no valid context.
 """
 
 from __future__ import annotations
@@ -61,6 +61,7 @@ class _StartApiCallSpanWrapper:
             logger.exception("Failed to check the span of the API call")
             return wrapped(*args, **kwargs)
         if not span_context.is_valid:
-            # what the SDK returns for a span with no effect: the call then has no span
-            return None
+            # no LLM span was recorded, e.g. the instrumentor's tracer provider makes none, so the
+            # SDK's span is not a second one
+            return wrapped(*args, **kwargs)
         return trace_api.NonRecordingSpan(span_context)
