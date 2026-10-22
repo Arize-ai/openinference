@@ -44,6 +44,7 @@ from openinference.instrumentation.anthropic._content import (
     _to_json,
     _to_jsonable,
 )
+from openinference.instrumentation.anthropic._sdk_spans import _sending_request_of
 from openinference.instrumentation.anthropic._stream import (
     _MessagesStream,
     _RawStreamInterceptor,
@@ -224,14 +225,7 @@ class _WithTracer(ABC):
         except Exception:
             span = INVALID_SPAN
         with ExitStack() as stack:
-            stack.enter_context(
-                trace_api.use_span(
-                    span,
-                    end_on_exit=False,
-                    record_exception=False,
-                    set_status_on_exception=False,
-                )
-            )
+            stack.enter_context(_sending_request_of(span))
             yield _WithSpan(
                 span=span,
                 params=stack.enter_context(params),
@@ -665,8 +659,8 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type
         try:
             # the request is sent here, after stream() has returned, and anthropic>=1.8.0
             # prepares its body here, so the params are made current again for the body
-            # preparation wrapper
-            with self._self_params:
+            # preparation wrapper, and the span is made current for the request, see _sdk_spans
+            with self._self_params, _sending_request_of(self._self_with_span.span):
                 message_stream = self.__wrapped__.__enter__()
         except BaseException as exception:
             # a failed request never reaches __exit__, so the span has to be finished here
@@ -715,8 +709,8 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,
         try:
             # the request is sent here, after stream() has returned, and anthropic>=1.8.0
             # prepares its body here, so the params are made current again for the body
-            # preparation wrapper
-            with self._self_params:
+            # preparation wrapper, and the span is made current for the request, see _sdk_spans
+            with self._self_params, _sending_request_of(self._self_with_span.span):
                 message_stream = self.__wrapped__.__enter__()
         except BaseException as exception:
             # a failed request never reaches __exit__, so the span has to be finished here
@@ -768,8 +762,8 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined
         try:
             # the request is sent here, after stream() has returned, and anthropic>=1.8.0
             # prepares its body here, so the params are made current again for the body
-            # preparation wrapper
-            with self._self_params:
+            # preparation wrapper, and the span is made current for the request, see _sdk_spans
+            with self._self_params, _sending_request_of(self._self_with_span.span):
                 message_stream = await self.__wrapped__.__aenter__()
         except BaseException as exception:
             # a failed request never reaches __exit__, so the span has to be finished here
@@ -818,8 +812,8 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-def
         try:
             # the request is sent here, after stream() has returned, and anthropic>=1.8.0
             # prepares its body here, so the params are made current again for the body
-            # preparation wrapper
-            with self._self_params:
+            # preparation wrapper, and the span is made current for the request, see _sdk_spans
+            with self._self_params, _sending_request_of(self._self_with_span.span):
                 message_stream = await self.__wrapped__.__aenter__()
         except BaseException as exception:
             # a failed request never reaches __exit__, so the span has to be finished here
