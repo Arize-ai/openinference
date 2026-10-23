@@ -12,6 +12,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.semconv._incubating.attributes import (
     gen_ai_attributes as GenAIAttributes,
 )
+from opentelemetry.trace import StatusCode
 
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 from openinference.instrumentation.openllmetry._span_processor import (
@@ -75,6 +76,7 @@ class TestOpenLLMetryInstrumentor:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert span.status.status_code == StatusCode.OK
 
         # Get attributes
         attributes = dict(cast(Mapping[str, Any], span.attributes))
@@ -158,19 +160,21 @@ class TestOpenLLMetryInstrumentor:
                 "gen_ai.provider.name": "openai",
             }
         )
-        span = SimpleNamespace(name="openai.chat", _attributes=original_attributes)
+        span = ReadableSpan(name="openai.chat", attributes=original_attributes)
 
         OpenInferenceSpanProcessor().on_end(span)
 
         assert span._attributes is not original_attributes
+        attributes = cast(Mapping[str, Any], span.attributes)
         assert (
-            span._attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
             == OpenInferenceSpanKindValues.LLM.value
         )
-        assert span._attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
-        assert span._attributes[SpanAttributes.LLM_FINISH_REASON] == "length"
-        assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 1
-        assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 2
+        assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert attributes[SpanAttributes.LLM_FINISH_REASON] == "length"
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 1
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 2
+        assert span.status.status_code == StatusCode.OK
 
 
 def _set_span_attributes(
@@ -306,17 +310,19 @@ class TestUpdatedGenAIMessageFormat:
 
         tracer = tracer_provider.get_tracer(__name__)
 
-        with tracer.start_as_current_span("openai.chat") as span:
-            span.set_attribute("gen_ai.input.messages", "not valid json{{{")
-            span.set_attribute("gen_ai.output.messages", "also broken")
-            span.set_attribute("gen_ai.request.model", "gpt-4.1")
-            span.set_attribute("gen_ai.usage.input_tokens", 10)
-            span.set_attribute("gen_ai.usage.output_tokens", 5)
-            span.set_attribute("gen_ai.provider.name", "openai")
+        with tracer.start_as_current_span("openai.chat") as recording_span:
+            recording_span.set_attribute("gen_ai.input.messages", "not valid json{{{")
+            recording_span.set_attribute("gen_ai.output.messages", "also broken")
+            recording_span.set_attribute("gen_ai.request.model", "gpt-4.1")
+            recording_span.set_attribute("gen_ai.usage.input_tokens", 10)
+            recording_span.set_attribute("gen_ai.usage.output_tokens", 5)
+            recording_span.set_attribute("gen_ai.provider.name", "openai")
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
+        span = spans[0]
+        assert span.status.status_code == StatusCode.OK
+        attributes = dict(cast(Mapping[str, Any], span.attributes))
         assert (
             attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
             == OpenInferenceSpanKindValues.LLM.value
@@ -364,19 +370,21 @@ class TestUpdatedGenAIMessageFormat:
             ]
         )
 
-        with tracer.start_as_current_span("openai.chat") as span:
-            span.set_attribute("gen_ai.input.messages", input_msgs)
-            span.set_attribute("gen_ai.output.messages", output_msgs)
-            span.set_attribute("gen_ai.request.model", "gpt-4.1")
-            span.set_attribute("gen_ai.response.model", "gpt-4.1-2026-04-14")
-            span.set_attribute("gen_ai.usage.input_tokens", 10)
-            span.set_attribute("gen_ai.usage.output_tokens", 5)
-            span.set_attribute("gen_ai.provider.name", "openai")
+        with tracer.start_as_current_span("openai.chat") as recording_span:
+            recording_span.set_attribute("gen_ai.input.messages", input_msgs)
+            recording_span.set_attribute("gen_ai.output.messages", output_msgs)
+            recording_span.set_attribute("gen_ai.request.model", "gpt-4.1")
+            recording_span.set_attribute("gen_ai.response.model", "gpt-4.1-2026-04-14")
+            recording_span.set_attribute("gen_ai.usage.input_tokens", 10)
+            recording_span.set_attribute("gen_ai.usage.output_tokens", 5)
+            recording_span.set_attribute("gen_ai.provider.name", "openai")
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
+        span = spans[0]
+        assert span.status.status_code == StatusCode.OK
 
-        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
+        attributes = dict(cast(Mapping[str, Any], span.attributes))
 
         assert (
             attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
@@ -401,6 +409,53 @@ class TestUpdatedGenAIMessageFormat:
         assert (
             attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
         )
+
+
+def test_langgraph_operation_without_kind_has_ok_status() -> None:
+    in_memory_span_exporter = InMemorySpanExporter()
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+    tracer = tracer_provider.get_tracer(__name__)
+    with tracer.start_as_current_span("invoke_agent LangGraph") as recording_span:
+        recording_span.set_attribute("gen_ai.provider.name", "langgraph")
+        recording_span.set_attribute("gen_ai.operation.name", "invoke_agent")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == StatusCode.OK
+
+
+@pytest.mark.parametrize("kind", ["llm", "tool", "operation"])
+def test_span_processor_preserves_error_status(kind: str) -> None:
+    in_memory_span_exporter = InMemorySpanExporter()
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+    tracer = tracer_provider.get_tracer(__name__)
+    with pytest.raises(RuntimeError, match="test failure"):
+        with tracer.start_as_current_span("failing_operation") as recording_span:
+            if kind == "operation":
+                recording_span.set_attribute("gen_ai.operation.name", "invoke_agent")
+            else:
+                recording_span.set_attribute("traceloop.span.kind", kind)
+            if kind == "llm":
+                recording_span.set_attribute(
+                    "gen_ai.input.messages",
+                    json.dumps([{"role": "user", "parts": [{"type": "text", "content": "Hi"}]}]),
+                )
+            raise RuntimeError("test failure")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == StatusCode.ERROR
+    if kind != "operation":
+        assert is_openinference_span(span)
+    assert "test failure" in (span.status.description or "")
 
 
 class TestToolSpanMapping:
@@ -433,15 +488,17 @@ class TestToolSpanMapping:
             }
         )
 
-        with tracer.start_as_current_span("get_weather.tool") as span:
-            span.set_attribute("traceloop.span.kind", "tool")
-            span.set_attribute("traceloop.entity.name", "get_weather")
-            span.set_attribute("traceloop.entity.input", entity_input)
-            span.set_attribute("traceloop.entity.output", entity_output)
+        with tracer.start_as_current_span("get_weather.tool") as recording_span:
+            recording_span.set_attribute("traceloop.span.kind", "tool")
+            recording_span.set_attribute("traceloop.entity.name", "get_weather")
+            recording_span.set_attribute("traceloop.entity.input", entity_input)
+            recording_span.set_attribute("traceloop.entity.output", entity_output)
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
+        span = spans[0]
+        assert span.status.status_code == StatusCode.OK
+        attributes = dict(cast(Mapping[str, Any], span.attributes))
 
         assert (
             attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
@@ -495,15 +552,17 @@ class TestToolSpanMapping:
             }
         )
 
-        with tracer.start_as_current_span("get_weather.tool") as span:
-            span.set_attribute("traceloop.span.kind", "tool")
-            span.set_attribute("traceloop.entity.name", "get_weather")
-            span.set_attribute("traceloop.entity.input", entity_input)
-            span.set_attribute("traceloop.entity.output", entity_output)
+        with tracer.start_as_current_span("get_weather.tool") as recording_span:
+            recording_span.set_attribute("traceloop.span.kind", "tool")
+            recording_span.set_attribute("traceloop.entity.name", "get_weather")
+            recording_span.set_attribute("traceloop.entity.input", entity_input)
+            recording_span.set_attribute("traceloop.entity.output", entity_output)
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
+        span = spans[0]
+        assert span.status.status_code == StatusCode.OK
+        attributes = dict(cast(Mapping[str, Any], span.attributes))
 
         assert attributes[SpanAttributes.OUTPUT_VALUE] == "It is sunny and 21C in Paris."
         assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.TEXT.value
@@ -520,14 +579,16 @@ class TestToolSpanMapping:
         entity_input = json.dumps({"inputs": {"path": "/tmp/output.txt"}})
         entity_output = json.dumps({"output": None, "kwargs": {}})
 
-        with tracer.start_as_current_span("write_file.tool") as span:
-            span.set_attribute("traceloop.span.kind", "tool")
-            span.set_attribute("traceloop.entity.input", entity_input)
-            span.set_attribute("traceloop.entity.output", entity_output)
+        with tracer.start_as_current_span("write_file.tool") as recording_span:
+            recording_span.set_attribute("traceloop.span.kind", "tool")
+            recording_span.set_attribute("traceloop.entity.input", entity_input)
+            recording_span.set_attribute("traceloop.entity.output", entity_output)
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
+        span = spans[0]
+        assert span.status.status_code == StatusCode.OK
+        attributes = dict(cast(Mapping[str, Any], span.attributes))
 
         assert attributes[SpanAttributes.INPUT_VALUE] == json.dumps(
             {"path": "/tmp/output.txt"}, separators=(",", ":")
@@ -547,14 +608,16 @@ class TestToolSpanMapping:
         entity_input = json.dumps({"inputs": {"city": "Paris"}})
         entity_output = json.dumps({"output": "sunny"})
 
-        with tracer.start_as_current_span("get_weather.tool") as span:
-            span.set_attribute("traceloop.span.kind", "tool")
-            span.set_attribute("traceloop.entity.input", entity_input)
-            span.set_attribute("traceloop.entity.output", entity_output)
+        with tracer.start_as_current_span("get_weather.tool") as recording_span:
+            recording_span.set_attribute("traceloop.span.kind", "tool")
+            recording_span.set_attribute("traceloop.entity.input", entity_input)
+            recording_span.set_attribute("traceloop.entity.output", entity_output)
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
+        span = spans[0]
+        assert span.status.status_code == StatusCode.OK
+        attributes = dict(cast(Mapping[str, Any], span.attributes))
 
         assert attributes[SpanAttributes.TOOL_NAME] == "get_weather.tool"
 
@@ -570,14 +633,16 @@ class TestToolSpanMapping:
         entity_input = json.dumps({"inputs": {"question": "hi"}, "kwargs": {}})
         entity_output = json.dumps({"output": "hello", "kwargs": {}})
 
-        with tracer.start_as_current_span("my_chain.workflow") as span:
-            span.set_attribute("traceloop.span.kind", "workflow")
-            span.set_attribute("traceloop.entity.input", entity_input)
-            span.set_attribute("traceloop.entity.output", entity_output)
+        with tracer.start_as_current_span("my_chain.workflow") as recording_span:
+            recording_span.set_attribute("traceloop.span.kind", "workflow")
+            recording_span.set_attribute("traceloop.entity.input", entity_input)
+            recording_span.set_attribute("traceloop.entity.output", entity_output)
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
-        attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
+        span = spans[0]
+        assert span.status.status_code == StatusCode.OK
+        attributes = dict(cast(Mapping[str, Any], span.attributes))
 
         assert (
             attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
