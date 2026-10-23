@@ -1,5 +1,5 @@
 import { type Context, trace } from "@opentelemetry/api";
-import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace";
 
 import {
   OpenInferenceSpanKind,

@@ -1,11 +1,11 @@
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 
 import { OpenTelemetry } from "@ai-sdk/otel";
-import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+import { context, diag, DiagConsoleLogger, DiagLogLevel, trace } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { Resource } from "@opentelemetry/resources";
-import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import { ConsoleSpanExporter, TracerProvider } from "@opentelemetry/sdk-trace";
 import { registerTelemetry } from "ai";
 
 import {
@@ -21,8 +21,8 @@ const phoenixUrl =
   process.env["PHOENIX_COLLECTOR_ENDPOINT"] ??
   "http://localhost:6006/v1/traces";
 
-export const tracerProvider = new NodeTracerProvider({
-  resource: new Resource({
+export const tracerProvider = new TracerProvider({
+  resource: resourceFromAttributes({
     [SEMRESATTRS_PROJECT_NAME]:
       process.env["PHOENIX_PROJECT_NAME"] ?? "openinference-vercel-examples",
   }),
@@ -49,7 +49,8 @@ export const tracerProvider = new NodeTracerProvider({
   ],
 });
 
-tracerProvider.register();
+trace.setGlobalTracerProvider(tracerProvider);
+context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
 
 registerTelemetry(
   new OpenTelemetry({

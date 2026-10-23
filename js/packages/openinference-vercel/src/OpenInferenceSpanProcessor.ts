@@ -1,12 +1,23 @@
 import type { Context } from "@opentelemetry/api";
-import type { BufferConfig, ReadableSpan, Span, SpanExporter } from "@opentelemetry/sdk-trace-base";
-import { BatchSpanProcessor, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import type {
+  BatchSpanProcessorOptions,
+  ReadableSpan,
+  Span,
+  SpanExporter,
+} from "@opentelemetry/sdk-trace";
+import { BatchSpanProcessor, SimpleSpanProcessor } from "@opentelemetry/sdk-trace";
 
 import { propagateContextAttributesToSpan } from "./contextPropagation.js";
 import { promoteReparentedRoot, reparentOrphanedSpan } from "./reparenting.js";
 import { TraceAggregateManager } from "./TraceAggregateManager.js";
 import type { SpanFilter } from "./types.js";
 import { shouldExportSpan } from "./utils.js";
+
+/**
+ * Batching options for {@link OpenInferenceBatchSpanProcessor}: every
+ * `BatchSpanProcessor` option except the exporter, which is passed separately.
+ */
+type BufferConfig = Omit<BatchSpanProcessorOptions, "exporter">;
 
 /**
  * Extends {@link SimpleSpanProcessor} to support OpenInference attributes.
@@ -25,7 +36,7 @@ import { shouldExportSpan } from "./utils.js";
  *   spanFilter: isOpenInferenceSpan,
  * });
  *
- * const tracerProvider = new NodeTracerProvider({
+ * const tracerProvider = new TracerProvider({
  *   resource: resourceFromAttributes({
  *     [SEMRESATTRS_PROJECT_NAME]: "your-project-name",
  *   }),
@@ -100,7 +111,7 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
 
     config?: BufferConfig;
   }) {
-    super(exporter);
+    super({ exporter });
     this.spanFilter = spanFilter;
     this.reparentOrphanedSpans = reparentOrphanedSpans;
     this.propagateContextAttributes = propagateContextAttributes;
@@ -166,7 +177,7 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
  *   config: { maxQueueSize: 2048, scheduledDelayMillis: 5000 },
  * });
  *
- * const tracerProvider = new NodeTracerProvider({
+ * const tracerProvider = new TracerProvider({
  *   resource: resourceFromAttributes({
  *     [SEMRESATTRS_PROJECT_NAME]: "your-project-name",
  *   }),
@@ -244,7 +255,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
      */
     config?: BufferConfig;
   }) {
-    super(exporter, config);
+    super({ ...config, exporter });
     this.spanFilter = spanFilter;
     this.reparentOrphanedSpans = reparentOrphanedSpans;
     this.propagateContextAttributes = propagateContextAttributes;

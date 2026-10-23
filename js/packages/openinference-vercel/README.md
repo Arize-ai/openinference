@@ -24,8 +24,10 @@ npm install --save @arizeai/openinference-vercel
 You will also need OpenTelemetry, `ai`, `@ai-sdk/otel`, and the AI SDK provider package you use. The examples below use `@ai-sdk/openai`.
 
 ```shell
-npm i @arizeai/openinference-vercel ai@^7 @ai-sdk/otel@^1 @ai-sdk/openai@^4 @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-base @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions @arizeai/openinference-semantic-conventions
+npm i @arizeai/openinference-vercel ai@^7 @ai-sdk/otel@^1 @ai-sdk/openai@^4 @opentelemetry/api @opentelemetry/context-async-hooks @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace @opentelemetry/semantic-conventions @arizeai/openinference-semantic-conventions
 ```
+
+The span processors build on `@opentelemetry/sdk-trace` and work with both the OpenTelemetry JS SDK 2.x line (`@opentelemetry/sdk-trace` 2.9.0 or later) and 3.x.
 
 For Next.js applications deployed on Vercel, also install `@vercel/otel`:
 
@@ -57,10 +59,11 @@ import {
 } from "@arizeai/openinference-vercel";
 
 import { OpenTelemetry } from "@ai-sdk/otel";
-import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+import { context, diag, DiagConsoleLogger, DiagLogLevel, trace } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { Resource } from "@opentelemetry/resources";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import { TracerProvider } from "@opentelemetry/sdk-trace";
 import { registerTelemetry } from "ai";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG.
@@ -69,8 +72,8 @@ diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 const phoenixUrl = process.env["PHOENIX_COLLECTOR_ENDPOINT"] ?? "http://localhost:6006/v1/traces";
 const phoenixApiKey = process.env["PHOENIX_API_KEY"];
 
-export const tracerProvider = new NodeTracerProvider({
-  resource: new Resource({
+export const tracerProvider = new TracerProvider({
+  resource: resourceFromAttributes({
     [SEMRESATTRS_PROJECT_NAME]: process.env["PHOENIX_PROJECT_NAME"] ?? "my-typescript-app",
   }),
   spanProcessors: [
@@ -88,7 +91,8 @@ export const tracerProvider = new NodeTracerProvider({
   ],
 });
 
-tracerProvider.register();
+trace.setGlobalTracerProvider(tracerProvider);
+context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
 
 registerTelemetry(
   new OpenTelemetry({

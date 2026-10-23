@@ -1,5 +1,5 @@
 import { SpanStatusCode } from "@opentelemetry/api";
-import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace";
 
 import { getParentSpanId, isLikelyAISDKSpan } from "./typeUtils.js";
 import { addOpenInferenceAttributesToSpan } from "./utils.js";

@@ -1,5 +1,26 @@
+import { isAttributeValue } from "@opentelemetry/core";
+
 export const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((v) => typeof v === "string");
+
+/**
+ * A primitive span attribute value: the only kind of value OpenTelemetry JS SDK 2.x and
+ * earlier allow. SDK 3.x also allows complex values (`AnyValue`).
+ */
+export type PrimitiveAttributeValue =
+  | string
+  | number
+  | boolean
+  | Array<null | undefined | string>
+  | Array<null | undefined | number>
+  | Array<null | undefined | boolean>;
+
+/**
+ * Type guard for {@link PrimitiveAttributeValue}. `isAttributeValue` from
+ * `@opentelemetry/core` performs the check on both SDK 2.x and 3.x but isn't a type guard.
+ */
+export const isPrimitiveAttributeValue = (value: unknown): value is PrimitiveAttributeValue =>
+  isAttributeValue(value);
 
 /**
  * Heuristic for whether a span originated from the Vercel AI SDK (or carries OTel

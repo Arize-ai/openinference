@@ -1,7 +1,7 @@
 import type { Attributes, AttributeValue } from "@opentelemetry/api";
 import { diag } from "@opentelemetry/api";
 import { isAttributeValue } from "@opentelemetry/core";
-import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace";
 
 import {
   getDecisionAttributes,
@@ -26,8 +26,28 @@ import {
   VercelSDKFunctionNameToSpanKindMap,
 } from "./constants.js";
 import type { OpenInferenceIOConventionKey, SpanFilter } from "./types.js";
-import { isArrayOfObjects, isStringArray } from "./typeUtils.js";
+import { isArrayOfObjects, isPrimitiveAttributeValue, isStringArray } from "./typeUtils.js";
 import { VercelAISemanticConventions } from "./VercelAISemanticConventions.js";
+
+type GenAIInputAttributes = Parameters<
+  typeof convertGenAISpanAttributesToOpenInferenceSpanAttributes
+>[0];
+
+/**
+ * Keeps only the attributes with primitive values, which are the only values
+ * `@arizeai/openinference-genai` reads. OpenTelemetry JS SDK 3.x span attributes may also hold
+ * complex values (`AnyValue`); SDK 2.x and earlier never do, so on those versions this keeps
+ * every attribute.
+ */
+const toGenAIInputAttributes = (attributes: Attributes): GenAIInputAttributes => {
+  const genAIInputAttributes: GenAIInputAttributes = {};
+  for (const [key, value] of Object.entries(attributes)) {
+    if (isPrimitiveAttributeValue(value)) {
+      genAIInputAttributes[key] = value;
+    }
+  }
+  return genAIInputAttributes;
+};
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(
@@ -1332,7 +1352,7 @@ const isDecideOperation = (attributes: Attributes): boolean => {
  * @param spanKind - the OpenInference span kind resolved for the span
  * @returns true if the span is a decision model call or decision operation
  */
-const isDecisionSpan = (attributes: Attributes, spanKind: AttributeValue | undefined): boolean =>
+const isDecisionSpan = (attributes: Attributes, spanKind: unknown): boolean =>
   spanKind === OpenInferenceSpanKind.DECISION ||
   (spanKind === OpenInferenceSpanKind.CHAIN && isDecideOperation(attributes));
 
@@ -1454,7 +1474,9 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
   // Only apply if there are actual gen_ai.* attributes
   const hasGenAI = hasGenAIAttributes(attributes);
   const genAIAttributes: Attributes = hasGenAI
-    ? (convertGenAISpanAttributesToOpenInferenceSpanAttributes(attributes) ?? {})
+    ? (convertGenAISpanAttributesToOpenInferenceSpanAttributes(
+        toGenAIInputAttributes(attributes),
+      ) ?? {})
     : {};
 
   if (typeof attributes["gen_ai.input.messages"] === "string") {

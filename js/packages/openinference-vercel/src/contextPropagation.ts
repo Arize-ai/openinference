@@ -1,5 +1,5 @@
 import { type Context, diag } from "@opentelemetry/api";
-import type { Span } from "@opentelemetry/sdk-trace-base";
+import type { Span } from "@opentelemetry/sdk-trace";
 
 import { getAttributesFromContext, withSafety } from "@arizeai/openinference-core";
 
