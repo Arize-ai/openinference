@@ -1257,6 +1257,42 @@ class TestStrandsAgentsToOpenInferenceProcessor:
 
         assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 20
 
+    @pytest.mark.parametrize(
+        "missing_usage_key", ["gen_ai.usage.total_tokens", "gen_ai.usage.output_tokens"]
+    )
+    @pytest.mark.parametrize(
+        ("cache_key", "expected_prompt"),
+        [
+            ("gen_ai.usage.cached_tokens", 100),
+            ("llm.token_count.cached", 100),
+            ("gen_ai.usage.cache_read.input_tokens", 100),
+            ("gen_ai.usage.cache_read_input_tokens", 180),
+        ],
+    )
+    def test_cache_counts_without_complete_totals(
+        self, missing_usage_key: str, cache_key: str, expected_prompt: int
+    ) -> None:
+        processor = StrandsAgentsToOpenInferenceProcessor()
+        usage = {
+            "gen_ai.usage.input_tokens": 100,
+            "gen_ai.usage.output_tokens": 10,
+            "gen_ai.usage.total_tokens": 110,
+        }
+        del usage[missing_usage_key]
+        span = MockReadableSpan(
+            name="chat",
+            attributes={
+                "gen_ai.system": "strands-agents",
+                cache_key: 80,
+                **usage,
+            },
+        )
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == expected_prompt
+        assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 80
+
     def test_processor_omits_cache_details_when_zero(self) -> None:
         """Zero cache counts (Strands emits 0 when caching is unused) add no attributes."""
         processor = StrandsAgentsToOpenInferenceProcessor()

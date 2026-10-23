@@ -1123,6 +1123,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 result[openinf_key] = value
 
         cache_read = 0
+        cache_read_key = None
         for key in (
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
             GEN_AI_USAGE_CACHE_READ_TOKENS,
@@ -1132,25 +1133,38 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         ):
             if (value := attrs.get(key)) is not None:
                 cache_read = value
+                cache_read_key = key
                 break
-        cache_write = (
-            attrs.get(GEN_AI_USAGE_CACHE_CREATION_TOKENS)
-            or attrs.get(GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS)
-            or 0
-        )
+        cache_write = 0
+        cache_write_key = None
+        for key in (GEN_AI_USAGE_CACHE_CREATION_TOKENS, GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS):
+            if (value := attrs.get(key)) is not None:
+                cache_write = value
+                cache_write_key = key
+                break
         if cache_read:
             result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cache_read
         if cache_write:
             result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cache_write
         if cache_read or cache_write:
-            # The OpenInference prompt count includes its cached tokens. Strands 1.34+ and some
-            # providers already count them in the input tokens; the totals tell which, the same
-            # way Strands decides it: prompt + completion == total means they are included.
-            prompt = result.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) or 0
-            completion = result.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) or 0
+            prompt_value = result.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT)
+            completion_value = result.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION)
             total = result.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
-            if total is None or prompt + completion != total:
-                result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = prompt + cache_read + cache_write
+            prompt = prompt_value or 0
+            if total is not None and prompt_value is not None and completion_value is not None:
+                missing = total - prompt - completion_value
+                if missing > 0 and missing in (cache_read, cache_write, cache_read + cache_write):
+                    result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = prompt + missing
+            else:
+                # Legacy Strands keys excluded cached tokens from input; current keys and
+                # cached-token aliases describe subsets of the input count.
+                missing = 0
+                if prompt_value is None or cache_read_key == GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS:
+                    missing += cache_read
+                if prompt_value is None or cache_write_key == GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS:
+                    missing += cache_write
+                if missing:
+                    result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = prompt + missing
 
     def _map_invocation_parameters(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
         params = {}
