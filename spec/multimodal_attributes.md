@@ -97,7 +97,7 @@ For base64-encoded documents:
 llm.input_messages.0.message.contents.4.message_content.type = "document"
 llm.input_messages.0.message.contents.4.message_content.document.document.url = "data:application/pdf;base64,JVBERi0xLjcK..."
 llm.input_messages.0.message.contents.4.message_content.document.document.mime_type = "application/pdf"
-llm.input_messages.0.message.contents.4.message_content.document.document.filename = "Q3 report"
+llm.input_messages.0.message.contents.4.message_content.document.document.title = "Q3 report"
 ```
 
 For a document uploaded with a provider Files API:
@@ -119,12 +119,13 @@ A document part carries its payload in exactly one of three leaves:
 
 - `document.url` for bytes and URIs. It may be an absolute URI (`https://`, `s3://`, `gs://`, ...) or a base64 data URI. Copy URIs verbatim. Build a data URI from provider base64 payloads. A data URI uses standard base64 (RFC 4648 section 4): re-encode URL-safe base64, which the Gemini REST API sends, and encode raw bytes from SDK objects. Text files sent as bytes (for example Bedrock `txt` or `md` documents) also go here, with their MIME type.
 - `document.content` for inline text that the provider receives as a string (Anthropic `text` sources, Bedrock `text` sources, LangChain `text-plain` blocks). Do not wrap it in a data URI. Record the string byte-for-byte: no trimming, no line-ending normalization, and no truncation. Provider citations index into this string by character offset (Anthropic `char_location` and Bedrock `documentChar` give start and end positions; Anthropic `cited_text` equals the slice between them, trailing whitespace included), so any change shifts or invalidates them. If the text must be hidden or is too large to record, replace the whole value with `"__REDACTED__"` or omit it. Never record a shortened prefix.
-- `document.file_id` for the provider-issued handle of a file uploaded through a provider Files API (OpenAI, LiteLLM, and LangChain `file_id`, Anthropic `file` sources). Never put a file id in `document.url`.
+- `document.file_id` for a file uploaded through a provider Files API (OpenAI and LangChain `file_id`, Anthropic `file` sources). Never put a file id in `document.url`.
 
 The other leaves describe the document:
 
-- Emit `document.mime_type` whenever the request states the MIME type: an explicit provider field, the data URI prefix, a Bedrock `format` when present, or a source type that admits one MIME type (Anthropic `url` sources are PDF-only, Anthropic `text` sources are `text/plain`). Copy it from the request; never infer it by inspecting the document bytes. Omit it when the request does not say, for example an OpenAI Responses `file_url` or a Bedrock document without `format`. Unlike audio and video, document URLs often have no file extension (signed URLs, object keys), so consumers cannot reliably infer the type.
-- `document.filename` is the name supplied with the document, copied verbatim: a file name with its extension (OpenAI and LiteLLM `filename`, LangChain `extras.filename`) or a title (Anthropic `title`, Bedrock `name`, Gemini `display_name`). Providers send at most one of these per document. It is not a unique identifier.
+- Emit `document.mime_type` whenever the MIME type is known: from an explicit provider field, from the data URI prefix, from a Bedrock `format`, or from a source type that admits one MIME type (Anthropic `url` sources are PDF-only, Anthropic `text` sources are `text/plain`). Omit it when the provider does not say, for example an OpenAI Responses `file_url`. Unlike audio and video, document URLs often have no file extension (signed URLs, object keys), so consumers cannot reliably infer the type.
+- `document.filename` is the actual file name, including its extension when present. It is not a unique identifier.
+- `document.title` is a descriptive title supplied with the document, independent of its file name. Anthropic `title`, Bedrock `name` (which cannot contain `.`), and Gemini `display_name` are titles.
 - `document.id` keeps its meaning from retrieval: the id of the document or chunk in the application or retrieval system, independent of any provider upload. Set it only when the application supplies one. Provider request payloads do not carry it.
 - Documents built from nested content blocks, such as Anthropic and Bedrock `content` sources, are not document content items. Record them with the instrumentor's generic content-block fallback.
 - Do not put documents in `image.url`.
@@ -133,19 +134,19 @@ The other leaves describe the document:
 
 Provider mappings for input document parts:
 
-| Provider part | `document.url` | `document.content` | `document.mime_type` | `document.file_id` | `document.filename` |
-|---|---|---|---|---|---|
-| OpenAI Chat Completions, Azure OpenAI, LiteLLM: `{"type": "file", "file": {...}}` | `file.file_data` (already a data URI) |  | data URI prefix, or LiteLLM `file.format` | `file.file_id` | `file.filename` |
-| OpenAI Responses, openai-agents: `{"type": "input_file", ...}`, including `ToolOutputFileContent` in `function_call_output` | `file_data` (already a data URI) or `file_url` |  | data URI prefix; omit for `file_url` | `file_id` | `filename` |
-| Anthropic, Bedrock InvokeModel: `{"type": "document", "source": {"type": "base64", ...}}` | data URI from `source.data` |  | `source.media_type` |  | `title` |
-| Anthropic: `source.type` `"url"` | `source.url` |  | `application/pdf` |  | `title` |
-| Anthropic: `source.type` `"text"` |  | `source.data` | `source.media_type` (`text/plain`) |  | `title` |
-| Anthropic: `source.type` `"file"` |  |  |  | `source.file_id` | `title` |
-| Bedrock Converse: `{"document": {"format": ..., "source": {...}}}` | data URI from `source.bytes`, or `source.s3Location.uri` | `source.text` | from `format` (`pdf` maps to `application/pdf`, `txt` to `text/plain`, `md` to `text/markdown`) |  | `name` |
-| Gemini: `inline_data` / `inlineData` | data URI from `data` |  | `mime_type` |  | `display_name` |
-| Gemini: `file_data` / `fileData` | `file_uri` (`gs://` or a Files API `https://` URI) |  | `mime_type` |  | `display_name` |
-| LangChain `FileContentBlock` (`{"type": "file", ...}`) | data URI from `base64`, or `url` |  | `mime_type` | `file_id` | `extras.filename` |
-| LangChain `PlainTextContentBlock` (`{"type": "text-plain", ...}`) |  | `text` | `mime_type` (`text/plain`) |  |  |
+| Provider part | `document.url` | `document.content` | `document.mime_type` | `document.file_id` | `document.filename` | `document.title` |
+|---|---|---|---|---|---|---|
+| OpenAI Chat Completions, Azure OpenAI, LiteLLM: `{"type": "file", "file": {...}}` | `file.file_data` (already a data URI) | | data URI prefix, or LiteLLM `file.format` | `file.file_id` | `file.filename` | |
+| OpenAI Responses, openai-agents: `{"type": "input_file", ...}`, including `ToolOutputFileContent` in `function_call_output` | `file_data` (already a data URI) or `file_url` | | data URI prefix; omit for `file_url` | `file_id` | `filename` | |
+| Anthropic, Bedrock InvokeModel: `{"type": "document", "source": {"type": "base64", ...}}` | data URI from `source.data` | | `source.media_type` | | | `title` |
+| Anthropic: `source.type` `"url"` | `source.url` | | `application/pdf` | | | `title` |
+| Anthropic: `source.type` `"text"` | | `source.data` | `source.media_type` (`text/plain`) | | | `title` |
+| Anthropic: `source.type` `"file"` | | | | `source.file_id` | | `title` |
+| Bedrock Converse: `{"document": {"format": ..., "source": {...}}}` | data URI from `source.bytes`, or `source.s3Location.uri` | `source.text` | from `format` (`pdf` maps to `application/pdf`, `txt` to `text/plain`, `md` to `text/markdown`) | | | `name` |
+| Gemini: `inline_data` / `inlineData` | data URI from `data` | | `mime_type` | | | `display_name` |
+| Gemini: `file_data` / `fileData` | `file_uri` (`gs://` or a Files API `https://` URI) | | `mime_type` | | | `display_name` |
+| LangChain `FileContentBlock` (`{"type": "file", ...}`) | data URI from `base64`, or `url` | | `mime_type` | `file_id` | `extras.filename` | |
+| LangChain `PlainTextContentBlock` (`{"type": "text-plain", ...}`) | | `text` | `mime_type` (`text/plain`) | | | |
 
 The doubled prefix (`message_content.document.document.url`) is the concatenation of `message_content.document` and `document.url`, matching `message_content.image.image.url`.
 
@@ -247,7 +248,7 @@ fills in a PDF form or a `CHAIN` step that receives an uploaded file.
 
 Where:
 - `<documentIndex>` is the zero-based index of the document
-- `<attribute>` is `url`, `content`, `mime_type`, `file_id`, `filename`, or `id`
+- `<attribute>` is `url`, `content`, `mime_type`, `file_id`, `filename`, `title`, or `id`
 
 ```json
 {
