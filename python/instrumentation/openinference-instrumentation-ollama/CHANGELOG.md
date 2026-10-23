@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-ollama-v0.1.12...python-openinference-instrumentation-ollama-v0.1.13) (2026-10-23)
+
+
+### Bug Fixes
+
+* **ollama:** end the span when a chat call is interrupted or cancelled ([#4029](https://github.com/Arize-ai/openinference/issues/4029)) ([d72d287](https://github.com/Arize-ai/openinference/commit/d72d287a1cf97e45f70c2d317b33fd825dd731cd))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-ollama-v0.1.11...python-openinference-instrumentation-ollama-v0.1.12) (2026-10-09)
 
 

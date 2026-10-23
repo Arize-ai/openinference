@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-together-v0.1.12...python-openinference-instrumentation-together-v0.1.13) (2026-10-23)
+
+
+### Bug Fixes
+
+* **together:** export the span for a chat stream that is closed or dropped ([#4085](https://github.com/Arize-ai/openinference/issues/4085)) ([3fca313](https://github.com/Arize-ai/openinference/commit/3fca313bc8cfb0024ecdf54f984564d5a03ab207))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-together-v0.1.11...python-openinference-instrumentation-together-v0.1.12) (2026-10-09)
 
 

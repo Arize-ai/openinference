@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.72](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.71...python-openinference-instrumentation-v0.1.72) (2026-10-23)
+
+
+### Bug Fixes
+
+* **instrumentation:** reject a Windows drive path as a blob uploader reference ([#4107](https://github.com/Arize-ai/openinference/issues/4107)) ([5aa69c6](https://github.com/Arize-ai/openinference/commit/5aa69c6d67519c802ceed47342947c1bebef2159))
+
 ## [0.1.71](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.70...python-openinference-instrumentation-v0.1.71) (2026-10-07)
 
 

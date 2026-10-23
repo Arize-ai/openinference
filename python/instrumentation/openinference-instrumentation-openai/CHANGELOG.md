@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.66](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.65...python-openinference-instrumentation-openai-v0.1.66) (2026-10-23)
+
+
+### Bug Fixes
+
+* **openai:** accumulate streamed refusal and reasoning_content ([#3797](https://github.com/Arize-ai/openinference/issues/3797)) ([9adeca5](https://github.com/Arize-ai/openinference/commit/9adeca5a58231207e5a92929d682aafbb00827e1))
+* **openai:** end the LLM span when a stream is abandoned or closed early ([#3796](https://github.com/Arize-ai/openinference/issues/3796)) ([f2e444b](https://github.com/Arize-ai/openinference/commit/f2e444b1000c20550e7aa71ede2410ffa3c6f6f8))
+
 ## [0.1.65](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.64...python-openinference-instrumentation-openai-v0.1.65) (2026-10-09)
 
 
