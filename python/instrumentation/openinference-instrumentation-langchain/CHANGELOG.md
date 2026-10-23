@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.80](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.79...python-openinference-instrumentation-langchain-v0.1.80) (2026-10-23)
+
+
+### Performance Improvements
+
+* **langchain:** encode run I/O in one pass and skip sampled-out spans ([#4110](https://github.com/Arize-ai/openinference/issues/4110)) ([f248e09](https://github.com/Arize-ai/openinference/commit/f248e091caf323e28b4e79baf74c17cc555567cc))
+
 ## [0.1.79](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.78...python-openinference-instrumentation-langchain-v0.1.79) (2026-10-09)
 
 

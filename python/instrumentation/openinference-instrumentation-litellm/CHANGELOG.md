@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.51](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.50...python-openinference-instrumentation-litellm-v0.1.51) (2026-10-23)
+
+
+### Bug Fixes
+
+* **litellm:** end spans on failed calls, unread streams, and non-completed responses ([#3948](https://github.com/Arize-ai/openinference/issues/3948)) ([25423c4](https://github.com/Arize-ai/openinference/commit/25423c4605af442fef23f9e9e703dc392cb3e763))
+* **litellm:** forward _TracedSyncStream.close() to the wrapped stream ([#4074](https://github.com/Arize-ai/openinference/issues/4074)) ([2212cc5](https://github.com/Arize-ai/openinference/commit/2212cc5d8477f6438035d61e7a2662ea6b38035c))
+* **litellm:** make the span current while streaming calls run ([#4042](https://github.com/Arize-ai/openinference/issues/4042)) ([a5dd653](https://github.com/Arize-ai/openinference/commit/a5dd653070dd935696e367c49b558c74e616c770))
+* **litellm:** record partial output on early stream close ([#4016](https://github.com/Arize-ai/openinference/issues/4016)) ([87387bd](https://github.com/Arize-ai/openinference/commit/87387bde29f4d34444c5a9fc70bae29adc06003f))
+* **litellm:** set ERROR status on streaming spans that fail mid-stream ([#4015](https://github.com/Arize-ai/openinference/issues/4015)) ([2d009b7](https://github.com/Arize-ai/openinference/commit/2d009b714085b172296034bf1b0d6dbb7e219155))
+
 ## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.49...python-openinference-instrumentation-litellm-v0.1.50) (2026-10-09)
 
 
