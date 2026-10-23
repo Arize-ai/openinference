@@ -542,8 +542,9 @@ class DocumentAttributes:
 
     DOCUMENT_ID = "document.id"
     """
-    The id of the document or chunk in the application or retrieval system,
-    independent of any provider upload.
+    The id of the document: a retrieved document or chunk's id in a retrieval system, or,
+    for a document passed to a model, the provider's file id (e.g. an OpenAI or
+    Anthropic Files API id).
     """
     DOCUMENT_SCORE = "document.score"
     """
@@ -567,19 +568,10 @@ class DocumentAttributes:
     """
     The MIME type of a document, e.g. `application/pdf`.
     """
-    DOCUMENT_FILE_ID = "document.file_id"
+    DOCUMENT_NAME = "document.name"
     """
-    The provider-issued id of an uploaded file used as model input, e.g. an OpenAI or
-    Anthropic Files API id.
-    """
-    DOCUMENT_FILENAME = "document.filename"
-    """
-    The file name of a document, including its extension when present, e.g. `invoice.pdf`.
+    The name supplied with a document, such as a file name or a title, e.g. `invoice.pdf`.
     Not a unique identifier.
-    """
-    DOCUMENT_TITLE = "document.title"
-    """
-    A descriptive title supplied with a document, independent of its file name.
     """
 
 

@@ -290,10 +290,9 @@ const (
 )
 
 // Document attributes — nested under RetrievalDocuments.{i}, MessageContentDocument,
-// InputDocuments or OutputDocuments. DocumentID is the application or retrieval
-// system id; DocumentFileID is the provider-issued id of an uploaded file.
-// DocumentURL, DocumentMimeType, DocumentFilename and DocumentTitle describe
-// documents passed to a model, such as PDFs.
+// InputDocuments or OutputDocuments. DocumentID is a retrieved document's id or,
+// for a document passed to a model, the provider's file id. DocumentURL,
+// DocumentMimeType and DocumentName describe documents passed to a model, such as PDFs.
 const (
 	DocumentID       = "document.id"
 	DocumentScore    = "document.score"
@@ -301,9 +300,7 @@ const (
 	DocumentMetadata = "document.metadata"
 	DocumentURL      = "document.url"
 	DocumentMimeType = "document.mime_type"
-	DocumentFileID   = "document.file_id"
-	DocumentFilename = "document.filename"
-	DocumentTitle    = "document.title"
+	DocumentName     = "document.name"
 )
 
 // Tool-call attributes — nested under MessageToolCalls.{i}; also used under

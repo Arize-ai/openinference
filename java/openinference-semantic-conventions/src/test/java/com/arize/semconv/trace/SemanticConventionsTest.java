@@ -43,9 +43,7 @@ class SemanticConventionsTest {
         assertThat(SemanticConventions.MESSAGE_CONTENT_DOCUMENT).isEqualTo("message_content.document");
         assertThat(SemanticConventions.DOCUMENT_URL).isEqualTo("document.url");
         assertThat(SemanticConventions.DOCUMENT_MIME_TYPE).isEqualTo("document.mime_type");
-        assertThat(SemanticConventions.DOCUMENT_FILE_ID).isEqualTo("document.file_id");
-        assertThat(SemanticConventions.DOCUMENT_FILENAME).isEqualTo("document.filename");
-        assertThat(SemanticConventions.DOCUMENT_TITLE).isEqualTo("document.title");
+        assertThat(SemanticConventions.DOCUMENT_NAME).isEqualTo("document.name");
     }
 
     @Test

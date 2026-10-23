@@ -156,9 +156,7 @@ public class SemanticConventions {
         public static final String METADATA = "metadata";
         public static final String URL = "url";
         public static final String MIME_TYPE = "mime_type";
-        public static final String FILE_ID = "file_id";
-        public static final String FILENAME = "filename";
-        public static final String TITLE = "title";
+        public static final String NAME = "name";
     }
 
     @UtilityClass
@@ -724,24 +722,11 @@ public class SemanticConventions {
             SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.MIME_TYPE;
 
     /**
-     * The provider-issued id of an uploaded file used as model input, for example an OpenAI or
-     * Anthropic Files API id.
-     */
-    public static final String DOCUMENT_FILE_ID =
-            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.FILE_ID;
-
-    /**
-     * The file name of a document, including its extension when present, for example
+     * The name supplied with a document, such as a file name or a title, for example
      * {@code invoice.pdf}. Not a unique identifier.
      */
-    public static final String DOCUMENT_FILENAME =
-            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.FILENAME;
-
-    /**
-     * A descriptive title supplied with a document, independent of its file name.
-     */
-    public static final String DOCUMENT_TITLE =
-            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.TITLE;
+    public static final String DOCUMENT_NAME =
+            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.NAME;
 
     /**
      * The text that was embedded to create the vector

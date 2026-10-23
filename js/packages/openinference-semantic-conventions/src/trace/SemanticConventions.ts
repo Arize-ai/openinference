@@ -139,9 +139,7 @@ export const DocumentAttributePostfixes = {
   metadata: "metadata",
   url: "url",
   mime_type: "mime_type",
-  file_id: "file_id",
-  filename: "filename",
-  title: "title",
+  name: "name",
 } as const;
 
 export const TagAttributePostfixes = {
@@ -683,24 +681,11 @@ export const DOCUMENT_MIME_TYPE =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.mime_type}` as const;
 
 /**
- * The provider-issued id of an uploaded file used as model input, for example
- * an OpenAI or Anthropic Files API id.
- */
-export const DOCUMENT_FILE_ID =
-  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.file_id}` as const;
-
-/**
- * The file name of a document, including its extension when present, for
+ * The name supplied with a document, such as a file name or a title, for
  * example `invoice.pdf`. Not a unique identifier.
  */
-export const DOCUMENT_FILENAME =
-  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.filename}` as const;
-
-/**
- * A descriptive title supplied with a document, independent of its file name.
- */
-export const DOCUMENT_TITLE =
-  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.title}` as const;
+export const DOCUMENT_NAME =
+  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.name}` as const;
 
 /**
  * The text that was embedded to create the vector
@@ -1001,9 +986,7 @@ export const SemanticConventions = {
   DOCUMENT_METADATA,
   DOCUMENT_URL,
   DOCUMENT_MIME_TYPE,
-  DOCUMENT_FILE_ID,
-  DOCUMENT_FILENAME,
-  DOCUMENT_TITLE,
+  DOCUMENT_NAME,
   EMBEDDING_EMBEDDINGS,
   EMBEDDING_TEXT,
   EMBEDDING_MODEL_NAME,
