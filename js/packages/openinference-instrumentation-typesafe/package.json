@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-typesafe",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": false,
   "description": "OpenInference instrumentation for the TypeSafe AI SDK",
   "keywords": [
