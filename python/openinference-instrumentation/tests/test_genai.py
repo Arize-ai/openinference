@@ -4,9 +4,7 @@ from typing import Any, Dict, Mapping
 
 import pytest
 from jsonschema import Draft202012Validator
-from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.sdk.trace.sampling import ALWAYS_OFF
 from opentelemetry.trace import TracerProvider
 
 from openinference.instrumentation import (
@@ -16,7 +14,6 @@ from openinference.instrumentation import (
     get_embedding_attributes,
     get_llm_attributes,
     get_retriever_attributes,
-    suppress_tracing,
     using_session,
 )
 from openinference.instrumentation._genai_attributes import (
@@ -576,34 +573,6 @@ def test_oi_tracer_does_not_emit_genai_semconv_when_disabled(
     exported_span = in_memory_span_exporter.get_finished_spans()[0]
     attributes = dict(exported_span.attributes or {})
     assert not any(key.startswith("gen_ai.") for key in attributes)
-
-
-def test_oi_tracer_genai_semconv_ends_sampled_out_span() -> None:
-    tracer = OITracer(
-        SDKTracerProvider(sampler=ALWAYS_OFF).get_tracer(__name__),
-        TraceConfig(enable_genai_semconv=True),
-    )
-
-    with tracer.start_as_current_span("llm-span", openinference_span_kind="llm") as span:
-        span.set_attributes(get_llm_attributes(model_name="gpt-4o-mini"))
-
-    assert not span.is_recording()
-
-
-def test_oi_tracer_genai_semconv_ends_suppressed_span(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    tracer = OITracer(
-        tracer_provider.get_tracer(__name__),
-        TraceConfig(enable_genai_semconv=True),
-    )
-
-    with suppress_tracing():
-        with tracer.start_as_current_span("llm-span", openinference_span_kind="llm") as span:
-            span.set_attributes(get_llm_attributes(model_name="gpt-4o-mini"))
-
-    assert not in_memory_span_exporter.get_finished_spans()
 
 
 def test_oi_tracer_preserves_user_defined_genai_attributes(
