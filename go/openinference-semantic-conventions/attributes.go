@@ -22,6 +22,9 @@ const (
 	// InputImages is the span-kind-independent list of input images,
 	// flattened with indexed prefixes (e.g. "input.images.0.image.url").
 	InputImages = "input.images"
+	// InputDocuments is the span-kind-independent list of input documents
+	// such as PDFs, flattened with indexed prefixes (e.g. "input.documents.0.document.url").
+	InputDocuments = "input.documents"
 
 	// OutputValue is the output of the operation. Plain string by default;
 	// set OutputMimeType to "application/json" if the value is a JSON string.
@@ -30,6 +33,9 @@ const (
 	// OutputImages is the span-kind-independent list of output images,
 	// flattened with indexed prefixes (e.g. "output.images.0.image.url").
 	OutputImages = "output.images"
+	// OutputDocuments is the span-kind-independent list of output documents
+	// such as PDFs, flattened with indexed prefixes (e.g. "output.documents.0.document.url").
+	OutputDocuments = "output.documents"
 
 	// Metadata is a JSON-encoded map of user-defined key-value pairs.
 	Metadata = "metadata"
@@ -248,8 +254,8 @@ const (
 
 // Message-content attributes — for the contents array on a message.
 //
-// MessageContentType values include "text", "image", "audio", "video", "reasoning",
-// and "tool_use". MessageContentID captures provider-assigned content ids such
+// MessageContentType values include "text", "image", "audio", "video", "document",
+// "reasoning", and "tool_use". MessageContentID captures provider-assigned content ids such
 // as OpenAI ResponseReasoningItem.id. MessageContentSignature, MessageContentData,
 // and MessageContentEncryptedContent capture opaque provider reasoning-continuity
 // fields verbatim.
@@ -259,6 +265,7 @@ const (
 	MessageContentImage            = "message_content.image"
 	MessageContentAudio            = "message_content.audio"
 	MessageContentVideo            = "message_content.video"
+	MessageContentDocument         = "message_content.document"
 	MessageContentID               = "message_content.id"
 	MessageContentSignature        = "message_content.signature"
 	MessageContentData             = "message_content.data"
@@ -282,12 +289,18 @@ const (
 	VideoURL = "video.url"
 )
 
-// Document attributes — nested under RetrievalDocuments.{i}.
+// Document attributes — nested under RetrievalDocuments.{i}, MessageContentDocument,
+// InputDocuments or OutputDocuments. DocumentID is a retrieved document's id or,
+// for a document passed to a model, the provider's file id. DocumentURL,
+// DocumentMimeType and DocumentName describe documents passed to a model, such as PDFs.
 const (
 	DocumentID       = "document.id"
 	DocumentScore    = "document.score"
 	DocumentContent  = "document.content"
 	DocumentMetadata = "document.metadata"
+	DocumentURL      = "document.url"
+	DocumentMimeType = "document.mime_type"
+	DocumentName     = "document.name"
 )
 
 // Tool-call attributes — nested under MessageToolCalls.{i}; also used under
