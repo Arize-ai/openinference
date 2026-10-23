@@ -574,12 +574,8 @@ class DocumentAttributes:
     """
     DOCUMENT_FILENAME = "document.filename"
     """
-    The file name of a document, including its extension when present, e.g. `invoice.pdf`.
-    Not a unique identifier.
-    """
-    DOCUMENT_TITLE = "document.title"
-    """
-    A descriptive title supplied with a document, independent of its file name.
+    The name supplied with a document, such as a file name with its extension or a title,
+    e.g. `invoice.pdf`. Not a unique identifier.
     """
 
 

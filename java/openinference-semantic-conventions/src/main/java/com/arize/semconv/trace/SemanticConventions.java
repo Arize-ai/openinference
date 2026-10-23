@@ -158,7 +158,6 @@ public class SemanticConventions {
         public static final String MIME_TYPE = "mime_type";
         public static final String FILE_ID = "file_id";
         public static final String FILENAME = "filename";
-        public static final String TITLE = "title";
     }
 
     @UtilityClass
@@ -731,17 +730,11 @@ public class SemanticConventions {
             SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.FILE_ID;
 
     /**
-     * The file name of a document, including its extension when present, for example
-     * {@code invoice.pdf}. Not a unique identifier.
+     * The name supplied with a document, such as a file name with its extension or a title, for
+     * example {@code invoice.pdf}. Not a unique identifier.
      */
     public static final String DOCUMENT_FILENAME =
             SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.FILENAME;
-
-    /**
-     * A descriptive title supplied with a document, independent of its file name.
-     */
-    public static final String DOCUMENT_TITLE =
-            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.TITLE;
 
     /**
      * The text that was embedded to create the vector

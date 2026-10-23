@@ -342,7 +342,7 @@ class TestVideoAttributes:
 class TestDocumentAttributes:
     """Tests for DocumentAttributes namespace structure.
 
-    Verifies that document-related attributes (content, file_id, filename, id, metadata, mime_type, score, title, url)
+    Verifies that document-related attributes (content, file_id, filename, id, metadata, mime_type, score, url)
     from flat spans are properly organized under the document namespace.
     """
 
@@ -357,7 +357,6 @@ class TestDocumentAttributes:
                 "metadata": DocumentAttributes.DOCUMENT_METADATA,
                 "mime_type": DocumentAttributes.DOCUMENT_MIME_TYPE,
                 "score": DocumentAttributes.DOCUMENT_SCORE,
-                "title": DocumentAttributes.DOCUMENT_TITLE,
                 "url": DocumentAttributes.DOCUMENT_URL,
             }
         }
