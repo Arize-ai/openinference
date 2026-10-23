@@ -5,7 +5,7 @@ description: TypeScript conventions for any TypeScript code in js/ (packages, ex
 
 # OpenInference TypeScript Conventions
 
-Follow existing patterns in the package you're editing (see `js/CLAUDE.md`), plus:
+Follow existing patterns in the package you're editing (see `js/AGENTS.md`), plus:
 
 ## Naming
 
