@@ -73,6 +73,8 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
+        # Not the sampled flag: RECORD_ONLY spans still keep attributes for span processors, while
+        # sampled-out, suppressed and already-ended spans are non-recording and would discard them.
         if self._self_config.enable_genai_semconv and span.is_recording():
             source_attributes = getattr(span, "attributes", None)
             if isinstance(source_attributes, Mapping):
