@@ -60,6 +60,7 @@ jobs:
     permissions:
       issues: write # Add/remove labels, edit titles and bodies, post triage comments
       contents: read # Read the codebase for the already-shipped check and stage 6
+      id-token: write # Exchange the GitHub OIDC token for Anthropic credentials
 
     steps:
       - name: Checkout repository
@@ -82,7 +83,8 @@ jobs:
         env:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
 
           # The default token deliberately: events it creates do not start other
           # workflows, so a `good-agent-issue` label written here does NOT trigger

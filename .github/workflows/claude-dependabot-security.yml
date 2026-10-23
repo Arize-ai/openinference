@@ -180,6 +180,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+      id-token: write # Exchange the GitHub OIDC token for Anthropic credentials
       pull-requests: read
       security-events: read
     env:
@@ -434,7 +435,8 @@ jobs:
           # file, which is read-only inside Claude's subprocess sandbox.
           GITHUB_STEP_SUMMARY: ${{ github.workspace }}/.scratch/claude-step-summary.md
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           github_token: ${{ github.token }}
           show_full_output: 'true'
           prompt: |
