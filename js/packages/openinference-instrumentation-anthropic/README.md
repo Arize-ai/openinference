@@ -13,6 +13,10 @@ This package implements OpenInference tracing for the following Anthropic SDK me
 
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
+### Spans of the Anthropic SDK
+
+`@anthropic-ai/sdk` 0.134.0 and later create an OpenTelemetry span of their own for each API call (`anthropic.messages.create` and so on), unless it is turned off with `openTelemetry: false` or `ANTHROPIC_OPEN_TELEMETRY=false`. For a call that this instrumentation traces, the SDK's span is replaced by the OpenInference LLM span: the SDK records no span, its request carries the LLM span's trace context, and HTTP spans are children of the LLM span. Calls that this instrumentation does not trace, such as `models.list()`, keep the SDK's span. A `beta.messages.toolRunner()` run also keeps the SDK's tool runner and tool spans, which are not model calls.
+
 ## Installation
 
 ```shell
