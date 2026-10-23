@@ -1214,6 +1214,49 @@ class TestStrandsAgentsToOpenInferenceProcessor:
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 3
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 1
 
+    @pytest.mark.parametrize(
+        "cached_key",
+        ["gen_ai.usage.cached_tokens", "llm.token_count.cached"],
+    )
+    def test_processor_maps_cached_token_aliases(self, cached_key: str) -> None:
+        processor = StrandsAgentsToOpenInferenceProcessor()
+        span = MockReadableSpan(
+            name="chat",
+            attributes={
+                "gen_ai.request.model": "gpt-4o",
+                "gen_ai.system": "strands-agents",
+                "gen_ai.usage.input_tokens": 100,
+                "gen_ai.usage.output_tokens": 10,
+                "gen_ai.usage.total_tokens": 110,
+                cached_key: 80,
+            },
+        )
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        attributes = span._attributes
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 100
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 80
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 110
+
+    def test_processor_preserves_explicit_cache_read_over_alias(self) -> None:
+        processor = StrandsAgentsToOpenInferenceProcessor()
+        span = MockReadableSpan(
+            name="chat",
+            attributes={
+                "gen_ai.system": "strands-agents",
+                "gen_ai.usage.input_tokens": 100,
+                "gen_ai.usage.output_tokens": 10,
+                "gen_ai.usage.total_tokens": 110,
+                "gen_ai.usage.cached_tokens": 80,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 20,
+            },
+        )
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 20
+
     def test_processor_omits_cache_details_when_zero(self) -> None:
         """Zero cache counts (Strands emits 0 when caching is unused) add no attributes."""
         processor = StrandsAgentsToOpenInferenceProcessor()

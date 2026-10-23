@@ -37,6 +37,7 @@ from openinference.instrumentation.strands_agents.semantic_conventions import (
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_READ_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
+    GEN_AI_USAGE_CACHED_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GenAIAttributes,
@@ -57,6 +58,7 @@ logger = logging.getLogger(__name__)
 # Rules for identifying spans emitted by the Strands Agents SDK.
 _STRANDS_SDK_NAME = "strands-agents"
 _EVENT_LOOP_CYCLE_ID = "event_loop.cycle_id"
+_LLM_TOKEN_COUNT_CACHED = "llm.token_count.cached"
 
 # Raw Strands attributes that carry prompt, message or tool content. The processor turns them
 # into OpenInference attributes, so they are kept out of `metadata` and are dropped when the
@@ -1120,11 +1122,17 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
             if value is not None:
                 result[openinf_key] = value
 
-        cache_read = (
-            attrs.get(GEN_AI_USAGE_CACHE_READ_TOKENS)
-            or attrs.get(GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS)
-            or 0
-        )
+        cache_read = 0
+        for key in (
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+            GEN_AI_USAGE_CACHE_READ_TOKENS,
+            GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
+            _LLM_TOKEN_COUNT_CACHED,
+            GEN_AI_USAGE_CACHED_TOKENS,
+        ):
+            if (value := attrs.get(key)) is not None:
+                cache_read = value
+                break
         cache_write = (
             attrs.get(GEN_AI_USAGE_CACHE_CREATION_TOKENS)
             or attrs.get(GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS)
