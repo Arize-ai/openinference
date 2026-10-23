@@ -20,6 +20,7 @@ from .config import (
     TraceConfig,
     mask_without_externalization,
 )
+from .logging import logger
 
 _IMPORTANT_ATTRIBUTES = [
     SpanAttributes.OPENINFERENCE_SPAN_KIND,
@@ -76,7 +77,12 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
             # Only SDK spans expose their attributes; other recording spans can't be read back.
             source_attributes = getattr(span, "attributes", None)
             if source_attributes is not None:
-                for key, value in get_genai_attributes(source_attributes).items():
+                try:
+                    genai_attributes = get_genai_attributes(source_attributes)
+                except Exception:
+                    logger.exception("Failed to derive GenAI semantic convention attributes.")
+                    genai_attributes = {}
+                for key, value in genai_attributes.items():
                     if key not in source_attributes:
                         span.set_attribute(key, value)
         span.end(end_time)

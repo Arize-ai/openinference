@@ -14,10 +14,13 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
     TracerProvider,
+    _spans,
     get_llm_attributes,
     suppress_tracing,
 )
 from openinference.instrumentation._genai_attributes import GenAIAttributes
+from openinference.instrumentation.logging import logger as openinference_logger
+from openinference.semconv.trace import SpanAttributes
 
 _GENAI_CONFIG = TraceConfig(enable_genai_semconv=True)
 _TRACE_ID = "0af7651916cd43dd8448eb211c80319c"
@@ -205,3 +208,46 @@ def test_recording_span_without_readable_attributes_still_ends() -> None:
         span.set_attributes(get_llm_attributes(model_name="gpt-4o-mini"))
 
     assert opaque_span.ended
+
+
+@pytest.fixture
+def failing_genai_conversion(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise(attributes: Any) -> Any:
+        raise ValueError("unexpected attribute shape")
+
+    monkeypatch.setattr(_spans, "get_genai_attributes", _raise)
+
+
+@pytest.fixture
+def openinference_logs(caplog: pytest.LogCaptureFixture) -> Iterator[pytest.LogCaptureFixture]:
+    openinference_logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        openinference_logger.removeHandler(caplog.handler)
+
+
+@pytest.mark.usefixtures("failing_genai_conversion")
+def test_genai_conversion_failure_still_ends_span(
+    openinference_logs: pytest.LogCaptureFixture,
+) -> None:
+    exporter = InMemorySpanExporter()
+    tracer = _provider(exporter).get_tracer(__name__)
+
+    @tracer.llm
+    def call_llm(prompt: str) -> str:
+        return "hi"
+
+    with tracer.start_as_current_span("llm-span", openinference_span_kind="llm") as span:
+        span.set_attributes(get_llm_attributes(model_name="gpt-4o-mini"))
+    assert call_llm("hello") == "hi"
+
+    exported_spans = exporter.get_finished_spans()
+    assert len(exported_spans) == 2
+    for exported_span in exported_spans:
+        attributes = dict(exported_span.attributes or {})
+        assert attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "LLM"
+        assert not any(key.startswith("gen_ai.") for key in attributes)
+    assert (
+        openinference_logs.text.count("Failed to derive GenAI semantic convention attributes.") == 2
+    )
