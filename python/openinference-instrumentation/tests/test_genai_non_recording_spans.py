@@ -1,6 +1,6 @@
 import contextlib
 from functools import partial
-from typing import Any, Callable, ContextManager, Iterator, NamedTuple, Optional
+from typing import Any, AsyncIterator, Callable, ContextManager, Iterator, NamedTuple, Optional
 
 import pytest
 from opentelemetry import context as context_api
@@ -110,6 +110,18 @@ def test_start_span_and_end(scenario: _NonRecordingScenario) -> None:
         span.set_attributes(get_llm_attributes(model_name="gpt-4o-mini"))
         span.end()
 
+    assert not span.is_recording()
+    assert not scenario.exporter.get_finished_spans()
+
+
+def test_nested_spans(scenario: _NonRecordingScenario) -> None:
+    with scenario.surrounding():
+        with scenario.tracer.start_as_current_span("agent", openinference_span_kind="agent"):
+            with scenario.tracer.start_as_current_span(
+                "llm-span", openinference_span_kind="llm"
+            ) as child:
+                child.set_attributes(get_llm_attributes(model_name="gpt-4o-mini"))
+
     assert not scenario.exporter.get_finished_spans()
 
 
@@ -131,6 +143,30 @@ async def test_async_llm_decorator(scenario: _NonRecordingScenario) -> None:
 
     with scenario.surrounding():
         assert await call_llm("hello") == "hi"
+
+    assert not scenario.exporter.get_finished_spans()
+
+
+def test_generator_llm_decorator(scenario: _NonRecordingScenario) -> None:
+    @scenario.tracer.llm
+    def stream_llm(prompt: str) -> Iterator[str]:
+        yield "h"
+        yield "i"
+
+    with scenario.surrounding():
+        assert list(stream_llm("hello")) == ["h", "i"]
+
+    assert not scenario.exporter.get_finished_spans()
+
+
+async def test_async_generator_llm_decorator(scenario: _NonRecordingScenario) -> None:
+    @scenario.tracer.llm
+    async def stream_llm(prompt: str) -> AsyncIterator[str]:
+        yield "h"
+        yield "i"
+
+    with scenario.surrounding():
+        assert [chunk async for chunk in stream_llm("hello")] == ["h", "i"]
 
     assert not scenario.exporter.get_finished_spans()
 
@@ -183,33 +219,6 @@ def test_sampled_remote_parent_still_emits_genai_attributes() -> None:
     assert attributes[GenAIAttributes.GEN_AI_REQUEST_MODEL] == "gpt-4o-mini"
 
 
-class _RecordingSpanWithoutReadableAttributes(trace_api.NonRecordingSpan):
-    def __init__(self) -> None:
-        super().__init__(trace_api.INVALID_SPAN_CONTEXT)
-        self.ended = False
-
-    def is_recording(self) -> bool:
-        return True
-
-    def end(self, end_time: Optional[int] = None) -> None:
-        self.ended = True
-
-
-def test_recording_span_without_readable_attributes_still_ends() -> None:
-    opaque_span = _RecordingSpanWithoutReadableAttributes()
-
-    class _OpaqueTracer(trace_api.NoOpTracer):
-        def start_span(self, *args: Any, **kwargs: Any) -> trace_api.Span:
-            return opaque_span
-
-    tracer = OITracer(_OpaqueTracer(), _GENAI_CONFIG)
-
-    with tracer.start_as_current_span("llm-span", openinference_span_kind="llm") as span:
-        span.set_attributes(get_llm_attributes(model_name="gpt-4o-mini"))
-
-    assert opaque_span.ended
-
-
 @pytest.fixture
 def failing_genai_conversion(monkeypatch: pytest.MonkeyPatch) -> None:
     def _raise(attributes: Any) -> Any:
@@ -225,6 +234,60 @@ def openinference_logs(caplog: pytest.LogCaptureFixture) -> Iterator[pytest.LogC
         yield caplog
     finally:
         openinference_logger.removeHandler(caplog.handler)
+
+
+class _RecordingSpanWithoutReadableAttributes(trace_api.NonRecordingSpan):
+    def __init__(self) -> None:
+        super().__init__(trace_api.INVALID_SPAN_CONTEXT)
+        self.ended = False
+
+    def is_recording(self) -> bool:
+        return True
+
+    def end(self, end_time: Optional[int] = None) -> None:
+        self.ended = True
+
+
+class _RecordingSpanWithNonMappingAttributes(_RecordingSpanWithoutReadableAttributes):
+    def attributes(self) -> Any:
+        return [(SpanAttributes.LLM_MODEL_NAME, "gpt-4o-mini")]
+
+
+@pytest.mark.parametrize(
+    "opaque_span_class",
+    [_RecordingSpanWithoutReadableAttributes, _RecordingSpanWithNonMappingAttributes],
+)
+def test_recording_span_without_readable_attributes_still_ends(
+    opaque_span_class: Callable[[], _RecordingSpanWithoutReadableAttributes],
+    openinference_logs: pytest.LogCaptureFixture,
+) -> None:
+    opaque_span = opaque_span_class()
+
+    class _OpaqueTracer(trace_api.NoOpTracer):
+        def start_span(self, *args: Any, **kwargs: Any) -> trace_api.Span:
+            return opaque_span
+
+    tracer = OITracer(_OpaqueTracer(), _GENAI_CONFIG)
+
+    with tracer.start_as_current_span("llm-span", openinference_span_kind="llm") as span:
+        span.set_attributes(get_llm_attributes(model_name="gpt-4o-mini"))
+
+    assert opaque_span.ended
+    assert not openinference_logs.records
+
+
+def test_end_time_is_preserved_with_genai_attributes() -> None:
+    exporter = InMemorySpanExporter()
+    tracer = _provider(exporter).get_tracer(__name__)
+
+    span = tracer.start_span("llm-span", openinference_span_kind="llm", start_time=1_000)
+    span.set_attributes(get_llm_attributes(model_name="gpt-4o-mini"))
+    span.end(end_time=2_000)
+
+    (exported_span,) = exporter.get_finished_spans()
+    assert exported_span.end_time == 2_000
+    attributes = dict(exported_span.attributes or {})
+    assert attributes[GenAIAttributes.GEN_AI_REQUEST_MODEL] == "gpt-4o-mini"
 
 
 @pytest.mark.usefixtures("failing_genai_conversion")
@@ -249,5 +312,39 @@ def test_genai_conversion_failure_still_ends_span(
         assert attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "LLM"
         assert not any(key.startswith("gen_ai.") for key in attributes)
     assert (
-        openinference_logs.text.count("Failed to derive GenAI semantic convention attributes.") == 2
+        openinference_logs.text.count(
+            "Failed to set GenAI semantic convention attributes: "
+            "ValueError('unexpected attribute shape')"
+        )
+        == 2
     )
+
+
+@pytest.mark.usefixtures("failing_genai_conversion")
+def test_non_recording_spans_skip_genai_conversion(
+    scenario: _NonRecordingScenario,
+    openinference_logs: pytest.LogCaptureFixture,
+) -> None:
+    with scenario.surrounding():
+        with scenario.tracer.start_as_current_span(
+            "llm-span", openinference_span_kind="llm"
+        ) as span:
+            span.set_attributes(get_llm_attributes(model_name="gpt-4o-mini"))
+
+    assert not span.is_recording()
+    assert not openinference_logs.records
+
+
+@pytest.mark.usefixtures("failing_genai_conversion")
+def test_ended_span_skips_genai_conversion_on_second_end(
+    openinference_logs: pytest.LogCaptureFixture,
+) -> None:
+    exporter = InMemorySpanExporter()
+    tracer = _provider(exporter).get_tracer(__name__)
+
+    span = tracer.start_span("llm-span", openinference_span_kind="llm")
+    span.end()
+    span.end()
+
+    assert len(exporter.get_finished_spans()) == 1
+    assert openinference_logs.text.count("Failed to set GenAI semantic convention attributes") == 1

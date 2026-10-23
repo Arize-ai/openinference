@@ -74,17 +74,14 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
         if self._self_config.enable_genai_semconv and span.is_recording():
-            # Only SDK spans expose their attributes; other recording spans can't be read back.
             source_attributes = getattr(span, "attributes", None)
-            if source_attributes is not None:
+            if isinstance(source_attributes, Mapping):
                 try:
-                    genai_attributes = get_genai_attributes(source_attributes)
-                except Exception:
-                    logger.exception("Failed to derive GenAI semantic convention attributes.")
-                    genai_attributes = {}
-                for key, value in genai_attributes.items():
-                    if key not in source_attributes:
-                        span.set_attribute(key, value)
+                    for key, value in get_genai_attributes(source_attributes).items():
+                        if key not in source_attributes:
+                            span.set_attribute(key, value)
+                except Exception as exc:
+                    logger.exception(f"Failed to set GenAI semantic convention attributes: {exc!r}")
         span.end(end_time)
 
     def set_input(
