@@ -20,6 +20,7 @@ from .config import (
     TraceConfig,
     mask_without_externalization,
 )
+from .logging import logger
 
 _IMPORTANT_ATTRIBUTES = [
     SpanAttributes.OPENINFERENCE_SPAN_KIND,
@@ -88,6 +89,26 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         if OPENINFERENCE_SPAN_KIND not in self._self_important_attributes:
             raise ValueError("Cannot set input attributes on a non-OpenInference span")
         self.set_attributes(get_input_attributes(value, mime_type=mime_type))
+
+    def finalize_deferred_input_value(self, serialize: Callable[[], str]) -> None:
+        """
+        Set ``input.value`` from ``serialize`` once the span is known to record.
+
+        Instrumentors plant a placeholder such as ``REDACTED_VALUE`` on
+        ``input.value`` at start, so the sampler and ``TraceConfig.mask`` only
+        ever see a side-effect-free value. ``serialize`` may walk the request
+        or upload blobs, so it runs at most once, and only when the span is
+        recording and ``hide_inputs`` is false. If it raises, the exception is
+        logged and the placeholder stays.
+        """
+        if not self.is_recording() or self._self_config.hide_inputs:
+            return
+        try:
+            value = serialize()
+        except Exception:
+            logger.exception("Failed to resolve deferred input value")
+            return
+        self.set_attribute(SpanAttributes.INPUT_VALUE, value)
 
     def set_output(
         self,
