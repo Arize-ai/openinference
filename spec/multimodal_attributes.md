@@ -103,7 +103,7 @@ llm.input_messages.0.message.contents.4.message_content.document.document.name =
 - Data URIs use standard base64; re-encode URL-safe base64 such as the Gemini REST API sends.
 - Record `document.content` byte-for-byte, with no trimming, line-ending normalization, or truncation: provider citations index into it by character offset. To hide it, replace the whole value with `"__REDACTED__"` or omit it.
 - Copy `document.mime_type` (a provider field or the data URI prefix) and `document.name` from the request; never infer them. Omit them when the request does not state them.
-- Anthropic and Bedrock `content` sources (nested content blocks) use the instrumentor's generic content-block fallback. Do not put documents in `image.url`.
+- Anthropic and Bedrock `content` sources (nested content blocks) are not represented by these leaves. Do not put documents in `image.url`.
 
 Provider mappings:
 
@@ -220,8 +220,7 @@ Spans other than `LLM` record documents with `input.documents` / `output.documen
 }
 ```
 
-- An `LLM` span records its documents in `message.contents` and SHOULD NOT repeat them here.
-- Shared `TraceConfig.mask()` does not yet hide or size-gate documents.
+An `LLM` span records its documents in `message.contents` and SHOULD NOT repeat them here.
 
 ## Privacy Considerations
 
