@@ -19,6 +19,11 @@ from openinference.instrumentation.groq._request_attributes_extractor import (
 from openinference.instrumentation.groq._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
+from openinference.instrumentation.groq._stream import (
+    _AsyncStream,
+    _ChatCompletionAccumulator,
+    _Stream,
+)
 from openinference.instrumentation.groq._utils import (
     _finish_tracing,
     _materialize_content_iterables,
@@ -168,6 +173,19 @@ class _CompletionsWrapper(_WithTracer):
                 )
                 span.finish_tracing(status=status)
                 raise
+            if request_parameters.get("stream") is True and (
+                hasattr(response, "__iter__") or hasattr(response, "__aiter__")
+            ):
+                # Nothing has arrived yet: the span is finished from the stream
+                # wrapper once the caller consumes, closes, or drops it.
+                return _Stream(
+                    stream=response,
+                    with_span=span,
+                    accumulator=_ChatCompletionAccumulator(
+                        request_parameters=request_parameters,
+                        response_extractor=self._response_extractor,
+                    ),
+                )
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
@@ -233,6 +251,19 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 )
                 span.finish_tracing(status=status)
                 raise
+            if request_parameters.get("stream") is True and (
+                hasattr(response, "__iter__") or hasattr(response, "__aiter__")
+            ):
+                # Nothing has arrived yet: the span is finished from the stream
+                # wrapper once the caller consumes, closes, or drops it.
+                return _AsyncStream(
+                    stream=response,
+                    with_span=span,
+                    accumulator=_ChatCompletionAccumulator(
+                        request_parameters=request_parameters,
+                        response_extractor=self._response_extractor,
+                    ),
+                )
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
