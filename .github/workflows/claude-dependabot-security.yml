@@ -294,19 +294,19 @@ jobs:
 
       - name: Set up Node.js
         if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: js/.nvmrc
 
       - name: Setup PNPM
         if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.29.3
 
       - name: Setup uv
         if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: 0.11.2
           enable-cache: false
@@ -524,7 +524,7 @@ jobs:
 
       - name: Upload Claude execution log
         if: ${{ always() && steps.dependabot-fix.outcome != 'skipped' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: claude-dependabot-security-${{ matrix.slug }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/claude-execution-output.json
@@ -782,7 +782,7 @@ jobs:
 
       - name: Upload proposed diff (dry run)
         if: ${{ steps.publish.outputs.status == 'dry_run' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: proposed-changes-${{ matrix.slug }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/proposed-changes.diff

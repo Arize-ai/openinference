@@ -34,7 +34,7 @@ jobs:
         with:
           sparse-checkout: python
           persist-credentials: false
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: 0.11.2
           enable-cache: false
@@ -61,7 +61,7 @@ jobs:
         with:
           sparse-checkout: python
           persist-credentials: false
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: 0.11.2
           enable-cache: false
@@ -75,7 +75,7 @@ jobs:
           uvx --with tox-uv tox r -e "$TOX_ENV" -- -ra -x 2>&1 | tee "$CANARY_LOG"
         working-directory: python
         timeout-minutes: 15
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: failure()
         with:
           name: ${{ matrix.testenv }}
@@ -92,7 +92,7 @@ jobs:
       list: ${{ steps.failures.outputs.list }}
       packages: ${{ steps.failures.outputs.packages }}
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: ${{ needs.canary.result == 'failure' }}
       - name: List failures
         id: failures
@@ -160,7 +160,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
         id: message
       - name: Send message to Slack
-        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
@@ -242,13 +242,13 @@ jobs:
 
       - name: Download failure logs
         if: ${{ steps.preflight.outputs.skip != 'true' }}
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: "*-ci-${{ matrix.package }}-latest"
           path: .scratch/failure-logs
           merge-multiple: true
 
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         if: ${{ steps.preflight.outputs.skip != 'true' }}
         with:
           version: 0.11.2
@@ -309,7 +309,7 @@ jobs:
 
       - name: Upload Claude execution log
         if: ${{ always() && steps.auto-fix.outcome != 'skipped' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: claude-auto-fix-${{ matrix.package }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/claude-execution-output.json
