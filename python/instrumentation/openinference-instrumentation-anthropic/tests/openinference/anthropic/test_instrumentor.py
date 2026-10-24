@@ -3104,6 +3104,262 @@ async def test_async_abandoned_streaming_create_is_recorded(
         assert _output_texts(span) == texts
 
 
+def _tool_use_event_stream_body(
+    first_empty_tool: bool = False, include_usage_delta: bool = True
+) -> bytes:
+    """A stream whose only content block is a tool call, streamed as input_json deltas."""
+    tool_index = 1 if first_empty_tool else 0
+    events: List[Dict[str, Any]] = [
+        {
+            "type": "message_start",
+            "message": {
+                **_MESSAGE_JSON,
+                "content": [],
+                "stop_reason": None,
+                "usage": {"input_tokens": 3, "output_tokens": 0},
+            },
+        },
+        *(
+            [
+                {
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "tool_use",
+                        "id": "toolu_empty",
+                        "name": "get_weather",
+                        "input": {},
+                    },
+                },
+                {"type": "content_block_stop", "index": 0},
+            ]
+            if first_empty_tool
+            else []
+        ),
+        {
+            "type": "content_block_start",
+            "index": tool_index,
+            "content_block": {
+                "type": "tool_use",
+                "id": "toolu_A",
+                "name": "get_weather",
+                "input": {},
+            },
+        },
+        *(
+            {
+                "type": "content_block_delta",
+                "index": tool_index,
+                "delta": {"type": "input_json_delta", "partial_json": char},
+            }
+            for char in '{"city": "Chicago"}'
+        ),
+        {"type": "content_block_stop", "index": tool_index},
+        *(
+            [
+                {
+                    "type": "message_delta",
+                    "delta": {"stop_reason": "tool_use", "stop_sequence": None},
+                    "usage": {"output_tokens": 10},
+                }
+            ]
+            if include_usage_delta
+            else []
+        ),
+        {"type": "message_stop"},
+    ]
+    body = "".join(f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in events)
+    return body.encode()
+
+
+def _tool_use_event_stream_handler(request: Any) -> Any:
+    return httpx2.Response(
+        status_code=200,
+        headers={"content-type": "text/event-stream"},
+        content=_tool_use_event_stream_body(),
+    )
+
+
+def test_leaving_stream_early_does_not_record_placeholder_tool_arguments(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    Leaving messages.stream() mid-tool-call leaves the SDK snapshot holding the empty
+    placeholder input from content_block_start, because the arguments are only parsed into
+    the snapshot once the block completes. That placeholder must not be recorded as the
+    final tool call arguments (#3904).
+    """
+    client = _mock_anthropic_client(_tool_use_event_stream_handler)
+
+    with client.messages.stream(**_REQUEST_KWARGS) as stream:
+        for event in stream:
+            if getattr(event, "type", None) == "input_json":
+                break
+
+    attributes: Dict[str, Any] = dict(_get_span(in_memory_span_exporter).attributes or {})
+    prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0."
+    assert attributes[f"{prefix}{TOOL_CALL_ID}"] == "toolu_A"
+    assert attributes[f"{prefix}{TOOL_CALL_FUNCTION_NAME}"] == "get_weather"
+    # The arguments never completed, so the placeholder must not stand in for them
+    assert f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}" not in attributes
+    assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
+    assert LLM_TOKEN_COUNT_COMPLETION not in attributes
+    assert LLM_TOKEN_COUNT_TOTAL not in attributes
+    output = json.loads(attributes[SpanAttributes.OUTPUT_VALUE])
+    assert "input" not in output["content"][0]
+    assert "output_tokens" not in output["usage"]
+
+
+def test_completing_stream_records_tool_arguments(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """A fully streamed tool call still records the arguments the model produced."""
+    client = _mock_anthropic_client(_tool_use_event_stream_handler)
+
+    with client.messages.stream(**_REQUEST_KWARGS) as stream:
+        for _ in stream:
+            pass
+
+    attributes: Dict[str, Any] = dict(_get_span(in_memory_span_exporter).attributes or {})
+    prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0."
+    assert json.loads(attributes[f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]) == {
+        "city": "Chicago"
+    }
+    assert attributes[SpanAttributes.LLM_FINISH_REASON] == "tool_use"
+
+
+async def test_async_leaving_stream_early_does_not_record_placeholder_tool_arguments(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """See the synchronous counterpart for why the placeholder must not be recorded."""
+    client = _mock_async_anthropic_client(_tool_use_event_stream_handler)
+
+    async with client.messages.stream(**_REQUEST_KWARGS) as stream:
+        async for event in stream:
+            if getattr(event, "type", None) == "input_json":
+                break
+
+    attributes: Dict[str, Any] = dict(_get_span(in_memory_span_exporter).attributes or {})
+    prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0."
+    assert f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}" not in attributes
+    assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
+    assert LLM_TOKEN_COUNT_COMPLETION not in attributes
+    assert LLM_TOKEN_COUNT_TOTAL not in attributes
+    output = json.loads(attributes[SpanAttributes.OUTPUT_VALUE])
+    assert "input" not in output["content"][0]
+
+
+def test_completed_empty_tool_before_unfinished_tool_keeps_its_arguments(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(
+        lambda request: httpx2.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            content=_tool_use_event_stream_body(first_empty_tool=True),
+        )
+    )
+
+    with client.messages.stream(**_REQUEST_KWARGS) as stream:
+        for event in stream:
+            if getattr(event, "type", None) == "input_json":
+                break
+
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    first = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    second = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    assert attributes[first] == "{}"
+    assert second not in attributes
+    output = json.loads(attributes[SpanAttributes.OUTPUT_VALUE])  # type: ignore[arg-type]
+    assert output["content"][0]["input"] == {}
+    assert "input" not in output["content"][1]
+
+
+def test_leaving_streaming_create_early_does_not_record_placeholder_tool_arguments(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(_tool_use_event_stream_handler)
+
+    with client.messages.create(stream=True, **_REQUEST_KWARGS) as stream:
+        for event in stream:
+            if event.type == "content_block_delta":
+                break
+
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    arguments = (
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert arguments not in attributes
+    assert LLM_TOKEN_COUNT_COMPLETION not in attributes
+    assert LLM_TOKEN_COUNT_TOTAL not in attributes
+
+
+async def test_async_leaving_streaming_create_early_does_not_record_placeholder_tool_arguments(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_tool_use_event_stream_handler)
+
+    async with await client.messages.create(stream=True, **_REQUEST_KWARGS) as stream:
+        async for event in stream:
+            if event.type == "content_block_delta":
+                break
+
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    arguments = (
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert arguments not in attributes
+    assert LLM_TOKEN_COUNT_COMPLETION not in attributes
+    assert LLM_TOKEN_COUNT_TOTAL not in attributes
+
+
+def test_stream_stopped_after_usage_event_records_known_total(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(_tool_use_event_stream_handler)
+
+    with client.messages.stream(**_REQUEST_KWARGS) as stream:
+        for event in stream:
+            if event.type == "message_delta":
+                break
+
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
+    assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 10
+    assert attributes[LLM_TOKEN_COUNT_TOTAL] == 13
+
+
+def test_stream_without_usage_delta_omits_unknown_completion_and_total(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(
+        lambda request: httpx2.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            content=_tool_use_event_stream_body(include_usage_delta=False),
+        )
+    )
+
+    with client.messages.stream(**_REQUEST_KWARGS) as stream:
+        for _ in stream:
+            pass
+
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
+    assert LLM_TOKEN_COUNT_COMPLETION not in attributes
+    assert LLM_TOKEN_COUNT_TOTAL not in attributes
+    output = json.loads(attributes[SpanAttributes.OUTPUT_VALUE])  # type: ignore[arg-type]
+    assert "output_tokens" not in output["usage"]
+
+
 async def test_cancellation_leaving_async_streaming_create_context_is_recorded(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
