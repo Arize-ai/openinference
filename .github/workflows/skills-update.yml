@@ -27,7 +27,7 @@ jobs:
           token: ${{ secrets.MY_RELEASE_PLEASE }}
           persist-credentials: true
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "20"
 
@@ -52,7 +52,7 @@ jobs:
       - name: Create Pull Request
         id: cpr
         if: steps.verify-changed-files.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ secrets.MY_RELEASE_PLEASE }}
           add-paths: |
