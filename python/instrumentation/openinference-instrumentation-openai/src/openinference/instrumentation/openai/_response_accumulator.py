@@ -15,6 +15,7 @@ from typing import (
     Protocol,
     Tuple,
     Type,
+    Union,
 )
 
 from opentelemetry.util.types import AttributeValue
@@ -37,6 +38,8 @@ if TYPE_CHECKING:
     from openai.types.chat import ChatCompletion, ChatCompletionChunk
     from openai.types.responses.response import Response
     from openai.types.responses.response_completed_event import ResponseCompletedEvent
+    from openai.types.responses.response_failed_event import ResponseFailedEvent
+    from openai.types.responses.response_incomplete_event import ResponseIncompleteEvent
 
 __all__ = (
     "_CompletionAccumulator",
@@ -52,6 +55,11 @@ class _CanGetAttributesFromResponse(Protocol):
         response: Any,
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]: ...
+
+
+_TERMINAL_EVENT_NAMES = frozenset(
+    ("ResponseCompletedEvent", "ResponseIncompleteEvent", "ResponseFailedEvent")
+)
 
 
 class _ResponsesAccumulator:
@@ -75,10 +83,14 @@ class _ResponsesAccumulator:
         self._response_attributes_extractor = response_attributes_extractor
         self._is_null = True
         self._cached_result: Optional[Dict[str, Any]] = None
-        self._values: Optional["ResponseCompletedEvent"] = None
+        self._values: Optional[
+            Union["ResponseCompletedEvent", "ResponseIncompleteEvent", "ResponseFailedEvent"]
+        ] = None
 
     def process_chunk(self, chunk: Any) -> None:
-        if type(chunk).__name__ == "ResponseCompletedEvent":
+        # A stream can end on any of these terminal events; the incomplete (e.g. max output
+        # tokens, content filter) and failed ones still carry the partial output and usage.
+        if type(chunk).__name__ in _TERMINAL_EVENT_NAMES:
             self._is_null = False
             self._cached_result = None
             self._values = chunk
