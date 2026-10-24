@@ -28,6 +28,16 @@ requires `anthropic>=1.0.0` and instruments the Messages and Beta Messages APIs.
 See Anthropic's [v1 migration guide](https://github.com/anthropics/anthropic-sdk-python/blob/main/MIGRATION.md)
 for the upstream breaking changes.
 
+### Spans of the Anthropic SDK
+
+`anthropic>=1.14.0` creates an OpenTelemetry span of its own for each API call
+(`anthropic.messages.create` and so on), unless it is turned off with
+`open_telemetry=False` or `ANTHROPIC_OPEN_TELEMETRY=false`. For a call that this
+instrumentor traces, the SDK's span is replaced by the OpenInference LLM span: the SDK
+records no span, its request carries the LLM span's trace context, and HTTP spans are
+children of the LLM span. Calls that this instrumentor does not trace, such as
+`models.list()`, keep the SDK's span.
+
 ## Installation
 
 ```shell

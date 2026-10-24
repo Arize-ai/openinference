@@ -42,6 +42,10 @@ class _WithSpan:
             self._is_finished = True
 
     @property
+    def span(self) -> trace_api.Span:
+        return self._span
+
+    @property
     def is_finished(self) -> bool:
         return self._is_finished
 
