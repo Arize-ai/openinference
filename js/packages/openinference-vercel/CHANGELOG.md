@@ -1,5 +1,17 @@
 # @arizeai/openinference-vercel
 
+## 3.3.1
+
+### Patch Changes
+
+- ca8a7e9: Keep classifying Vercel eve's `agent.step` and `agent.approval` spans as CHAIN on eve 0.76 and later. eve 0.76 sets `operation.name` and `gen_ai.operation.name` on these spans to `workflow` and moves the span name to `resource.name`, so they no longer matched the eve span-kind map and fell through to the GenAI converter's LLM default, which doubled a turn's LLM span count. When `gen_ai.operation.name` is `workflow`, the processor now also matches `resource.name` against that map. Every other span classifies as before.
+- 5a02f5b: Declare `@opentelemetry/sdk-trace-base` as a dependency. The span processors import it at runtime, but it was only a devDependency, so apps had to install it themselves. OpenTelemetry JS SDK 3.0 removed `sdk-trace-base`, and the remaining 2.x releases peer `@opentelemetry/api` below 1.10, so with the latest packages the import failed (`ERR_MODULE_NOT_FOUND`) or the install failed (ERESOLVE). The package now installs its own 2.x copy.
+- Updated dependencies [dc63d01]
+- Updated dependencies [298ff79]
+  - @arizeai/openinference-semantic-conventions@2.15.0
+  - @arizeai/openinference-core@2.8.1
+  - @arizeai/openinference-genai@0.4.1
+
 ## 3.3.0
 
 ### Minor Changes
