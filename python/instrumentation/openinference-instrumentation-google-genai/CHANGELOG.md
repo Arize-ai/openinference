@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.14...python-openinference-instrumentation-google-genai-v1.4.15) (2026-10-24)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [1.4.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.13...python-openinference-instrumentation-google-genai-v1.4.14) (2026-10-23)
 
 

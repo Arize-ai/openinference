@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.6.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.6.1...python-openinference-instrumentation-llama-index-v4.6.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [4.6.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.6.0...python-openinference-instrumentation-llama-index-v4.6.1) (2026-10-23)
 
 

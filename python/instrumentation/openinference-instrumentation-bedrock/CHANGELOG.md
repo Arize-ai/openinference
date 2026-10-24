@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.62](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.61...python-openinference-instrumentation-bedrock-v0.1.62) (2026-10-24)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [0.1.61](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.60...python-openinference-instrumentation-bedrock-v0.1.61) (2026-10-23)
 
 
