@@ -2037,7 +2037,7 @@ def test_generate_content_with_automatic_tool_calling(
 
     # Make the API call
     response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=content, config=config
+        model="gemini-3.5-flash", contents=content, config=config
     )
 
     # For automatic tool calling, we expect a complete text response
@@ -2059,7 +2059,18 @@ def test_generate_content_with_automatic_tool_calling(
     span = spans[0]
     attributes = dict(span.attributes or {})
 
+    # The SDK builds this history from the recorded function-call turn
+    afc_history = response.automatic_function_calling_history
+    assert afc_history is not None
+    function_call_part = afc_history[1].parts[0]
+    assert function_call_part.function_call is not None
+    final_text_part = response.candidates[0].content.parts[0]
+
     # Define expected attributes
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    output_content = f"{output_message}.{MessageAttributes.MESSAGE_CONTENTS}.0"
+    tool_call_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1"
+    tool_call = f"{tool_call_message}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     expected_attributes: Dict[str, Any] = {
         f"{SpanAttributes.LLM_PROVIDER}": "google",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
@@ -2068,18 +2079,34 @@ def test_generate_content_with_automatic_tool_calling(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        f"{output_message}.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{output_content}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+        f"{output_content}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": response.text,
+        f"{output_content}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}": base64.b64encode(
+            final_text_part.thought_signature
+        ).decode(),
+        # The automatic function call is published as its own output message
+        f"{tool_call_message}.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{tool_call}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
+        f"{tool_call}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}": json.dumps(
+            {"location": "San Francisco"}
+        ),
+        f"{tool_call}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}": base64.b64encode(
+            function_call_part.thought_signature
+        ).decode(),
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
+
+    # Tool calls must never be emitted without an output message prefix
+    assert not any(key.startswith(f"{MessageAttributes.MESSAGE_TOOL_CALLS}.") for key in attributes)
 
     # For automatic tool calling, the tool schema should still be recorded
     # but it will be auto-generated from the function signature
     tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
     assert tool_schema_key in attributes, "Tool schema not found in attributes"
-    tool_schema_json = attributes.get(tool_schema_key)
+    tool_schema_json = attributes.pop(tool_schema_key)
     assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
 
     # Parse and validate the tool schema was auto-generated correctly
@@ -2097,24 +2124,30 @@ def test_generate_content_with_automatic_tool_calling(
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
+        completion_token_count = 0
+        if candidates := response.usage_metadata.candidates_token_count:
+            completion_token_count += candidates
+        if thoughts := response.usage_metadata.thoughts_token_count:
+            completion_token_count += thoughts
+
         expected_attributes.update(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: completion_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: response.usage_metadata.thoughts_token_count,
             }
         )
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
+        assert attributes.pop(key, None) == expected_value, (
             f"Attribute {key} does not match expected value"
         )
 
-    # Note: For automatic tool calling, the function execution happens transparently
-    # We may or may not see explicit tool call attributes in the span depending on
-    # how Google GenAI implements it internally. The key difference is that we get
-    # a complete text response that incorporates the function results.
+    assert isinstance(attributes.pop(SpanAttributes.INPUT_VALUE), str)
+    assert isinstance(attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
+    assert not attributes, f"Unexpected attributes found: {attributes}"
 
 
 @pytest.mark.vcr(
