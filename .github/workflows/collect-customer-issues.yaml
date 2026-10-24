@@ -23,13 +23,13 @@ jobs:
             .github/
       - name: Retrieve and format issues
         id: retrieve-issues
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const script = require(".github/.scripts/collect-customer-issues.js");
             await script({github, context, core});
       - name: Send message to Slack
-        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
         if: steps.retrieve-issues.outputs.has_issues == 'true'
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
