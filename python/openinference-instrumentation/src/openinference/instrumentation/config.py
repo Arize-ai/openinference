@@ -409,13 +409,19 @@ class TraceConfig:
         elif (
             self.hide_input_text
             and SpanAttributes.LLM_INPUT_MESSAGES in key
-            and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
+            and (
+                MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
+                or _is_message_document_content(key)
+            )
         ):
             value = REDACTED_VALUE
         elif (
             self.hide_output_text
             and SpanAttributes.LLM_OUTPUT_MESSAGES in key
-            and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
+            and (
+                MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
+                or _is_message_document_content(key)
+            )
         ):
             value = REDACTED_VALUE
         # The hide checks must precede the size/externalize branch below so a
@@ -432,6 +438,17 @@ class TraceConfig:
                 is_base64_url(value) and len(value) > self.base64_image_max_length  # type:ignore
             ):
                 value = self._externalize_or_redact(key, value) if externalize else REDACTED_VALUE  # type:ignore
+        elif self.hide_inputs and _is_within(key, SpanAttributes.INPUT_DOCUMENTS):
+            return None
+        elif self.hide_outputs and _is_within(key, SpanAttributes.OUTPUT_DOCUMENTS):
+            return None
+        elif _is_document_url(key):
+            value = value() if callable(value) else value
+            # Documents are redacted, not externalized: the blob uploader is image-only.
+            if (
+                _is_base64_data_uri(value) and len(value) > self.base64_image_max_length  # type:ignore
+            ):
+                value = REDACTED_VALUE
         elif (
             (self.hide_embedding_vectors or self.hide_embeddings_vectors)
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key
@@ -588,6 +605,32 @@ def _is_image_url(key: str) -> bool:
     return key.endswith(ImageAttributes.IMAGE_URL) and (
         _is_input_image(key) or _is_output_image(key)
     )
+
+
+def _is_message_document_content(key: str) -> bool:
+    """True for the document.content leaf of a message content document, e.g.
+    ``llm.input_messages.0.message.contents.1.message_content.document.document.content``."""
+    return MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT in key and key.endswith(
+        DocumentAttributes.DOCUMENT_CONTENT
+    )
+
+
+def _is_document_url(key: str) -> bool:
+    """True for the document.url leaf of a message content document in input or
+    output messages, or of a span-level input.documents / output.documents entry."""
+    if not key.endswith(DocumentAttributes.DOCUMENT_URL):
+        return False
+    return (
+        (SpanAttributes.LLM_INPUT_MESSAGES in key or SpanAttributes.LLM_OUTPUT_MESSAGES in key)
+        and MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT in key
+    ) or (
+        _is_within(key, SpanAttributes.INPUT_DOCUMENTS)
+        or _is_within(key, SpanAttributes.OUTPUT_DOCUMENTS)
+    )
+
+
+def _is_base64_data_uri(value: Any) -> bool:
+    return isinstance(value, str) and value.startswith("data:") and ";base64," in value
 
 
 def is_base64_url(url: str) -> bool:
