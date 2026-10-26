@@ -29,7 +29,7 @@ flowchart TB
       coordinator["Lane coordinator<br/>bug-fixer"]
       subagents["bug-reproducer<br/>Python and TypeScript reviewers"]
     end
-    grader["Outcome grader<br/>rubrics/lane.md"]
+    grader["Outcome grader<br/>rubrics/bug.md"]
   end
 
   maintainer -->|"factory label"| issue
@@ -87,10 +87,10 @@ Each part does one job, so it can be changed and tested on its own:
 
 | Part | Job |
 |---|---|
-| `dispatch.py start` | Admits the issue: the requester has write access, and the issue is open, unassigned, labeled `bug`, not `needs information` or `size:L`, and has no open PR |
+| `dispatch.py start` | Admits the issue: the requester has write access, and the issue is open, unassigned, labeled `bug`, has no open PR, and carries none of the labels in `NOT_READY_LABELS`: `needs information`, `size:L` and larger, `security`, `blocked`, the closed-out labels such as `wontfix`, labels reserving it for humans or for `claude-implement-issue.yml`, or only language labels other than Python and JS |
 | Lane coordinator | `bug-fixer` reads the issue, runs `bootstrap.sh` for the languages it touches, delegates, implements the fix, opens the draft PR, and posts `assessment.md`: fit, evidence, risk ratings and a review depth. A bug only in Java, Go or the spec gets a comment and no PR |
 | `bug-reproducer` | Writes a test that fails for the reported reason before any fix exists: the real SDK client through the instrumentor, against a cassette or mock transport. The sandbox has no provider API keys, so it can't record new cassettes |
-| Language reviewers | Read-only `python-reviewer` and `js-reviewer`, chosen by the paths the diff touches. They report verified findings per `REVIEW.md` § Reporting Findings, plus a risk line |
+| Language reviewers | Read-only `python-reviewer` and `js-reviewer`, chosen by the paths the diff touches. They hold the change to `REVIEW.md`, the language's `AGENTS.md` and its review skill, and report verified findings per `REVIEW.md` § Reporting Findings, plus a risk line. `REVIEW.md` governs these reviewers; the Claude Code Review workflow reads `CLAUDE.md` and `AGENTS.md` instead |
 | Outcome grader | Scores the session against `rubrics/<lane>.md` and sends it back to revise, up to 3 times |
 | `dispatch.py watch` | Sends failing required checks, then Claude Code Review findings, back to the session for up to 3 rounds. Marks the PR ready once CI passes, and reports the run outcome on the issue |
 | `factory-guard.yml` | Fails factory PRs that touch `.github/`, `.claude/`, `.agents/`, `factory/`, `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md` or the release-please config |
@@ -123,7 +123,7 @@ environments/    the sandbox (uv, tox, pnpm, limited networking)
 vaults/          the vault container (GitHub); its credentials are added by hand
 rubrics/         outcome rubrics, inlined by dispatch.py (not ant resources)
 assessment.md    the fit-and-risk comment coordinators post on their PR
-bootstrap.sh     run by each coordinator first: Node from js/.nvmrc and `make install-js` for JS, a capability report
+bootstrap.sh     run by each coordinator first: `make install-js` for JS, a capability report
 dispatch.py      admits an issue, starts its session, and follows it to a reviewable PR
 ```
 

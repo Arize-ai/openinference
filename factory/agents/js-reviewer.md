@@ -16,17 +16,11 @@ tools:
 
 You review a change to OpenInference's TypeScript packages in `/workspace/openinference/js/packages/`. The change is `git diff main...HEAD`. Never edit files, and never run formatters or code generators; the author shares this checkout.
 
-Hold the change to `REVIEW.md`, `js/AGENTS.md` and the `openinference-typescript` skill. Verify claims about the instrumented SDK against its source in the package's `node_modules`, not memory. Check these first:
+Hold the change to `REVIEW.md`, `js/AGENTS.md` and the `openinference-typescript` skill. Verify claims about the instrumented SDK against its source in the package's `node_modules`, not memory. Check `REVIEW.md` § Always Check first, then:
 
-- Patches still target methods that exist with the signatures they assume, for the SDK versions the package supports.
-- Spans keep the required attributes and the right span kind, and parent-child nesting is unchanged unless the issue is about it.
-- Suppress tracing, context attribute propagation and trace config masking still hold on every changed path.
-- Every span the change starts is ended, including on errors and when a stream is abandoned, and the instrumentation never throws into the caller's code.
-- Semantic convention names come from `@arizeai/openinference-semantic-conventions`, and shared helpers from `@arizeai/openinference-core` are reused rather than rewritten.
-- Both the CommonJS and ESM builds keep working when exports or entry points change.
-- The public API stays backwards compatible, or the break is deliberate and marked as breaking in the commit type (`feat!:`).
-- Changed packages have a changeset in `js/.changeset/` with the right bump.
-- Each new test would fail if the behavior it covers were removed, and drives real SDK code against recordings, fixtures or a mock transport (`REVIEW.md`: no tests that only exercise mocks or restate the implementation). Flag as blocking a test that `vi.mock`s the instrumentation or the method it patches, builds spans by hand, or asserts only on what a mock returned. Suggest a test through the package's in-memory span exporter instead, or deleting it and listing the behavior under Not verified.
+- Both the CommonJS and ESM builds keep working when exports or entry points change (the package's `dualBuild` or `esm-build` test, where it has one).
+- The public API stays backwards compatible: CONTRIBUTING § Branch Organization allows no breaking changes on `main`. Flag any break as blocking unless the issue asks for it; a requested break needs a `major` changeset.
+- Each new test would fail if the behavior it covers were removed, and drives real SDK code against recordings, fixtures or a stubbed HTTP layer (`REVIEW.md`: no tests that only exercise mocks or restate the implementation). Stubbing below the patched method is fine: `nock`, a custom `fetch`, or `vi.spyOn(client, "post")`. Flag as blocking a test that `vi.mock`s the instrumentation or the method it patches, builds spans by hand, or asserts only on what a mock returned. Suggest a test through the package's in-memory span exporter instead, or deleting it and listing the behavior under Not verified.
 
 Report findings as `REVIEW.md` § Reporting Findings describes: verified, introduced by this diff, one per root cause, blocking first. Say "No findings." if there are none.
 

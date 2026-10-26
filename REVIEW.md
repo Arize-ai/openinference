@@ -6,25 +6,25 @@ An implementation is compliant if it satisfies all "MUST", "MUST NOT", "REQUIRED
 
 ## Always Check
 
-- Instrumentors MUST support suppressing tracing, MUST propagate context attributes (session ID, user ID, metadata, tags), and MUST respect TraceConfig masking on every path the change touches
+- Instrumentors MUST support suppressing tracing, MUST propagate context attributes (session ID, user ID, metadata, tags), and MUST respect TraceConfig masking on every path the change touches (`AGENTS.md` § Requirements, `python/AGENTS.md` § Required Features, `js/AGENTS.md` § Instrumentor Pattern)
 - Span attribute names MUST come from the OpenInference semantic conventions packages, never string literals, and MUST follow the spec in `spec/`
 - Every span an instrumentor starts MUST be ended, including when the wrapped call raises and when a stream is abandoned or closed early
-- Instrumentation MUST NOT raise into or change the behavior of the instrumented library; errors in the instrumentor itself MUST be caught and logged
+- Instrumentation MUST NOT raise into or change the behavior of the instrumented library; errors in the instrumentor itself MUST be caught and logged, through stdlib `logging` in Python and `diag` (never `console.*`) in TypeScript (`python/AGENTS.md` § Logging and Diagnostics, `js/AGENTS.md` § Instrumentor Pattern)
 - Wrappers MUST target methods that exist with the signatures they assume, across the library versions the package supports (its pinned test version and `-latest`)
-- Tests MUST fail when the behavior they cover is removed — tests that only exercise mocks or restate the implementation MUST NOT be added. Tests SHOULD drive the real SDK client through the instrumentor against a cassette or mock transport and assert on the spans an in-memory exporter collects
+- Tests MUST fail when the behavior they cover is removed — tests that only exercise mocks or restate the implementation MUST NOT be added. Tests SHOULD drive the real SDK client through the instrumentor against a cassette or a stubbed HTTP layer and assert on the spans an in-memory exporter collects (`python/AGENTS.md` § Testing and Quality, `js/AGENTS.md` § Testing)
 - Cassettes MUST NOT contain API keys or other credentials
+- The public API MUST stay backwards compatible: CONTRIBUTING § Branch Organization allows no breaking changes on `main`
 - Changes to packages under `js/packages/` MUST include a changeset
 - Package versions and `CHANGELOG.md` files MUST NOT be edited by hand: release-please and changesets own them
-- Production dependencies MUST NOT be pinned to pre-release versions
+- Production dependencies MUST NOT be pinned to a pre-release of the instrumented library. OpenTelemetry's beta-only packages (`opentelemetry-instrumentation`, `opentelemetry-semantic-conventions`, versioned `0.NNbN`) are exempt
 
 ## Style
 
-- Variable names MUST be descriptive — short names like `x` or `cv` MUST NOT be used
-- Functions MUST be named with precise action verbs — e.g. `get_attributes()` rather than `attributes()`
-- Keyword or object arguments SHOULD be preferred over positional arguments for clarity — in TypeScript, functions with two or more parameters SHOULD take a single destructured object
-- Python functions MUST have type annotations, and TypeScript MUST NOT use `any` where `unknown` and a type guard would do
+- Python changes MUST follow `python/AGENTS.md` § Key Patterns (attribute helpers, required features, logging, instrumentor conventions); TypeScript changes MUST follow `js/AGENTS.md` and the `openinference-typescript` skill
+- Variable names SHOULD be descriptive; in TypeScript, single-letter names MUST NOT be used (`openinference-typescript` skill § Naming)
 - Composition SHOULD be preferred over inheritance
 - Comments SHOULD explain why, not what — comments that narrate the code, address the reviewer, or describe how the change was made MUST NOT be added
+- Python instrumentor tests SHOULD assert exhaustively on span attributes (`python-code-reviewer` skill § 2.3: pop each expected attribute, then assert none remain)
 
 ## Patterns to Flag
 
@@ -38,7 +38,7 @@ An implementation is compliant if it satisfies all "MUST", "MUST NOT", "REQUIRED
 ## Security
 
 - Secrets (API keys, tokens, auth headers) MUST NOT be recorded as span attributes, logged, or committed in cassettes
-- Masking that TraceConfig asks for (inputs, outputs, messages, images) MUST apply before attributes are set on the span, not after
+- Attributes MUST be set through the `OITracer` span, which applies TraceConfig masking, never on a raw OpenTelemetry span; data a hide flag covers MUST NOT leak through another attribute (for example, messages that `hide_input_messages` hides showing up in `input.value`)
 
 ## Reporting Findings
 
@@ -46,7 +46,7 @@ An implementation is compliant if it satisfies all "MUST", "MUST NOT", "REQUIRED
 - Only problems the change introduces SHOULD be reported — pre-existing issues and anything a linter, formatter or type checker catches MUST NOT be
 - Each root cause MUST be reported once, listing every location
 - Each finding MUST carry a severity: **Blocking** (wrong behavior, security, data loss, or a broken MUST) or **Non-blocking** (a broken SHOULD). Nits and praise SHOULD NOT be posted
-- A convention finding MUST cite the rule it breaks in this file or in `.agents/skills/`
+- A convention finding MUST cite the rule it breaks in this file, `python/AGENTS.md`, `js/AGENTS.md`, or a skill under `.claude/skills/`
 - A finding SHOULD fit in five lines: what is wrong, the evidence, and a concrete fix
 
 ## Skip

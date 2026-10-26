@@ -40,11 +40,28 @@ LANE_OUTCOMES = {
 STARTING_PERMISSIONS = {"admin", "write"}
 # The sender of a run that a workflow here dispatched with its GITHUB_TOKEN.
 WORKFLOW_LOGIN = "github-actions[bot]"
-# Labels triage applies when an issue is not ready to build.
+# Labels that mean an issue is not ready to build, or not the factory's to build. Most
+# follow the issue-triage skill's "Never label when" list for good-agent-issue.
 NOT_READY_LABELS = {
     "needs information": "it is labeled `needs information`",
     "size:L": "it is labeled `size:L`; split it into smaller issues first",
+    "size:XL": "it is labeled `size:XL`; split it into smaller issues first",
+    "size:XXL": "it is labeled `size:XXL`; split it into smaller issues first",
+    "blocked": "it is labeled `blocked`",
+    "cannot reproduce": "maintainers could not reproduce it",
+    "security": "security fixes don't go through public factory PRs",
+    "wontfix": "it is labeled `wontfix`",
+    "duplicate": "it is labeled `duplicate`",
+    "invalid": "it is labeled `invalid`",
+    "stale": "it is labeled `stale`",
+    "good first issue": "it is reserved for a human contributor (`good first issue`)",
+    "good student issue": "it is reserved for a human contributor (`good student issue`)",
+    "good-agent-issue": "claude-implement-issue.yml owns it (`good-agent-issue`)",
+    "agent-in-progress": "claude-implement-issue.yml is working on it (`agent-in-progress`)",
 }
+# Language labels the bug lane can work on. An issue labeled only with others, such as
+# `language: java`, is turned away before a session starts.
+FACTORY_LANGUAGE_LABELS = {"language: python", "language: js"}
 
 TERMINAL_OUTCOME_RESULTS = {"satisfied", "max_iterations_reached", "failed", "interrupted"}
 # Failing checks the agent can't fix from its branch.
@@ -103,6 +120,14 @@ def find_admission_problem(
     for label_name, reason in NOT_READY_LABELS.items():
         if label_name in label_names:
             return reason
+    language_labels = {
+        label_name for label_name in label_names if label_name.startswith("language: ")
+    }
+    if language_labels and not language_labels & FACTORY_LANGUAGE_LABELS:
+        return (
+            f"it is labeled {', '.join(f'`{label}`' for label in sorted(language_labels))}; "
+            "the factory takes Python and TypeScript issues only"
+        )
     if issue["assignees"]:
         assignee_logins = ", ".join(assignee["login"] for assignee in issue["assignees"])
         return f"it is assigned to {assignee_logins}"

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Prepares a factory sandbox for the languages an issue touches: `python`, `js`, or both
 # (the default). Python needs no setup here, since tox builds each package's environment.
-# JS gets the Node version in js/.nvmrc and `make install-js`. It ends with a report of
-# what works. Anything it reports missing is a verification gap for the PR body; CI runs
-# the full matrix.
+# JS runs `make install-js` on the sandbox's Node, which must meet the Makefile's floor
+# (20.19+ or 22.12+, for oxfmt); CI runs Node 20. It ends with a report of what works.
+# Anything it reports missing is a verification gap for the PR body; CI runs the full
+# matrix.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -17,14 +18,6 @@ wants() {
 }
 
 if wants js; then
-  node_version=$(tr -d 'v[:space:]' < js/.nvmrc)
-  if [ "$(node --version 2>/dev/null)" != "v$node_version" ]; then
-    echo "Installing Node $node_version into /usr/local..."
-    sudo_command=$([ -w /usr/local/bin ] || echo sudo)
-    curl -fsSL "https://nodejs.org/dist/v$node_version/node-v$node_version-linux-x64.tar.xz" \
-      | $sudo_command tar -xJ -C /usr/local --strip-components=1
-    hash -r
-  fi
   make install-js >/tmp/factory-install-js.log 2>&1
   install_js_status=$?
 fi
@@ -37,10 +30,10 @@ if wants python; then
   echo "uv: $(uv --version 2>/dev/null || echo missing)"
   echo "tox: $(tox --version 2>/dev/null | head -n 1 | grep . || echo missing)"
   echo "tox-uv: $(python3 -c 'import tox_uv' 2>/dev/null && echo ok || echo missing)"
-  echo "tox envs: run \`tox run -e ci-<env>\` from python/ on this interpreter; CI also runs py310 and py314"
+  echo "tox envs: \`tox run -e ci-<env>\` from python/ runs on this interpreter; CI runs the two versions on the package's envlist line in python/tox.ini (usually py310 and py314)"
 fi
 if wants js; then
-  echo "node: $(node --version 2>/dev/null || echo missing) (want v$node_version)"
+  echo "node: $(node --version 2>/dev/null || echo missing) (CI runs Node 20; the Makefile needs 20.19+ or 22.12+)"
   echo "pnpm: $(pnpm --version 2>/dev/null || echo missing)"
   if [ "$install_js_status" -eq 0 ]; then
     echo "make install-js: ok"

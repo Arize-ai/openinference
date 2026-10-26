@@ -13,6 +13,5 @@ config:
     pip: [uv, tox, tox-uv] # python/tox.ini runs each package's checks through tox-uv
     npm:
       - pnpm@10.29.3 # matches packageManager in js/package.json
-# The sandbox ships Node 22 and has no setup hook, so factory/bootstrap.sh installs the
-# Node version in js/.nvmrc at the start of each session. There is no JDK or Go yet: the
-# bug lane takes Python and TypeScript issues only.
+# The sandbox ships Node 22, which meets the Makefile's 20.19+/22.12+ floor; CI runs Node 20.
+# There is no JDK or Go yet: the bug lane takes Python and TypeScript issues only.
