@@ -59,7 +59,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          version: 0.11.2
+          version: 0.13.5
           enable-cache: false
       - env:
           DIFF_FILES: ${{ needs.changes.outputs.diff_files }}
@@ -89,7 +89,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          version: 0.11.2
+          version: 0.13.5
           enable-cache: false
       - env:
           TOX_ENV: ${{ matrix.testenv }}
