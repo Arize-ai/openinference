@@ -195,6 +195,35 @@ def test_sync_tools_factory_yields_tool_names() -> None:
     assert attributes["agno.tools"]
 
 
+def test_tools_factory_requiring_arguments_does_not_break_run_attributes() -> None:
+    """Agno injects arguments such as `run_context` into a tools factory."""
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    def tools_factory(run_context: Any) -> Any:
+        return [DuckDuckGoTools()]
+
+    agent = Agent(name="Test Agent", tools=tools_factory)
+    attributes = dict(_agent_run_attributes(agent))
+    assert "agno.tools" not in attributes
+
+
+def test_async_callable_object_tools_factory_does_not_break_run_attributes() -> None:
+    """An object with an async `__call__` is not a coroutine function."""
+    import warnings
+
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    class ToolsFactory:
+        async def __call__(self) -> Any:
+            return []
+
+    agent = Agent(name="Test Agent", tools=ToolsFactory())  # type: ignore[arg-type]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        attributes = dict(_agent_run_attributes(agent))
+    assert "agno.tools" not in attributes
+
+
 def test_team_metadata_captured() -> None:
     """Test that Team.metadata dict is captured as a span attribute."""
     import json

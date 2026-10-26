@@ -215,17 +215,25 @@ def _agent_run_attributes(
 
         if agent.tools:
             tool_names = []
-            # `tools` is either a list or a factory that returns one. An async
-            # factory would hand back a coroutine we can neither iterate nor
-            # await here, so resolving it would break the instrumented run;
-            # only resolve a synchronous factory.
+            # `tools` is either a list or a factory that returns one. Agno awaits
+            # async factories and injects `agent`/`team`/`run_context`/`session_state`
+            # into them, none of which we can do here; skip any factory we cannot
+            # call bare instead of breaking the instrumented run.
             tools = agent.tools
             resolved_tools: Any = None
-            if callable(tools):
-                if not inspect.iscoroutinefunction(tools):
-                    resolved_tools = tools()
-            else:
+            if not callable(tools):
                 resolved_tools = tools
+            elif not inspect.iscoroutinefunction(tools):
+                try:
+                    resolved_tools = tools()
+                except Exception:
+                    resolved_tools = None
+                if inspect.isawaitable(resolved_tools):
+                    # e.g. an object whose `__call__` is async
+                    if inspect.iscoroutine(resolved_tools):
+                        resolved_tools.close()
+                    resolved_tools = None
+
             if resolved_tools is not None:
                 for tool in resolved_tools:
                     if isinstance(tool, Function):
