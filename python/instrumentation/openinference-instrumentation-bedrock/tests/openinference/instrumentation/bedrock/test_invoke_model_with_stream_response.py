@@ -49,9 +49,9 @@ def _invoke_stream_request_data() -> dict[str, Any]:
     model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     system_message = "You're super friendly"
     messages: list[MessageParam] = [
-        MessageParam(
-            role="user",
-            content=[
+        {
+            "role": "user",
+            "content": [
                 TextBlockParam(
                     type="text",
                     text="Hello! Here's a red pixel.",
@@ -65,20 +65,20 @@ def _invoke_stream_request_data() -> dict[str, Any]:
                     ),
                 ),
             ],
-        ),
-        MessageParam(role="assistant", content="Thank you!"),
-        MessageParam(
-            role="user",
-            content=[
+        },
+        {"role": "assistant", "content": "Thank you!"},
+        {
+            "role": "user",
+            "content": [
                 TextBlockParam(
                     type="text",
                     text="what's current temperature and population in Los Angeles?",
                 )
             ],
-        ),
-        MessageParam(
-            role="assistant",
-            content=[
+        },
+        {
+            "role": "assistant",
+            "content": [
                 TextBlockParam(
                     type="text",
                     text="Certainly! I'd be happy to help you with "
@@ -98,10 +98,10 @@ def _invoke_stream_request_data() -> dict[str, Any]:
                     input={"city": "Los Angeles"},
                 ),
             ],
-        ),
-        MessageParam(
-            role="user",
-            content=[
+        },
+        {
+            "role": "user",
+            "content": [
                 ToolResultBlockParam(
                     type="tool_result",
                     tool_use_id="toolu_bdrk_01LzqVRttWAxkjdq19wmG2Cn",
@@ -113,11 +113,11 @@ def _invoke_stream_request_data() -> dict[str, Any]:
                     content=[TextBlockParam(type="text", text="large")],
                 ),
             ],
-        ),
-        MessageParam(
-            role="user",
-            content="what's current temperature and population in San Francisco?",
-        ),
+        },
+        {
+            "role": "user",
+            "content": "what's current temperature and population in San Francisco?",
+        },
     ]
     tools: list[ToolParam] = [
         ToolParam(
