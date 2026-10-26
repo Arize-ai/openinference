@@ -1339,14 +1339,14 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     text_block = TextBlockParam(
         type="text", text="What do you see in this image? Describe it in detail."
     )
-    input_messages = [
-        MessageParam(
-            content=[
+    input_messages: List[MessageParam] = [
+        {
+            "content": [
                 text_block,
                 image_block,
             ],
-            role="user",
-        )
+            "role": "user",
+        }
     ]
     system_prompt = [
         TextBlockParam(type="text", text="You are an expert image analyst."),
@@ -1474,14 +1474,14 @@ def test_anthropic_instrumentation_image_input_messages(
     text_block = TextBlockParam(
         type="text", text="What do you see in this image? Describe it in detail."
     )
-    input_messages = [
-        MessageParam(
-            content=[
+    input_messages: List[MessageParam] = [
+        {
+            "content": [
                 text_block,
                 image_block,
             ],
-            role="user",
-        )
+            "role": "user",
+        }
     ]
     response = client.messages.create(
         model="claude-3-5-sonnet-20240620", max_tokens=1024, messages=input_messages
@@ -1615,11 +1615,11 @@ def test_anthropic_instrumentation_tool_use_in_input(
     assistant_message: MessageParam,
 ) -> None:
     client = anthropic.Anthropic(api_key="sk-ant-fake")
-    messages = [
+    messages: List[MessageParam] = [
         {"role": "user", "content": "What is the weather like in San Francisco in Fahrenheit?"},
         assistant_message,
-        MessageParam(
-            content=[
+        {
+            "content": [
                 ToolResultBlockParam(
                     tool_use_id="toolu_01KBqpqR73qWGsMaW3vBzEjz",
                     content='{"weather": "sunny", "temperature": "75"}',
@@ -1627,8 +1627,8 @@ def test_anthropic_instrumentation_tool_use_in_input(
                     is_error=False,
                 )
             ],
-            role="user",
-        ),
+            "role": "user",
+        },
     ]
 
     client.messages.create(
@@ -1656,7 +1656,7 @@ def test_anthropic_instrumentation_tool_use_in_input(
                 },
             }
         ],
-        messages=messages,  # type: ignore
+        messages=messages,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -1693,7 +1693,7 @@ def test_anthropic_instrumentation_multiple_tool_results_in_input(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     client = anthropic.Anthropic(api_key="sk-ant-fake")
-    messages = [
+    messages: List[MessageParam] = [
         {"role": "user", "content": "Add 2+2 and get the weather in Paris."},
         {
             "role": "assistant",
@@ -1712,8 +1712,8 @@ def test_anthropic_instrumentation_multiple_tool_results_in_input(
                 ),
             ],
         },
-        MessageParam(
-            content=[
+        {
+            "content": [
                 ToolResultBlockParam(
                     tool_use_id="toolu_01AAA",
                     content="4",
@@ -1727,14 +1727,14 @@ def test_anthropic_instrumentation_multiple_tool_results_in_input(
                     is_error=False,
                 ),
             ],
-            role="user",
-        ),
+            "role": "user",
+        },
     ]
 
     client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
-        messages=messages,  # type: ignore
+        messages=messages,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()

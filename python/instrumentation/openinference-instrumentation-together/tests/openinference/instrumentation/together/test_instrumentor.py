@@ -248,8 +248,8 @@ def test_chat_stream_explicit_close(
     in_memory_span_exporter: InMemorySpanExporter,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
-        respx_mock.post("/v1/chat/completions").mock(return_value=_streaming_response())
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
         stream = Together().chat.completions.create(
             model=_MODEL,
             messages=[{"role": "user", "content": "Count from one to five."}],
@@ -278,8 +278,8 @@ def test_chat_stream_explicit_close(
 def test_chat_stream_abandoned_after_partial_iteration(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
-        respx_mock.post("/v1/chat/completions").mock(return_value=_streaming_response())
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
         stream = Together().chat.completions.create(
             model=_MODEL,
             messages=[{"role": "user", "content": "Count from one to five."}],
@@ -304,8 +304,8 @@ async def test_async_chat_stream_explicit_close(
     in_memory_span_exporter: InMemorySpanExporter,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
-        respx_mock.post("/v1/chat/completions").mock(return_value=_streaming_response())
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
         stream = await AsyncTogether().chat.completions.create(
             model=_MODEL,
             messages=[{"role": "user", "content": "Count from one to five."}],
@@ -332,8 +332,8 @@ async def test_async_chat_stream_explicit_close(
 async def test_async_chat_stream_abandoned_after_partial_iteration(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
-        respx_mock.post("/v1/chat/completions").mock(return_value=_streaming_response())
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
         stream = await AsyncTogether().chat.completions.create(
             model=_MODEL,
             messages=[{"role": "user", "content": "Count from one to five."}],
@@ -361,8 +361,8 @@ def test_chat_stream_context_manager_exit_raises(
     def _failing_close() -> None:
         raise RuntimeError("close failed")
 
-    with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
-        respx_mock.post("/v1/chat/completions").mock(return_value=_streaming_response())
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
         stream = Together().chat.completions.create(
             model=_MODEL,
             messages=[{"role": "user", "content": "Count from one to five."}],
@@ -466,10 +466,9 @@ def test_finish_reason_values(
     in_memory_span_exporter.clear()
 
     with respx.mock(
-        base_url="https://api.together.ai",
         assert_all_called=True,
     ) as respx_mock:
-        respx_mock.post("/v1/chat/completions").mock(
+        respx_mock.post(path="/v1/chat/completions").mock(
             return_value=Response(
                 status_code=200,
                 json={
@@ -513,10 +512,9 @@ def test_chat_with_multimodal_input(in_memory_span_exporter: InMemorySpanExporte
     in_memory_span_exporter.clear()
 
     with respx.mock(
-        base_url="https://api.together.ai",
         assert_all_called=True,
     ) as respx_mock:
-        respx_mock.post("/v1/chat/completions").mock(
+        respx_mock.post(path="/v1/chat/completions").mock(
             return_value=Response(
                 status_code=200,
                 json={
@@ -680,8 +678,8 @@ def test_chat_with_generator_content(
     )
     content: Iterator[Any] = (part for part in parts)
 
-    with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
-        route = respx_mock.post("/v1/chat/completions").mock(
+    with respx.mock(assert_all_called=True) as respx_mock:
+        route = respx_mock.post(path="/v1/chat/completions").mock(
             return_value=Response(
                 status_code=200,
                 json={
@@ -761,7 +759,7 @@ async def test_chat_with_raising_generator(
         if generator_location == "content"
         else failing_generator()
     )
-    with respx.mock(base_url="https://api.together.ai") as respx_mock:
+    with respx.mock() as respx_mock:
         with pytest.raises(RuntimeError) as exc_info:
             if is_async:
                 async with AsyncTogether() as client:
