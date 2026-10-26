@@ -6,13 +6,13 @@ Coordinators post this on their PR with `add_issue_comment` right after opening 
 ## Factory assessment
 
 **Fit:** <implements the issue fully | partially, and what is left>
-**Evidence:** <the failing test or probe before the change (or, for `NEEDS_BROWSER`, the cause and the steps left unverified), and the commands that passed after it>
-**Risk:** side effects <none/low/medium/high>, performance <…>, backwards compatibility <…>, from the area reviewers
+**Evidence:** <the failing test before the change, whether it uses an existing cassette, a hand-written one or a mock transport, and the commands that passed after it>
+**Risk:** side effects <none/low/medium/high>, performance <…>, backwards compatibility <…>, from the language reviewers
 **Review depth:** <glance | focused | deep>, because <reason>
 ```
 
 Review depth:
 
 - **glance**: only docs, tests or comments change.
-- **deep**: the change touches a public API, a GraphQL or OpenAPI schema, a migration, auth or permissions, or any risk is medium or high.
+- **deep**: the change touches a package's public API, the semantic conventions, `openinference-instrumentation` or `openinference-core` (which every instrumentor depends on), TraceConfig masking, or any risk is medium or high.
 - **focused**: everything else.

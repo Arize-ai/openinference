@@ -1,0 +1,18 @@
+name: openinference-dev
+description: Cloud sandbox for working on the Arize-ai/openinference monorepo (Python via uv and tox, TypeScript via pnpm).
+config:
+  type: cloud
+  networking:
+    type: limited
+    # PyPI, npm and nodejs.org for setup; the GitHub MCP server for issues and PRs.
+    allow_package_managers: true
+    allow_mcp_servers: true
+  packages:
+    type: packages
+    apt: [gh] # authenticates with the vault's GH_TOKEN credential
+    pip: [uv, tox, tox-uv] # python/tox.ini runs each package's checks through tox-uv
+    npm:
+      - pnpm@10.29.3 # matches packageManager in js/package.json
+# The sandbox ships Node 22 and has no setup hook, so factory/bootstrap.sh installs the
+# Node version in js/.nvmrc at the start of each session. There is no JDK or Go yet: the
+# bug lane takes Python and TypeScript issues only.

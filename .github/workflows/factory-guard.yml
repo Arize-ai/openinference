@@ -33,9 +33,9 @@ jobs:
             exit 1
           fi
           FILES=$(gh api --paginate "repos/$GH_REPO/pulls/$PR_NUMBER/files" --jq '.[] | .filename, (.previous_filename // empty)')
-          BLOCKED=$(printf '%s\n' "$FILES" | grep -E '^(\.github|\.cursor|\.claude|\.agents|factory|plugins)/|(^|/)(AGENTS|CLAUDE)\.md$' || true)
+          BLOCKED=$(printf '%s\n' "$FILES" | grep -E '^(\.github|\.claude|\.agents|factory)/|(^|/)(AGENTS|CLAUDE|CHANGELOG)\.md$|^(release-please-config|\.release-please-manifest)\.json$' || true)
           if [ -n "$BLOCKED" ]; then
-            echo "::error::Factory PRs may not modify automation or agent-instruction files:"
+            echo "::error::Factory PRs may not modify automation, agent-instruction or release files:"
             printf '%s\n' "$BLOCKED"
             exit 1
           fi
