@@ -120,21 +120,22 @@ The doubled prefix (`message_content.document.document.url`) matches `message_co
 
 ## External Storage for Large Media
 
-Inline base64 payloads can exceed OTLP message limits and inflate backend storage. As an **experimental** capability, instrumentations MAY externalize oversized images at capture time: upload the decoded bytes to configured blob storage and record the destination URI in the same `image.image.url` attribute where the data URI would have been recorded.
+Inline base64 payloads can exceed OTLP message limits and inflate backend storage. As an **experimental** capability, instrumentations MAY externalize oversized images and documents at capture time: upload the decoded bytes to configured blob storage and record the destination URI in the same `image.image.url` or `document.url` attribute where the data URI would have been recorded.
 
 ```
 llm.input_messages.0.message.contents.1.message_content.type = "image"
 llm.input_messages.0.message.contents.1.message_content.image.image.url = "s3://my-bucket/oi-media/3a7bd3e2....png"
+llm.input_messages.0.message.contents.2.message_content.document.document.url = "s3://my-bucket/oi-media/9f86d081....pdf"
 ```
 
-The same applies to output-message images (`llm.output_messages.*.message.contents.*.message_content.image.image.url`).
+The same applies to output-message images (`llm.output_messages.*.message.contents.*.message_content.image.image.url`), to output-message documents, and to `input.documents` / `output.documents`.
 
 Semantics:
 - Externalization applies only to base64 data URIs exceeding `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH`. Small payloads stay inline.
 - The recorded value MUST be a valid absolute URI (a scheme is required), and SHOULD be the most consumer-resolvable form available — an `https://` or signed URL where possible; storage-scheme URIs (`gs://`, `s3://`) are valid canonical references but require viewer-side resolution. Invalid values are replaced with `"__REDACTED__"`.
 - The destination URI SHOULD be content-addressed (e.g. keyed by the SHA-256 of the decoded bytes) with a mime-derived file extension, so identical content deduplicates and the URI can be computed before the upload completes.
 - If no uploader is configured or the upload cannot be accepted, the existing redaction behavior applies (`"__REDACTED__"`).
-- Hide settings (`OPENINFERENCE_HIDE_INPUT_IMAGES`) take precedence over externalization: hidden content is never uploaded.
+- Hide settings (for example `OPENINFERENCE_HIDE_INPUTS`, `OPENINFERENCE_HIDE_INPUT_MESSAGES`, `OPENINFERENCE_HIDE_INPUT_IMAGES`) take precedence over externalization: hidden content is never uploaded.
 - Consumers are responsible for dereferencing: URIs are not guaranteed to be publicly resolvable, and a consumer without access SHOULD treat the value as it would `"__REDACTED__"`.
 
 This maps directly onto the OTel GenAI semantic conventions message model: an inline data URI corresponds to a `blob` part, while an externalized reference corresponds to a `uri` part. The same blob/uri split will apply to `message_content.audio.audio.url` and `message_content.video.video.url` (`modality` `audio` or `video`) when GenAI dual-write covers those parts. Shared `TraceConfig.mask()` does not yet hide or size-gate audio or video.

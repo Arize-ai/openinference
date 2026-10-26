@@ -444,11 +444,10 @@ class TraceConfig:
             return None
         elif _is_document_url(key):
             value = value() if callable(value) else value
-            # Documents are redacted, not externalized: the blob uploader is image-only.
             if (
                 _is_base64_data_uri(value) and len(value) > self.base64_image_max_length  # type:ignore
             ):
-                value = REDACTED_VALUE
+                value = self._externalize_or_redact(key, value) if externalize else REDACTED_VALUE  # type:ignore
         elif (
             (self.hide_embedding_vectors or self.hide_embeddings_vectors)
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key

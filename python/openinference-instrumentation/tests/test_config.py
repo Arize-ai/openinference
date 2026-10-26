@@ -681,26 +681,55 @@ def test_hide_text_redacts_message_document_content(
 
 
 class _RecordingUploader:
-    def __init__(self) -> None:
+    def __init__(self, uri: str = "https://storage.example.com/blob") -> None:
+        self.uri = uri
         self.uploads: List[Blob] = []
 
     def upload(self, blob: Blob) -> Optional[str]:
         self.uploads.append(blob)
-        return "https://storage.example.com/blob"
+        return self.uri
 
     def shutdown(self, timeout_sec: float = 10.0) -> None:
         pass
 
 
+_OVERSIZED_PDF = "data:application/pdf;base64," + "A" * 200
+
+
 @pytest.mark.parametrize("key", _ALL_DOCUMENT_URL_KEYS)
-def test_base64_max_length_redacts_oversized_document_urls_without_upload(key: str) -> None:
+def test_oversized_document_url_is_externalized(key: str) -> None:
     uploader = _RecordingUploader()
     config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader)
-    over_limit = "data:application/pdf;base64," + "A" * 200
+
+    assert config.mask(key, _OVERSIZED_PDF) == "https://storage.example.com/blob"
+    assert len(uploader.uploads) == 1
+    blob = uploader.uploads[0]
+    assert blob.mime_type == "application/pdf"
+    assert blob.modality == "document"
+    assert blob.attribute_key == key
+
+
+@pytest.mark.parametrize("key", _ALL_DOCUMENT_URL_KEYS)
+def test_oversized_document_url_falls_back_to_redaction(key: str) -> None:
+    assert TraceConfig(base64_image_max_length=100).mask(key, _OVERSIZED_PDF) == REDACTED_VALUE
+
+    uploader = _RecordingUploader()
+    config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader)
+    assert config.mask(key, _OVERSIZED_PDF, externalize=False) == REDACTED_VALUE
+    assert uploader.uploads == []
+
+    invalid = TraceConfig(
+        base64_image_max_length=100, blob_uploader=_RecordingUploader(uri="not a uri")
+    )
+    assert invalid.mask(key, _OVERSIZED_PDF) == REDACTED_VALUE
+
+
+@pytest.mark.parametrize("key", _ALL_DOCUMENT_URL_KEYS)
+def test_small_or_plain_document_urls_are_not_uploaded(key: str) -> None:
+    uploader = _RecordingUploader()
+    config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader)
     under_limit = "data:application/pdf;base64," + "A" * 20
 
-    assert config.mask(key, over_limit) == REDACTED_VALUE
-    assert config.mask(key, lambda: over_limit) == REDACTED_VALUE
     assert config.mask(key, under_limit) == under_limit
     for plain in (
         "https://example.com/" + "a" * 200 + ".pdf",
@@ -708,6 +737,35 @@ def test_base64_max_length_redacts_oversized_document_urls_without_upload(key: s
         "s3://bucket/" + "a" * 200 + ".pdf",
     ):
         assert config.mask(key, plain) == plain
+    assert uploader.uploads == []
+
+
+@pytest.mark.parametrize(
+    ("key", "hiding_config"),
+    [
+        (
+            f"{SpanAttributes.INPUT_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_URL}",
+            {"hide_inputs": True},
+        ),
+        (
+            _message_document_key(
+                SpanAttributes.LLM_INPUT_MESSAGES, DocumentAttributes.DOCUMENT_URL
+            ),
+            {"hide_inputs": True},
+        ),
+        (
+            _message_document_key(
+                SpanAttributes.LLM_INPUT_MESSAGES, DocumentAttributes.DOCUMENT_URL
+            ),
+            {"hide_input_messages": True},
+        ),
+    ],
+)
+def test_hidden_document_is_not_uploaded(key: str, hiding_config: Dict[str, Any]) -> None:
+    uploader = _RecordingUploader()
+    config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader, **hiding_config)
+
+    assert config.mask(key, _OVERSIZED_PDF) is None
     assert uploader.uploads == []
 
 
