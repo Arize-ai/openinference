@@ -18,6 +18,9 @@ from ._genai_conversion import get_genai_attributes
 from ._types import OpenInferenceMimeType
 from .config import (
     TraceConfig,
+    _drop_reasoning_content_parts,
+    _is_message_content_part,
+    _LazyAttributeValue,
     mask_without_externalization,
 )
 
@@ -31,6 +34,9 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         super().__init__(wrapped)
         self._self_config = config
         self._self_important_attributes: Dict[str, AttributeValue] = {}
+        # With hide_reasoning, message content parts are held until end(): whether
+        # a part is reasoning depends on a sibling attribute that may arrive later.
+        self._self_message_content_parts: Dict[str, _LazyAttributeValue] = {}
         self._self_ended = False
 
     def set_attributes(self, attributes: "Mapping[str, AttributeValue]") -> None:
@@ -62,12 +68,26 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
                 if masked_value is not None:
                     cast(Span, self.__wrapped__).set_attribute(key, masked_value)
             return
+        if self._self_config.hide_reasoning and _is_message_content_part(key):
+            self._self_message_content_parts[key] = value
+            return
+        self._set_masked_attribute(key, value)
+
+    def _set_masked_attribute(
+        self,
+        key: str,
+        value: Union[AttributeValue, Callable[[], AttributeValue]],
+    ) -> None:
         masked_value = self._self_config.mask(key, value)
         if masked_value is not None:
             span = cast(Span, self.__wrapped__)
             span.set_attribute(key, masked_value)
 
     def end(self, end_time: Optional[int] = None) -> None:
+        parts = _drop_reasoning_content_parts(self._self_message_content_parts)
+        self._self_message_content_parts.clear()
+        for k, v in parts.items():
+            self._set_masked_attribute(k, v)
         self._self_ended = True
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
