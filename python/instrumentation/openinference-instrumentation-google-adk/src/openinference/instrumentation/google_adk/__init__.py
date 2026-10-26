@@ -147,7 +147,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _disable_existing_tracers(self) -> None:
         """Disable existing tracers to prevent double-instrumentation."""
-        from google.adk.runners import (  # type: ignore[attr-defined]
+        from google.adk.runners import (
             tracer,  # pyright: ignore[reportPrivateImportUsage]
         )
 
@@ -269,7 +269,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _restore_existing_tracers(self) -> None:
         """Restore original tracers that were disabled during instrumentation."""
-        from google.adk.runners import (  # type: ignore[attr-defined]
+        from google.adk.runners import (
             tracer,  # pyright: ignore[reportPrivateImportUsage]
         )
 
