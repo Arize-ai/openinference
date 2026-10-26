@@ -485,6 +485,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               span.setAttributes({
                 // Do not record the output data as it can be large
                 ...getEmbeddingEmbeddingsAttributes(result),
+                ...getEmbeddingUsageAttributes(result),
               });
             }
             span.setStatus({ code: SpanStatusCode.OK });
@@ -979,6 +980,19 @@ function getEmbeddingEmbeddingsAttributes(response: CreateEmbeddingResponse): At
     acc[`${indexPrefix}${SemanticConventions.EMBEDDING_VECTOR}`] = embedding.embedding;
     return acc;
   }, {});
+}
+
+/**
+ * Get the token usage of an embedding response
+ */
+function getEmbeddingUsageAttributes(response: CreateEmbeddingResponse): Attributes {
+  if (!response.usage) {
+    return {};
+  }
+  return {
+    [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: response.usage.prompt_tokens,
+    [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: response.usage.total_tokens,
+  };
 }
 
 /**

@@ -1,0 +1,15 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"What is the capital of France?"}],"model":"claude-haiku-5-5","system":"Be
+      brief.","tools":[{"name":"get_weather","input_schema":{"type":"object"}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages/count_tokens?beta=true
+  response:
+    body:
+      string: '{"input_tokens":339}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

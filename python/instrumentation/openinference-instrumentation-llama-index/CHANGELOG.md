@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.6.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.6.0...python-openinference-instrumentation-llama-index-v4.6.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **llama_index:** make spans current so OpenAIInstrumentor nests under them ([#4058](https://github.com/Arize-ai/openinference/issues/4058)) ([c8144e4](https://github.com/Arize-ai/openinference/commit/c8144e4b9ce45fb8ce86099fc2de143b4d25b239))
+
 ## [4.6.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.5.4...python-openinference-instrumentation-llama-index-v4.6.0) (2026-10-09)
 
 

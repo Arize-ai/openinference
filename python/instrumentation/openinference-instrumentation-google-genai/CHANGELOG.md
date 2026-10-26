@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.13...python-openinference-instrumentation-google-genai-v1.4.14) (2026-10-23)
+
+
+### Bug Fixes
+
+* **google-genai:** end the interactions span when the caller stops early ([#4086](https://github.com/Arize-ai/openinference/issues/4086)) ([9575faf](https://github.com/Arize-ai/openinference/commit/9575faf86b715f5d529e673fe3065adbef6d90c2))
+
 ## [1.4.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.12...python-openinference-instrumentation-google-genai-v1.4.13) (2026-10-10)
 
 

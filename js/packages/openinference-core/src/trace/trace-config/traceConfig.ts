@@ -1,5 +1,5 @@
 import { assertUnreachable, withSafety } from "../../utils";
-import { DefaultTraceConfig, traceConfigMetadata } from "./constants";
+import { traceConfigMetadata } from "./constants";
 import type {
   BooleanTraceConfigFlag,
   NumericTraceConfigFlag,
@@ -68,52 +68,49 @@ function parseOption({
  * @returns A full TraceConfig object with all options set to their final values.
  */
 export function generateTraceConfig(options?: TraceConfigOptions): TraceConfig {
-  if (options == null) {
-    return DefaultTraceConfig;
-  }
   return {
     hideLLMTools: parseOption({
-      optionValue: options.hideLLMTools,
+      optionValue: options?.hideLLMTools,
       optionMetadata: traceConfigMetadata.hideLLMTools,
     }),
     hideInputs: parseOption({
-      optionValue: options.hideInputs,
+      optionValue: options?.hideInputs,
       optionMetadata: traceConfigMetadata.hideInputs,
     }),
     hideOutputs: parseOption({
-      optionValue: options.hideOutputs,
+      optionValue: options?.hideOutputs,
       optionMetadata: traceConfigMetadata.hideOutputs,
     }),
     hideInputMessages: parseOption({
-      optionValue: options.hideInputMessages,
+      optionValue: options?.hideInputMessages,
       optionMetadata: traceConfigMetadata.hideInputMessages,
     }),
     hideOutputMessages: parseOption({
-      optionValue: options.hideOutputMessages,
+      optionValue: options?.hideOutputMessages,
       optionMetadata: traceConfigMetadata.hideOutputMessages,
     }),
     hideInputImages: parseOption({
-      optionValue: options.hideInputImages,
+      optionValue: options?.hideInputImages,
       optionMetadata: traceConfigMetadata.hideInputImages,
     }),
     hideInputText: parseOption({
-      optionValue: options.hideInputText,
+      optionValue: options?.hideInputText,
       optionMetadata: traceConfigMetadata.hideInputText,
     }),
     hideOutputText: parseOption({
-      optionValue: options.hideOutputText,
+      optionValue: options?.hideOutputText,
       optionMetadata: traceConfigMetadata.hideOutputText,
     }),
     hideEmbeddingVectors: parseOption({
-      optionValue: options.hideEmbeddingVectors,
+      optionValue: options?.hideEmbeddingVectors,
       optionMetadata: traceConfigMetadata.hideEmbeddingVectors,
     }),
     base64ImageMaxLength: parseOption({
-      optionValue: options.base64ImageMaxLength,
+      optionValue: options?.base64ImageMaxLength,
       optionMetadata: traceConfigMetadata.base64ImageMaxLength,
     }),
     hidePrompts: parseOption({
-      optionValue: options.hidePrompts,
+      optionValue: options?.hidePrompts,
       optionMetadata: traceConfigMetadata.hidePrompts,
     }),
   };
