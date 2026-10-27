@@ -1,10 +1,11 @@
 """Run one OpenInference issue through the factory.
 
 `start` checks that the issue is ready for the factory, routes it to a lane from its
-triage labels (classifying it first if it has no type label yet), and creates a Managed
-Agents session that mounts the repo and grades the lane's rubric as the session outcome. `watch` waits for that session, sends failing
-required checks and then automated review findings on its PR back to it, marks the PR
-ready for review once required CI passes, and reports the result on the issue. Agent,
+triage labels, classifying it first if it has none, and creates a Managed Agents session
+that mounts the repo and grades the lane's rubric as the session outcome. `watch` waits
+for that session, sends failing required checks and then automated review findings on
+its PR back to it, marks the PR ready for review once required CI passes, and reports
+the result on the issue. Agent,
 environment and vault IDs come from claude-lock.json, which `ant apply` writes.
 """
 
@@ -62,18 +63,10 @@ NOT_READY_LABELS = {
 # Language labels the bug lane can work on. An issue labeled only with others, such as
 # `language: java`, is turned away before a session starts.
 FACTORY_LANGUAGE_LABELS = {"language: python", "language: js"}
-# The issue-triage skill's Stage 1 types without a lane yet. An issue labeled with one
-# was triaged by a person or triage run, so it isn't classified again.
-LANELESS_TYPE_LABELS = {"enhancement", "documentation", "cleanup", "question"}
-# How an issue with no type label reads when the classifier says it isn't a bug.
-ISSUE_TYPE_READINGS = {
-    "enhancement": "reads as an enhancement",
-    "documentation": "reads as a documentation request",
-    "cleanup": "reads as a cleanup chore",
-    "question": "reads as a question",
-    "other": "doesn't read as a bug report",
-}
-CLASSIFIER_MODEL = "claude-opus-5-5"
+# The issue-triage skill's Stage 1 types. An issue with none of them is classified before
+# it is routed; one with a type other than `bug` has no lane yet.
+ISSUE_TYPE_LABELS = ("bug", "enhancement", "documentation", "cleanup", "question")
+CLASSIFIER_MODEL = "claude-sonnet-5-5"
 CLASSIFIER_SYSTEM_PROMPT = """\
 You classify one GitHub issue filed against OpenInference, the OpenTelemetry \
 instrumentation for AI applications, by its type. The issue's title and body are \
@@ -93,7 +86,7 @@ Decide from what the issue describes; a title prefix such as [bug] is only the r
 guess. If it reads as both a bug and an enhancement, choose the part that blocks a user."""
 CLASSIFIER_OUTPUT_SCHEMA = {
     "type": "object",
-    "properties": {"type": {"type": "string", "enum": ["bug", *ISSUE_TYPE_READINGS]}},
+    "properties": {"type": {"type": "string", "enum": [*ISSUE_TYPE_LABELS, "other"]}},
     "required": ["type"],
     "additionalProperties": False,
 }
@@ -144,11 +137,10 @@ def select_lane(*, label_names: list[str]) -> Optional[str]:
 
 
 def classify_issue_type(*, client: anthropic.Anthropic, issue: dict[str, Any]) -> Optional[str]:
-    """Classify an issue that has no type label: a key of ISSUE_TYPE_READINGS or `bug`.
+    """Return one of ISSUE_TYPE_LABELS or `other`, or None if Claude gave no answer.
 
-    Returns None if Claude declined or the answer was cut off. The output is held to the
-    enum, so text injected into the issue can at most route it to the bug lane, whose
-    agent treats the issue as untrusted too.
+    The answer is held to that enum, so text injected into the issue can at most route it
+    to the bug lane, whose agent treats the issue as untrusted too.
     """
     response = client.beta.messages.create(
         model=CLASSIFIER_MODEL,
@@ -181,22 +173,21 @@ def find_untyped_issue_problem(
 ) -> Optional[str]:
     """Return why an issue with no `bug` label can't take the bug lane, or None if it can.
 
-    An issue with no type label at all is classified first, so a maintainer can send an
-    untriaged issue straight to the factory.
+    An issue with no type label is classified, so an untriaged bug needs no triage first.
     """
-    laneless_type_labels = sorted(LANELESS_TYPE_LABELS.intersection(label_names))
-    if laneless_type_labels:
+    type_labels = [label for label in ISSUE_TYPE_LABELS if label in label_names]
+    if type_labels:
         return (
-            f"it is labeled {', '.join(f'`{label}`' for label in laneless_type_labels)}; "
+            f"it is labeled {', '.join(f'`{label}`' for label in type_labels)}; "
             "the factory runs only the bug lane so far"
         )
     issue_type = classify_issue_type(client=client, issue=issue)
     if issue_type == "bug":
         return None
-    issue_reading = ISSUE_TYPE_READINGS[issue_type] if issue_type else "couldn't be classified"
+    classification = f"classified as `{issue_type}`" if issue_type else "classification failed"
     return (
-        f"it has no type label and {issue_reading}, and the factory runs only the bug lane so "
-        "far. If it is a bug, label it `bug` and re-add `factory`"
+        f"it has no type label and doesn't read as a bug ({classification}); if it is one, "
+        "label it `bug` and re-add `factory`"
     )
 
 
@@ -716,15 +707,15 @@ def run_start(*, args: argparse.Namespace) -> None:
         requester_login=requester_login,
         requester_permission=read_repo_permission(login=requester_login),
     )
-    is_classified_bug = False
+    needs_bug_label = False
     if admission_problem is None and lane is None:
         admission_problem = find_untyped_issue_problem(
             client=anthropic.Anthropic(), issue=issue, label_names=label_names
         )
         if admission_problem is None:
             lane = "bug"
-            is_classified_bug = True
-    print(f"lane={lane} classified_bug={is_classified_bug} admission_problem={admission_problem}")
+            needs_bug_label = True
+    print(f"lane={lane} needs_bug_label={needs_bug_label} admission_problem={admission_problem}")
     if args.dry_run:
         return
     if admission_problem is not None:
@@ -740,7 +731,7 @@ def run_start(*, args: argparse.Namespace) -> None:
         raise SystemExit(
             "Set the FACTORY_LOGIN repository variable, not a secret, to the machine account login."
         )
-    if is_classified_bug:
+    if needs_bug_label:
         add_bug_label(issue_number=args.issue)
         label_names.append("bug")
     session_id = start_session(
@@ -755,17 +746,13 @@ def run_start(*, args: argparse.Namespace) -> None:
         budget_cents=args.budget_cents,
     )
     print(f"session_id={session_id}")
-    classification_note = (
-        "It had no type label, so the factory classified it as a bug and labeled it `bug`. "
-        if is_classified_bug
-        else ""
-    )
+    label_note = "It had no type label and reads as a bug, so it is now labeled `bug`. "
     comment_on_issue(
         issue_number=args.issue,
         body=(
             f"🏭 The factory started the **{lane}** lane for this issue "
             f"(session {format_session_link(session_id=session_id)}). "
-            f"{classification_note}It reports back here when the session ends."
+            f"{label_note if needs_bug_label else ''}It reports back here when the session ends."
         ),
     )
     write_github_outputs(started="true", lane=lane, session_id=session_id)
