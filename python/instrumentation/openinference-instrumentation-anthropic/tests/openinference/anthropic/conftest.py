@@ -18,15 +18,6 @@ def _strip_response_headers(response: Any) -> Any:
     return {**response, "headers": {}}
 
 
-def _match_query_ignoring_beta_flag(r1: Any, r2: Any) -> bool:
-    # anthropic<2.3 appends ?beta=true to client.beta.* requests and newer versions
-    # don't, so cassettes recorded with either must replay on both.
-    def query(r: Any) -> list[tuple[str, str]]:
-        return [q for q in r.query if q != ("beta", "true")]
-
-    return query(r1) == query(r2)
-
-
 @pytest.fixture(scope="session")
 def vcr_config() -> dict[str, Any]:
     return {
@@ -34,12 +25,7 @@ def vcr_config() -> dict[str, Any]:
         "before_record_response": _strip_response_headers,
         "decode_compressed_response": True,
         "record_mode": "once",
-        "match_on": ["method", "scheme", "host", "port", "path", "query_ignoring_beta_flag"],
     }
-
-
-def pytest_recording_configure(config: Any, vcr: Any) -> None:
-    vcr.register_matcher("query_ignoring_beta_flag", _match_query_ignoring_beta_flag)
 
 
 @pytest.fixture()
