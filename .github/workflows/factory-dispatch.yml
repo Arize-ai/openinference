@@ -1,8 +1,9 @@
 name: Factory Dispatch
 
-# A maintainer labels a triaged issue `factory` or dispatches it by hand. dispatch.py
-# checks that the issue is ready, picks the lane from its triage labels and starts the
-# lane's Managed Agents session. It then follows the session: CI failures and automated
+# A maintainer labels an issue `factory` or dispatches it by hand. dispatch.py checks
+# that the issue is ready, picks the lane from its triage labels (classifying an issue
+# with no type label, and labeling it `bug` if it is one) and starts the lane's Managed
+# Agents session. It then follows the session: CI failures and automated
 # review findings go back to the agent, the PR leaves draft once required CI passes, and
 # the result is reported on the issue.
 on:
@@ -37,7 +38,7 @@ jobs:
     timeout-minutes: 300
     permissions:
       contents: read
-      issues: write # comment on the issue and remove the `factory` label
+      issues: write # comment on the issue, add `bug` and remove the `factory` label
       pull-requests: read
       checks: read
       statuses: read
