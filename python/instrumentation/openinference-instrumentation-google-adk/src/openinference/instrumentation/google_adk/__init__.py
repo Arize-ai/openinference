@@ -1,3 +1,4 @@
+import contextlib
 import contextvars
 import logging
 import sys
@@ -5,10 +6,11 @@ from typing import Any, Collection, Dict, Iterator, List, Optional, Tuple, cast
 
 import wrapt
 from opentelemetry import trace as trace_api
+from opentelemetry.context import Context
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
     BaseInstrumentor,
 )
-from opentelemetry.trace import Span, Tracer, get_current_span
+from opentelemetry.trace import NonRecordingSpan, Span, Tracer, get_current_span
 from opentelemetry.util._decorator import _agnosticcontextmanager
 from wrapt import resolve_path, wrap_function_wrapper
 
@@ -35,6 +37,10 @@ _COMPACTION_MODULE = "google.adk.apps.compaction"
 
 _compaction_input_var: "contextvars.ContextVar[Optional[Dict[str, Any]]]" = contextvars.ContextVar(
     "_openinference_compaction_input", default=None
+)
+
+_suppress_workflow_span_var: "contextvars.ContextVar[bool]" = contextvars.ContextVar(
+    "_openinference_suppress_workflow_span", default=False
 )
 
 
@@ -84,6 +90,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
             wrap_function_wrapper(module, name, wrapper)
 
         self._patch_trace_call_llm()
+        self._patch_record_invocation()
         self._patch_trace_tool_call()
         self._disable_existing_tracers()
 
@@ -102,7 +109,27 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
         from openinference.instrumentation.google_adk._wrappers import _TraceCallLlm
 
-        setattr(_model_call, "tracer", self._tracer)
+        if hasattr(_model_call, "_start_call_llm_span"):
+            # google-adk >= 2.13 opens `call_llm` through `_start_call_llm_span`,
+            # which returns None under its default telemetry schema v2. Always
+            # open the span so the LLM attributes have a span of their own.
+            tracer = self._tracer
+            original_start_call_llm_span = _model_call._start_call_llm_span
+
+            def start_call_llm_span(caller_context: Context) -> Span:
+                return tracer.start_span("call_llm", context=caller_context)
+
+            self._tracer_patches.append(
+                (
+                    _model_call,
+                    "_start_call_llm_span",
+                    original_start_call_llm_span,
+                    start_call_llm_span,
+                )
+            )
+            setattr(_model_call, "_start_call_llm_span", start_call_llm_span)
+        else:
+            setattr(_model_call, "tracer", self._tracer)
         setattr(
             _model_call,
             "trace_call_llm",
@@ -120,7 +147,41 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         if callable(original := getattr(trace_call_llm, "__wrapped__", None)):
             setattr(_model_call, "trace_call_llm", original)
 
-        setattr(_model_call, "tracer", tracer)
+        if not hasattr(_model_call, "_start_call_llm_span"):
+            setattr(_model_call, "tracer", tracer)
+
+    def _patch_record_invocation(self) -> None:
+        """Drop the entrypoint `invoke_workflow` span ADK opens for a non-workflow root.
+
+        google-adk >= 2.13 replaces its `invocation` span with
+        `invoke_workflow {root agent}` even when the root is a plain agent. Our
+        `invocation` span already covers the run, so emitting it would insert a
+        CHAIN span between `invocation` and `agent_run` that earlier versions did
+        not have. A `Workflow` root keeps its span.
+        """
+        from google.adk.telemetry import _instrumentation
+        from google.adk.workflow._workflow import Workflow
+
+        original = getattr(_instrumentation, "record_invocation", None)
+        if original is None:
+            return
+
+        @contextlib.contextmanager
+        def record_invocation(*args: Any, **kwargs: Any) -> Iterator[Any]:
+            entrypoint_node = kwargs.get("entrypoint_node", args[0] if args else None)
+            with contextlib.ExitStack() as stack:
+                # Set only while ADK opens the entrypoint span, never across the yield.
+                token = _suppress_workflow_span_var.set(not isinstance(entrypoint_node, Workflow))
+                try:
+                    value = stack.enter_context(original(*args, **kwargs))
+                finally:
+                    _suppress_workflow_span_var.reset(token)
+                yield value
+
+        self._tracer_patches.append(
+            (_instrumentation, "record_invocation", original, record_invocation)
+        )
+        setattr(_instrumentation, "record_invocation", record_invocation)
 
     def _patch_trace_tool_call(self) -> None:
         """Patch the tool call tracing functionality to use our tracer."""
@@ -455,16 +516,21 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
         yield get_current_span()
 
     def start_span(self, name: str, *args: Any, **kwargs: Any) -> Span:
-        # ADK >= 2.12 opens `invoke_workflow` spans with `start_span` rather than
-        # `start_as_current_span`.
-        if isinstance(name, str) and name.startswith(_WORKFLOW_SPAN_PREFIXES):
+        # ADK >= 2.12 opens `invoke_workflow` spans with `start_span`, and
+        # ADK >= 2.13 opens `invocation` and `invoke_agent` spans that way too.
+        is_workflow = isinstance(name, str) and name.startswith(_WORKFLOW_SPAN_PREFIXES)
+        if is_workflow and not _suppress_workflow_span_var.get():
             kwargs = dict(kwargs)
             kwargs["attributes"] = {
                 **(kwargs.get("attributes") or {}),
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
             }
             return self._self_oi_tracer.start_span(name, *args, **kwargs)
-        return cast(Span, self.__wrapped__.start_span(name, *args, **kwargs))
+        if isinstance(name, str) and name.startswith(("execute_tool", "compact_events ")):
+            return self._self_oi_tracer.start_span(name, *args, **kwargs)
+        # ADK ends the span it gets back, so hand it a non-recording stand-in
+        # that parents ADK's children under the enclosing OI span.
+        return NonRecordingSpan(get_current_span(kwargs.get("context")).get_span_context())
 
 
 def _merged_tool_span_modules() -> List[Any]:
