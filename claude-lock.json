@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "origin": {
+    "base_url": "https://api.anthropic.com",
+    "organization_id": "8a57e064-47c7-4a95-ac37-2283e8cf46d5",
+    "workspace_id": "wrkspc_01P7k888EhFQdCHm2iyi4ThZ"
+  },
+  "resources": {
+    "./agents/bug-fixer.md": {
+      "kind": "agent",
+      "id": "agent_01NkFvouKXmdoiDJEycizTrs",
+      "version": "1",
+      "hash": "d3d9f8106ca41d1c91682e93a1053b8f",
+      "remote_hash": "21dfe06640a23a6ee11539b03aafc195"
+    },
+    "./agents/bug-reproducer.md": {
+      "kind": "agent",
+      "id": "agent_019Xv1pcm8agTVehjfWMEvzV",
+      "version": "1",
+      "hash": "5307e3943cd460f1de2ce99d118201bf",
+      "remote_hash": "18eebe58a5894407620416bf2d655d57"
+    },
+    "./agents/js-reviewer.md": {
+      "kind": "agent",
+      "id": "agent_01SKxZPrm1VHy1XtprKBUFin",
+      "version": "1",
+      "hash": "3fb5d72b36fac763e44a4cc72d116d9e",
+      "remote_hash": "a6e712259c63b4a64d3b54261128424a"
+    },
+    "./agents/python-reviewer.md": {
+      "kind": "agent",
+      "id": "agent_01VHrBfxeCMYPSxwkFoABZPL",
+      "version": "1",
+      "hash": "77222bb0b9593accbe87d2039199869c",
+      "remote_hash": "8e4b455921601cf11952793f333a9069"
+    },
+    "./environments/openinference-dev.yaml": {
+      "kind": "environment",
+      "id": "env_014mYFyZD5KnePiuKSY65faX",
+      "hash": "2ccced50eee91fad0a94abfcf080ec01",
+      "remote_hash": "0c019e44d46d1269300e24d8add27ef3"
+    },
+    "./vaults/github.yaml": {
+      "kind": "vault",
+      "id": "vlt_011CgTNCbY5qyzYhTWaZDr34",
+      "hash": "2b52a0459e496befbe0a8379a03ccb09",
+      "remote_hash": "2b52a0459e496befbe0a8379a03ccb09"
+    }
+  }
+}
