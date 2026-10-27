@@ -109,7 +109,10 @@ jobs:
           fi
 
           mkdir -p .scratch
-          find . -maxdepth 1 -type d ! -name '.' ! -name '.scratch' | sed 's|^\./||' | sort > .scratch/failed-testenvs.txt
+          # Each failed env uploads <testenv>.log; read the file names, not the
+          # directory layout, which differs across download-artifact versions.
+          find . -path ./.scratch -prune -o -type f -name '*.log' -print \
+            | sed -E 's|.*/||; s|\.log$||' | sort -u > .scratch/failed-testenvs.txt
 
           if [ ! -s .scratch/failed-testenvs.txt ]; then
             {

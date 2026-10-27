@@ -2,6 +2,7 @@
 import asyncio
 import gc
 import json
+import os
 import random
 import string
 from typing import (
@@ -1339,14 +1340,14 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     text_block = TextBlockParam(
         type="text", text="What do you see in this image? Describe it in detail."
     )
-    input_messages = [
-        MessageParam(
-            content=[
+    input_messages: List[MessageParam] = [
+        {
+            "content": [
                 text_block,
                 image_block,
             ],
-            role="user",
-        )
+            "role": "user",
+        }
     ]
     system_prompt = [
         TextBlockParam(type="text", text="You are an expert image analyst."),
@@ -1474,14 +1475,14 @@ def test_anthropic_instrumentation_image_input_messages(
     text_block = TextBlockParam(
         type="text", text="What do you see in this image? Describe it in detail."
     )
-    input_messages = [
-        MessageParam(
-            content=[
+    input_messages: List[MessageParam] = [
+        {
+            "content": [
                 text_block,
                 image_block,
             ],
-            role="user",
-        )
+            "role": "user",
+        }
     ]
     response = client.messages.create(
         model="claude-3-5-sonnet-20240620", max_tokens=1024, messages=input_messages
@@ -1615,11 +1616,11 @@ def test_anthropic_instrumentation_tool_use_in_input(
     assistant_message: MessageParam,
 ) -> None:
     client = anthropic.Anthropic(api_key="sk-ant-fake")
-    messages = [
+    messages: List[MessageParam] = [
         {"role": "user", "content": "What is the weather like in San Francisco in Fahrenheit?"},
         assistant_message,
-        MessageParam(
-            content=[
+        {
+            "content": [
                 ToolResultBlockParam(
                     tool_use_id="toolu_01KBqpqR73qWGsMaW3vBzEjz",
                     content='{"weather": "sunny", "temperature": "75"}',
@@ -1627,8 +1628,8 @@ def test_anthropic_instrumentation_tool_use_in_input(
                     is_error=False,
                 )
             ],
-            role="user",
-        ),
+            "role": "user",
+        },
     ]
 
     client.messages.create(
@@ -1656,7 +1657,7 @@ def test_anthropic_instrumentation_tool_use_in_input(
                 },
             }
         ],
-        messages=messages,  # type: ignore
+        messages=messages,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -1693,7 +1694,7 @@ def test_anthropic_instrumentation_multiple_tool_results_in_input(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     client = anthropic.Anthropic(api_key="sk-ant-fake")
-    messages = [
+    messages: List[MessageParam] = [
         {"role": "user", "content": "Add 2+2 and get the weather in Paris."},
         {
             "role": "assistant",
@@ -1712,8 +1713,8 @@ def test_anthropic_instrumentation_multiple_tool_results_in_input(
                 ),
             ],
         },
-        MessageParam(
-            content=[
+        {
+            "content": [
                 ToolResultBlockParam(
                     tool_use_id="toolu_01AAA",
                     content="4",
@@ -1727,14 +1728,14 @@ def test_anthropic_instrumentation_multiple_tool_results_in_input(
                     is_error=False,
                 ),
             ],
-            role="user",
-        ),
+            "role": "user",
+        },
     ]
 
     client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
-        messages=messages,  # type: ignore
+        messages=messages,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -2177,7 +2178,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
         city: str
         country: str
 
-    client = Anthropic(api_key="sk-ant-fake")
+    client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = "What is the capital of France? Respond with the city and country."
 
     result = client.beta.messages.parse(
@@ -2208,7 +2209,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_01CiA3YpvhgJbxvaoofq8Pri",
+            "id": "msg_011CgT5DrvrKhegyg3eGVYMQ",
             "container": None,
             "content": [
                 {
@@ -2233,7 +2234,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
                 "output_tokens": 12,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
@@ -2292,7 +2293,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
         city: str
         country: str
 
-    client = AsyncAnthropic(api_key="sk-ant-fake")
+    client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = "What is the capital of France? Respond with the city and country."
 
     result = await client.beta.messages.parse(
@@ -2323,7 +2324,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_01YLp4hqTXinnBRQ6MMipuy9",
+            "id": "msg_011CgT5E5MTacFuEhN4puJiF",
             "container": None,
             "content": [
                 {
@@ -2348,7 +2349,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
                 "output_tokens": 12,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
@@ -3277,7 +3278,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """Test instrumentation for beta.messages.create() method."""
-    client = Anthropic(api_key="sk-ant-fake")
+    client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = (
         "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
     )
@@ -3307,7 +3308,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_01CTGDX2snWfHvBwB14u8Y8P",
+            "id": "msg_011CgT5DZpCJaUx8Qu9MubMz",
             "container": None,
             "content": [
                 {
@@ -3332,7 +3333,7 @@ def test_anthropic_instrumentation_beta_messages_create(
                 "output_tokens": 36,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
@@ -3369,7 +3370,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """Test instrumentation for async beta.messages.create() method."""
-    client = AsyncAnthropic(api_key="sk-ant-fake")
+    client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = (
         "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
     )
@@ -3399,12 +3400,12 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_015FWiTX6PfnwN4UdLKKAEar",
+            "id": "msg_011CgT5DhkwauptB1yG7aE5q",
             "container": None,
             "content": [
                 {
                     "citations": None,
-                    "text": "Here is the key information extracted:\n\n- **Event:** Meeting\n- **Date:** March 15th\n- **Time:** 2:00 PM",
+                    "text": "## Key Information Extracted\n\n| Field | Detail |\n|-------|--------|\n| **Event** | Meeting |\n| **Date** | March 15th |\n| **Time** | 2:00 PM |\n\n**Summary:** A meeting is planned for **March 15th at 2 PM**.",
                     "type": "text",
                 }
             ],
@@ -3421,10 +3422,10 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
                 "inference_geo": "global",
                 "input_tokens": 28,
                 "iterations": None,
-                "output_tokens": 36,
+                "output_tokens": 72,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
