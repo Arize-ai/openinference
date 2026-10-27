@@ -4,7 +4,7 @@ interactions:
       brief.","tools":[{"name":"get_weather","input_schema":{"type":"object"}}]}'
     headers: {}
     method: POST
-    uri: https://api.anthropic.com/v1/messages/count_tokens?beta=true
+    uri: https://api.anthropic.com/v1/messages/count_tokens
   response:
     body:
       string: '{"input_tokens":339}'

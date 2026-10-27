@@ -2,6 +2,7 @@
 import asyncio
 import gc
 import json
+import os
 import random
 import string
 from typing import (
@@ -2177,7 +2178,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
         city: str
         country: str
 
-    client = Anthropic(api_key="sk-ant-fake")
+    client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = "What is the capital of France? Respond with the city and country."
 
     result = client.beta.messages.parse(
@@ -2208,7 +2209,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_01CiA3YpvhgJbxvaoofq8Pri",
+            "id": "msg_011CgT5DrvrKhegyg3eGVYMQ",
             "container": None,
             "content": [
                 {
@@ -2233,7 +2234,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
                 "output_tokens": 12,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
@@ -2292,7 +2293,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
         city: str
         country: str
 
-    client = AsyncAnthropic(api_key="sk-ant-fake")
+    client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = "What is the capital of France? Respond with the city and country."
 
     result = await client.beta.messages.parse(
@@ -2323,7 +2324,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_01YLp4hqTXinnBRQ6MMipuy9",
+            "id": "msg_011CgT5E5MTacFuEhN4puJiF",
             "container": None,
             "content": [
                 {
@@ -2348,7 +2349,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
                 "output_tokens": 12,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
@@ -3277,7 +3278,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """Test instrumentation for beta.messages.create() method."""
-    client = Anthropic(api_key="sk-ant-fake")
+    client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = (
         "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
     )
@@ -3307,7 +3308,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_01CTGDX2snWfHvBwB14u8Y8P",
+            "id": "msg_011CgT5DZpCJaUx8Qu9MubMz",
             "container": None,
             "content": [
                 {
@@ -3332,7 +3333,7 @@ def test_anthropic_instrumentation_beta_messages_create(
                 "output_tokens": 36,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
@@ -3369,7 +3370,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """Test instrumentation for async beta.messages.create() method."""
-    client = AsyncAnthropic(api_key="sk-ant-fake")
+    client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = (
         "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
     )
@@ -3399,12 +3400,12 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_015FWiTX6PfnwN4UdLKKAEar",
+            "id": "msg_011CgT5DhkwauptB1yG7aE5q",
             "container": None,
             "content": [
                 {
                     "citations": None,
-                    "text": "Here is the key information extracted:\n\n- **Event:** Meeting\n- **Date:** March 15th\n- **Time:** 2:00 PM",
+                    "text": "## Key Information Extracted\n\n| Field | Detail |\n|-------|--------|\n| **Event** | Meeting |\n| **Date** | March 15th |\n| **Time** | 2:00 PM |\n\n**Summary:** A meeting is planned for **March 15th at 2 PM**.",
                     "type": "text",
                 }
             ],
@@ -3421,10 +3422,10 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
                 "inference_geo": "global",
                 "input_tokens": 28,
                 "iterations": None,
-                "output_tokens": 36,
+                "output_tokens": 72,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
