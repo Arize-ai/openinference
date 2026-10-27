@@ -224,7 +224,11 @@ def _get_content_block_attributes(
         else:
             yield from _get_image_attributes(prefix, _require(block, "source"))
     elif block_type == "document":
-        yield from _get_document_attributes(prefix, block, hide_images)
+        if _get(_require(block, "source"), "type") == "content":
+            # nested content blocks, which the document attributes cannot represent
+            yield from _get_generic_content_block_attributes(prefix, block, hide_images)
+        else:
+            yield from _get_document_attributes(prefix, block)
     elif block_type == "compaction":
         # The summary of the compacted context, which stands in for it from here on. Its content
         # is null if compaction failed.
@@ -275,17 +279,9 @@ def _get_image_attributes(prefix: str, source: Any) -> Iterator[Tuple[str, Any]]
     yield f"{prefix}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", url
 
 
-def _get_document_attributes(
-    prefix: str,
-    block: Any,
-    hide_images: bool = False,
-) -> Iterator[Tuple[str, Any]]:
+def _get_document_attributes(prefix: str, block: Any) -> Iterator[Tuple[str, Any]]:
     source = _require(block, "source")
     source_type = _get(source, "type")
-    if source_type == "content":
-        # nested content blocks, which the document attributes cannot represent
-        yield from _get_generic_content_block_attributes(prefix, block, hide_images)
-        return
     if source_type == "base64":
         media_type = _require(source, "media_type")
         leaves = {
