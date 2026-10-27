@@ -1,7 +1,7 @@
 import os
 from contextlib import suppress
 from random import random
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import pytest
 from opentelemetry.sdk import trace as trace_sdk
@@ -696,6 +696,10 @@ class _RecordingUploader:
 _OVERSIZED_PDF = "data:application/pdf;base64," + "A" * 200
 
 
+def _oversized_pdf(lazy: bool) -> Union[str, Callable[[], str]]:
+    return (lambda: _OVERSIZED_PDF) if lazy else _OVERSIZED_PDF
+
+
 def _never_evaluated() -> str:
     raise AssertionError("a hidden attribute's lazy value was evaluated")
 
@@ -705,7 +709,7 @@ def _never_evaluated() -> str:
 def test_oversized_document_url_is_externalized(key: str, lazy: bool) -> None:
     uploader = _RecordingUploader()
     config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader)
-    value = (lambda: _OVERSIZED_PDF) if lazy else _OVERSIZED_PDF
+    value = _oversized_pdf(lazy)
 
     assert config.mask(key, value) == "https://storage.example.com/blob"
     assert len(uploader.uploads) == 1
@@ -718,7 +722,7 @@ def test_oversized_document_url_is_externalized(key: str, lazy: bool) -> None:
 @pytest.mark.parametrize("lazy", [False, True])
 @pytest.mark.parametrize("key", _ALL_DOCUMENT_URL_KEYS)
 def test_oversized_document_url_falls_back_to_redaction(key: str, lazy: bool) -> None:
-    value = (lambda: _OVERSIZED_PDF) if lazy else _OVERSIZED_PDF
+    value = _oversized_pdf(lazy)
     assert TraceConfig(base64_image_max_length=100).mask(key, value) == REDACTED_VALUE
 
     uploader = _RecordingUploader()
