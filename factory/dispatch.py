@@ -5,8 +5,9 @@ triage labels, classifying it first if it has none, and creates a Managed Agents
 that mounts the repo and grades the lane's rubric as the session outcome. `watch` waits
 for that session, sends failing required checks and then automated review findings on
 its PR back to it, marks the PR ready for review once required CI passes, and reports
-the result on the issue. Agent,
-environment and vault IDs come from claude-lock.json, which `ant apply` writes.
+the result on the issue. It acts on GitHub as the factory's GitHub App, through tokens
+github_app.py mints. Agent, environment and vault IDs come from claude-lock.json, which
+`ant apply` writes.
 """
 
 import argparse
@@ -20,6 +21,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import anthropic
+from github_app import GitHubAppToken
 
 FACTORY_DIR = Path(__file__).resolve().parent
 LOCK_FILE_PATH = FACTORY_DIR / "claude-lock.json"
@@ -116,13 +118,13 @@ def run_gh(*args: str, token: Optional[str] = None, input_text: Optional[str] = 
     return completed_process.stdout
 
 
-def comment_on_issue(*, issue_number: int, body: str) -> None:
-    run_gh("issue", "comment", str(issue_number), "--body-file", "-", input_text=body)
+def comment_on_issue(*, issue_number: int, body: str, token: Optional[str]) -> None:
+    run_gh("issue", "comment", str(issue_number), "--body-file", "-", token=token, input_text=body)
 
 
-def remove_factory_label(*, issue_number: int) -> None:
+def remove_factory_label(*, issue_number: int, token: Optional[str]) -> None:
     """Remove the trigger label so a maintainer can re-add it to run the issue again."""
-    run_gh("issue", "edit", str(issue_number), "--remove-label", FACTORY_LABEL)
+    run_gh("issue", "edit", str(issue_number), "--remove-label", FACTORY_LABEL, token=token)
 
 
 def add_bug_label(*, issue_number: int) -> None:
@@ -283,6 +285,18 @@ def read_lock_id(*, lock: dict[str, Any], lock_key: str) -> str:
         ) from None
 
 
+def create_app_token(*, client: anthropic.Anthropic, repo: str) -> GitHubAppToken:
+    """Return the factory app's token source, which keeps the GitHub vault's credentials current."""
+    lock = json.loads(LOCK_FILE_PATH.read_text())
+    return GitHubAppToken(
+        client=client,
+        repo=repo,
+        vault_id=read_lock_id(lock=lock, lock_key=VAULT_LOCK_KEY),
+        app_client_id=os.environ["FACTORY_APP_CLIENT_ID"],
+        app_private_key=os.environ["FACTORY_APP_PRIVATE_KEY"],
+    )
+
+
 def read_vault_ids(*, lock: dict[str, Any]) -> list[str]:
     return [read_lock_id(lock=lock, lock_key=VAULT_LOCK_KEY)]
 
@@ -366,15 +380,18 @@ def read_latest_idle_event(*, client: anthropic.Anthropic, session_id: str) -> O
 def wait_for_session(
     *,
     client: anthropic.Anthropic,
+    app_token: GitHubAppToken,
     session_id: str,
     previous_idle_event_id: Optional[str],
     deadline: float,
 ) -> tuple[Optional[Any], Optional[Any]]:
     """Wait until the session is idle after `previous_idle_event_id` with its outcome graded.
 
-    Returns the session and its latest idle event, or (None, None) at the deadline.
+    Keeps the session's GitHub token current while it works. Returns the session and its
+    latest idle event, or (None, None) at the deadline.
     """
     while time.monotonic() < deadline:
+        app_token.refresh()
         session = client.beta.sessions.retrieve(session_id)
         if session.status == "terminated":
             return session, None
@@ -537,7 +554,7 @@ def watch_session(
     session_id: str,
     lane: str,
     issue_number: int,
-    factory_github_token: str,
+    app_token: GitHubAppToken,
     watch_minutes: int,
 ) -> str:
     """Drive the session's PR through CI and automated review; return the issue comment.
@@ -547,7 +564,11 @@ def watch_session(
     """
     deadline = time.monotonic() + watch_minutes * 60
     session, idle_event = wait_for_session(
-        client=client, session_id=session_id, previous_idle_event_id=None, deadline=deadline
+        client=client,
+        app_token=app_token,
+        session_id=session_id,
+        previous_idle_event_id=None,
+        deadline=deadline,
     )
     if session is None:
         return (
@@ -595,7 +616,7 @@ def watch_session(
                 if pr["isDraft"]:
                     # Leaving draft is what starts the automated code review.
                     ready_at = datetime.now(timezone.utc) - timedelta(minutes=1)
-                    run_gh("pr", "ready", str(pr["number"]), token=factory_github_token)
+                    run_gh("pr", "ready", str(pr["number"]), token=app_token.refresh())
                 if not wait_for_review_run(
                     head_sha=pr["headRefOid"], created_after=ready_at, deadline=deadline
                 ):
@@ -624,6 +645,8 @@ def watch_session(
                 )
                 run_outcome = "flawed"
                 break
+            # The token may have expired while the session sat idle waiting for CI.
+            app_token.refresh()
             client.beta.sessions.events.send(
                 session_id,
                 events=[
@@ -633,6 +656,7 @@ def watch_session(
             previous_head_sha = pr["headRefOid"]
             session, idle_event = wait_for_session(
                 client=client,
+                app_token=app_token,
                 session_id=session_id,
                 previous_idle_event_id=idle_event.id,
                 deadline=deadline,
@@ -707,10 +731,11 @@ def run_start(*, args: argparse.Namespace) -> None:
         requester_login=requester_login,
         requester_permission=read_repo_permission(login=requester_login),
     )
+    client = anthropic.Anthropic()
     needs_bug_label = False
     if admission_problem is None and lane is None:
         admission_problem = find_untyped_issue_problem(
-            client=anthropic.Anthropic(), issue=issue, label_names=label_names
+            client=client, issue=issue, label_names=label_names
         )
         if admission_problem is None:
             lane = "bug"
@@ -718,29 +743,33 @@ def run_start(*, args: argparse.Namespace) -> None:
     print(f"lane={lane} needs_bug_label={needs_bug_label} admission_problem={admission_problem}")
     if args.dry_run:
         return
+    app_token = create_app_token(client=client, repo=args.repo)
     if admission_problem is not None:
         comment_on_issue(
-            issue_number=args.issue, body=f"🏭 The factory skipped this issue: {admission_problem}."
+            issue_number=args.issue,
+            body=f"🏭 The factory skipped this issue: {admission_problem}.",
+            token=app_token.refresh(),
         )
-        remove_factory_label(issue_number=args.issue)
+        remove_factory_label(issue_number=args.issue, token=app_token.refresh())
         write_github_outputs(started="false")
         return
 
-    factory_login = os.environ.get("FACTORY_LOGIN", "")
+    factory_login = os.environ.get("FACTORY_GITHUB_LOGIN", "")
     if not factory_login:
         raise SystemExit(
-            "Set the FACTORY_LOGIN repository variable, not a secret, to the machine account login."
+            "Set the FACTORY_GITHUB_LOGIN repository variable, not a secret, to the factory "
+            "app's bot login, such as openinference-factory[bot]."
         )
     if needs_bug_label:
         add_bug_label(issue_number=args.issue)
         label_names.append("bug")
     session_id = start_session(
-        client=anthropic.Anthropic(),
+        client=client,
         lane=lane,
         repo=args.repo,
         issue_number=args.issue,
         label_names=label_names,
-        github_token=os.environ["FACTORY_GITHUB_TOKEN"],
+        github_token=app_token.refresh(),
         git_author_name=factory_login,
         git_author_email=read_noreply_email(login=factory_login),
         budget_cents=args.budget_cents,
@@ -754,6 +783,7 @@ def run_start(*, args: argparse.Namespace) -> None:
             f"(session {format_session_link(session_id=session_id)}). "
             f"{label_note if needs_bug_label else ''}It reports back here when the session ends."
         ),
+        token=app_token.refresh(),
     )
     write_github_outputs(started="true", lane=lane, session_id=session_id)
 
@@ -764,18 +794,29 @@ def run_watch(*, args: argparse.Namespace) -> None:
         f"🏭 The factory lost track of session {format_session_link(session_id=args.session_id)}; "
         "see the workflow run."
     )
+    client = anthropic.Anthropic()
+    app_token: Optional[GitHubAppToken] = None
     try:
+        app_token = create_app_token(client=client, repo=args.repo)
+        app_token.follow_session(session_id=args.session_id)
         report = watch_session(
-            client=anthropic.Anthropic(),
+            client=client,
             session_id=args.session_id,
             lane=args.lane,
             issue_number=args.issue,
-            factory_github_token=os.environ["FACTORY_GITHUB_TOKEN"],
+            app_token=app_token,
             watch_minutes=args.watch_minutes,
         )
     finally:
-        comment_on_issue(issue_number=args.issue, body=report)
-        remove_factory_label(issue_number=args.issue)
+        # The workflow's failure report skips a failed watch step, so when the app's
+        # credentials are what failed, report with GITHUB_TOKEN instead.
+        report_token: Optional[str] = None
+        try:
+            report_token = app_token.refresh() if app_token is not None else None
+        except Exception as error:
+            print(f"::warning::Reporting with GITHUB_TOKEN; the app token failed: {error}")
+        comment_on_issue(issue_number=args.issue, body=report, token=report_token)
+        remove_factory_label(issue_number=args.issue, token=report_token)
 
 
 def main() -> None:

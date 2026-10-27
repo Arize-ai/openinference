@@ -103,7 +103,7 @@ Each part does one job, so it can be changed and tested on its own:
 ### Trust boundaries
 
 - **Untrusted input.** Issue text, issue comments, CI logs, review comments and fetched web pages can come from anyone. Agents treat them as evidence, never as instructions. The kickoff message carries only the issue number, its labels and the commit identity. To classify an issue with no type label, `dispatch.py` sends its title and body to Claude with no tools and an answer held to the triage types, so injected text can at most send the issue to the bug lane.
-- **The sandbox.** It holds the factory token for the whole session, so code there can push any branch. The token belongs to a non-admin machine account that a ruleset limits to `factory/**` branches. Factory Guard recognizes factory PRs by their `factory/` branch; it will also match by author once the factory has its own machine account.
+- **The sandbox.** Code there can use the factory app's token for the whole session, so it can push any branch the token reaches. The token is an installation token of the `openinference-factory` GitHub App, limited to this repo with Contents, Issues and Pull requests write, and a ruleset limits the app to `factory/**` branches. The app's private key stays in GitHub Actions. Factory Guard recognizes factory PRs by their `factory/` branch or by the app as their author.
 - **Human gates.** Only someone with write access can start a run, by labeling or dispatching an issue, and only a human merges.
 
 A maintainer's part is to label an issue and review PRs once they leave draft, as deeply as the assessment's review depth says. To run an issue again, re-add the `factory` label.
@@ -129,6 +129,7 @@ rubrics/         outcome rubrics, inlined by dispatch.py (not ant resources)
 assessment.md    the fit-and-risk comment coordinators post on their PR
 bootstrap.sh     run by each coordinator first: `make install-js` for JS, a capability report
 dispatch.py      admits an issue, starts its session, and follows it to a reviewable PR
+github_app.py    mints the GitHub App's installation tokens and keeps sessions and the vault supplied
 ```
 
 `claude-lock.json` is state, not config: Factory Sync keeps it on the `factory-state` branch and pulls it before each plan, apply and dispatch. Don't commit it to `main`.
@@ -137,16 +138,16 @@ dispatch.py      admits an issue, starts its session, and follows it to a review
 
 1. Create a dedicated Claude workspace for the factory, install `ant` (>= 1.40.0), and authenticate against it. Any API key in that workspace can start sessions that use the vault's GitHub credential, so keep the shared `ANTHROPIC_API_KEY` in a different workspace.
 2. Create the repo secret `FACTORY_ANTHROPIC_API_KEY` with a key from that workspace, then run `Factory Sync` from `main` with **Run workflow**. Its first apply creates every resource and the `factory-state` branch.
-3. Create a machine GitHub account, owned through a team email, and add it to the `Arize-ai` org as a member with Write on this repo, not admin, so branch protection applies to it. It has to be a member: fine-grained tokens can't write to an org's repos for outside collaborators. Give it a fine-grained PAT with `Arize-ai` as the resource owner, only this repo, Contents, Issues and Pull requests read/write, and no Workflows access; an org owner approves it. Code in the sandbox can use this token for the whole session.
-4. Add the PAT to the vault (its ID is in `claude-lock.json` on `factory-state`, under `./vaults/github.yaml`) as a `static_bearer` credential for `https://api.githubcopilot.com/mcp/`, using `ant beta:vaults:credentials create`. Add the same PAT again as an `environment_variable` credential named `GH_TOKEN`, with `allowed_hosts: [api.github.com]` and header injection only, so `gh` in the sandbox can call GitHub; the sandbox sees only a placeholder. The machine account then authors factory PRs, so any maintainer can approve them.
-5. Create the repo secret `FACTORY_GITHUB_TOKEN` with the PAT. Create the repo variable `FACTORY_LOGIN` with the machine account's login: CI uses it to recognize factory PRs, and the factory commits as that account's noreply address. Add the login to the `allowlist` in `.github/workflows/cla.yaml`.
-6. Add a ruleset that keeps the machine account on `factory/**` branches: target all branches except `factory/**`, restrict creations, updates and deletions, and give bypass to the maintainers' teams and every app that pushes branches here (Dependabot, the Claude app, the release-please token's owner, the CLA Assistant, which pushes `cla`, and GitHub Actions, which pushes `factory-state`). Watch its rule insights after enabling it for anything it blocks by mistake.
+3. Install the `openinference-factory` GitHub App on the `Arize-ai` org for this repo only. It needs the repository permissions Contents, Issues and Pull requests read/write, plus the mandatory Metadata read, and nothing else: no Workflows, Actions or Administration. Generate a private key for it. Use an app of its own rather than Phoenix's: a private key can mint tokens for every repo its app is installed on.
+4. Create the repo variable `FACTORY_APP_CLIENT_ID` with the app's Client ID and the repo secret `FACTORY_APP_PRIVATE_KEY` with the private key. For each session, `dispatch.py` mints an installation token limited to this repo and those three permissions, mounts it as the session's repo token, and writes it to the GitHub vault as a `static_bearer` credential for `https://api.githubcopilot.com/mcp/` and a header-only `GH_TOKEN` environment-variable credential for `api.github.com`, creating them on first use. Tokens last an hour, so it re-mints one while it follows a session. The sandbox sees only placeholders. The app then authors factory PRs, so any maintainer can approve them.
+5. Create the repo variable `FACTORY_GITHUB_LOGIN` with the app's bot login, `openinference-factory[bot]`. CI uses it to recognize factory PRs, and the factory commits as its noreply address. The login is in the `allowlist` in `.github/workflows/cla.yaml` and in `allowed_bots` in `.github/workflows/claude-code-review.yml`.
+6. Add a ruleset that keeps the app on `factory/**` branches: target all branches except `factory/**`, restrict creations, updates and deletions, and give bypass to the maintainers' teams and every other app that pushes branches here (Dependabot, the Claude app, the release-please token's owner, the CLA Assistant, which pushes `cla`, and GitHub Actions, which pushes `factory-state`), but not the factory app. Watch its rule insights after enabling it for anything it blocks by mistake.
 7. Create the `factory` label, and make `Factory Guard` a required check on `main`.
 8. Try it on one small issue with **Run workflow** on `Factory Dispatch`.
 
 ## Switching workspaces
 
-Resources live in the workspace of `FACTORY_ANTHROPIC_API_KEY`, so `claude-lock.json` IDs point at the old one after the key changes. Delete the `factory-state` branch, then run `Factory Sync` from `main` with **Run workflow**; it recreates every resource in the new workspace. Then repeat step 4 for the new GitHub vault.
+Resources live in the workspace of `FACTORY_ANTHROPIC_API_KEY`, so `claude-lock.json` IDs point at the old one after the key changes. Delete the `factory-state` branch, then run `Factory Sync` from `main` with **Run workflow**; it recreates every resource in the new workspace. The first session creates the new GitHub vault's credentials.
 
 ## Changing an agent
 
