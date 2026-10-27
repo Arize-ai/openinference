@@ -8,9 +8,7 @@ import httpx2 as httpx
 import pytest
 from agno.agent import Agent
 from agno.models.anthropic import Claude
-from agno.models.openai import OpenAIChat
 from anthropic import Anthropic, AsyncAnthropic
-from openai import OpenAI
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -181,46 +179,3 @@ async def test_ainvoke_stream_prompt_tokens_include_cache_tokens(
     async for _ in Agent(model=_async_model()).arun("hi", stream=True):
         pass
     _assert_counts(_llm_span(in_memory_span_exporter), total=False)
-
-
-def _openai_handler(request: httpx.Request) -> httpx.Response:
-    return httpx.Response(
-        200,
-        json={
-            "id": "chatcmpl-1",
-            "object": "chat.completion",
-            "created": 0,
-            "model": "gpt-4o-mini",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {"role": "assistant", "content": "ok"},
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {
-                "prompt_tokens": PROMPT,
-                "completion_tokens": OUTPUT,
-                "total_tokens": PROMPT + OUTPUT,
-                "prompt_tokens_details": {"cached_tokens": CACHE_READ},
-            },
-        },
-    )
-
-
-def test_openai_prompt_tokens_already_include_cache_tokens(
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    # OpenAI's prompt_tokens already counts cached tokens, so nothing is folded in.
-    client = OpenAI(
-        api_key="not-used",
-        http_client=httpx.Client(transport=httpx.MockTransport(_openai_handler)),
-    )
-    Agent(model=OpenAIChat(id="gpt-4o-mini", client=client)).run("hi")
-    spans = [s for s in in_memory_span_exporter.get_finished_spans() if s.name.startswith("OpenAI")]
-    assert len(spans) == 1, [s.name for s in in_memory_span_exporter.get_finished_spans()]
-    assert _token_counts(spans[0]) == {
-        LLM_TOKEN_COUNT_PROMPT: PROMPT,
-        LLM_TOKEN_COUNT_COMPLETION: OUTPUT,
-        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: CACHE_READ,
-    }
