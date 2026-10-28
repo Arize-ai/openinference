@@ -88,8 +88,8 @@ class _WithTracer(ABC):
 
 def _parse_args(
     signature: Signature,
-    *args: Tuple[Any],
-    **kwargs: Mapping[str, Any],
+    *args: Any,
+    **kwargs: Any,
 ) -> Dict[str, Any]:
     bound_args = signature.bind(*args, **kwargs)
     request_data: Dict[str, Any] = {}
