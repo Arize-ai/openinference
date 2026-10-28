@@ -5,9 +5,10 @@ import type {
   SDKResultSuccess,
   SDKSystemMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { Attributes } from "@opentelemetry/api";
+import type { Attributes, Context } from "@opentelemetry/api";
 
 import {
+  getAttributesFromContext,
   getInputAttributes,
   getOutputAttributes,
   safelyJSONStringify,
@@ -165,4 +166,24 @@ export function formatPromptAttributes(prompt: unknown): Attributes {
     return getInputAttributes(prompt);
   }
   return getInputAttributes({ value: safelyJSONStringify(prompt) ?? "", mimeType: MimeType.JSON });
+}
+
+/**
+ * Whether the caller already scoped this span to a session through
+ * OpenInference context (`setSession`). OITracer applies that `session.id`
+ * when the span starts, and a caller-supplied session id always wins over the
+ * SDK's own `session_id`, so message processing must not overwrite it.
+ */
+export function hasContextSessionId(ctx: Context): boolean {
+  return getAttributesFromContext(ctx)[SemanticConventions.SESSION_ID] !== undefined;
+}
+
+/**
+ * Returns the attributes without `session.id`, for spans whose session id
+ * came from context.
+ */
+export function withoutSessionId(attributes: Attributes): Attributes {
+  const rest = { ...attributes };
+  delete rest[SemanticConventions.SESSION_ID];
+  return rest;
 }
