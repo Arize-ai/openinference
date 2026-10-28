@@ -25,12 +25,13 @@ new OITracer({ tracer, traceConfig? })
 When you call `withSpan(fn, options)`:
 
 - If you pass `options.tracer` as a raw OTel `Tracer`, it is auto-wrapped via
-  `wrapTracer()` into an `OITracer` (no masking, just context propagation).
+  `wrapTracer()` into an `OITracer` (context propagation, and masking from
+  the `OPENINFERENCE_*` environment variables only).
 - If you pass `options.tracer` as an `OITracer`, it is used directly (with its
   masking config).
 - If you omit `options.tracer`, `getTracer()` creates an `OITracer` from the
-  current global tracer provider when the wrapped function is invoked (no
-  masking).
+  current global tracer provider when the wrapped function is invoked (masking
+  from the `OPENINFERENCE_*` environment variables only).
 
 Agent decision rule:
 
@@ -38,7 +39,7 @@ Agent decision rule:
 - Pass an explicit `OITracer` when you need masking or want the wrapper pinned
   to a specific tracer configuration
 
-To enable masking, you must explicitly create an `OITracer` with a `traceConfig`:
+To configure masking in code, create an `OITracer` with a `traceConfig`:
 
 ```typescript
 import { trace } from "@opentelemetry/api";

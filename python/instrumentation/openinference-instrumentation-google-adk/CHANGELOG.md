@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.0.4...python-openinference-instrumentation-google-adk-v1.0.5) (2026-10-23)
+
+
+### Bug Fixes
+
+* **google_adk:** support google-adk 2.12 workflow spans and runners tracer export ([#4069](https://github.com/Arize-ai/openinference/issues/4069)) ([72337a1](https://github.com/Arize-ai/openinference/commit/72337a1e8e88572bd7cb5fc1031749b12bc6af87))
+
 ## [1.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.0.3...python-openinference-instrumentation-google-adk-v1.0.4) (2026-10-09)
 
 
