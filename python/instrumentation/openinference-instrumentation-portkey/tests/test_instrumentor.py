@@ -1,6 +1,6 @@
 import json
 from importlib import import_module
-from typing import Any, Iterator
+from typing import Any, Dict, Iterator, Tuple
 
 import pytest
 import respx
@@ -719,3 +719,92 @@ async def test_async_chat_completion_with_failing_generator_content(
             )
     assert not route.called
     _assert_failed_content_span(in_memory_span_exporter)
+
+
+_STREAM_CHUNKS: Tuple[Dict[str, Any], ...] = (
+    {"choices": [{"index": 0, "delta": {"role": "assistant", "content": "Hel"}}]},
+    {
+        "choices": [{"index": 0, "delta": {"content": "lo"}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 8, "completion_tokens": 2, "total_tokens": 10},
+    },
+)
+
+
+def _stream_response() -> Response:
+    """A chat-completion SSE stream, read by both the portkey_ai 1.x and 2.x clients."""
+    header = {
+        "id": "chatcmpl-stream",
+        "object": "chat.completion.chunk",
+        "created": 1750000000,
+        "model": "gpt-4o-mini",
+    }
+    events = "".join(f"data: {json.dumps({**header, **chunk})}\n\n" for chunk in _STREAM_CHUNKS)
+    return Response(
+        status_code=200,
+        headers={"content-type": "text/event-stream"},
+        content=(events + "data: [DONE]\n\n").encode(),
+    )
+
+
+def _assert_stream_span(in_memory_span_exporter: InMemorySpanExporter, name: str) -> None:
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == name
+    assert span.status.status_code == trace_api.StatusCode.OK
+    attributes = dict(span.attributes or {})
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == "Hello"
+    assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4o-mini"
+    assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes[f"{output_message}.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
+    assert attributes[f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}"] == "Hello"
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 8
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 2
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 10
+
+
+def test_chat_completion_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    portkey = import_module("portkey_ai")
+    client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
+        stream = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "hi"}],
+            stream=True,
+        )
+        # The span stays open until the stream is read.
+        assert not in_memory_span_exporter.get_finished_spans()
+        text = "".join(chunk.choices[0].delta.content or "" for chunk in stream if chunk.choices)
+    assert text == "Hello"
+    _assert_stream_span(in_memory_span_exporter, "Completions")
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    portkey = import_module("portkey_ai")
+    client = portkey.AsyncPortkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
+        stream = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "hi"}],
+            stream=True,
+        )
+        assert not in_memory_span_exporter.get_finished_spans()
+        text = "".join(
+            [chunk.choices[0].delta.content or "" async for chunk in stream if chunk.choices]
+        )
+    assert text == "Hello"
+    _assert_stream_span(in_memory_span_exporter, "AsyncCompletions")

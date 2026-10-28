@@ -17,6 +17,7 @@ from openinference.instrumentation.portkey._request_attributes_extractor import 
 from openinference.instrumentation.portkey._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
+from openinference.instrumentation.portkey._stream import _Stream
 from openinference.instrumentation.portkey._utils import (
     _finish_tracing,
     _materialize_content_iterables,
@@ -31,6 +32,11 @@ _UNSET_SENTINEL_NAMES = frozenset({"NotGiven", "Omit"})
 
 def _is_set(value: Any) -> bool:
     return value is not None and type(value).__name__ not in _UNSET_SENTINEL_NAMES
+
+
+def _is_stream(response: Any) -> bool:
+    # portkey_ai 1.x streams through a chunk generator, 2.x returns openai's Stream
+    return hasattr(response, "__next__") or hasattr(response, "__anext__")
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -157,6 +163,10 @@ class _CompletionsWrapper(_WithTracer):
                 )
                 span.finish_tracing(status=status)
                 raise
+            if _is_stream(response):
+                # The span is finished by the stream wrapper once the stream
+                # is fully consumed (or its context manager exits).
+                return _Stream(response, span, self._response_extractor, request_parameters)
             try:
                 _finish_tracing(
                     with_span=span,
@@ -224,6 +234,10 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 )
                 span.finish_tracing(status=status)
                 raise
+            if _is_stream(response):
+                # The span is finished by the stream wrapper once the stream
+                # is fully consumed (or its context manager exits).
+                return _Stream(response, span, self._response_extractor, request_parameters)
             try:
                 _finish_tracing(
                     with_span=span,
