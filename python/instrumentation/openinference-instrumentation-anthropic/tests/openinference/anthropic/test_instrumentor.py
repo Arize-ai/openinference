@@ -2,6 +2,7 @@
 import asyncio
 import gc
 import json
+import os
 import random
 import string
 from typing import (
@@ -1339,14 +1340,14 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     text_block = TextBlockParam(
         type="text", text="What do you see in this image? Describe it in detail."
     )
-    input_messages = [
-        MessageParam(
-            content=[
+    input_messages: List[MessageParam] = [
+        {
+            "content": [
                 text_block,
                 image_block,
             ],
-            role="user",
-        )
+            "role": "user",
+        }
     ]
     system_prompt = [
         TextBlockParam(type="text", text="You are an expert image analyst."),
@@ -1474,14 +1475,14 @@ def test_anthropic_instrumentation_image_input_messages(
     text_block = TextBlockParam(
         type="text", text="What do you see in this image? Describe it in detail."
     )
-    input_messages = [
-        MessageParam(
-            content=[
+    input_messages: List[MessageParam] = [
+        {
+            "content": [
                 text_block,
                 image_block,
             ],
-            role="user",
-        )
+            "role": "user",
+        }
     ]
     response = client.messages.create(
         model="claude-3-5-sonnet-20240620", max_tokens=1024, messages=input_messages
@@ -1615,11 +1616,11 @@ def test_anthropic_instrumentation_tool_use_in_input(
     assistant_message: MessageParam,
 ) -> None:
     client = anthropic.Anthropic(api_key="sk-ant-fake")
-    messages = [
+    messages: List[MessageParam] = [
         {"role": "user", "content": "What is the weather like in San Francisco in Fahrenheit?"},
         assistant_message,
-        MessageParam(
-            content=[
+        {
+            "content": [
                 ToolResultBlockParam(
                     tool_use_id="toolu_01KBqpqR73qWGsMaW3vBzEjz",
                     content='{"weather": "sunny", "temperature": "75"}',
@@ -1627,8 +1628,8 @@ def test_anthropic_instrumentation_tool_use_in_input(
                     is_error=False,
                 )
             ],
-            role="user",
-        ),
+            "role": "user",
+        },
     ]
 
     client.messages.create(
@@ -1656,7 +1657,7 @@ def test_anthropic_instrumentation_tool_use_in_input(
                 },
             }
         ],
-        messages=messages,  # type: ignore
+        messages=messages,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -1679,7 +1680,144 @@ def test_anthropic_instrumentation_tool_use_in_input(
         attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
         == '{"weather": "sunny", "temperature": "75"}'
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
+    assert (
+        attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALL_ID}")
+        == "toolu_01KBqpqR73qWGsMaW3vBzEjz"
+    )
+
+
+@pytest.mark.vcr
+def test_anthropic_instrumentation_multiple_tool_results_in_input(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = anthropic.Anthropic(api_key="sk-ant-fake")
+    messages: List[MessageParam] = [
+        {"role": "user", "content": "Add 2+2 and get the weather in Paris."},
+        {
+            "role": "assistant",
+            "content": [
+                ToolUseBlockParam(
+                    id="toolu_01AAA",
+                    input={"expression": "2+2"},
+                    name="calculator",
+                    type="tool_use",
+                ),
+                ToolUseBlockParam(
+                    id="toolu_02BBB",
+                    input={"city": "Paris"},
+                    name="get_weather",
+                    type="tool_use",
+                ),
+            ],
+        },
+        {
+            "content": [
+                ToolResultBlockParam(
+                    tool_use_id="toolu_01AAA",
+                    content="4",
+                    type="tool_result",
+                    is_error=False,
+                ),
+                ToolResultBlockParam(
+                    tool_use_id="toolu_02BBB",
+                    content="sunny, 22C",
+                    type="tool_result",
+                    is_error=False,
+                ),
+            ],
+            "role": "user",
+        },
+    ]
+
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=messages,
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    attributes = dict(spans[0].attributes or {})
+
+    # each tool_result block becomes its own tool message, in order
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALL_ID}") == "toolu_01AAA"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}") == "4"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_TOOL_CALL_ID}") == "toolu_02BBB"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny, 22C"
+
+
+def test_anthropic_instrumentation_mixed_tool_results_and_text_in_input(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(_message_handler)
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[
+            {"role": "user", "content": "Add 2+2 and get the weather in Paris."},
+            {
+                "role": "assistant",
+                "content": [
+                    ToolUseBlockParam(
+                        id="toolu_01AAA",
+                        input={"expression": "2+2"},
+                        name="calculator",
+                        type="tool_use",
+                    ),
+                    ToolUseBlockParam(
+                        id="toolu_02BBB",
+                        input={"city": "Paris"},
+                        name="get_weather",
+                        type="tool_use",
+                    ),
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    ToolResultBlockParam(
+                        tool_use_id="toolu_01AAA", content="4", type="tool_result"
+                    ),
+                    ToolResultBlockParam(
+                        tool_use_id="toolu_02BBB", content="sunny, 22C", type="tool_result"
+                    ),
+                    {"type": "text", "text": "Now answer in one sentence."},
+                ],
+            },
+        ],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    # the tool messages come first, matching the order the API requires
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALL_ID}") == "toolu_01AAA"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}") == "4"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_TOOL_CALL_ID}") == "toolu_02BBB"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny, 22C"
+    # then the rest of the message, with contiguous content-part indices
+    prefix = f"{LLM_INPUT_MESSAGES}.4"
+    assert attributes.get(f"{prefix}.{MESSAGE_ROLE}") == "user"
+    assert f"{prefix}.{MESSAGE_TOOL_CALL_ID}" not in attributes
+    assert attributes.get(f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.get(f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "Now answer in one sentence."
+    )
+    assert [key for key in attributes if key.startswith(f"{prefix}.{MESSAGE_CONTENTS}.")] == [
+        f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}",
+        f"{prefix}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}",
+    ]
+    assert f"{LLM_INPUT_MESSAGES}.5.{MESSAGE_ROLE}" not in attributes
 
 
 @pytest.mark.vcr
@@ -2040,7 +2178,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
         city: str
         country: str
 
-    client = Anthropic(api_key="sk-ant-fake")
+    client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = "What is the capital of France? Respond with the city and country."
 
     result = client.beta.messages.parse(
@@ -2071,7 +2209,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_01CiA3YpvhgJbxvaoofq8Pri",
+            "id": "msg_011CgT5DrvrKhegyg3eGVYMQ",
             "container": None,
             "content": [
                 {
@@ -2096,7 +2234,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
                 "output_tokens": 12,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
@@ -2155,7 +2293,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
         city: str
         country: str
 
-    client = AsyncAnthropic(api_key="sk-ant-fake")
+    client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = "What is the capital of France? Respond with the city and country."
 
     result = await client.beta.messages.parse(
@@ -2186,7 +2324,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_01YLp4hqTXinnBRQ6MMipuy9",
+            "id": "msg_011CgT5E5MTacFuEhN4puJiF",
             "container": None,
             "content": [
                 {
@@ -2211,7 +2349,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
                 "output_tokens": 12,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
@@ -3140,7 +3278,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """Test instrumentation for beta.messages.create() method."""
-    client = Anthropic(api_key="sk-ant-fake")
+    client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = (
         "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
     )
@@ -3170,7 +3308,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_01CTGDX2snWfHvBwB14u8Y8P",
+            "id": "msg_011CgT5DZpCJaUx8Qu9MubMz",
             "container": None,
             "content": [
                 {
@@ -3195,7 +3333,7 @@ def test_anthropic_instrumentation_beta_messages_create(
                 "output_tokens": 36,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
@@ -3232,7 +3370,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """Test instrumentation for async beta.messages.create() method."""
-    client = AsyncAnthropic(api_key="sk-ant-fake")
+    client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
     input_message = (
         "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
     )
@@ -3262,12 +3400,12 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_015FWiTX6PfnwN4UdLKKAEar",
+            "id": "msg_011CgT5DhkwauptB1yG7aE5q",
             "container": None,
             "content": [
                 {
                     "citations": None,
-                    "text": "Here is the key information extracted:\n\n- **Event:** Meeting\n- **Date:** March 15th\n- **Time:** 2:00 PM",
+                    "text": "## Key Information Extracted\n\n| Field | Detail |\n|-------|--------|\n| **Event** | Meeting |\n| **Date** | March 15th |\n| **Time** | 2:00 PM |\n\n**Summary:** A meeting is planned for **March 15th at 2 PM**.",
                     "type": "text",
                 }
             ],
@@ -3284,10 +3422,10 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
                 "inference_geo": "global",
                 "input_tokens": 28,
                 "iterations": None,
-                "output_tokens": 36,
+                "output_tokens": 72,
                 "server_tool_use": None,
                 "service_tier": "standard",
-                "speed": None,
+                "speed": "standard",
             },
         },
     )
@@ -3528,10 +3666,22 @@ def test_token_count_total_matches_across_paths(
     )
 
 
-def test_token_count_total_omitted_when_all_counts_are_zero() -> None:
-    """A zero total is skipped rather than emitted as 0, like the other counts."""
-    usage = Usage(input_tokens=0, output_tokens=0)
-    assert LLM_TOKEN_COUNT_TOTAL not in dict(_get_llm_token_counts(usage))
+def test_zero_token_counts_are_recorded() -> None:
+    """A reported 0 is a count, so it is recorded, except for the cache and reasoning counts."""
+    from anthropic.types import OutputTokensDetails
+
+    usage = Usage(
+        input_tokens=0,
+        output_tokens=0,
+        cache_read_input_tokens=0,
+        cache_creation_input_tokens=0,
+        output_tokens_details=OutputTokensDetails(thinking_tokens=0),
+    )
+    assert dict(_get_llm_token_counts(usage)) == {
+        LLM_TOKEN_COUNT_PROMPT: 0,
+        LLM_TOKEN_COUNT_COMPLETION: 0,
+        LLM_TOKEN_COUNT_TOTAL: 0,
+    }
 
 
 def test_cache_token_details_match_between_streaming_and_non_streaming(
@@ -3967,6 +4117,7 @@ MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_A
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT

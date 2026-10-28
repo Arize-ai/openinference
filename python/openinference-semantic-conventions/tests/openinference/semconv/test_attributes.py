@@ -116,6 +116,7 @@ class TestSpanAttributes:
                 },
             },
             "input": {
+                "documents": SpanAttributes.INPUT_DOCUMENTS,
                 "images": SpanAttributes.INPUT_IMAGES,
                 "mime_type": SpanAttributes.INPUT_MIME_TYPE,
                 "value": SpanAttributes.INPUT_VALUE,
@@ -183,6 +184,7 @@ class TestSpanAttributes:
                 }
             },
             "output": {
+                "documents": SpanAttributes.OUTPUT_DOCUMENTS,
                 "images": SpanAttributes.OUTPUT_IMAGES,
                 "mime_type": SpanAttributes.OUTPUT_MIME_TYPE,
                 "value": SpanAttributes.OUTPUT_VALUE,
@@ -287,6 +289,7 @@ class TestMessageContentAttributes:
             "message_content": {
                 "audio": MessageContentAttributes.MESSAGE_CONTENT_AUDIO,
                 "data": MessageContentAttributes.MESSAGE_CONTENT_DATA,
+                "document": MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT,
                 "encrypted_content": MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT,
                 "id": MessageContentAttributes.MESSAGE_CONTENT_ID,
                 "image": MessageContentAttributes.MESSAGE_CONTENT_IMAGE,
@@ -339,7 +342,7 @@ class TestVideoAttributes:
 class TestDocumentAttributes:
     """Tests for DocumentAttributes namespace structure.
 
-    Verifies that document-related attributes (content, id, metadata, score)
+    Verifies that document-related attributes (content, id, metadata, mime_type, name, score, url)
     from flat spans are properly organized under the document namespace.
     """
 
@@ -350,7 +353,10 @@ class TestDocumentAttributes:
                 "content": DocumentAttributes.DOCUMENT_CONTENT,
                 "id": DocumentAttributes.DOCUMENT_ID,
                 "metadata": DocumentAttributes.DOCUMENT_METADATA,
+                "mime_type": DocumentAttributes.DOCUMENT_MIME_TYPE,
+                "name": DocumentAttributes.DOCUMENT_NAME,
                 "score": DocumentAttributes.DOCUMENT_SCORE,
+                "url": DocumentAttributes.DOCUMENT_URL,
             }
         }
 

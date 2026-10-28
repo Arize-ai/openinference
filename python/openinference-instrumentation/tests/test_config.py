@@ -1,7 +1,7 @@
 import os
 from contextlib import suppress
 from random import random
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 import pytest
 from opentelemetry.sdk import trace as trace_sdk
@@ -12,6 +12,7 @@ from opentelemetry.trace import TracerProvider, use_span
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
+    Blob,
     Message,
     OITracer,
     TraceConfig,
@@ -695,3 +696,265 @@ def test_base64_image_max_length_applies_to_span_level_images(
     assert config.mask(key, under_limit) == under_limit
     # A plain URI is never subject to the base64 budget.
     assert config.mask(key, "https://example.com/a.png") == "https://example.com/a.png"
+
+
+def _message_document_key(messages_prefix: str, leaf: str) -> str:
+    return (
+        f"{messages_prefix}.0.message.contents.1."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT}.{leaf}"
+    )
+
+
+_ALL_DOCUMENT_URL_KEYS = [
+    _message_document_key(SpanAttributes.LLM_INPUT_MESSAGES, DocumentAttributes.DOCUMENT_URL),
+    _message_document_key(SpanAttributes.LLM_OUTPUT_MESSAGES, DocumentAttributes.DOCUMENT_URL),
+    f"{SpanAttributes.INPUT_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_URL}",
+    f"{SpanAttributes.OUTPUT_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_URL}",
+]
+
+
+@pytest.mark.parametrize(
+    ("documents_prefix", "other_prefix", "hiding_config"),
+    [
+        (SpanAttributes.INPUT_DOCUMENTS, SpanAttributes.OUTPUT_DOCUMENTS, {"hide_inputs": True}),
+        (SpanAttributes.OUTPUT_DOCUMENTS, SpanAttributes.INPUT_DOCUMENTS, {"hide_outputs": True}),
+    ],
+)
+def test_hiding_applies_to_span_level_documents(
+    documents_prefix: str,
+    other_prefix: str,
+    hiding_config: Dict[str, Any],
+) -> None:
+    config = TraceConfig(**hiding_config)
+    url = "https://example.com/report.pdf"
+    for leaf, value in [
+        (DocumentAttributes.DOCUMENT_URL, url),
+        (DocumentAttributes.DOCUMENT_CONTENT, "quarterly numbers"),
+        (DocumentAttributes.DOCUMENT_MIME_TYPE, "application/pdf"),
+        (DocumentAttributes.DOCUMENT_NAME, "report.pdf"),
+        (DocumentAttributes.DOCUMENT_ID, "doc-1"),
+    ]:
+        assert config.mask(f"{documents_prefix}.0.{leaf}", value) is None
+    assert config.mask(documents_prefix, "[]") is None
+    other_key = f"{other_prefix}.0.{DocumentAttributes.DOCUMENT_URL}"
+    assert config.mask(other_key, url) == url
+    assert config.mask(f"{documents_prefix}et.0.{DocumentAttributes.DOCUMENT_URL}", url) == url
+    assert TraceConfig().mask(f"{documents_prefix}.0.{DocumentAttributes.DOCUMENT_URL}", url) == url
+
+
+@pytest.mark.parametrize(
+    ("messages_prefix", "hiding_config"),
+    [
+        (SpanAttributes.LLM_INPUT_MESSAGES, {"hide_inputs": True}),
+        (SpanAttributes.LLM_INPUT_MESSAGES, {"hide_input_messages": True}),
+        (SpanAttributes.LLM_OUTPUT_MESSAGES, {"hide_outputs": True}),
+        (SpanAttributes.LLM_OUTPUT_MESSAGES, {"hide_output_messages": True}),
+    ],
+)
+def test_hiding_messages_removes_message_content_documents(
+    messages_prefix: str,
+    hiding_config: Dict[str, Any],
+) -> None:
+    config = TraceConfig(**hiding_config)
+    for leaf in (DocumentAttributes.DOCUMENT_URL, DocumentAttributes.DOCUMENT_CONTENT):
+        assert config.mask(_message_document_key(messages_prefix, leaf), "x") is None
+
+
+@pytest.mark.parametrize(
+    ("messages_prefix", "other_prefix", "hiding_config"),
+    [
+        (
+            SpanAttributes.LLM_INPUT_MESSAGES,
+            SpanAttributes.LLM_OUTPUT_MESSAGES,
+            {"hide_input_text": True},
+        ),
+        (
+            SpanAttributes.LLM_OUTPUT_MESSAGES,
+            SpanAttributes.LLM_INPUT_MESSAGES,
+            {"hide_output_text": True},
+        ),
+    ],
+)
+def test_hide_text_redacts_message_document_content(
+    messages_prefix: str,
+    other_prefix: str,
+    hiding_config: Dict[str, Any],
+) -> None:
+    config = TraceConfig(**hiding_config)
+    content = "the contract says"
+    content_key = _message_document_key(messages_prefix, DocumentAttributes.DOCUMENT_CONTENT)
+
+    assert config.mask(content_key, content) == REDACTED_VALUE
+    other_key = _message_document_key(other_prefix, DocumentAttributes.DOCUMENT_CONTENT)
+    assert config.mask(other_key, content) == content
+    name_key = _message_document_key(messages_prefix, DocumentAttributes.DOCUMENT_NAME)
+    assert config.mask(name_key, "contract.txt") == "contract.txt"
+    assert TraceConfig().mask(content_key, content) == content
+
+
+class _RecordingUploader:
+    def __init__(self, uri: str = "https://storage.example.com/blob") -> None:
+        self.uri = uri
+        self.uploads: List[Blob] = []
+
+    def upload(self, blob: Blob) -> Optional[str]:
+        self.uploads.append(blob)
+        return self.uri
+
+    def shutdown(self, timeout_sec: float = 10.0) -> None:
+        pass
+
+
+_OVERSIZED_PDF = "data:application/pdf;base64," + "A" * 200
+
+
+def _oversized_pdf(lazy: bool) -> Union[str, Callable[[], str]]:
+    return (lambda: _OVERSIZED_PDF) if lazy else _OVERSIZED_PDF
+
+
+def _never_evaluated() -> str:
+    raise AssertionError("a hidden attribute's lazy value was evaluated")
+
+
+@pytest.mark.parametrize("lazy", [False, True])
+@pytest.mark.parametrize("key", _ALL_DOCUMENT_URL_KEYS)
+def test_oversized_document_url_is_externalized(key: str, lazy: bool) -> None:
+    uploader = _RecordingUploader()
+    config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader)
+    value = _oversized_pdf(lazy)
+
+    assert config.mask(key, value) == "https://storage.example.com/blob"
+    assert len(uploader.uploads) == 1
+    blob = uploader.uploads[0]
+    assert blob.mime_type == "application/pdf"
+    assert blob.modality == "document"
+    assert blob.attribute_key == key
+
+
+@pytest.mark.parametrize("lazy", [False, True])
+@pytest.mark.parametrize("key", _ALL_DOCUMENT_URL_KEYS)
+def test_oversized_document_url_falls_back_to_redaction(key: str, lazy: bool) -> None:
+    value = _oversized_pdf(lazy)
+    assert TraceConfig(base64_image_max_length=100).mask(key, value) == REDACTED_VALUE
+
+    uploader = _RecordingUploader()
+    config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader)
+    assert config.mask(key, value, externalize=False) == REDACTED_VALUE
+    assert uploader.uploads == []
+
+    invalid = TraceConfig(
+        base64_image_max_length=100, blob_uploader=_RecordingUploader(uri="not a uri")
+    )
+    assert invalid.mask(key, value) == REDACTED_VALUE
+
+
+@pytest.mark.parametrize("key", _ALL_DOCUMENT_URL_KEYS)
+def test_small_or_plain_document_urls_are_not_uploaded(key: str) -> None:
+    uploader = _RecordingUploader()
+    config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader)
+    under_limit = "data:application/pdf;base64," + "A" * 20
+
+    assert config.mask(key, under_limit) == under_limit
+    for plain in (
+        "https://example.com/" + "a" * 200 + ".pdf",
+        "gs://bucket/" + "a" * 200 + ".pdf",
+        "s3://bucket/" + "a" * 200 + ".pdf",
+        "data:text/plain," + "x" * 200 + ";base64,hello",
+    ):
+        assert config.mask(key, plain) == plain
+    assert uploader.uploads == []
+
+
+@pytest.mark.parametrize(
+    ("key", "hiding_config"),
+    [
+        (
+            f"{SpanAttributes.INPUT_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_URL}",
+            {"hide_inputs": True},
+        ),
+        (
+            _message_document_key(
+                SpanAttributes.LLM_INPUT_MESSAGES, DocumentAttributes.DOCUMENT_URL
+            ),
+            {"hide_inputs": True},
+        ),
+        (
+            _message_document_key(
+                SpanAttributes.LLM_INPUT_MESSAGES, DocumentAttributes.DOCUMENT_URL
+            ),
+            {"hide_input_messages": True},
+        ),
+        (
+            f"{SpanAttributes.OUTPUT_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_URL}",
+            {"hide_outputs": True},
+        ),
+        (
+            _message_document_key(
+                SpanAttributes.LLM_OUTPUT_MESSAGES, DocumentAttributes.DOCUMENT_URL
+            ),
+            {"hide_outputs": True},
+        ),
+        (
+            _message_document_key(
+                SpanAttributes.LLM_OUTPUT_MESSAGES, DocumentAttributes.DOCUMENT_URL
+            ),
+            {"hide_output_messages": True},
+        ),
+    ],
+)
+def test_hidden_document_is_not_uploaded(key: str, hiding_config: Dict[str, Any]) -> None:
+    uploader = _RecordingUploader()
+    config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader, **hiding_config)
+
+    assert config.mask(key, _OVERSIZED_PDF) is None
+    assert config.mask(key, _never_evaluated) is None
+    assert uploader.uploads == []
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        f"{SpanAttributes.INPUT_DOCUMENTS}.0.custom_document.url",
+        f"{SpanAttributes.OUTPUT_DOCUMENTS}.0.custom_document.url",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.contents.1."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT}.foo.{DocumentAttributes.DOCUMENT_URL}",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.contents.1."
+        f"custom_{MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT}.{DocumentAttributes.DOCUMENT_URL}",
+        f"custom.{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.contents.1."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT}.{DocumentAttributes.DOCUMENT_URL}",
+    ],
+)
+def test_lookalike_document_url_keys_are_untouched(key: str) -> None:
+    uploader = _RecordingUploader()
+    config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader)
+
+    assert config.mask(key, _OVERSIZED_PDF) == _OVERSIZED_PDF
+    assert uploader.uploads == []
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.contents.1."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT}.foo.{DocumentAttributes.DOCUMENT_CONTENT}",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.contents.1."
+        f"custom_{MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT}.{DocumentAttributes.DOCUMENT_CONTENT}",
+    ],
+)
+def test_lookalike_document_content_keys_are_not_redacted(key: str) -> None:
+    assert TraceConfig(hide_input_text=True).mask(key, "the contract says") == "the contract says"
+
+
+def test_document_rules_leave_images_unchanged() -> None:
+    uploader = _RecordingUploader()
+    config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader, hide_input_text=True)
+    image_key = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.contents.0."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    )
+    oversized_image = "data:image/png;base64," + "A" * 200
+    non_image_data_uri = "data:application/pdf;base64," + "A" * 200
+
+    assert config.mask(image_key, oversized_image) == "https://storage.example.com/blob"
+    assert len(uploader.uploads) == 1
+    assert config.mask(image_key, non_image_data_uri) == non_image_data_uri

@@ -19,6 +19,7 @@ from opentelemetry.context import (
     set_value,
 )
 from opentelemetry.util.types import AttributeValue
+from typing_extensions import TypeGuard
 
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -83,9 +84,9 @@ OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS = "OPENINFERENCE_HIDE_LLM_INVOCATIO
 OPENINFERENCE_HIDE_LLM_TOOLS = "OPENINFERENCE_HIDE_LLM_TOOLS"
 # Hides the tool definitions advertised to the LLM
 OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS"
-# Hides input value, input images & messages
+# Hides input value, input images, input documents & messages
 OPENINFERENCE_HIDE_OUTPUTS = "OPENINFERENCE_HIDE_OUTPUTS"
-# Hides output value, output images & messages
+# Hides output value, output images, output documents & messages
 OPENINFERENCE_HIDE_INPUT_MESSAGES = "OPENINFERENCE_HIDE_INPUT_MESSAGES"
 # Hides all input messages
 OPENINFERENCE_HIDE_OUTPUT_MESSAGES = "OPENINFERENCE_HIDE_OUTPUT_MESSAGES"
@@ -93,9 +94,9 @@ OPENINFERENCE_HIDE_OUTPUT_MESSAGES = "OPENINFERENCE_HIDE_OUTPUT_MESSAGES"
 OPENINFERENCE_HIDE_INPUT_IMAGES = "OPENINFERENCE_HIDE_INPUT_IMAGES"
 # Hides images from input messages and the span-level input.images
 OPENINFERENCE_HIDE_INPUT_TEXT = "OPENINFERENCE_HIDE_INPUT_TEXT"
-# Hides text from input messages
+# Hides text from input messages, including message document content
 OPENINFERENCE_HIDE_OUTPUT_TEXT = "OPENINFERENCE_HIDE_OUTPUT_TEXT"
-# Hides text from output messages
+# Hides text from output messages, including message document content
 OPENINFERENCE_HIDE_EMBEDDING_VECTORS = "OPENINFERENCE_HIDE_EMBEDDING_VECTORS"
 # Deprecated: use OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS instead
 OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS = "OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS"
@@ -103,10 +104,10 @@ OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS = "OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS"
 OPENINFERENCE_HIDE_EMBEDDINGS_TEXT = "OPENINFERENCE_HIDE_EMBEDDINGS_TEXT"
 # Hides embedding text
 OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH"
-# Limits characters of a base64 encoding of an image
+# Limits characters of a base64 data URI in an image or document url
 OPENINFERENCE_BLOB_UPLOADER = "OPENINFERENCE_BLOB_UPLOADER"
 # Names a BlobUploader registered under the
-# "openinference_blob_uploader" entry-point group; base64 images exceeding
+# "openinference_blob_uploader" entry-point group; base64 images and documents exceeding
 # base64_image_max_length are handed to it and the attribute records the
 # returned URI
 OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS"
@@ -177,7 +178,7 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_INPUTS,
         },
     )
-    """Hides input value, input images & messages"""
+    """Hides input value, input images, input documents & messages"""
     hide_outputs: Optional[bool] = field(
         default=None,
         metadata={
@@ -185,7 +186,7 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_OUTPUTS,
         },
     )
-    """Hides output value, output images & messages"""
+    """Hides output value, output images, output documents & messages"""
     hide_input_messages: Optional[bool] = field(
         default=None,
         metadata={
@@ -217,7 +218,7 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_INPUT_TEXT,
         },
     )
-    """Hides text from input messages"""
+    """Hides text from input messages, including message document content"""
     hide_output_text: Optional[bool] = field(
         default=None,
         metadata={
@@ -225,7 +226,7 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_OUTPUT_TEXT,
         },
     )
-    """Hides text from output messages"""
+    """Hides text from output messages, including message document content"""
     hide_embedding_vectors: Optional[bool] = field(
         default=None,
         metadata={
@@ -292,12 +293,12 @@ class TraceConfig:
             "default_value": DEFAULT_BASE64_IMAGE_MAX_LENGTH,
         },
     )
-    """Limits characters of a base64 encoding of an image"""
+    """Limits characters of a base64 data URI in an image or document url"""
     blob_uploader: Optional[BlobUploader] = field(
         default=None,
         metadata={"env_var": None, "default_value": None},
     )
-    """Uploads base64 images exceeding base64_image_max_length
+    """Uploads base64 images and documents exceeding base64_image_max_length
     to external storage and records the destination URI in the span attribute
     instead of redacting. OpenInference ships no implementation — pass any
     object satisfying the BlobUploader protocol, or set the
@@ -410,13 +411,19 @@ class TraceConfig:
         elif (
             self.hide_input_text
             and SpanAttributes.LLM_INPUT_MESSAGES in key
-            and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
+            and (
+                MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
+                or _is_message_document_content(key)
+            )
         ):
             value = REDACTED_VALUE
         elif (
             self.hide_output_text
             and SpanAttributes.LLM_OUTPUT_MESSAGES in key
-            and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
+            and (
+                MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
+                or _is_message_document_content(key)
+            )
         ):
             value = REDACTED_VALUE
         elif (
@@ -445,6 +452,16 @@ class TraceConfig:
                 is_base64_url(value) and len(value) > self.base64_image_max_length  # type:ignore
             ):
                 value = self._externalize_or_redact(key, value) if externalize else REDACTED_VALUE  # type:ignore
+        elif self.hide_inputs and _is_within(key, SpanAttributes.INPUT_DOCUMENTS):
+            return None
+        elif self.hide_outputs and _is_within(key, SpanAttributes.OUTPUT_DOCUMENTS):
+            return None
+        elif _is_document_url(key):
+            value = value() if callable(value) else value
+            if (
+                _is_base64_data_uri(value) and len(value) > self.base64_image_max_length  # type: ignore[operator]
+            ):
+                value = self._externalize_or_redact(key, value) if externalize else REDACTED_VALUE
         elif (
             (self.hide_embedding_vectors or self.hide_embeddings_vectors)
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key
@@ -612,6 +629,38 @@ def _is_image_url(key: str) -> bool:
     return key.endswith(ImageAttributes.IMAGE_URL) and (
         _is_input_image(key) or _is_output_image(key)
     )
+
+
+def _is_message_document_leaf(key: str, leaf: str) -> bool:
+    """True for a leaf of a message content document in input or output messages, e.g.
+    ``llm.input_messages.0.message.contents.1.message_content.document.document.url``."""
+    return (
+        _is_within(key, SpanAttributes.LLM_INPUT_MESSAGES)
+        or _is_within(key, SpanAttributes.LLM_OUTPUT_MESSAGES)
+    ) and key.endswith(f".{MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT}.{leaf}")
+
+
+def _is_message_document_content(key: str) -> bool:
+    return _is_message_document_leaf(key, DocumentAttributes.DOCUMENT_CONTENT)
+
+
+def _is_document_url(key: str) -> bool:
+    """True for the document.url leaf of a message content document, or of a span-level
+    input.documents / output.documents entry."""
+    if _is_message_document_leaf(key, DocumentAttributes.DOCUMENT_URL):
+        return True
+    return (
+        _is_within(key, SpanAttributes.INPUT_DOCUMENTS)
+        or _is_within(key, SpanAttributes.OUTPUT_DOCUMENTS)
+    ) and key.endswith(f".{DocumentAttributes.DOCUMENT_URL}")
+
+
+def _is_base64_data_uri(value: Any) -> TypeGuard[str]:
+    """True for a data URI whose header, before the first comma, ends in ;base64."""
+    if not isinstance(value, str) or not value.startswith("data:"):
+        return False
+    header, sep, _ = value.partition(",")
+    return bool(sep) and header.endswith(";base64")
 
 
 def is_base64_url(url: str) -> bool:
