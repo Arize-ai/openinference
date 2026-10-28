@@ -372,22 +372,38 @@ def test_another_call_made_while_the_request_is_sent_keeps_the_sdk_span(
     assert sdk_span.parent.span_id == context.span_id
 
 
-def test_sdk_span_stays_when_the_llm_span_is_invalid(
+@pytest.mark.parametrize("call", [_create, _stream], ids=["create", "stream"])
+@pytest.mark.parametrize("in_parent", [False, True], ids=["root", "in_parent"])
+def test_sdk_span_stays_when_the_llm_span_does_not_record(
+    call: Callable[[Anthropic], None],
+    in_parent: bool,
     client: Anthropic,
     server: _Server,
+    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    """The instrumentor's tracer provider makes no spans, and the client's does."""
+    """
+    The instrumentor's tracer provider makes no spans, and the client's does. Under a caller's span
+    the no-op LLM span carries the caller's valid context, so validity alone does not tell it apart.
+    """
     instrumentor = AnthropicInstrumentor()
     instrumentor.instrument(tracer_provider=trace_api.NoOpTracerProvider())
+    parent: Optional[trace_api.Span] = None
     try:
-        _stream(client)
+        if in_parent:
+            with tracer_provider.get_tracer("test").start_as_current_span("parent") as parent:
+                call(client)
+        else:
+            call(client)
     finally:
         instrumentor.uninstrument()
     (span,) = _spans(in_memory_span_exporter)
     assert span.instrumentation_scope is not None
     assert span.instrumentation_scope.name == SDK_SCOPE
     assert server.traceparents == [_traceparent(span)]
+    if parent is not None:
+        assert span.parent is not None
+        assert span.parent.span_id == parent.get_span_context().span_id
 
 
 def test_calls_that_are_not_traced_keep_the_sdk_span(
