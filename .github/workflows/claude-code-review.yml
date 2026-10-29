@@ -17,9 +17,12 @@ jobs:
   claude-review:
     # Automatic reviews only for internal team PRs (non-forked)
     # For community/forked PRs: maintainers can comment @claude to trigger manual review
+    # Factory PRs are reviewed once factory/dispatch.py marks them ready, not on every
+    # push while they are drafts.
     if: |
       github.actor != 'claude[bot]' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !(startsWith(github.head_ref, 'factory/') && github.event.pull_request.draft)
 
     runs-on: ubuntu-latest
     permissions:
@@ -43,6 +46,7 @@ jobs:
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_bots: 'openinference-factory[bot]'
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: |

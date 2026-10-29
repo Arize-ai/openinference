@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.74](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.73...python-openinference-instrumentation-v0.1.74) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [0.1.73](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.72...python-openinference-instrumentation-v0.1.73) (2026-10-29)
+
+
+### Features
+
+* **instrumentation:** mask document attributes in TraceConfig ([#4155](https://github.com/Arize-ai/openinference/issues/4155)) ([e1902c0](https://github.com/Arize-ai/openinference/commit/e1902c018e1aa30dbbe0c30e20d745328889f5c4))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [0.1.72](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.71...python-openinference-instrumentation-v0.1.72) (2026-10-23)
 
 

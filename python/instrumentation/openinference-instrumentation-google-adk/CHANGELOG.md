@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.0.6...python-openinference-instrumentation-google-adk-v1.1.0) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [1.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.0.5...python-openinference-instrumentation-google-adk-v1.0.6) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+* **google-adk:** keep call_llm span and suppress raw ADK spans on google-adk 2.13 ([#4160](https://github.com/Arize-ai/openinference/issues/4160)) ([0f276d4](https://github.com/Arize-ai/openinference/commit/0f276d4661e79e063c0d68885e8ecc8b74d4ed49))
+
 ## [1.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.0.4...python-openinference-instrumentation-google-adk-v1.0.5) (2026-10-23)
 
 

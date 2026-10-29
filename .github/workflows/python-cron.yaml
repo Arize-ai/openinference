@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          version: 0.11.2
+          version: 0.13.5
           enable-cache: false
       - name: Extract testenv into JSON list
         run: >-
@@ -63,7 +63,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          version: 0.11.2
+          version: 0.13.5
           enable-cache: false
       - name: Run tox latest env
         env:
@@ -254,7 +254,7 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         if: ${{ steps.preflight.outputs.skip != 'true' }}
         with:
-          version: 0.11.2
+          version: 0.13.5
           enable-cache: false
 
       - name: Install subprocess isolation deps
