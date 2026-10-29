@@ -164,7 +164,7 @@ const maskLongBase64ImageRule: MaskingRule = {
 };
 
 /**
- * Masks (removes) embedding vectors.
+ * Masks (redacts) embedding vectors.
  *  * @example
  * ```typescript
  *  maskOutputTextRule.condition({
@@ -177,7 +177,7 @@ const maskEmbeddingVectorsRule: MaskingRule = {
     config.hideEmbeddingVectors &&
     key.includes(SemanticConventions.EMBEDDING_EMBEDDINGS) &&
     key.includes(SemanticConventions.EMBEDDING_VECTOR),
-  action: () => undefined,
+  action: () => REDACTED_VALUE,
 };
 
 /**

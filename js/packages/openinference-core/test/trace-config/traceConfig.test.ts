@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   DefaultTraceConfig,
   OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
+  OPENINFERENCE_HIDE_EMBEDDING_VECTORS,
+  OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS,
   OPENINFERENCE_HIDE_INPUT_TEXT,
   OPENINFERENCE_HIDE_INPUTS,
 } from "../../src/trace/trace-config/constants";
@@ -49,6 +51,32 @@ describe("generateTraceConfig", () => {
     } finally {
       delete process.env[OPENINFERENCE_HIDE_INPUTS];
       delete process.env[OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH];
+    }
+  });
+
+  it.each([OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS, OPENINFERENCE_HIDE_EMBEDDING_VECTORS])(
+    "should hide embedding vectors when %s is true",
+    (envKey) => {
+      process.env[envKey] = "true";
+      try {
+        expect(generateTraceConfig()).toEqual({
+          ...DefaultTraceConfig,
+          hideEmbeddingVectors: true,
+        });
+      } finally {
+        delete process.env[envKey];
+      }
+    },
+  );
+
+  it("should hide embedding vectors when either name is true, as Python does", () => {
+    process.env[OPENINFERENCE_HIDE_EMBEDDING_VECTORS] = "true";
+    process.env[OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS] = "false";
+    try {
+      expect(generateTraceConfig().hideEmbeddingVectors).toBe(true);
+    } finally {
+      delete process.env[OPENINFERENCE_HIDE_EMBEDDING_VECTORS];
+      delete process.env[OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS];
     }
   });
 });

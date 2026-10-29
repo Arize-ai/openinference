@@ -101,10 +101,16 @@ export function generateTraceConfig(options?: TraceConfigOptions): TraceConfig {
       optionValue: options?.hideOutputText,
       optionMetadata: traceConfigMetadata.hideOutputText,
     }),
-    hideEmbeddingVectors: parseOption({
-      optionValue: options?.hideEmbeddingVectors,
-      optionMetadata: traceConfigMetadata.hideEmbeddingVectors,
-    }),
+    // The spec name (OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS) and the deprecated one are OR-ed, as in Python.
+    hideEmbeddingVectors:
+      parseOption({
+        optionValue: options?.hideEmbeddingVectors,
+        optionMetadata: traceConfigMetadata.hideEmbeddingVectors,
+      }) ||
+      parseOption({
+        optionValue: undefined,
+        optionMetadata: traceConfigMetadata.hideEmbeddingsVectors,
+      }),
     base64ImageMaxLength: parseOption({
       optionValue: options?.base64ImageMaxLength,
       optionMetadata: traceConfigMetadata.base64ImageMaxLength,

@@ -86,9 +86,9 @@ const generateMaskTestCases = (): MaskTestCases[] => {
         break;
       case "hideEmbeddingVectors":
         testCases.push([
-          `should return undefined for "embedding.embeddings.0.embedding.vector" when hideEmbeddingVectors is set to true`,
+          `should return ${REDACTED_VALUE} for "embedding.embeddings.0.embedding.vector" when hideEmbeddingVectors is set to true`,
           { ...DefaultTraceConfig, hideEmbeddingVectors: true },
-          undefined,
+          REDACTED_VALUE,
           "embedding.embeddings.0.embedding.vector",
           "some embedding vector",
         ]);

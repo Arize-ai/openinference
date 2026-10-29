@@ -16,8 +16,10 @@ export const OPENINFERENCE_HIDE_INPUT_IMAGES = "OPENINFERENCE_HIDE_INPUT_IMAGES"
 export const OPENINFERENCE_HIDE_INPUT_TEXT = "OPENINFERENCE_HIDE_INPUT_TEXT";
 /** Hides text from output messages */
 export const OPENINFERENCE_HIDE_OUTPUT_TEXT = "OPENINFERENCE_HIDE_OUTPUT_TEXT";
-/** Hides embedding vectors */
+/** Hides embedding vectors (deprecated: use {@link OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS}) */
 export const OPENINFERENCE_HIDE_EMBEDDING_VECTORS = "OPENINFERENCE_HIDE_EMBEDDING_VECTORS";
+/** Hides embedding vectors, the name used by the OpenInference spec */
+export const OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS = "OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS";
 /** Limits characters of a base64 encoding of an image */
 export const OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH";
 /** Hides LLM prompts */
@@ -90,6 +92,11 @@ export const traceConfigMetadata = {
   hideEmbeddingVectors: {
     default: DEFAULT_HIDE_EMBEDDING_VECTORS,
     envKey: OPENINFERENCE_HIDE_EMBEDDING_VECTORS,
+    type: "boolean",
+  },
+  hideEmbeddingsVectors: {
+    default: DEFAULT_HIDE_EMBEDDING_VECTORS,
+    envKey: OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS,
     type: "boolean",
   },
   base64ImageMaxLength: {
