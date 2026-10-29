@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.3...python-openinference-instrumentation-mistralai-v2.3.0) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
 ## [2.2.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.2...python-openinference-instrumentation-mistralai-v2.2.3) (2026-10-29)
 
 

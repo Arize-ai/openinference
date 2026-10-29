@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.15...python-openinference-instrumentation-google-genai-v1.5.0) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
 ## [1.4.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.14...python-openinference-instrumentation-google-genai-v1.4.15) (2026-10-29)
 
 
