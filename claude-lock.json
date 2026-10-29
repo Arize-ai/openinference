@@ -27,6 +27,13 @@
       "hash": "3fb5d72b36fac763e44a4cc72d116d9e",
       "remote_hash": "a6e712259c63b4a64d3b54261128424a"
     },
+    "./agents/pr-reviewer.md": {
+      "kind": "agent",
+      "id": "agent_01HvwHmP5rQmhChSwRurQR9j",
+      "version": "1",
+      "hash": "9a82de0c64de236418b754ce52caf1b9",
+      "remote_hash": "731cf81b977ff13f3b3f0dacea78863d"
+    },
     "./agents/python-reviewer.md": {
       "kind": "agent",
       "id": "agent_01VHrBfxeCMYPSxwkFoABZPL",
