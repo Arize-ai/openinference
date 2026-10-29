@@ -184,7 +184,7 @@ def watch_session(
     )
     if session is None:
         return (
-            f"🏭 The factory's **review** session {format_session_link(session_id=session_id)} "
+            f"The factory's **review** session {format_session_link(session_id=session_id)} "
             f"is still running after {watch_minutes} minutes."
         )
     stop_reason = idle_event.stop_reason.type if idle_event else "terminated"
@@ -196,18 +196,18 @@ def watch_session(
 
     if review is None:
         return (
-            f"🏭 The factory's **review** session {format_session_link(session_id=session_id)} "
+            f"The factory's **review** session {format_session_link(session_id=session_id)} "
             f"ended without posting a review (stop reason: `{stop_reason}`)."
         )
     reviewed_sha = review["commit_id"][:10]
     verdict = read_verdict(review_body=review["body"] or "")
     if verdict is None:
         return (
-            f"🏭 The factory posted [its review of {reviewed_sha}]({review['html_url']}), "
+            f"The factory posted [its review of {reviewed_sha}]({review['html_url']}), "
             "but the review's heading names no verdict."
         )
     return (
-        f"🏭 The factory recommends **{verdict}** for {reviewed_sha}. "
+        f"The factory recommends **{verdict}** for {reviewed_sha}. "
         f"[Read the review]({review['html_url']})."
     )
 
@@ -230,7 +230,7 @@ def run_start(*, args: argparse.Namespace) -> None:
     if admission_problem is not None:
         comment_on_pr(
             pr_number=args.pr,
-            body=f"🏭 The factory skipped reviewing this pull request: {admission_problem}.",
+            body=f"The factory skipped reviewing this pull request: {admission_problem}.",
             token=app_token.refresh(),
         )
         remove_review_label(pr_number=args.pr, token=app_token.refresh())
@@ -252,7 +252,7 @@ def run_start(*, args: argparse.Namespace) -> None:
     comment_on_pr(
         pr_number=args.pr,
         body=(
-            f"🏭 The factory started a **review** of {pr['headRefOid'][:10]} "
+            f"The factory started a **review** of {pr['headRefOid'][:10]} "
             f"(session {format_session_link(session_id=session_id)}). "
             f"It reports back here when the session ends."
         ),
@@ -264,7 +264,7 @@ def run_start(*, args: argparse.Namespace) -> None:
 def run_watch(*, args: argparse.Namespace) -> None:
     # Report on the PR even when watching fails; the error still fails the job.
     report = (
-        "🏭 The factory lost track of session "
+        "The factory lost track of session "
         f"{format_session_link(session_id=args.session_id)}; see the workflow run."
     )
     client = anthropic.Anthropic()
