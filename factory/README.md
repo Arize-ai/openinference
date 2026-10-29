@@ -134,7 +134,7 @@ sequenceDiagram
     review->>github: comment why, remove the label
   else admitted
     review->>session: create with pr-reviewer, the repo mounted on the base branch, the commit to review
-    session->>session: bootstrap, fetch pull/N/head, check out the commit, run checks, language review, verify findings
+    session->>session: fetch pull/N/head, check out the commit, bootstrap, run checks, language review, verify findings
     session->>github: submit one COMMENT review with inline findings and the summary
     review->>github: comment the verdict with a link to the review, remove the label
   end

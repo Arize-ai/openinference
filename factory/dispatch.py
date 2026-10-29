@@ -238,6 +238,17 @@ def read_repo_permission(*, login: str) -> str:
         return "none"
 
 
+def read_factory_login() -> str:
+    """Return the factory app's bot login from the FACTORY_GITHUB_LOGIN repository variable."""
+    factory_login = os.environ.get("FACTORY_GITHUB_LOGIN", "")
+    if not factory_login:
+        raise SystemExit(
+            "Set the FACTORY_GITHUB_LOGIN repository variable, not a secret, to the factory "
+            "app's bot login, such as openinference-factory[bot]."
+        )
+    return factory_login
+
+
 def read_noreply_email(*, login: str) -> str:
     """Return the account's GitHub noreply address, which the CLA check maps back to it."""
     user_id = run_gh("api", f"users/{login}", "--jq", ".id").strip()
@@ -754,12 +765,7 @@ def run_start(*, args: argparse.Namespace) -> None:
         write_github_outputs(started="false")
         return
 
-    factory_login = os.environ.get("FACTORY_GITHUB_LOGIN", "")
-    if not factory_login:
-        raise SystemExit(
-            "Set the FACTORY_GITHUB_LOGIN repository variable, not a secret, to the factory "
-            "app's bot login, such as openinference-factory[bot]."
-        )
+    factory_login = read_factory_login()
     if needs_bug_label:
         add_bug_label(issue_number=args.issue)
         label_names.append("bug")
@@ -815,8 +821,11 @@ def run_watch(*, args: argparse.Namespace) -> None:
             report_token = app_token.refresh() if app_token is not None else None
         except Exception as error:
             print(f"::warning::Reporting with GITHUB_TOKEN; the app token failed: {error}")
-        comment_on_issue(issue_number=args.issue, body=report, token=report_token)
-        remove_factory_label(issue_number=args.issue, token=report_token)
+        try:
+            comment_on_issue(issue_number=args.issue, body=report, token=report_token)
+        finally:
+            # Free the label even when the comment fails, so re-adding it runs the issue again.
+            remove_factory_label(issue_number=args.issue, token=report_token)
 
 
 def main() -> None:

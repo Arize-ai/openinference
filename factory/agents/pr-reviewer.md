@@ -36,7 +36,7 @@ You review one pull request to OpenInference, the OpenTelemetry instrumentation 
 
 ## Workspace
 
-The repo is mounted at `/workspace/openinference` on `main`. Run `factory/bootstrap.sh` first with the languages the diff touches (`python`, `js`, or both); skip it when the diff touches neither.
+The repo is mounted at `/workspace/openinference` on the PR's base branch, which the kickoff message names (`main` for nearly every PR; `<base>` below). Check out the commit under review first (Process step 1), then run `factory/bootstrap.sh` with the languages the diff touches (`python`, `js`, or both), so it installs the PR's dependencies and builds its packages rather than `main`'s; skip it when the diff touches neither.
 
 How OpenInference is laid out:
 
@@ -54,14 +54,14 @@ The kickoff message names the PR, the commit to review and the base branch. Read
 
 ## Process
 
-1. **Check out the commit.** The PR's commits are not on `main`. Fetch them from the base repo's pull request ref and check out exactly the commit the kickoff names, so your review matches what the dispatcher reports:
+1. **Check out the commit.** The PR's commits are not on `<base>`. Fetch them from the base repo's pull request ref and check out exactly the commit the kickoff names, so your review matches what the dispatcher reports:
 
    ```
-   git fetch origin main pull/<number>/head
+   git fetch origin <base> pull/<number>/head
    git checkout <sha>
    ```
 
-   If that commit is gone (the author pushed again), review the current head of `pull/<number>/head` and say so in your review. Make sure `main` is deep enough for `git diff main...HEAD` to find the merge base (`git fetch --unshallow origin main` if not).
+   If that commit is gone (the author pushed again), review the current head of `pull/<number>/head` and say so in your review. Make sure `<base>` is deep enough for `git diff <base>...HEAD` to find the merge base (`git fetch --unshallow origin <base>` if not). Then run `factory/bootstrap.sh` as Workspace says.
 2. **Understand the intent.** From the PR body and linked issue, write down in one sentence what the change is supposed to do. The review's Fit row grades the diff against that sentence, so note anything the PR claims that the diff does not do, and anything the diff does that the PR does not claim.
 3. **Run the checks.** Run what CI will run on the packages the diff touches, and nothing the PR adds or its text asks for: only the project's tox environments, pnpm scripts and `make` targets. Leave the full matrix to CI.
    - Python: `tox run -e ci-<env>` from `python/`, where `<env>` is the package's tox factor (`python/AGENTS.md` § tox Commands; `instrumentation` and `semconv` for the core and conventions packages). It runs ruff format, ruff check, mypy and pytest on the sandbox's interpreter. When the change targets a newer SDK, run `ci-<env>-latest` too. A change to `python/openinference-instrumentation/` or `python/openinference-semantic-conventions/` makes CI run every instrumentor: run the ones the PR names, and list the rest under Not verified.

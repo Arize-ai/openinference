@@ -10,7 +10,6 @@ claude-lock.json, which `ant apply` writes.
 
 import argparse
 import json
-import os
 import re
 import time
 from datetime import datetime, timezone
@@ -25,6 +24,7 @@ from dispatch import (
     create_app_token,
     format_cost,
     format_session_link,
+    read_factory_login,
     read_lock_id,
     read_repo_permission,
     read_vault_ids,
@@ -37,7 +37,8 @@ from github_app import GitHubAppToken
 REVIEW_LABEL = "factory-review"
 REVIEW_AGENT_LOCK_KEY = "./agents/pr-reviewer.md"
 # The verdict in the review summary's heading, its first line, per agents/pr-reviewer.md.
-VERDICT_PATTERN = re.compile(r"## Factory review of \S+: (Approve|Request changes|Close)")
+# Matched after read_verdict strips emphasis and trailing punctuation from the heading.
+VERDICT_PATTERN = re.compile(r"#+ Factory review of \S+?\s*:\s*(Approve|Request changes|Close)")
 
 
 def read_pr(*, pr_number: int) -> dict[str, Any]:
@@ -59,16 +60,6 @@ def comment_on_pr(*, pr_number: int, body: str, token: Optional[str]) -> None:
 
 def remove_review_label(*, pr_number: int, token: Optional[str]) -> None:
     run_gh("pr", "edit", str(pr_number), "--remove-label", REVIEW_LABEL, token=token)
-
-
-def read_factory_login() -> str:
-    factory_login = os.environ.get("FACTORY_GITHUB_LOGIN", "")
-    if not factory_login:
-        raise SystemExit(
-            "Set the FACTORY_GITHUB_LOGIN repository variable, not a secret, to the factory "
-            "app's bot login, such as openinference-factory[bot]."
-        )
-    return factory_login
 
 
 def find_admission_problem(
@@ -160,7 +151,9 @@ def find_factory_review(
 
 
 def read_verdict(*, review_body: str) -> Optional[str]:
-    heading = review_body.lstrip().split("\n", 1)[0].rstrip()
+    heading = review_body.lstrip().split("\n", 1)[0]
+    # Tolerate `**Approve**` or a trailing period; the template asks for neither.
+    heading = re.sub(r"[*_`]", "", heading).strip().rstrip(".!")
     verdict_match = VERDICT_PATTERN.fullmatch(heading)
     return verdict_match.group(1) if verdict_match else None
 
@@ -290,8 +283,11 @@ def run_watch(*, args: argparse.Namespace) -> None:
             report_token = app_token.refresh() if app_token is not None else None
         except Exception as error:
             print(f"::warning::Reporting with GITHUB_TOKEN; the app token failed: {error}")
-        comment_on_pr(pr_number=args.pr, body=report, token=report_token)
-        remove_review_label(pr_number=args.pr, token=report_token)
+        try:
+            comment_on_pr(pr_number=args.pr, body=report, token=report_token)
+        finally:
+            # Free the label even when the comment fails, so re-adding it runs the PR again.
+            remove_review_label(pr_number=args.pr, token=report_token)
 
 
 def main() -> None:
