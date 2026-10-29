@@ -310,4 +310,90 @@ describe("V1 query() wrapper", () => {
     const spans = exporter.getFinishedSpans();
     expect(spans[0].attributes).not.toHaveProperty(SemanticConventions.LLM_FINISH_REASON);
   });
+
+  function createControlMockModule(messages: unknown[]) {
+    const calls: string[] = [];
+    const query = ({
+      prompt: _prompt,
+      options: _options,
+    }: {
+      prompt: string;
+      options?: Record<string, unknown>;
+    }) => {
+      calls.push("query");
+      let index = 0;
+      const queryHandle = {
+        interrupt() {
+          calls.push("interrupt");
+          return Promise.resolve();
+        },
+        setModel(model: string) {
+          calls.push(`setModel:${model}`);
+        },
+        async next() {
+          if (index < messages.length) {
+            return { done: false as const, value: messages[index++] };
+          }
+          return { done: true as const, value: undefined };
+        },
+        [Symbol.asyncIterator]() {
+          return queryHandle;
+        },
+      };
+      return queryHandle;
+    };
+    return { module: { query }, calls };
+  }
+
+  it("keeps the SDK Query control methods after instrumentation", async () => {
+    const { module, calls } = createControlMockModule([]);
+    instrumentation.manuallyInstrument(module);
+
+    const q = module.query({ prompt: "unused" });
+    expect(typeof q.interrupt).toBe("function");
+    expect(typeof q.setModel).toBe("function");
+
+    await q.interrupt();
+    q.setModel("claude-sonnet-4-20250514");
+
+    expect(calls).toContain("interrupt");
+    expect(calls).toContain("setModel:claude-sonnet-4-20250514");
+  });
+
+  it("starts the SDK at query() time rather than on first iteration", () => {
+    const { module, calls } = createControlMockModule([]);
+    instrumentation.manuallyInstrument(module);
+
+    module.query({ prompt: "unused" });
+
+    expect(calls).toEqual(["query"]);
+  });
+
+  it("traces direct iterator methods", async () => {
+    const { module } = createControlMockModule([
+      {
+        type: "result",
+        subtype: "success",
+        result: "Done",
+        stop_reason: "end_turn",
+        usage: { input_tokens: 1, output_tokens: 1 },
+        total_cost_usd: 0,
+        num_turns: 1,
+        duration_ms: 10,
+        session_id: "sess-direct",
+      },
+    ]);
+    instrumentation.manuallyInstrument(module);
+
+    const q = module.query({ prompt: "direct" });
+    let result = await q.next();
+    while (!result.done) {
+      result = await q.next();
+    }
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("ClaudeAgent.query");
+    expect(spans[0].status.code).toBe(SpanStatusCode.OK);
+  });
 });
