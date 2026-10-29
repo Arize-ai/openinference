@@ -643,7 +643,8 @@ function normalizeMistralRequestContentBlocks(
 
 /**
  * Converts the top-level `system` prompt of an Anthropic request (a string or an array of
- * text blocks) to a leading system message.
+ * text blocks) to a leading system message. Text blocks are joined with a blank line, like
+ * Converse system prompts.
  *
  * @param requestBody The parsed Anthropic request body
  * @returns {BedrockMessage[]} A single system message, or an empty array without a usable prompt
@@ -652,14 +653,17 @@ function anthropicSystemPromptToBedrockMessages(
   requestBody: InvokeModelRequestBody,
 ): BedrockMessage[] {
   const { system } = requestBody;
+  let text = "";
   if (typeof system === "string") {
-    return system ? [{ role: "system", content: system }] : [];
+    text = system;
+  } else if (Array.isArray(system)) {
+    text = system
+      .filter(isTextContent)
+      .map((block) => block.text)
+      .filter(Boolean)
+      .join("\n\n");
   }
-  if (Array.isArray(system)) {
-    const blocks = system.filter(isTextContent);
-    return blocks.length > 0 ? [{ role: "system", content: blocks }] : [];
-  }
-  return [];
+  return text ? [{ role: "system", content: text }] : [];
 }
 
 /**
