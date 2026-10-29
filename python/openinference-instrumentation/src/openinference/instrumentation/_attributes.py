@@ -501,11 +501,38 @@ def _infer_serialized_io_value_and_mime_type(
     return str(value), OpenInferenceMimeTypeValues.TEXT
 
 
+# Object keys `json.dumps` encodes directly. Keys of any other type are rejected
+# with a TypeError before `JSONEncoder.default` ever sees them, so they have to
+# be stringified up front.
+_JSON_KEY_TYPES = (str, int, float, bool, type(None))
+
+
+def _stringify_mapping_keys(obj: Any) -> Any:
+    """
+    Return an equivalent object whose mapping keys can be encoded as JSON.
+
+    `json.dumps` accepts only str, int, float, bool and None as object keys and
+    raises a TypeError for anything else — including tuple and Enum keys, which
+    `IOValueJSONEncoder.default` cannot rescue because mapping keys never reach
+    it. Mappings and sequences are rebuilt recursively so nested mappings are
+    covered too; every other object is returned untouched for the encoder to
+    handle.
+    """
+    if isinstance(obj, Mapping):
+        return {
+            key if isinstance(key, _JSON_KEY_TYPES) else str(key): _stringify_mapping_keys(value)
+            for key, value in obj.items()
+        }
+    if isinstance(obj, (list, tuple)):
+        return [_stringify_mapping_keys(item) for item in obj]
+    return obj
+
+
 class IOValueJSONEncoder(JSONEncoder):
     def default(self, obj: Any) -> Any:
         try:
             if _is_dataclass_instance(obj):
-                return asdict(obj)
+                return _stringify_mapping_keys(asdict(obj))
             if pydantic is not None and isinstance(obj, pydantic.BaseModel):
                 return obj.model_dump(mode="json")
             if isinstance(obj, datetime):
@@ -521,7 +548,7 @@ def _json_serialize(obj: Any, **kwargs: Any) -> str:
     pydantic models.
     """
     return json.dumps(
-        obj,
+        _stringify_mapping_keys(obj),
         cls=IOValueJSONEncoder,
         ensure_ascii=False,
     )
