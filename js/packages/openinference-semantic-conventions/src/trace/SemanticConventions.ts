@@ -31,6 +31,7 @@ export const SemanticAttributePrefixes = {
   prompt: "prompt",
   agent: "agent",
   graph: "graph",
+  decision: "decision",
 } as const;
 
 export const LLMAttributePostfixes = {
@@ -49,6 +50,15 @@ export const LLMAttributePostfixes = {
   tools: "tools",
   cost: "cost",
   finish_reason: "finish_reason",
+} as const;
+
+export const DecisionAttributePostfixes = {
+  provider: "provider",
+  system: "system",
+  model_name: "model_name",
+  request: "request",
+  response: "response",
+  token_count: "token_count",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
@@ -100,6 +110,7 @@ export const MessageContentsAttributePostfixes = {
   image: "image",
   audio: "audio",
   video: "video",
+  document: "document",
   id: "id",
   signature: "signature",
   data: "data",
@@ -126,6 +137,9 @@ export const DocumentAttributePostfixes = {
   content: "content",
   score: "score",
   metadata: "metadata",
+  url: "url",
+  mime_type: "mime_type",
+  name: "name",
 } as const;
 
 export const TagAttributePostfixes = {
@@ -223,6 +237,11 @@ export const INPUT_MIME_TYPE = `${SemanticAttributePrefixes.input}.mime_type` as
  */
 export const INPUT_IMAGES = `${SemanticAttributePrefixes.input}.images` as const;
 /**
+ * Documents (e.g. PDFs) passed as input to a span of any kind. Flattened
+ * with an index, for example `input.documents.0.document.url`.
+ */
+export const INPUT_DOCUMENTS = `${SemanticAttributePrefixes.input}.documents` as const;
+/**
  * The output of any span
  */
 export const OUTPUT_VALUE = `${SemanticAttributePrefixes.output}.value` as const;
@@ -232,6 +251,11 @@ export const OUTPUT_MIME_TYPE = `${SemanticAttributePrefixes.output}.mime_type` 
  * for example `output.images.0.image.url`.
  */
 export const OUTPUT_IMAGES = `${SemanticAttributePrefixes.output}.images` as const;
+/**
+ * Documents (e.g. PDFs) produced as output by a span of any kind.
+ * Flattened with an index, for example `output.documents.0.document.url`.
+ */
+export const OUTPUT_DOCUMENTS = `${SemanticAttributePrefixes.output}.documents` as const;
 /**
  * The messages sent to the LLM for completions
  * Typically seen in OpenAI chat completions
@@ -295,6 +319,69 @@ export const LLM_PROVIDER =
  */
 export const LLM_SYSTEM =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.system}` as const;
+
+/**
+ * The name of the decision model. Mirrors LLM_MODEL_NAME for DECISION spans.
+ * A decision model takes state plus typed questions and returns a typed,
+ * probabilistic answer per question instead of generated text.
+ *
+ * @see https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+ */
+export const DECISION_MODEL_NAME =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.model_name}` as const;
+
+/**
+ * The decision model requested by the caller, as sent in the request. May
+ * differ from decision.response.model_name when the provider resolves an
+ * alias (e.g. jev-latest) or routes the request to a different model.
+ */
+export const DECISION_REQUEST_MODEL_NAME =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.request}.${DecisionAttributePostfixes.model_name}` as const;
+
+/**
+ * The decision model that actually produced the response, as reported by the
+ * provider. May differ from decision.request.model_name.
+ */
+export const DECISION_RESPONSE_MODEL_NAME =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.response}.${DecisionAttributePostfixes.model_name}` as const;
+
+/**
+ * The hosting provider of the decision model: who runs the hardware that
+ * answered (e.g. "typesafe" when calling TypeSafe directly, or the cloud or
+ * self-hosting provider for a model served elsewhere). Distinct from
+ * DECISION_SYSTEM, which names the API shape. Well-known values are
+ * {@link DecisionProvider}, which alias the matching {@link LLMProvider} values.
+ */
+export const DECISION_PROVIDER =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.provider}` as const;
+
+/**
+ * The decision API ecosystem the call conforms to, i.e. which request and
+ * response shape the client speaks, as identified by the client or server:
+ * "typesafe" for the TypeSafe System One / Jev API, "openai" for the OpenAI
+ * Decisions API. A self-hosted vLLM server answering the Jev-compatible
+ * /v1/systemone shape is still "typesafe". Distinct from DECISION_PROVIDER,
+ * which says who hosts the model. Well-known values are {@link DecisionSystem},
+ * which alias the matching {@link LLMSystem} values.
+ */
+export const DECISION_SYSTEM =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.system}` as const;
+
+/**
+ * The number of input tokens consumed by a decision model call: the state,
+ * questions, and candidate options. Maps to usage.input_tokens in TypeSafe
+ * System One responses.
+ */
+export const DECISION_TOKEN_COUNT_INPUT =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.token_count}.input` as const;
+
+/**
+ * The number of output tokens produced by a decision model call. Decision
+ * models emit typed answers rather than text, so this is typically small.
+ * Maps to usage.output_tokens in TypeSafe System One responses.
+ */
+export const DECISION_TOKEN_COUNT_OUTPUT =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.token_count}.output` as const;
 
 /** Token count for the completion by the llm (in tokens) */
 export const LLM_TOKEN_COUNT_COMPLETION =
@@ -502,7 +589,7 @@ export const MESSAGE_CONTENTS =
   `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.contents}` as const;
 /**
  * The type of content sent to the LLM, such as "text", "image", "audio",
- * "reasoning", or "tool_use"
+ * "video", "document", "reasoning", or "tool_use"
  */
 export const MESSAGE_CONTENT_TYPE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.type}` as const;
@@ -526,6 +613,12 @@ export const MESSAGE_CONTENT_AUDIO =
  */
 export const MESSAGE_CONTENT_VIDEO =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.video}` as const;
+/**
+ * The document content (e.g. a PDF, an uploaded file, or inline text) of the
+ * message sent to the LLM
+ */
+export const MESSAGE_CONTENT_DOCUMENT =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.document}` as const;
 /**
  * Provider-assigned identifier for this message content item. For OpenAI
  * Responses reasoning items, this maps to ResponseReasoningItem.id and should
@@ -574,6 +667,25 @@ export const DOCUMENT_SCORE =
 
 export const DOCUMENT_METADATA =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.metadata}` as const;
+
+/**
+ * The URL, object-store URI, or base64 data URI of a file document such as a PDF.
+ */
+export const DOCUMENT_URL =
+  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.url}` as const;
+
+/**
+ * The MIME type of a document, for example `application/pdf`.
+ */
+export const DOCUMENT_MIME_TYPE =
+  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.mime_type}` as const;
+
+/**
+ * The name supplied with a document, such as a file name or a title, for
+ * example `invoice.pdf`. Not a unique identifier.
+ */
+export const DOCUMENT_NAME =
+  `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.name}` as const;
 
 /**
  * The text that was embedded to create the vector
@@ -800,9 +912,11 @@ export const SemanticConventions = {
   INPUT_VALUE,
   INPUT_MIME_TYPE,
   INPUT_IMAGES,
+  INPUT_DOCUMENTS,
   OUTPUT_VALUE,
   OUTPUT_MIME_TYPE,
   OUTPUT_IMAGES,
+  OUTPUT_DOCUMENTS,
   LLM_INPUT_MESSAGES,
   LLM_OUTPUT_MESSAGES,
   LLM_MODEL_NAME,
@@ -823,6 +937,13 @@ export const SemanticConventions = {
   LLM_TOKEN_COUNT_TOTAL,
   LLM_SYSTEM,
   LLM_PROVIDER,
+  DECISION_MODEL_NAME,
+  DECISION_REQUEST_MODEL_NAME,
+  DECISION_RESPONSE_MODEL_NAME,
+  DECISION_SYSTEM,
+  DECISION_PROVIDER,
+  DECISION_TOKEN_COUNT_INPUT,
+  DECISION_TOKEN_COUNT_OUTPUT,
   LLM_TOOLS,
   LLM_FINISH_REASON,
   LLM_COST,
@@ -852,6 +973,7 @@ export const SemanticConventions = {
   MESSAGE_CONTENT_IMAGE,
   MESSAGE_CONTENT_AUDIO,
   MESSAGE_CONTENT_VIDEO,
+  MESSAGE_CONTENT_DOCUMENT,
   MESSAGE_CONTENT_ID,
   MESSAGE_CONTENT_SIGNATURE,
   MESSAGE_CONTENT_DATA,
@@ -862,6 +984,9 @@ export const SemanticConventions = {
   DOCUMENT_CONTENT,
   DOCUMENT_SCORE,
   DOCUMENT_METADATA,
+  DOCUMENT_URL,
+  DOCUMENT_MIME_TYPE,
+  DOCUMENT_NAME,
   EMBEDDING_EMBEDDINGS,
   EMBEDDING_TEXT,
   EMBEDDING_MODEL_NAME,
@@ -912,6 +1037,7 @@ export enum OpenInferenceSpanKind {
   GUARDRAIL = "GUARDRAIL",
   EVALUATOR = "EVALUATOR",
   PROMPT = "PROMPT",
+  DECISION = "DECISION",
 }
 
 /**
@@ -958,4 +1084,28 @@ export enum LLMProvider {
   MINIMAX = "minimax",
   TYPESAFE = "typesafe",
   ORACLE = "oracle",
+}
+
+/**
+ * Well-known values for `decision.system`: the decision API ecosystem a
+ * DECISION span conforms to. Each member aliases the {@link LLMSystem} member
+ * for the same vendor, so the same string names the same vendor on LLM and
+ * DECISION spans. The list is the subset of vendors currently known to offer a
+ * decision API.
+ */
+export enum DecisionSystem {
+  /** TypeSafe AI System One / Jev API, including Jev-compatible servers. */
+  TYPESAFE = LLMSystem.TYPESAFE,
+  /** OpenAI Decisions API. */
+  OPENAI = LLMSystem.OPENAI,
+}
+
+/**
+ * Well-known values for `decision.provider`: who hosts the decision model that
+ * answered. Each member aliases the {@link LLMProvider} member for the same
+ * vendor.
+ */
+export enum DecisionProvider {
+  TYPESAFE = LLMProvider.TYPESAFE,
+  OPENAI = LLMProvider.OPENAI,
 }

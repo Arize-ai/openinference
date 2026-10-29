@@ -9,6 +9,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.groq._with_span import _WithSpan
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceMimeTypeValues,
@@ -26,6 +27,33 @@ def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     if isinstance(obj, Mapping):
         return obj.get(attr_name, default)
     return getattr(obj, attr_name, default)
+
+
+def _get_attributes_from_message_content(
+    content: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    type_ = content.get("type")
+    if type_ == "text":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "text"
+        if text := content.get("text"):
+            yield MessageContentAttributes.MESSAGE_CONTENT_TEXT, text
+    elif type_ == "image_url":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "image"
+        if image := content.get("image_url"):
+            if isinstance(image, str):
+                if image:
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+                        f"{ImageAttributes.IMAGE_URL}",
+                        image,
+                    )
+            elif isinstance(image, Mapping):
+                if url := image.get("url"):
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+                        f"{ImageAttributes.IMAGE_URL}",
+                        url,
+                    )
 
 
 def _get_attributes_from_message(message: Any) -> Iterator[Tuple[str, AttributeValue]]:
@@ -53,7 +81,22 @@ def _get_attributes_from_message(message: Any) -> Iterator[Tuple[str, AttributeV
             yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", content
             content_index += 1
     elif content:
-        yield MessageAttributes.MESSAGE_CONTENT, content
+        if isinstance(content, str):
+            yield MessageAttributes.MESSAGE_CONTENT, content
+        elif isinstance(content, Sequence) and all(isinstance(part, Mapping) for part in content):
+            # Multimodal requests send content as typed parts (text, image_url, ...).
+            # Flatten each part into message contents so the attribute value stays a
+            # primitive; a raw list of dicts is rejected by OpenTelemetry and dropped.
+            # Parts keep their position in the original list, as in the openai
+            # instrumentor, so an unsupported part leaves a gap in the indices.
+            for part_index, part in enumerate(content):
+                for key, value in _get_attributes_from_message_content(part):
+                    yield (
+                        f"{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{key}",
+                        value,
+                    )
+        elif isinstance(content, Sequence):
+            yield MessageAttributes.MESSAGE_CONTENT, safe_json_dumps(content)
     if name := get_attribute(message, "name"):
         yield MessageAttributes.MESSAGE_NAME, name
     if tool_call_id := get_attribute(message, "tool_call_id"):
@@ -160,3 +203,27 @@ def _finish_tracing(
         )
     except Exception:
         logger.exception("Failed to finish tracing")
+
+
+def _materialize_content_iterables(kwargs: Mapping[str, Any]) -> Mapping[str, Any]:
+    """
+    Turns one-shot iterables (e.g. generators) in the chat messages into lists, so the
+    message contents can be recorded on the span and still be sent by the SDK.
+    """
+    messages = kwargs.get("messages")
+    if not isinstance(messages, Iterable) or isinstance(messages, (str, bytes, Mapping)):
+        return kwargs
+    changed = not isinstance(messages, Sequence)
+    materialized = []
+    for message in messages:
+        if isinstance(message, Mapping):
+            content = message.get("content")
+            if isinstance(content, Iterable) and not isinstance(
+                content, (str, bytes, Sequence, Mapping)
+            ):
+                message = {**message, "content": list(content)}
+                changed = True
+        materialized.append(message)
+    if not changed:
+        return kwargs
+    return {**kwargs, "messages": materialized}

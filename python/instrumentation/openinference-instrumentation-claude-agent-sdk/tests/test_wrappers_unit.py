@@ -13,6 +13,7 @@ import pytest
 from openinference.instrumentation.claude_agent_sdk._wrappers import (
     _extract_model_name_from_usage,
     _extract_usage_and_cost_attributes,
+    _TurnUsageAccumulator,
 )
 from openinference.semconv.trace import SpanAttributes
 
@@ -238,3 +239,62 @@ def test_token_counts_fold_cache_tokens(
     assert (
         attrs.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == expected_cache_write
     )
+
+
+def test_turn_usage_accumulator_sums_distinct_root_assistant_messages() -> None:
+    accumulator = _TurnUsageAccumulator()
+    accumulator.add(
+        {
+            "type": "assistant",
+            "message_id": "message-1",
+            "parent_tool_use_id": None,
+            "usage": {"input_tokens": 10, "output_tokens": 3, "cache_read_input_tokens": 5},
+        }
+    )
+    accumulator.add(
+        {
+            "type": "assistant",
+            "message_id": "message-2",
+            "parent_tool_use_id": None,
+            "usage": {"input_tokens": 20, "output_tokens": 4, "cache_creation_input_tokens": 7},
+        }
+    )
+    assert accumulator.attributes() == {
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 42,
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 7,
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 49,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 5,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: 7,
+    }
+
+
+def test_turn_usage_accumulator_deduplicates_partial_message_snapshots() -> None:
+    accumulator = _TurnUsageAccumulator()
+    accumulator.add(
+        {
+            "message_id": "message-1",
+            "parent_tool_use_id": None,
+            "usage": {"input_tokens": 10, "output_tokens": 2},
+        }
+    )
+    accumulator.add(
+        {
+            "message_id": "message-1",
+            "parent_tool_use_id": None,
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+        }
+    )
+    assert accumulator.attributes()[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 15
+
+
+def test_turn_usage_accumulator_excludes_subagent_and_unidentified_messages() -> None:
+    accumulator = _TurnUsageAccumulator()
+    accumulator.add(
+        {
+            "message_id": "subagent-message",
+            "parent_tool_use_id": "task-1",
+            "usage": {"input_tokens": 100, "output_tokens": 50},
+        }
+    )
+    accumulator.add({"usage": {"input_tokens": 7, "output_tokens": 2}})
+    assert accumulator.attributes() == {}

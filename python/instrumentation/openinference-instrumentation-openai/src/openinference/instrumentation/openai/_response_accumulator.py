@@ -20,12 +20,17 @@ from typing import (
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.openai._image_utils import image_b64_to_data_url
 from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
     _io_value_and_type,
     _ValueAndType,
 )
-from openinference.semconv.trace import OpenInferenceMimeTypeValues
+from openinference.semconv.trace import (
+    ImageAttributes,
+    OpenInferenceMimeTypeValues,
+    SpanAttributes,
+)
 
 if TYPE_CHECKING:
     from openai.types import Completion
@@ -37,6 +42,7 @@ __all__ = (
     "_CompletionAccumulator",
     "_ChatCompletionAccumulator",
     "_ResponsesAccumulator",
+    "_ImagesAccumulator",
 )
 
 
@@ -100,6 +106,36 @@ class _ResponsesAccumulator:
             )
 
 
+class _ImagesAccumulator:
+    __slots__ = ("_completed_event",)
+
+    def __init__(self) -> None:
+        self._completed_event: Any = None
+
+    def process_chunk(self, chunk: Any) -> None:
+        if getattr(chunk, "type", "") in (
+            "image_generation.completed",
+            "image_edit.completed",
+        ):
+            self._completed_event = chunk
+
+    def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
+        if self._completed_event is not None:
+            yield from _as_output_attributes(_io_value_and_type(self._completed_event))
+
+    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
+        if self._completed_event is None:
+            return
+        if b64_json := getattr(self._completed_event, "b64_json", None):
+            yield (
+                f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}",
+                image_b64_to_data_url(
+                    b64_json,
+                    getattr(self._completed_event, "output_format", None),
+                ),
+            )
+
+
 class _ChatCompletionAccumulator:
     __slots__ = (
         "_is_null",
@@ -126,6 +162,12 @@ class _ChatCompletionAccumulator:
                 lambda: _ValuesAccumulator(
                     message=_ValuesAccumulator(
                         content=_StringAccumulator(),
+                        # streamed across chunks like content: `refusal` is a first-party
+                        # delta field, `reasoning_content` (DeepSeek, Qwen3) and `reasoning`
+                        # (current vLLM) come from OpenAI-compatible servers
+                        refusal=_StringAccumulator(),
+                        reasoning_content=_StringAccumulator(),
+                        reasoning=_StringAccumulator(),
                         function_call=_ValuesAccumulator(arguments=_StringAccumulator()),
                         tool_calls=_IndexedAccumulator(
                             lambda: _ValuesAccumulator(

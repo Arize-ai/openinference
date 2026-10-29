@@ -19,9 +19,11 @@ from anthropic.types import (
 )
 from anthropic.types.message_create_params import MessageCreateParamsBase
 from botocore.eventstream import EventStream
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from typing_extensions import assert_never
 
+from openinference.instrumentation.bedrock._wrappers import _InvokeModelWithResponseStream
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -47,9 +49,9 @@ def _invoke_stream_request_data() -> dict[str, Any]:
     model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     system_message = "You're super friendly"
     messages: list[MessageParam] = [
-        MessageParam(
-            role="user",
-            content=[
+        {
+            "role": "user",
+            "content": [
                 TextBlockParam(
                     type="text",
                     text="Hello! Here's a red pixel.",
@@ -63,20 +65,20 @@ def _invoke_stream_request_data() -> dict[str, Any]:
                     ),
                 ),
             ],
-        ),
-        MessageParam(role="assistant", content="Thank you!"),
-        MessageParam(
-            role="user",
-            content=[
+        },
+        {"role": "assistant", "content": "Thank you!"},
+        {
+            "role": "user",
+            "content": [
                 TextBlockParam(
                     type="text",
                     text="what's current temperature and population in Los Angeles?",
                 )
             ],
-        ),
-        MessageParam(
-            role="assistant",
-            content=[
+        },
+        {
+            "role": "assistant",
+            "content": [
                 TextBlockParam(
                     type="text",
                     text="Certainly! I'd be happy to help you with "
@@ -96,10 +98,10 @@ def _invoke_stream_request_data() -> dict[str, Any]:
                     input={"city": "Los Angeles"},
                 ),
             ],
-        ),
-        MessageParam(
-            role="user",
-            content=[
+        },
+        {
+            "role": "user",
+            "content": [
                 ToolResultBlockParam(
                     type="tool_result",
                     tool_use_id="toolu_bdrk_01LzqVRttWAxkjdq19wmG2Cn",
@@ -111,11 +113,11 @@ def _invoke_stream_request_data() -> dict[str, Any]:
                     content=[TextBlockParam(type="text", text="large")],
                 ),
             ],
-        ),
-        MessageParam(
-            role="user",
-            content="what's current temperature and population in San Francisco?",
-        ),
+        },
+        {
+            "role": "user",
+            "content": "what's current temperature and population in San Francisco?",
+        },
     ]
     tools: list[ToolParam] = [
         ToolParam(
@@ -225,7 +227,6 @@ class TestInvokeModelWithStreamResponse:
 def _assert_invoke_stream_span(span: Any, data: dict[str, Any]) -> None:
     """Assert span attributes for invoke_model_with_response_stream (Claude Messages API)."""
     request_body = data["request_body"]
-    model_id = data["model_id"]
     system_message = data["system_message"]
     messages = data["messages"]
     tools = data["tools"]
@@ -334,8 +335,34 @@ def _assert_invoke_stream_span(span: Any, data: dict[str, Any]) -> None:
     assert json.loads(parameters) == invocation_parameters
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
-    assert attributes.pop(LLM_MODEL_NAME) == model_id
+    assert attributes.pop(LLM_MODEL_NAME) == json.loads(output_value)["model"]
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "anthropic"
     assert attributes.pop(LLM_FINISH_REASON) == "tool_use"
+    assert not attributes
+
+
+def test_unhandled_model_request_body_is_serialized(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Models without a stream callback still get their request body as JSON strings."""
+    request_body = {"prompt": "Hello", "max_gen_len": 64}
+    span = tracer_provider.get_tracer(__name__).start_span(
+        "bedrock.invoke_model_with_response_stream"
+    )
+    _InvokeModelWithResponseStream.handle_response(
+        {"body": None},
+        {"modelId": "us.meta.llama3-3-70b-instruct-v1:0", "body": json.dumps(request_body)},
+        span,
+    )
+
+    (span_data,) = in_memory_span_exporter.get_finished_spans()
+    attributes = dict(span_data.attributes or {})
+    assert attributes.pop(INPUT_VALUE) == json.dumps(request_body)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON.value
+    assert attributes.pop(LLM_INVOCATION_PARAMETERS) == json.dumps(request_body)
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert not attributes
 
 
@@ -369,3 +396,20 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 USER_ID = SpanAttributes.USER_ID
+
+
+def test_system_message_block_attributes_include_message_prefix() -> None:
+    from openinference.instrumentation.bedrock.utils.anthropic._messages import (
+        _attributes_from_system_message,
+    )
+
+    attributes = dict(
+        _attributes_from_system_message(
+            [{"type": "text", "text": "SECRET-SYSTEM"}],
+            "llm.input_messages.0.",
+        )
+    )
+    assert attributes == {
+        "llm.input_messages.0.message.role": "system",
+        "llm.input_messages.0.message.contents.0.message_content.text": "SECRET-SYSTEM",
+    }

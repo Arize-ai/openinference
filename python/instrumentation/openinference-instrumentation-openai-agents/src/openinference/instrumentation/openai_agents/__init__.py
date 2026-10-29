@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Collection, Optional, cast
+import threading
+from typing import TYPE_CHECKING, Any, Callable, Collection, Optional, cast
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
@@ -10,6 +11,13 @@ from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.openai_agents.package import _instruments
 from openinference.instrumentation.openai_agents.version import __version__
 
+if TYPE_CHECKING:
+    from agents.tracing import TracingProcessor
+
+    from openinference.instrumentation.openai_agents._processor import (
+        OpenInferenceTracingProcessor,
+    )
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -17,6 +25,11 @@ _REALTIME_MODULE = "agents.realtime.session"
 _REALTIME_PUT_EVENT_ATTR = "RealtimeSession._put_event"
 _REALTIME_SEND_AUDIO_ATTR = "RealtimeSession.send_audio"
 _REALTIME_CLOSE_ATTR = "RealtimeSession.close"
+
+# Held while reading and then replacing the SDK's processor list, so that two of our own
+# updates (say, two processors finishing their runs at once) cannot overwrite each other.
+# See _update_trace_processors for updates made through the SDK's own API at the same time.
+_processors_lock = threading.Lock()
 
 
 def _patch_tool_execution() -> Optional[list[tuple[Any, str, Any]]]:
@@ -57,6 +70,106 @@ def _patch_tool_execution() -> Optional[list[tuple[Any, str, Any]]]:
     return patched
 
 
+def _get_trace_processors() -> Optional[list["TracingProcessor"]]:
+    """Return the processors registered with the Agents SDK, or ``None`` when they cannot
+    be read.
+
+    The SDK can add a processor or replace them all, but cannot list or remove one, so this
+    reads the default trace provider's private list. A custom ``TraceProvider``, or an SDK
+    that moves the list, gets ``None``, and callers fall back to what they can do without.
+    """
+    try:
+        from agents.tracing import get_trace_provider
+
+        multi_processor = getattr(get_trace_provider(), "_multi_processor", None)
+        processors = getattr(multi_processor, "_processors", None)
+    except Exception:
+        logger.debug("could not read the registered trace processors", exc_info=True)
+        return None
+    if not isinstance(processors, (tuple, list)):
+        logger.debug("could not read the registered trace processors")
+        return None
+    return list(processors)
+
+
+def _update_trace_processors(
+    update: Callable[[list["TracingProcessor"]], Optional[list["TracingProcessor"]]],
+) -> bool:
+    """Replace the processors registered with the Agents SDK by ``update(registered)``,
+    leaving them as they are when it returns ``None``. Returns ``False`` when they cannot
+    be read, without calling ``update``.
+
+    Reading the list and then calling ``set_trace_processors`` would drop a processor that
+    another thread adds with ``add_trace_processor`` in between. So the update is made
+    under the lock the SDK takes for that, setting the list the way ``set_trace_processors``
+    does (it cannot be called with the lock held). Without that lock it falls back to
+    ``set_trace_processors``.
+    """
+    from agents import set_trace_processors
+    from agents.tracing import get_trace_provider
+
+    with _processors_lock:
+        multi_processor: Any = None
+        sdk_lock: Any = None
+        try:
+            multi_processor = getattr(get_trace_provider(), "_multi_processor", None)
+            sdk_lock = getattr(multi_processor, "_lock", None)
+        except Exception:
+            logger.debug("could not read the trace processors lock", exc_info=True)
+        if multi_processor is None or not hasattr(sdk_lock, "__enter__"):
+            if (registered := _get_trace_processors()) is None:
+                return False
+            if (processors := update(registered)) is not None:
+                set_trace_processors(processors)
+            return True
+        with sdk_lock:
+            if (registered := _get_trace_processors()) is None:
+                return False
+            if (processors := update(registered)) is not None:
+                multi_processor._processors = tuple(processors)
+        return True
+
+
+def _unregister_processor(
+    processor: "OpenInferenceTracingProcessor",
+    displaced: list["TracingProcessor"],
+) -> None:
+    """Undo what ``_instrument`` did to the SDK's processors.
+
+    Only ``processor`` is removed: processors registered after it are kept, and the ones an
+    exclusive ``instrument()`` replaced (``displaced``) are put back ahead of them, in their
+    original order. If the list was replaced since, it is left as it is. ``processor``
+    itself stays registered, tracing no new run, until the runs it is tracing have ended --
+    it has to receive their end events to end their spans.
+    """
+
+    def restore(registered: list["TracingProcessor"]) -> Optional[list["TracingProcessor"]]:
+        if not any(p is processor for p in registered):
+            return None
+        restored = [p for p in displaced if not any(p is r for r in registered)]
+        return [*restored, *registered]
+
+    def take_out(registered: list["TracingProcessor"]) -> Optional[list["TracingProcessor"]]:
+        if not any(p is processor for p in registered):
+            return None
+        return [p for p in registered if p is not processor]
+
+    def remove() -> None:
+        _update_trace_processors(take_out)
+
+    # Stop tracing new runs before the processors change, so that no run starting while
+    # this is under way is traced.
+    processor.drain()
+    readable = False
+    try:
+        readable = _update_trace_processors(restore)
+    finally:
+        # Even if the processors could not be put back, take this one out once its runs
+        # have ended. When the list cannot be read, nothing can be taken out either, so it
+        # stays registered, tracing nothing new.
+        processor.drain(remove if readable else None)
+
+
 class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
     """
     An instrumentor for openai-agents
@@ -67,6 +180,8 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_send_audio",
         "_original_close",
         "_original_execute_function_tools",
+        "_processor",
+        "_displaced_processors",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -90,14 +205,31 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
             OpenInferenceTracingProcessor,
         )
 
-        if exclusive_processor:
-            from agents import set_trace_processors
+        # Raises on an unsupported span kind before anything is patched.
+        processor = OpenInferenceTracingProcessor(
+            cast(Tracer, tracer), tool_span_kinds=kwargs.get("tool_span_kinds")
+        )
 
-            set_trace_processors([OpenInferenceTracingProcessor(cast(Tracer, tracer))])
-        else:
-            from agents import add_trace_processor
+        from agents import add_trace_processor, set_trace_processors
 
-            add_trace_processor(OpenInferenceTracingProcessor(cast(Tracer, tracer)))
+        self._processor: Optional["OpenInferenceTracingProcessor"] = processor
+        self._displaced_processors: list["TracingProcessor"] = []
+
+        def replace(registered: list["TracingProcessor"]) -> list["TracingProcessor"]:
+            # A processor an earlier uninstrument() left draining a run still in flight keeps
+            # receiving that run's events even in exclusive mode, so its spans still end.
+            draining = [
+                p for p in registered if isinstance(p, OpenInferenceTracingProcessor) and p.draining
+            ]
+            self._displaced_processors = [
+                p for p in registered if not any(p is d for d in draining)
+            ]
+            return [*draining, processor]
+
+        if not exclusive_processor:
+            add_trace_processor(processor)
+        elif not _update_trace_processors(replace):
+            set_trace_processors([processor])
 
         self._original_execute_function_tools = _patch_tool_execution()
 
@@ -143,6 +275,15 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
             logger.debug("agents.realtime.events not importable — realtime tracing disabled")
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        processor = getattr(self, "_processor", None)
+        if processor is not None:
+            try:
+                _unregister_processor(processor, getattr(self, "_displaced_processors", []))
+            except Exception:
+                logger.debug("trace processor uninstrument failed", exc_info=True)
+        self._processor = None
+        self._displaced_processors = []
+
         for container, attribute, original in (
             getattr(self, "_original_execute_function_tools", None) or ()
         ):

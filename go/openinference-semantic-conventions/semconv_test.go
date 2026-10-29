@@ -14,9 +14,11 @@ func TestAttributeKeys(t *testing.T) {
 		{InputValue, "input.value"},
 		{InputMimeType, "input.mime_type"},
 		{InputImages, "input.images"},
+		{InputDocuments, "input.documents"},
 		{OutputValue, "output.value"},
 		{OutputMimeType, "output.mime_type"},
 		{OutputImages, "output.images"},
+		{OutputDocuments, "output.documents"},
 		{Metadata, "metadata"},
 		{TagTags, "tag.tags"},
 		{SessionID, "session.id"},
@@ -62,6 +64,14 @@ func TestAttributeKeys(t *testing.T) {
 		{LLMPromptTemplateVariables, "llm.prompt_template.variables"},
 		{LLMPromptTemplateVersion, "llm.prompt_template.version"},
 		{LLMTools, "llm.tools"},
+
+		{DecisionModelName, "decision.model_name"},
+		{DecisionRequestModelName, "decision.request.model_name"},
+		{DecisionResponseModelName, "decision.response.model_name"},
+		{DecisionProvider, "decision.provider"},
+		{DecisionSystem, "decision.system"},
+		{DecisionTokenCountInput, "decision.token_count.input"},
+		{DecisionTokenCountOutput, "decision.token_count.output"},
 
 		{LLMTokenCountPrompt, "llm.token_count.prompt"},
 		{LLMTokenCountPromptDetails, "llm.token_count.prompt_details"},
@@ -122,6 +132,7 @@ func TestAttributeKeys(t *testing.T) {
 		{MessageContentImage, "message_content.image"},
 		{MessageContentAudio, "message_content.audio"},
 		{MessageContentVideo, "message_content.video"},
+		{MessageContentDocument, "message_content.document"},
 		{MessageContentID, "message_content.id"},
 		{MessageContentSignature, "message_content.signature"},
 		{MessageContentData, "message_content.data"},
@@ -139,6 +150,9 @@ func TestAttributeKeys(t *testing.T) {
 		{DocumentScore, "document.score"},
 		{DocumentContent, "document.content"},
 		{DocumentMetadata, "document.metadata"},
+		{DocumentURL, "document.url"},
+		{DocumentMimeType, "document.mime_type"},
+		{DocumentName, "document.name"},
 
 		{ToolCallID, "tool_call.id"},
 		{ToolCallFunctionName, "tool_call.function.name"},
@@ -165,6 +179,7 @@ func TestEnumValues(t *testing.T) {
 	}{
 		{SpanKindLLM, "LLM"},
 		{SpanKindChain, "CHAIN"},
+		{SpanKindDecision, "DECISION"},
 		{SpanKindTool, "TOOL"},
 		{SpanKindRetriever, "RETRIEVER"},
 		{SpanKindEmbedding, "EMBEDDING"},
@@ -187,6 +202,7 @@ func TestEnumValues(t *testing.T) {
 		{LLMSystemCohere, "cohere"},
 		{LLMSystemMistralAI, "mistralai"},
 		{LLMSystemVertexAI, "vertexai"},
+		{LLMSystemTypeSafe, "typesafe"},
 
 		{LLMProviderOpenAI, "openai"},
 		{LLMProviderAnthropic, "anthropic"},
@@ -207,6 +223,12 @@ func TestEnumValues(t *testing.T) {
 		{LLMProviderZAI, "zai"},
 		{LLMProviderMiniMax, "minimax"},
 		{LLMProviderOracle, "oracle"},
+		{LLMProviderTypeSafe, "typesafe"},
+
+		{DecisionSystemTypeSafe, "typesafe"},
+		{DecisionSystemOpenAI, "openai"},
+		{DecisionProviderTypeSafe, "typesafe"},
+		{DecisionProviderOpenAI, "openai"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {
@@ -236,6 +258,8 @@ func TestIndexers(t *testing.T) {
 		{"EmbeddingKey/vector", EmbeddingKey(0, EmbeddingVector), "embedding.embeddings.0.embedding.vector"},
 		{"InputImageKey/url", InputImageKey(0, ImageURL), "input.images.0.image.url"},
 		{"OutputImageKey/url", OutputImageKey(2, ImageURL), "output.images.2.image.url"},
+		{"InputDocumentKey/url", InputDocumentKey(0, DocumentURL), "input.documents.0.document.url"},
+		{"OutputDocumentKey/mime_type", OutputDocumentKey(1, DocumentMimeType), "output.documents.1.document.mime_type"},
 		{"AnnotationKey/name", AnnotationKey(0, AnnotationName), "annotations.0.annotation.name"},
 		{"EvaluationKey/score", EvaluationKey(2, EvaluationScore), "evaluations.2.evaluation.score"},
 		{"TraceAnnotationKey/name", TraceAnnotationKey(0, AnnotationName), "trace.annotations.0.annotation.name"},

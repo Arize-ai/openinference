@@ -9,6 +9,7 @@ from opentelemetry.trace import Span, Status, StatusCode
 from openinference.instrumentation.bedrock._converse_attributes import (
     get_attributes_from_response_data,
 )
+from openinference.instrumentation.bedrock.utils import _StreamClosed
 
 if TYPE_CHECKING:
     from mypy_boto3_bedrock_runtime.type_defs import (
@@ -140,13 +141,16 @@ class _ConverseStreamCallback:
                 logger.warning("Failed to process converse stream event", exc_info=True)
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
             try:
-                self._span.set_attributes(
-                    get_attributes_from_response_data(
-                        self.request,
-                        cast("ConverseResponseTypeDef", self._construct_final_message()),
+                # Nothing to record when the stream ended before its first event.
+                if self.message:
+                    self._span.set_attributes(
+                        get_attributes_from_response_data(
+                            self.request,
+                            cast("ConverseResponseTypeDef", self._construct_final_message()),
+                        )
                     )
-                )
-                self._span.set_status(Status(StatusCode.OK))
+                if not isinstance(obj, _StreamClosed):
+                    self._span.set_status(Status(StatusCode.OK))
             except Exception:
                 logger.warning("Failed to set response attributes on span", exc_info=True)
             finally:

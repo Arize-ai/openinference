@@ -1,5 +1,34 @@
 # @arizeai/openinference-core
 
+## 2.8.1
+
+### Patch Changes
+
+- 298ff79: Read the `OPENINFERENCE_*` environment variables when no `traceConfig` is passed. `generateTraceConfig()` returned the hard-coded defaults for an undefined config, so `OPENINFERENCE_HIDE_INPUTS=true` and the other masking variables had no effect on any instrumentation constructed without a `traceConfig`.
+- Updated dependencies [dc63d01]
+  - @arizeai/openinference-semantic-conventions@2.15.0
+
+## 2.8.0
+
+### Minor Changes
+
+- 0d26a59: Add decision span helpers: the `traceDecision` wrapper, which creates spans with the `DECISION` OpenInference span kind, and `getDecisionAttributes`, which builds the `decision.*` model identification (`system`, `provider`, model names) and token count attributes with the same semantics as `getLLMAttributes`.
+
+## 2.7.3
+
+### Patch Changes
+
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+
+## 2.7.2
+
+### Patch Changes
+
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+
 ## 2.7.1
 
 ### Patch Changes

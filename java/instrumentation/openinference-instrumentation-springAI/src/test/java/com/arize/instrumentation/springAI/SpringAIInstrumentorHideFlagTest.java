@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.observation.ChatModelObservationContext;
@@ -79,9 +80,12 @@ class SpringAIInstrumentorHideFlagTest {
         // Set up response if assistantOutput is provided
         if (assistantOutput != null) {
             AssistantMessage assistantMessage = new AssistantMessage(assistantOutput);
-            Generation generation = new Generation(assistantMessage);
+            Generation generation = new Generation(
+                    assistantMessage,
+                    ChatGenerationMetadata.builder().finishReason("stop").build());
             ChatResponse response = mock(ChatResponse.class);
             when(response.getResults()).thenReturn(List.of(generation));
+            when(response.getResult()).thenReturn(generation);
             when(context.getResponse()).thenReturn(response);
         }
 
@@ -179,6 +183,9 @@ class SpringAIInstrumentorHideFlagTest {
         simulateFullCall(instrumentor, context);
         SpanData span = getSpan();
 
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isEqualTo("stop");
+
         // Output messages should be suppressed
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
                 .isNull();
@@ -242,6 +249,9 @@ class SpringAIInstrumentorHideFlagTest {
 
         simulateFullCall(instrumentor, context);
         SpanData span = getSpan();
+
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isEqualTo("stop");
 
         // Output messages should be suppressed
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))

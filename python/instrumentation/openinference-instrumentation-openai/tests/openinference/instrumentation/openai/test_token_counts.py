@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Any, Optional
 
 import openai
 import pytest
@@ -36,7 +36,7 @@ class TestTokenCounts:
             == OpenInferenceLLMProviderValues.OPENAI.value
         ]
         assert len(spans) == 1
-        attr = dict(spans[0].attributes or {})
+        attr: dict[str, Any] = dict(spans[0].attributes or {})
 
         assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == usage.completion_tokens
         assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == usage.prompt_tokens

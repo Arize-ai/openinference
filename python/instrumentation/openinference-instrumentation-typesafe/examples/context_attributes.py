@@ -1,6 +1,6 @@
 """
 Traces one ``system_one`` call inside ``using_attributes`` (session, user, metadata, tags),
-then makes the same call inside ``suppress_tracing``. Exactly one LLM span is exported, and it
+then makes the same call inside ``suppress_tracing``. Exactly one DECISION span is exported, and it
 carries the context attributes.
 
 1. Run a local OTLP collector such as Phoenix: `uvx arize-phoenix serve`

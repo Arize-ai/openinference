@@ -60,6 +60,7 @@ jobs:
     permissions:
       issues: write # Add/remove labels, edit titles and bodies, post triage comments
       contents: read # Read the codebase for the already-shipped check and stage 6
+      id-token: write # Exchange the GitHub OIDC token for Anthropic credentials
 
     steps:
       - name: Checkout repository
@@ -78,11 +79,13 @@ jobs:
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@0f97b95b6536c26e5f6bd90faec370d41695beca # v1.0.144
+        uses: anthropics/claude-code-action@ed670b4cf9de2a5a570d130d2f6197b9e543cd64 # v1.0.240
         env:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
 
           # The default token deliberately: events it creates do not start other
           # workflows, so a `good-agent-issue` label written here does NOT trigger
@@ -131,4 +134,4 @@ jobs:
           # labels, titles and bodies and cannot distinguish them, so the skill's Hard
           # limits are the boundary there. `gh api` is deliberately NOT allowed — it would
           # permit arbitrary writes. No tox/pnpm/gradlew: triage reads code, never runs it.
-          claude_args: '--model claude-opus-4-8 --allowedTools Skill,Read,Grep,Glob,Write,"Bash(gh label list:*)","Bash(gh issue list:*)","Bash(gh issue view:*)","Bash(gh issue edit:*)","Bash(gh issue comment:*)"'
+          claude_args: '--allowedTools Skill,Read,Grep,Glob,Write,"Bash(gh label list:*)","Bash(gh issue list:*)","Bash(gh issue view:*)","Bash(gh issue edit:*)","Bash(gh issue comment:*)"'

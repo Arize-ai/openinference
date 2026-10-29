@@ -21,6 +21,7 @@ const AIPrefixes = {
   response: "response",
   documents: "documents",
   ranking: "ranking",
+  decision: "decision",
 } as const;
 
 const AIUsagePostfixes = {
@@ -131,6 +132,11 @@ const RERANK_DOCUMENTS = `${AI_PREFIX}.${AIPrefixes.documents}` as const;
 const RERANKING_OUTPUT = `${AI_PREFIX}.${AIPrefixes.ranking}` as const;
 const RERANKING_OUTPUT_TYPE = `${AI_PREFIX}.${AIPrefixes.ranking}.type` as const;
 
+// Decision attributes emitted by AI SDK v7 when experimental_decision is enabled.
+const DECISION_STATE = `${AI_PREFIX}.${AIPrefixes.decision}.state` as const;
+const DECISION_QUESTIONS = `${AI_PREFIX}.${AIPrefixes.decision}.questions` as const;
+const DECISION_ANSWERS = `${AI_PREFIX}.${AIPrefixes.decision}.answers` as const;
+
 /**
  * The semantic conventions used by the Vercel AI SDK (`ai.*` attributes).
  * @see https://sdk.vercel.ai/docs/ai-sdk-core/telemetry#collected-data
@@ -189,6 +195,11 @@ export const AISemanticConventions = {
   RERANK_DOCUMENTS,
   RERANKING_OUTPUT,
   RERANKING_OUTPUT_TYPE,
+
+  // Decisions
+  DECISION_STATE,
+  DECISION_QUESTIONS,
+  DECISION_ANSWERS,
 } as const;
 
 export const AISemanticConventionsList = Object.freeze(Object.values(AISemanticConventions));

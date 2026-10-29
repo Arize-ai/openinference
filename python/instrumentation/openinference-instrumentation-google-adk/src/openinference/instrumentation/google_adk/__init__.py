@@ -1,3 +1,4 @@
+import contextlib
 import contextvars
 import logging
 import sys
@@ -5,10 +6,11 @@ from typing import Any, Collection, Dict, Iterator, List, Optional, Tuple, cast
 
 import wrapt
 from opentelemetry import trace as trace_api
+from opentelemetry.context import Context
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
     BaseInstrumentor,
 )
-from opentelemetry.trace import Span, Tracer, get_current_span
+from opentelemetry.trace import NonRecordingSpan, Span, Tracer, get_current_span
 from opentelemetry.util._decorator import _agnosticcontextmanager
 from wrapt import resolve_path, wrap_function_wrapper
 
@@ -29,12 +31,16 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-_instruments = ("google-adk >= 1.2.1",)
+_instruments = ("google-adk >= 2.10.0",)
 
 _COMPACTION_MODULE = "google.adk.apps.compaction"
 
 _compaction_input_var: "contextvars.ContextVar[Optional[Dict[str, Any]]]" = contextvars.ContextVar(
     "_openinference_compaction_input", default=None
+)
+
+_suppress_workflow_span_var: "contextvars.ContextVar[bool]" = contextvars.ContextVar(
+    "_openinference_suppress_workflow_span", default=False
 )
 
 
@@ -60,9 +66,11 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
         from google.adk.agents import BaseAgent
         from google.adk.runners import Runner
+        from google.adk.workflow._node_runner import NodeRunner
 
         from openinference.instrumentation.google_adk._wrappers import (
             _BaseAgentRunAsync,
+            _NodeRunnerExecuteNode,
             _RunnerRunAsync,
         )
 
@@ -72,6 +80,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         method_wrappers: Dict[Any, Any] = {
             Runner.run_async: _RunnerRunAsync(self._tracer),
             BaseAgent.run_async: _BaseAgentRunAsync(self._tracer),
+            NodeRunner._execute_node: _NodeRunnerExecuteNode(),
         }
 
         # Wrap each method with its corresponding tracer
@@ -81,6 +90,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
             wrap_function_wrapper(module, name, wrapper)
 
         self._patch_trace_call_llm()
+        self._patch_record_invocation()
         self._patch_trace_tool_call()
         self._disable_existing_tracers()
 
@@ -95,131 +105,137 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _patch_trace_call_llm(self) -> None:
         """Patch the LLM call tracing functionality to use our tracer."""
-        from google.adk.flows.llm_flows import base_llm_flow
+        from google.adk.flows.llm_flows.core import _model_call
 
         from openinference.instrumentation.google_adk._wrappers import _TraceCallLlm
 
-        setattr(base_llm_flow, "tracer", self._tracer)
+        if hasattr(_model_call, "_start_call_llm_span"):
+            # google-adk >= 2.13 opens `call_llm` through `_start_call_llm_span`,
+            # which returns None under its default telemetry schema v2. Always
+            # open the span so the LLM attributes have a span of their own.
+            tracer = self._tracer
+            original_start_call_llm_span = _model_call._start_call_llm_span
+
+            def start_call_llm_span(caller_context: Context) -> Span:
+                return tracer.start_span("call_llm", context=caller_context)
+
+            self._tracer_patches.append(
+                (
+                    _model_call,
+                    "_start_call_llm_span",
+                    original_start_call_llm_span,
+                    start_call_llm_span,
+                )
+            )
+            setattr(_model_call, "_start_call_llm_span", start_call_llm_span)
+        else:
+            setattr(_model_call, "tracer", self._tracer)
         setattr(
-            base_llm_flow,
+            _model_call,
             "trace_call_llm",
-            _TraceCallLlm(self._tracer)(base_llm_flow.trace_call_llm),  # type: ignore[attr-defined]
+            _TraceCallLlm(self._tracer)(
+                _model_call.trace_call_llm  # type: ignore[attr-defined]
+            ),
         )
 
     def _unpatch_trace_call_llm(self) -> None:
         """Restore the original LLM call tracing functionality."""
-        from google.adk.flows.llm_flows import base_llm_flow
-
-        if callable(
-            original := getattr(base_llm_flow.trace_call_llm, "__wrapped__"),  # type: ignore[attr-defined]
-        ):
-            from google.adk.flows.llm_flows import (
-                base_llm_flow,
-            )
-
-            setattr(base_llm_flow, "trace_call_llm", original)
-
+        from google.adk.flows.llm_flows.core import _model_call
         from google.adk.telemetry import tracer
 
-        setattr(base_llm_flow, "tracer", tracer)
+        trace_call_llm = _model_call.trace_call_llm  # type: ignore[attr-defined]
+        if callable(original := getattr(trace_call_llm, "__wrapped__", None)):
+            setattr(_model_call, "trace_call_llm", original)
+
+        if not hasattr(_model_call, "_start_call_llm_span"):
+            setattr(_model_call, "tracer", tracer)
+
+    def _patch_record_invocation(self) -> None:
+        """Drop the entrypoint `invoke_workflow` span ADK opens for a non-workflow root.
+
+        google-adk >= 2.13 replaces its `invocation` span with
+        `invoke_workflow {root agent}` even when the root is a plain agent. Our
+        `invocation` span already covers the run, so emitting it would insert a
+        CHAIN span between `invocation` and `agent_run` that earlier versions did
+        not have. A `Workflow` root keeps its span.
+        """
+        from google.adk.telemetry import _instrumentation
+        from google.adk.workflow._workflow import Workflow
+
+        original = getattr(_instrumentation, "record_invocation", None)
+        if original is None:
+            return
+
+        @contextlib.contextmanager
+        def record_invocation(*args: Any, **kwargs: Any) -> Iterator[Any]:
+            entrypoint_node = kwargs.get("entrypoint_node", args[0] if args else None)
+            with contextlib.ExitStack() as stack:
+                # Set only while ADK opens the entrypoint span, never across the yield.
+                token = _suppress_workflow_span_var.set(not isinstance(entrypoint_node, Workflow))
+                try:
+                    value = stack.enter_context(original(*args, **kwargs))
+                finally:
+                    _suppress_workflow_span_var.reset(token)
+                yield value
+
+        self._tracer_patches.append(
+            (_instrumentation, "record_invocation", original, record_invocation)
+        )
+        setattr(_instrumentation, "record_invocation", record_invocation)
 
     def _patch_trace_tool_call(self) -> None:
         """Patch the tool call tracing functionality to use our tracer."""
+        from google.adk.telemetry import tracing
+
         from openinference.instrumentation.google_adk._wrappers import _TraceToolCall
 
-        target = _resolve_trace_tool_call_module()
-        # On ADK < 1.32 the target is google.adk.flows.llm_flows.functions, whose
-        # local `tracer` attr is used for ad-hoc tool spans we want to convert to OI
-        # spans. On ADK >= 1.32 the target is google.adk.telemetry.tracing — its
-        # `tracer` attr is the global ADK tracer that `_disable_existing_tracers`
-        # swaps with a _SelectiveExecuteToolTracer to convert `execute_tool *` spans
-        # to OI spans while passing through other operations, so we leave it alone here.
-        if _adk_version() < (1, 32, 0):
-            setattr(target, "tracer", self._tracer)
+        # tracing.tracer is the shared ADK tracer. _disable_existing_tracers wraps
+        # it, so this method only wraps trace_tool_call.
         setattr(
-            target,
+            tracing,
             "trace_tool_call",
-            _TraceToolCall(self._tracer)(target.trace_tool_call),
+            _TraceToolCall(self._tracer)(tracing.trace_tool_call),
         )
 
     def _unpatch_trace_tool_call(self) -> None:
         """Restore the original tool call tracing functionality."""
-        target = _resolve_trace_tool_call_module()
+        from google.adk.telemetry import tracing
 
         if callable(
-            original := getattr(target.trace_tool_call, "__wrapped__", None),
+            original := getattr(tracing.trace_tool_call, "__wrapped__", None),
         ):
-            setattr(target, "trace_tool_call", original)
-
-        if _adk_version() < (1, 32, 0):
-            from google.adk.telemetry import tracer
-
-            setattr(target, "tracer", tracer)
+            setattr(tracing, "trace_tool_call", original)
 
     def _disable_existing_tracers(self) -> None:
         """Disable existing tracers to prevent double-instrumentation."""
-        from google.adk.runners import (  # type: ignore[attr-defined]
-            tracer,  # pyright: ignore[reportPrivateImportUsage]
-        )
+        from google.adk import runners
 
+        # getattr: google-adk >= 2.12 exports `runners.tracer`; earlier versions
+        # only expose it as an implicit re-export.
+        tracer = getattr(runners, "tracer", None)
         if isinstance(tracer, Tracer):
-            from google.adk import runners
-
             setattr(runners, "tracer", _PassthroughTracer(tracer))
 
-        # ADK 1.32 removed `tracer` from google.adk.agents.base_agent.
-        # Skip patching it on newer ADK; telemetry.tracing.tracer below covers the path.
-        if _adk_version() < (1, 32, 0):
-            from google.adk.agents.base_agent import (  # type: ignore[attr-defined,unused-ignore]
-                tracer as base_agent_tracer,  # pyright: ignore[reportPrivateImportUsage]
-            )
+        # tracing.tracer drives execute_tool, invoke_agent, and generate_content.
+        # Emit OI spans for the tool family and suppress the others.
+        from google.adk.telemetry import tracing as adk_tracing
 
-            if isinstance(base_agent_tracer, Tracer):
-                from google.adk.agents import base_agent
-
-                setattr(base_agent, "tracer", _PassthroughTracer(base_agent_tracer))
-
-        if _adk_version() >= (1, 32, 0):
-            # ADK 1.32 consolidated tool + agent telemetry: a single shared
-            # `tracing.tracer` now drives `execute_tool {name}` (via
-            # `_instrumentation.record_tool_execution`), `invoke_agent {name}` (via
-            # `record_agent_invocation`), and the experimental
-            # `generate_content {model}` path. We want OI spans for the tool family
-            # but suppression for the others — so wrap with a name-dispatching
-            # proxy. See `_SelectiveExecuteToolTracer` for the full rationale.
-            from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
-                tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
-            )
-
-            adk_proxy: Optional[Tracer] = None
-            if isinstance(adk_tracing.tracer, Tracer):
-                original_adk_tracer = adk_tracing.tracer
-                adk_proxy = cast(
-                    Tracer, _SelectiveExecuteToolTracer(original_adk_tracer, self._tracer)
-                )
-                self._tracer_patches.append((adk_tracing, "tracer", original_adk_tracer, adk_proxy))
-                setattr(adk_tracing, "tracer", adk_proxy)
-            # The parallel-call `execute_tool (merged)` span is created through a
-            # *separate*, module-local `tracer` binding captured at import time via
-            # `from ...telemetry.tracing import tracer` (see
-            # `_merged_tool_span_modules`). Reassigning `tracing.tracer` above won't
-            # reach it, so wrap each such binding independently.
-            for merged_module in _merged_tool_span_modules():
-                merged_tracer = getattr(merged_module, "tracer", None)
-                if isinstance(merged_tracer, Tracer):
-                    merged_proxy = _SelectiveExecuteToolTracer(merged_tracer, self._tracer)
-                    self._tracer_patches.append(
-                        (merged_module, "tracer", merged_tracer, merged_proxy)
-                    )
-                    setattr(merged_module, "tracer", merged_proxy)
-            self._patch_compaction_helpers(adk_tracing, adk_proxy)
-        elif _adk_version() >= (1, 15, 0):
-            from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
-                tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
-            )
-
-            if isinstance(adk_tracing.tracer, Tracer):
-                setattr(adk_tracing, "tracer", _PassthroughTracer(adk_tracing.tracer))
+        adk_proxy: Optional[Tracer] = None
+        if isinstance(adk_tracing.tracer, Tracer):
+            original_adk_tracer = adk_tracing.tracer
+            adk_proxy = cast(Tracer, _SelectiveExecuteToolTracer(original_adk_tracer, self._tracer))
+            self._tracer_patches.append((adk_tracing, "tracer", original_adk_tracer, adk_proxy))
+            setattr(adk_tracing, "tracer", adk_proxy)
+        # execute_tool (merged) and the workflow/node spans use module-local
+        # tracers captured at import time. Reassigning tracing.tracer does not
+        # reach them.
+        for merged_module in _merged_tool_span_modules() + _workflow_span_modules():
+            merged_tracer = getattr(merged_module, "tracer", None)
+            if isinstance(merged_tracer, Tracer):
+                merged_proxy = _SelectiveExecuteToolTracer(merged_tracer, self._tracer)
+                self._tracer_patches.append((merged_module, "tracer", merged_tracer, merged_proxy))
+                setattr(merged_module, "tracer", merged_proxy)
+        self._patch_compaction_helpers(adk_tracing, adk_proxy)
 
     def _patch_compaction_helpers(self, adk_tracing: Any, adk_proxy: Optional[Tracer]) -> None:
         """Ensure apps.compaction resolves our patched `tracer`,
@@ -313,35 +329,18 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _restore_existing_tracers(self) -> None:
         """Restore original tracers that were disabled during instrumentation."""
-        from google.adk.runners import (  # type: ignore[attr-defined]
-            tracer,  # pyright: ignore[reportPrivateImportUsage]
-        )
+        from google.adk import runners
 
-        if isinstance(original := getattr(tracer, "__wrapped__"), Tracer):
-            from google.adk import runners
-
+        tracer = getattr(runners, "tracer", None)
+        if isinstance(original := getattr(tracer, "__wrapped__", None), Tracer):
             setattr(runners, "tracer", original)
 
-        if _adk_version() < (1, 32, 0):
-            from google.adk.agents.base_agent import (  # type: ignore[attr-defined,unused-ignore]
-                tracer as base_agent_tracer,  # pyright: ignore[reportPrivateImportUsage]
-            )
+        from google.adk.telemetry import tracing as adk_tracing
 
-            if isinstance(original := getattr(base_agent_tracer, "__wrapped__"), Tracer):
-                from google.adk.agents import base_agent
+        if isinstance(original := getattr(adk_tracing.tracer, "__wrapped__", None), Tracer):
+            setattr(adk_tracing, "tracer", original)
 
-                setattr(base_agent, "tracer", original)
-
-        if _adk_version() >= (1, 15, 0):
-            from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
-                tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
-            )
-
-            if isinstance(original := getattr(adk_tracing.tracer, "__wrapped__", None), Tracer):
-                setattr(adk_tracing, "tracer", original)
-
-        if _adk_version() >= (1, 32, 0):
-            self._restore_compaction_helpers()
+        self._restore_compaction_helpers()
 
 
 class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
@@ -411,6 +410,9 @@ def _wrap_build_compaction_result_attributes(original: Any) -> Any:
     return wrapper
 
 
+_WORKFLOW_SPAN_PREFIXES = ("invoke_workflow", "invoke_node")
+
+
 class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """Tracer proxy that emits OI spans for tool/compaction spans and suppresses the rest.
 
@@ -433,6 +435,10 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
     - ``execute_tool {name}``   → emit as OI span (``_TraceToolCall`` enriches it)
     - ``execute_tool (merged)`` → emit as OI span (parallel-call summary)
 
+    ADK 2.x graph workflows add ``invoke_workflow {name}`` and ``invoke_node {name}``.
+    No outer wrapper covers them, so they are emitted as OI ``CHAIN`` spans, and
+    ``_NodeRunnerExecuteNode`` records their input and output.
+
     A blanket :class:`_PassthroughTracer` swallows the tool spans — leaving
     ``_TraceToolCall`` to write TOOL attributes onto the parent ``call_llm`` span
     and producing no tool span at all. A blanket ``OITracer`` swap goes the other
@@ -440,20 +446,21 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
     alongside the OI ``agent_run`` / ``call_llm`` spans we already create.
 
     This proxy routes by span name: forward to the OI tracer for
-    ``execute_tool *`` and ``compact_events *`` (so ``_TraceToolCall`` and ADK
-    compaction each get a real span), passthrough for everything else.
+    ``execute_tool *``, ``compact_events *``, ``invoke_workflow *`` and
+    ``invoke_node *`` (so ``_TraceToolCall``, ADK compaction and workflows each
+    get a real span), passthrough for everything else.
 
-    Why the merged-span module's ``tracer`` is patched separately
-    -------------------------------------------------------------
+    Why some modules' ``tracer`` is patched separately
+    --------------------------------------------------
     The parallel-call ``execute_tool (merged)`` span is created in a module that
     did ``from ...telemetry.tracing import tracer`` at import time, capturing the
     original tracer in a *local* name. Later reassignments of ``tracing.tracer``
     don't reach it, so the merged span would emit through the original ADK tracer
-    unless we patch that binding too. On ADK 1.32 the span lived in
-    ``flows/llm_flows/functions.py``; ADK 2.x moved it to
-    ``flows/llm_flows/_batch_tool_executor.py``. ``_disable_existing_tracers``
-    wraps whichever binding is present (see ``_merged_tool_span_modules``) with
-    this proxy.
+    unless we patch that binding too. The binding lives on
+    ``flows/llm_flows/tools/_batch_executor.py``. ``_disable_existing_tracers``
+    wraps it (see ``_merged_tool_span_modules``) with this proxy. Workflow and node
+    spans have the same problem in ``telemetry/node_tracing.py`` (see
+    ``_workflow_span_modules``).
 
     Implementation note
     -------------------
@@ -470,7 +477,10 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
     @_agnosticcontextmanager
     def start_as_current_span(self, name: str, *args: Any, **kwargs: Any) -> Iterator[Span]:
         is_compaction = isinstance(name, str) and name.startswith("compact_events ")
-        if is_compaction or (isinstance(name, str) and name.startswith("execute_tool")):
+        # ADK 2.x graph workflows (telemetry/node_tracing.py); no outer wrapper replaces these
+        is_workflow = isinstance(name, str) and name.startswith(_WORKFLOW_SPAN_PREFIXES)
+        is_tool = isinstance(name, str) and name.startswith("execute_tool")
+        if is_compaction or is_workflow or is_tool:
             # Tool/compaction path — produce a real OI span; _TraceToolCall
             # enriches tool spans via `get_current_span()` once
             # `tracing.trace_tool_call(...)` runs inside.
@@ -492,6 +502,12 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
                         logger.exception("Failed to set compaction span input.")
                 kwargs = dict(kwargs)
                 kwargs["attributes"] = {**kwargs.get("attributes", {}), **compaction_attributes}
+            elif is_workflow:
+                kwargs = dict(kwargs)
+                kwargs["attributes"] = {
+                    **kwargs.get("attributes", {}),
+                    SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+                }
             with self._self_oi_tracer.start_as_current_span(name, *args, **kwargs) as span:
                 yield span
             return
@@ -499,56 +515,43 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
         # so suppress to avoid duplicate spans.
         yield get_current_span()
 
-
-def _adk_version() -> Tuple[int, int, int]:
-    """Return the installed google-adk version as a (major, minor, patch) tuple."""
-    from google.adk import __version__
-
-    return cast(Tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
+    def start_span(self, name: str, *args: Any, **kwargs: Any) -> Span:
+        # ADK >= 2.12 opens `invoke_workflow` spans with `start_span`, and
+        # ADK >= 2.13 opens `invocation` and `invoke_agent` spans that way too.
+        is_workflow = isinstance(name, str) and name.startswith(_WORKFLOW_SPAN_PREFIXES)
+        if is_workflow and not _suppress_workflow_span_var.get():
+            kwargs = dict(kwargs)
+            kwargs["attributes"] = {
+                **(kwargs.get("attributes") or {}),
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            }
+            return self._self_oi_tracer.start_span(name, *args, **kwargs)
+        if isinstance(name, str) and name.startswith(("execute_tool", "compact_events ")):
+            return self._self_oi_tracer.start_span(name, *args, **kwargs)
+        # ADK ends the span it gets back, so hand it a non-recording stand-in
+        # that parents ADK's children under the enclosing OI span.
+        return NonRecordingSpan(get_current_span(kwargs.get("context")).get_span_context())
 
 
 def _merged_tool_span_modules() -> List[Any]:
-    """Return modules whose module-local ``tracer`` binding creates the
-    parallel-call ``execute_tool (merged)`` span.
+    """Return the module whose local ``tracer`` creates ``execute_tool (merged)``.
 
-    ``flows/llm_flows/functions.py`` historically did
-    ``from ...telemetry.tracing import tracer`` at import time, capturing the
-    original tracer in a *local* name that a later reassignment of
-    ``tracing.tracer`` won't reach. ADK 2.x moved the merged-span creation into
-    ``flows/llm_flows/_batch_tool_executor.py``, which keeps its own such binding
-    (and ``functions.py`` no longer imports ``tracer`` at all). Patch whichever of
-    these modules is present so the merged span is emitted through our OI tracer
-    regardless of ADK version.
+    ``flows/llm_flows/tools/_batch_executor.py`` does
+    ``from ...telemetry.tracing import tracer`` at import time, so a later
+    reassignment of ``tracing.tracer`` does not reach that span.
     """
-    modules: List[Any] = []
-    from google.adk.flows.llm_flows import functions
+    from google.adk.flows.llm_flows.tools import _batch_executor
 
-    modules.append(functions)
-    try:
-        from google.adk.flows.llm_flows import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
-            _batch_tool_executor,  # type: ignore[attr-defined,unused-ignore]
-        )
-
-        modules.append(_batch_tool_executor)
-    except ImportError:
-        pass
-    return modules
+    return [_batch_executor]
 
 
-def _resolve_trace_tool_call_module() -> Any:
-    """Return the module that exposes ``trace_tool_call`` for the installed ADK.
+def _workflow_span_modules() -> List[Any]:
+    """Return the module whose local ``tracer`` creates workflow and node spans.
 
-    ADK 1.32 moved ``trace_tool_call`` from ``google.adk.flows.llm_flows.functions``
-    to ``google.adk.telemetry.tracing``. Both modules also carry a ``tracer``
-    attribute that the instrumentor swaps in.
+    ``telemetry/node_tracing.py`` does ``from .tracing import tracer`` at import
+    time, so a later reassignment of ``tracing.tracer`` does not reach the
+    ``invoke_workflow`` and ``invoke_node`` spans.
     """
-    if _adk_version() >= (1, 32, 0):
-        from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
-            tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
-        )
+    from google.adk.telemetry import node_tracing
 
-        return adk_tracing
-
-    from google.adk.flows.llm_flows import functions
-
-    return functions
+    return [node_tracing]

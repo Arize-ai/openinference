@@ -18,6 +18,16 @@ from openinference.instrumentation.langchain._tracer import _convert_io
 from openinference.semconv.trace import OpenInferenceMimeTypeValues
 
 
+class _Opaque:
+    def __str__(self) -> str:
+        return "opaque"
+
+
+class _FailingModelDump(_Opaque):
+    def model_dump(self) -> Any:
+        raise ValueError("cannot dump")
+
+
 class TestConvertIO:
     """
     Test cases for the _convert_io function.
@@ -573,6 +583,20 @@ class TestConvertIO:
         first_message = parsed["messages"][0]
         assert isinstance(first_message, dict)
         assert first_message["type"] == "human"
+        assert first_message.get("data", first_message)["content"] == "hi"
+
+    @pytest.mark.parametrize(
+        "client", [_Opaque(), _FailingModelDump()], ids=["unsupported", "failing_model_dump"]
+    )
+    def test_convert_io_unsupported_value_keeps_siblings_structured(self, client: Any) -> None:
+        message = HumanMessage(content="hi")
+
+        result = list(_convert_io({"messages": [message], "client": client}))
+
+        parsed = json.loads(result[0])
+        assert parsed["client"] == "opaque"
+        first_message = parsed["messages"][0]
+        assert isinstance(first_message, dict)
         assert first_message.get("data", first_message)["content"] == "hi"
 
     def test_convert_io_langchain_messages_manual_fallback_json_not_repr(

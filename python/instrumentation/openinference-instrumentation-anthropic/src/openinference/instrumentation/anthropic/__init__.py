@@ -1,7 +1,6 @@
 import logging
-import re
 from importlib import import_module
-from typing import Any, Callable, Collection, NamedTuple, Optional, Tuple
+from typing import Any, Collection, List, Tuple
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
@@ -10,82 +9,36 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.anthropic._sdk_spans import _StartApiCallSpanWrapper
 from openinference.instrumentation.anthropic._wrappers import (
+    _AsyncCountTokensWrapper,
     _AsyncMessagesStreamWrapper,
     _AsyncMessageStreamManager,
     _AsyncMessagesWrapper,
     _AsyncPrepareRequestDataWrapper,
-    _AsyncTransformWrapper,
     _BetaAsyncMessageStreamManager,
     _BetaMessageStreamManager,
+    _CountTokensWrapper,
     _MessagesStreamWrapper,
     _MessageStreamManager,
     _MessagesWrapper,
     _PrepareRequestDataWrapper,
-    _TransformWrapper,
+    _WithTracer,
 )
 from openinference.instrumentation.anthropic.version import __version__
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-_instruments = ("anthropic >= 1.0.0",)
+_instruments = ("anthropic >= 1.8.0",)
 
-
-class _RequestPreparation(NamedTuple):
-    """
-    The private anthropic functions that prepare a request body, patched to record the body as
-    sent, e.g. with the ``stream`` flag that messages.stream() adds, as invocation parameters.
-    """
-
-    module: str  # the module the SDK looks the functions up in, so the one to patch
-    sync_name: str
-    async_name: str
-    sync_wrapper: Callable[..., Any]
-    async_wrapper: Callable[..., Any]
-
-
-# anthropic<1.8.0: the resource methods prepare the body when they build the request, through
-# anthropic._utils._transform.maybe_transform, which calls transform as a module global.
-_TRANSFORM = _RequestPreparation(
-    "anthropic._utils._transform",
-    "transform",
-    "async_transform",
-    _TransformWrapper(),
-    _AsyncTransformWrapper(),
+# The modules of the beta messages resources of the Bedrock and Vertex AI clients. Their classes
+# copy the first-party methods when they are defined, so wrapping the first-party classes misses
+# them, and they are wrapped as well.
+_PLATFORM_BETA_MESSAGES_MODULES = (
+    "anthropic.lib.bedrock._beta_messages",
+    "anthropic.lib.vertex._beta_messages",
 )
-
-# anthropic>=1.8.0: anthropic._utils._prepare.prepare_request_data, which prepares query
-# parameters too, called when the request is sent from anthropic._base_client, which imports it
-# as a module global.
-_PREPARE_REQUEST_DATA = _RequestPreparation(
-    "anthropic._base_client",
-    "prepare_request_data",
-    "async_prepare_request_data",
-    _PrepareRequestDataWrapper(),
-    _AsyncPrepareRequestDataWrapper(),
-)
-_PREPARE_REQUEST_DATA_VERSION = (1, 8, 0)
-
-
-def _get_anthropic_version() -> Optional[Tuple[int, int, int]]:
-    """
-    The version of the anthropic code that is imported, or None if it cannot be parsed. Any
-    pre-release suffix is ignored, so 1.8.0rc1 counts as 1.8.0.
-    """
-    from anthropic import __version__ as anthropic_version
-
-    if (match := re.match(r"(\d+)\.(\d+)\.(\d+)", anthropic_version)) is None:
-        return None
-    return int(match[1]), int(match[2]), int(match[3])
-
-
-def _get_request_preparation() -> Optional[_RequestPreparation]:
-    if (anthropic_version := _get_anthropic_version()) is None:
-        return None
-    if anthropic_version >= _PREPARE_REQUEST_DATA_VERSION:
-        return _PREPARE_REQUEST_DATA
-    return _TRANSFORM
 
 
 class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
@@ -104,9 +57,11 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_async_beta_messages_stream",
         "_original_beta_messages_parse",
         "_original_async_beta_messages_parse",
-        "_request_preparation",
-        "_original_request_preparation",
-        "_original_async_request_preparation",
+        "_original_prepare_request_data",
+        "_original_async_prepare_request_data",
+        "_original_start_api_call_span",
+        "_originals",
+        "_config",
         "_instruments",
         "_tracer",
     )
@@ -119,22 +74,36 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         from anthropic.resources.beta.messages import Messages as BetaMessages
         from anthropic.resources.messages import AsyncMessages, Messages
 
+        # before the first-party methods are wrapped, so that the platform classes copy the
+        # originals if their modules have not been imported yet
+        platform_beta_messages_modules = _import_platform_beta_messages_modules()
+        # the original attributes of the classes wrapped by _wrap, to restore when uninstrumenting
+        self._originals: List[Tuple[Any, str, Any]] = []
+
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
+        # for the attributes that the tracer's masking does not cover
+        self._config = config
         self._tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
+        # re-arm the wrappers that cached accessors (like with_raw_response) kept from an
+        # earlier instrument(), with this tracer and config
+        tracer: Any = self._tracer
+        for wrapper in list(_WithTracer._instances):
+            wrapper._tracer, wrapper._config, wrapper._active = tracer, config, True
 
         self._original_messages_create = Messages.create
         wrap_function_wrapper(
             "anthropic.resources.messages",
             "Messages.create",
             _MessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.create",
             ),
@@ -145,6 +114,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "AsyncMessages.create",
             _AsyncMessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.create",
             ),
@@ -155,6 +125,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "Messages.stream",
             _MessagesStreamWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.stream",
                 manager_class=_MessageStreamManager,
@@ -166,6 +137,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "AsyncMessages.stream",
             _AsyncMessagesStreamWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.stream",
                 manager_class=_AsyncMessageStreamManager,
@@ -177,6 +149,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "Messages.parse",
             _MessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.parse",
             ),
@@ -187,6 +160,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "AsyncMessages.parse",
             _AsyncMessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.parse",
             ),
@@ -197,6 +171,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "Messages.create",
             _MessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.create",
             ),
@@ -207,6 +182,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "AsyncMessages.create",
             _AsyncMessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.create",
             ),
@@ -217,6 +193,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "Messages.stream",
             _MessagesStreamWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.stream",
                 manager_class=_BetaMessageStreamManager,  # type: ignore[arg-type]
@@ -228,6 +205,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "AsyncMessages.stream",
             _AsyncMessagesStreamWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.stream",
                 manager_class=_BetaAsyncMessageStreamManager,  # type: ignore[arg-type]
@@ -239,6 +217,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "Messages.parse",
             _MessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.parse",
             ),
@@ -249,54 +228,121 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "AsyncMessages.parse",
             _AsyncMessagesWrapper(
+                config=self._config,
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.parse",
             ),
         )
 
+        for cls, async_cls, span_name in [
+            (Messages, AsyncMessages, "messages.count_tokens"),
+            (BetaMessages, AsyncBetaMessages, "beta.messages.count_tokens"),
+        ]:
+            self._wrap_count_tokens(cls, async_cls, span_name)
+
+        for module in platform_beta_messages_modules:
+            self._wrap_platform_beta_messages(module)
+
         self._wrap_request_preparation()
+        self._wrap_sdk_span_start()
+
+    def _wrap(self, cls: Any, name: str, wrapper: Any) -> None:
+        # only a method of the class itself, e.g. not one a platform class lacks and inherits
+        if (original := cls.__dict__.get(name)) is None:
+            return
+        wrap_function_wrapper(cls, name, wrapper)
+        self._originals.append((cls, name, original))
+
+    def _wrap_count_tokens(self, cls: Any, async_cls: Any, span_name: str) -> None:
+        # an OITracer, which the wrappers' annotations do not name
+        tracer: Any = self._tracer
+        self._wrap(
+            cls,
+            "count_tokens",
+            _CountTokensWrapper(config=self._config, tracer=tracer, span_name=span_name),
+        )
+        self._wrap(
+            async_cls,
+            "count_tokens",
+            _AsyncCountTokensWrapper(config=self._config, tracer=tracer, span_name=span_name),
+        )
+
+    def _wrap_platform_beta_messages(self, module: Any) -> None:
+        # an OITracer, which the wrappers' annotations do not name
+        tracer: Any = self._tracer
+        sync_cls, async_cls = module.Messages, module.AsyncMessages
+        for method, span_name in [
+            ("create", "beta.messages.create"),
+            ("parse", "beta.messages.parse"),
+        ]:
+            self._wrap(
+                sync_cls,
+                method,
+                _MessagesWrapper(config=self._config, tracer=tracer, span_name=span_name),
+            )
+            self._wrap(
+                async_cls,
+                method,
+                _AsyncMessagesWrapper(config=self._config, tracer=tracer, span_name=span_name),
+            )
+        self._wrap(
+            sync_cls,
+            "stream",
+            _MessagesStreamWrapper(
+                config=self._config,
+                tracer=tracer,
+                span_name="beta.messages.stream",
+                manager_class=_BetaMessageStreamManager,  # type: ignore[arg-type]
+            ),
+        )
+        self._wrap(
+            async_cls,
+            "stream",
+            _AsyncMessagesStreamWrapper(
+                config=self._config,
+                tracer=tracer,
+                span_name="beta.messages.stream",
+                manager_class=_BetaAsyncMessageStreamManager,  # type: ignore[arg-type]
+            ),
+        )
+        self._wrap_count_tokens(sync_cls, async_cls, "beta.messages.count_tokens")
 
     def _wrap_request_preparation(self) -> None:
-        """
-        The patch only enriches the invocation parameters, so failing to apply it must not stop
-        the instrumentation.
-        """
-        from anthropic import __version__ as anthropic_version
+        from anthropic import _base_client
 
-        self._request_preparation = None
-        self._original_request_preparation = None
-        self._original_async_request_preparation = None
-        if (request_preparation := _get_request_preparation()) is None:
-            logger.warning(
-                "Could not parse the anthropic version %r. Some invocation parameters may be "
-                "missing from LLM spans.",
-                anthropic_version,
-            )
-            return
+        self._original_prepare_request_data = None
+        self._original_async_prepare_request_data = None
         try:
-            module = import_module(request_preparation.module)
-            original = getattr(module, request_preparation.sync_name)
-            async_original = getattr(module, request_preparation.async_name)
-        except (ImportError, AttributeError):
+            original = getattr(_base_client, "prepare_request_data")
+            async_original = getattr(_base_client, "async_prepare_request_data")
+        except AttributeError:
             logger.warning(
-                "Could not find %s.%s in anthropic %s. Some invocation parameters may be "
-                "missing from LLM spans.",
-                request_preparation.module,
-                request_preparation.sync_name,
-                anthropic_version,
+                "Could not find Anthropic request preparation functions. Some invocation "
+                "parameters may be missing from LLM spans."
             )
             return
+        wrap_function_wrapper(_base_client, "prepare_request_data", _PrepareRequestDataWrapper())
         wrap_function_wrapper(
-            module, request_preparation.sync_name, request_preparation.sync_wrapper
+            _base_client, "async_prepare_request_data", _AsyncPrepareRequestDataWrapper()
         )
-        wrap_function_wrapper(
-            module, request_preparation.async_name, request_preparation.async_wrapper
-        )
-        self._request_preparation = request_preparation
-        self._original_request_preparation = original
-        self._original_async_request_preparation = async_original
+        self._original_prepare_request_data = original
+        self._original_async_prepare_request_data = async_original
+
+    def _wrap_sdk_span_start(self) -> None:
+        """
+        anthropic>=1.14.0 starts a span of its own for each API call, which a call that is traced
+        here has instead, see _sdk_spans.
+        """
+        from anthropic import _base_client
+
+        self._original_start_api_call_span = getattr(_base_client, "start_api_call_span", None)
+        if self._original_start_api_call_span is None:
+            # an anthropic version that starts no spans of its own
+            return
+        wrap_function_wrapper(_base_client, "start_api_call_span", _StartApiCallSpanWrapper())
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        from anthropic import _base_client
         from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
         from anthropic.resources.beta.messages import Messages as BetaMessages
         from anthropic.resources.messages import AsyncMessages, Messages
@@ -331,12 +377,31 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if self._original_async_beta_messages_parse is not None:
             AsyncBetaMessages.parse = self._original_async_beta_messages_parse  # type: ignore[method-assign]
 
-        if self._request_preparation is not None:
-            module = import_module(self._request_preparation.module)
-            setattr(module, self._request_preparation.sync_name, self._original_request_preparation)
+        for cls, name, original in reversed(getattr(self, "_originals", ())):
+            setattr(cls, name, original)
+        self._originals = []
+
+        # cached accessors (like with_raw_response) keep the wrapped method
+        for wrapper in list(_WithTracer._instances):
+            wrapper._active = False
+
+        if self._original_prepare_request_data is not None:
+            setattr(_base_client, "prepare_request_data", self._original_prepare_request_data)
+        if self._original_async_prepare_request_data is not None:
             setattr(
-                module,
-                self._request_preparation.async_name,
-                self._original_async_request_preparation,
+                _base_client,
+                "async_prepare_request_data",
+                self._original_async_prepare_request_data,
             )
-            self._request_preparation = None
+        if getattr(self, "_original_start_api_call_span", None) is not None:
+            setattr(_base_client, "start_api_call_span", self._original_start_api_call_span)
+
+
+def _import_platform_beta_messages_modules() -> List[Any]:
+    modules = []
+    for name in _PLATFORM_BETA_MESSAGES_MODULES:
+        try:
+            modules.append(import_module(name))
+        except Exception:
+            logger.debug("Could not import %s, so it is not instrumented", name, exc_info=True)
+    return modules

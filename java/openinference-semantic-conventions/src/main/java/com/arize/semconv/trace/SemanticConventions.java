@@ -33,6 +33,7 @@ public class SemanticConventions {
         public static final String PROMPT = "prompt";
         public static final String AGENT = "agent";
         public static final String GRAPH = "graph";
+        public static final String DECISION = "decision";
     }
 
     @UtilityClass
@@ -53,6 +54,16 @@ public class SemanticConventions {
         public static final String COST = "cost";
         public static final String CHOICES = "choices";
         public static final String FINISH_REASON = "finish_reason";
+    }
+
+    @UtilityClass
+    public static class DecisionAttributePostfixes {
+        public static final String PROVIDER = "provider";
+        public static final String SYSTEM = "system";
+        public static final String MODEL_NAME = "model_name";
+        public static final String REQUEST = "request";
+        public static final String RESPONSE = "response";
+        public static final String TOKEN_COUNT = "token_count";
     }
 
     @UtilityClass
@@ -112,6 +123,7 @@ public class SemanticConventions {
         public static final String IMAGE = "image";
         public static final String AUDIO = "audio";
         public static final String VIDEO = "video";
+        public static final String DOCUMENT = "document";
         public static final String ID = "id";
         public static final String SIGNATURE = "signature";
         public static final String DATA = "data";
@@ -142,6 +154,9 @@ public class SemanticConventions {
         public static final String CONTENT = "content";
         public static final String SCORE = "score";
         public static final String METADATA = "metadata";
+        public static final String URL = "url";
+        public static final String MIME_TYPE = "mime_type";
+        public static final String NAME = "name";
     }
 
     @UtilityClass
@@ -251,6 +266,12 @@ public class SemanticConventions {
     public static final String INPUT_IMAGES = SemanticAttributePrefixes.INPUT + ".images";
 
     /**
+     * Documents (e.g. PDFs) passed as input to a span of any kind. Flattened with an index, for
+     * example {@code input.documents.0.document.url}.
+     */
+    public static final String INPUT_DOCUMENTS = SemanticAttributePrefixes.INPUT + ".documents";
+
+    /**
      * The output of any span
      */
     public static final String OUTPUT_VALUE = SemanticAttributePrefixes.OUTPUT + ".value";
@@ -262,6 +283,12 @@ public class SemanticConventions {
      * {@code output.images.0.image.url}.
      */
     public static final String OUTPUT_IMAGES = SemanticAttributePrefixes.OUTPUT + ".images";
+
+    /**
+     * Documents (e.g. PDFs) produced as output by a span of any kind. Flattened with an index,
+     * for example {@code output.documents.0.document.url}.
+     */
+    public static final String OUTPUT_DOCUMENTS = SemanticAttributePrefixes.OUTPUT + ".documents";
 
     /**
      * The messages sent to the LLM for completions
@@ -341,6 +368,72 @@ public class SemanticConventions {
      * The AI product as identified by the client or server
      */
     public static final String LLM_SYSTEM = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.SYSTEM;
+
+    /**
+     * The name of the decision model. Mirrors LLM_MODEL_NAME for DECISION spans. A decision model takes
+     * state plus typed questions and returns a typed, probabilistic answer per question instead of
+     * generated text.
+     *
+     * @see <a href="https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md">Decision
+     *     Spans</a>
+     */
+    public static final String DECISION_MODEL_NAME =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The decision model requested by the caller, as sent in the request. May differ from
+     * DECISION_RESPONSE_MODEL_NAME when the provider resolves an alias (e.g. jev-latest) or routes the
+     * request to a different model.
+     */
+    public static final String DECISION_REQUEST_MODEL_NAME = SemanticAttributePrefixes.DECISION
+            + "."
+            + DecisionAttributePostfixes.REQUEST
+            + "."
+            + DecisionAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The decision model that actually produced the response, as reported by the provider. May differ
+     * from DECISION_REQUEST_MODEL_NAME.
+     */
+    public static final String DECISION_RESPONSE_MODEL_NAME = SemanticAttributePrefixes.DECISION
+            + "."
+            + DecisionAttributePostfixes.RESPONSE
+            + "."
+            + DecisionAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The hosting provider of the decision model: who runs the hardware that answered (e.g. "typesafe" when
+     * calling TypeSafe directly, or the cloud or self-hosting provider for a model served elsewhere). Distinct
+     * from DECISION_SYSTEM, which names the API shape. Well-known values are {@link DecisionProvider}, which
+     * alias the matching {@link LLMProvider} values.
+     */
+    public static final String DECISION_PROVIDER =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.PROVIDER;
+
+    /**
+     * The decision API ecosystem the call conforms to, i.e. which request and response shape the client
+     * speaks, as identified by the client or server: "typesafe" for the TypeSafe System One / Jev API,
+     * "openai" for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible
+     * /v1/systemone shape is still "typesafe". Distinct from DECISION_PROVIDER, which says who hosts the model.
+     * Well-known values are {@link DecisionSystem}, which alias the matching {@link LLMSystem} values.
+     */
+    public static final String DECISION_SYSTEM =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.SYSTEM;
+
+    /**
+     * The number of input tokens consumed by a decision model call: the state, questions, and candidate
+     * options. Maps to usage.input_tokens in TypeSafe System One responses.
+     */
+    public static final String DECISION_TOKEN_COUNT_INPUT =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.TOKEN_COUNT + ".input";
+
+    /**
+     * The number of output tokens produced by a decision model call. Decision models emit typed answers
+     * rather than text, so this is typically small. Maps to usage.output_tokens in TypeSafe System One
+     * responses.
+     */
+    public static final String DECISION_TOKEN_COUNT_OUTPUT =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.TOKEN_COUNT + ".output";
 
     /** Token count for the completion by the llm (in tokens) */
     public static final String LLM_TOKEN_COUNT_COMPLETION =
@@ -532,7 +625,7 @@ public class SemanticConventions {
 
     /**
      * The type of content sent to the LLM, such as "text", "image", "audio",
-     * "video", "reasoning", or "tool_use"
+     * "video", "document", "reasoning", or "tool_use"
      */
     public static final String MESSAGE_CONTENT_TYPE =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.TYPE;
@@ -560,6 +653,12 @@ public class SemanticConventions {
      */
     public static final String MESSAGE_CONTENT_VIDEO =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.VIDEO;
+
+    /**
+     * The document content (e.g. a PDF, an uploaded file, or inline text) of the message sent to the LLM
+     */
+    public static final String MESSAGE_CONTENT_DOCUMENT =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.DOCUMENT;
 
     /**
      * Provider-assigned identifier for this message content item. For OpenAI
@@ -610,6 +709,24 @@ public class SemanticConventions {
 
     public static final String DOCUMENT_METADATA =
             SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.METADATA;
+
+    /**
+     * The URL, object-store URI, or base64 data URI of a file document such as a PDF.
+     */
+    public static final String DOCUMENT_URL = SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.URL;
+
+    /**
+     * The MIME type of a document, for example {@code application/pdf}.
+     */
+    public static final String DOCUMENT_MIME_TYPE =
+            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.MIME_TYPE;
+
+    /**
+     * The name supplied with a document, such as a file name or a title, for example
+     * {@code invoice.pdf}. Not a unique identifier.
+     */
+    public static final String DOCUMENT_NAME =
+            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.NAME;
 
     /**
      * The text that was embedded to create the vector
@@ -823,7 +940,8 @@ public class SemanticConventions {
         AGENT("AGENT"),
         GUARDRAIL("GUARDRAIL"),
         EVALUATOR("EVALUATOR"),
-        PROMPT("PROMPT");
+        PROMPT("PROMPT"),
+        DECISION("DECISION");
 
         private final String value;
 
@@ -895,7 +1013,8 @@ public class SemanticConventions {
         DEEPSEEK("deepseek"),
         AMAZON("amazon"),
         META("meta"),
-        AI21("ai21");
+        AI21("ai21"),
+        TYPESAFE("typesafe");
 
         private final String value;
 
@@ -934,7 +1053,8 @@ public class SemanticConventions {
         META("meta"),
         ZAI("zai"),
         MINIMAX("minimax"),
-        ORACLE("oracle");
+        ORACLE("oracle"),
+        TYPESAFE("typesafe");
 
         private final String value;
 
@@ -949,6 +1069,68 @@ public class SemanticConventions {
         @Override
         public String toString() {
             return value;
+        }
+    }
+
+    /**
+     * Well-known values for {@code decision.system}: the decision API ecosystem a DECISION span conforms to.
+     * Each constant aliases the {@link LLMSystem} constant for the same vendor, so the same string names the
+     * same vendor on LLM and DECISION spans. The list is the subset of vendors currently known to offer a
+     * decision API.
+     */
+    public enum DecisionSystem {
+        /** TypeSafe AI System One / Jev API, including Jev-compatible servers. */
+        TYPESAFE(LLMSystem.TYPESAFE),
+        /** OpenAI Decisions API. */
+        OPENAI(LLMSystem.OPENAI);
+
+        private final LLMSystem llmSystem;
+
+        DecisionSystem(LLMSystem llmSystem) {
+            this.llmSystem = llmSystem;
+        }
+
+        /** The {@link LLMSystem} constant this value aliases. */
+        public LLMSystem getLLMSystem() {
+            return llmSystem;
+        }
+
+        public String getValue() {
+            return llmSystem.getValue();
+        }
+
+        @Override
+        public String toString() {
+            return llmSystem.getValue();
+        }
+    }
+
+    /**
+     * Well-known values for {@code decision.provider}: who hosts the decision model that answered. Each
+     * constant aliases the {@link LLMProvider} constant for the same vendor.
+     */
+    public enum DecisionProvider {
+        TYPESAFE(LLMProvider.TYPESAFE),
+        OPENAI(LLMProvider.OPENAI);
+
+        private final LLMProvider llmProvider;
+
+        DecisionProvider(LLMProvider llmProvider) {
+            this.llmProvider = llmProvider;
+        }
+
+        /** The {@link LLMProvider} constant this value aliases. */
+        public LLMProvider getLLMProvider() {
+            return llmProvider;
+        }
+
+        public String getValue() {
+            return llmProvider.getValue();
+        }
+
+        @Override
+        public String toString() {
+            return llmProvider.getValue();
         }
     }
 }

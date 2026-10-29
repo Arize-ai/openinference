@@ -17,15 +17,34 @@ from typing import (
     Tuple,
     Type,
 )
+from weakref import WeakSet
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
-from typing_extensions import assert_never
 from wrapt import ObjectProxy
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    TraceConfig,
+    get_attributes_from_context,
+    safe_json_dumps,
+)
+from openinference.instrumentation.anthropic._content import (
+    _attributes_or_nothing,
+    _dump_json,
+    _get,
+    _get_message_contents_attributes,
+    _get_metadata_attributes,
+    _get_offered_tools,
+    _get_output_message_attributes,
+    _get_request_params,
+    _hides_input_images,
+    _require,
+    _to_json,
+    _to_jsonable,
+)
+from openinference.instrumentation.anthropic._sdk_spans import _sending_request_of
 from openinference.instrumentation.anthropic._stream import (
     _MessagesStream,
     _RawStreamInterceptor,
@@ -91,6 +110,10 @@ class _Params:
     def __iter__(self) -> Iterator[Tuple[str, AttributeValue]]:
         return self._get_attributes(dict(self._kwargs))
 
+    @property
+    def request_messages(self) -> Any:
+        return self._kwargs.get("messages")
+
     def __enter__(self) -> _Params:
         self._token = _params.set(self)
         return self
@@ -116,11 +139,7 @@ class _Params:
 _params: ContextVar[Optional[_Params]] = ContextVar("params", default=None)
 
 
-class _TransformWrapper:
-    """
-    Wraps anthropic._utils._transform.transform (anthropic<1.8.0), which prepares request bodies.
-    """
-
+class _PrepareRequestDataWrapper:
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -132,7 +151,7 @@ class _TransformWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY) or params is None:
             return wrapped(*args, **kwargs)
         ans = wrapped(*args, **kwargs)
-        if isinstance(ans, Mapping):
+        if kwargs.get("location") == "body" and isinstance(ans, Mapping):
             try:
                 params.update(ans)
             except Exception:
@@ -140,11 +159,7 @@ class _TransformWrapper:
         return ans
 
 
-class _AsyncTransformWrapper:
-    """
-    Wraps anthropic._utils._transform.async_transform (anthropic<1.8.0).
-    """
-
+class _AsyncPrepareRequestDataWrapper:
     async def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -156,7 +171,7 @@ class _AsyncTransformWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY) or params is None:
             return await wrapped(*args, **kwargs)
         ans = await wrapped(*args, **kwargs)
-        if isinstance(ans, Mapping):
+        if kwargs.get("location") == "body" and isinstance(ans, Mapping):
             try:
                 params.update(ans)
             except Exception:
@@ -164,57 +179,35 @@ class _AsyncTransformWrapper:
         return ans
 
 
-class _PrepareRequestDataWrapper(_TransformWrapper):
-    """
-    Wraps prepare_request_data (anthropic>=1.8.0), which prepares query parameters as well as
-    request bodies, telling them apart with a required ``location`` keyword. Only bodies carry
-    invocation parameters.
-    """
-
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if kwargs.get("location") != "body":
-            return wrapped(*args, **kwargs)
-        return super().__call__(wrapped, instance, args, kwargs)
-
-
-class _AsyncPrepareRequestDataWrapper(_AsyncTransformWrapper):
-    """
-    Wraps async_prepare_request_data (anthropic>=1.8.0). See _PrepareRequestDataWrapper.
-    """
-
-    async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if kwargs.get("location") != "body":
-            return await wrapped(*args, **kwargs)
-        return await super().__call__(wrapped, instance, args, kwargs)
-
-
 class _WithTracer(ABC):
     """
     Base class for wrappers that need a tracer.
     """
+
+    # every wrapper made, so uninstrument() can turn off the ones the SDK
+    # keeps in cached accessors like client.messages.with_raw_response
+    _instances: WeakSet[_WithTracer] = WeakSet()
 
     def __init__(
         self,
         tracer: trace_api.Tracer,
         span_name: str,
         *args: Any,
+        config: Optional[TraceConfig] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
         self._span_name = span_name
+        # the trace config, for the attributes that the tracer's masking does not cover
+        self._config = config or TraceConfig()
+        self._active = True
+        _WithTracer._instances.add(self)
+
+    def _get_attributes_from_request(
+        self, kwargs: Mapping[str, Any]
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        return _get_attributes_from_messages_create(kwargs, config=self._config)
 
     @contextmanager
     def _start_as_current_span(
@@ -232,32 +225,35 @@ class _WithTracer(ABC):
         except Exception:
             span = INVALID_SPAN
         with ExitStack() as stack:
-            stack.enter_context(
-                trace_api.use_span(
-                    span,
-                    end_on_exit=False,
-                    record_exception=False,
-                    set_status_on_exception=False,
-                )
+            stack.enter_context(_sending_request_of(span))
+            yield _WithSpan(
+                span=span,
+                params=stack.enter_context(params),
+                context_metadata=(attributes or {}).get(METADATA),
+                config=self._config,
             )
-            yield _WithSpan(span=span, params=stack.enter_context(params))
 
 
 @_stop_on_exception
 def _get_attributes_from_messages_create(
     kwargs: MessageCreateParamsBase,
+    config: Optional[TraceConfig] = None,
 ) -> Iterator[Tuple[str, AttributeValue]]:
     yield from _get_llm_model_name_from_input(kwargs)
-    invocation_parameters = dict(kwargs)
+    invocation_parameters = _get_request_params(kwargs)
     invocation_parameters.pop("extra_headers", None)
     invocation_parameters.pop("model", None)
     invocation_parameters.pop("output_format", None)
     system = invocation_parameters.pop("system", None)
     messages = invocation_parameters.pop("messages", None)
-    yield from _get_llm_input_messages(messages, system)
-    if isinstance(tools := invocation_parameters.pop("tools", None), Iterable):
+    # a list, because the messages are read twice
+    messages = list(messages) if isinstance(messages, Iterable) else []
+    yield from _get_llm_input_messages(messages, system, _hides_input_images(config))
+    tools = invocation_parameters.pop("tools", None)
+    tools = _get_offered_tools(tools if isinstance(tools, Iterable) else (), messages)
+    if tools:
         yield from _get_llm_tools(tools)
-    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
+    yield LLM_INVOCATION_PARAMETERS, _to_json(invocation_parameters)
 
 
 class _MessagesWrapper(_WithTracer):
@@ -273,15 +269,15 @@ class _MessagesWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_provider(),
+                    _get_llm_provider(instance),
                     _get_llm_system(),
                     _get_llm_span_kind(),
                     _get_inputs(kwargs),
@@ -301,7 +297,7 @@ class _MessagesWrapper(_WithTracer):
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
-            return _MessagesStream(response, span)
+            return _MessagesStream(response, span, is_beta=self._span_name.startswith("beta."))
         else:
             _finish_message_tracing(span, response)
             return response
@@ -320,15 +316,15 @@ class _AsyncMessagesWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_provider(),
+                    _get_llm_provider(instance),
                     _get_llm_system(),
                     _get_llm_span_kind(),
                     _get_inputs(kwargs),
@@ -351,7 +347,7 @@ class _AsyncMessagesWrapper(_WithTracer):
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
-            return _MessagesStream(response, span)
+            return _MessagesStream(response, span, is_beta=self._span_name.startswith("beta."))
         else:
             _finish_message_tracing(span, response)
             return response
@@ -364,11 +360,113 @@ def _finish_message_tracing(span: _WithSpan, message: Any) -> None:
             chain(
                 _get_llm_model_name_from_response(message),
                 _get_output_messages(message),
+                _get_metadata(message, span),
                 _get_llm_token_counts_from_response(message),
                 _get_outputs(message),
             )
         ),
     )
+
+
+class _CountTokensWrapper(_WithTracer):
+    """
+    Wrapper for messages.count_tokens, which counts the input tokens of a request without
+    sending it to the model, so its span has the request's input and the count as its output.
+    """
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        with self._start_as_current_span(
+            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
+            attributes=dict(
+                chain(
+                    _get_llm_provider(instance),
+                    _get_llm_system(),
+                    _get_llm_span_kind(),
+                    _get_inputs(kwargs),
+                )
+            ),
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except BaseException as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                span.finish_tracing()
+                raise
+        if _is_api_response(response):
+            _finish_api_response_tracing(
+                span, response, streaming=False, finish=_finish_count_tokens_tracing
+            )
+        else:
+            _finish_count_tokens_tracing(span, response)
+        return response
+
+
+class _AsyncCountTokensWrapper(_WithTracer):
+    """
+    See _CountTokensWrapper.
+    """
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
+        with self._start_as_current_span(
+            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
+            attributes=dict(
+                chain(
+                    _get_llm_provider(instance),
+                    _get_llm_system(),
+                    _get_llm_span_kind(),
+                    _get_inputs(kwargs),
+                )
+            ),
+        ) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
+            except BaseException as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                span.finish_tracing()
+                raise
+        if _is_api_response(response):
+            await _async_finish_api_response_tracing(
+                span, response, streaming=False, finish=_finish_count_tokens_tracing
+            )
+        else:
+            _finish_count_tokens_tracing(span, response)
+        return response
+
+
+def _finish_count_tokens_tracing(span: _WithSpan, response: Any) -> None:
+    span.finish_tracing(
+        status=trace_api.Status(trace_api.StatusCode.OK),
+        extra_attributes=dict(_get_count_tokens_outputs(response)),
+    )
+
+
+@_stop_on_exception
+def _get_count_tokens_outputs(response: Any) -> Iterator[Tuple[str, Any]]:
+    # The response, e.g. the count and, on beta, the context management's effect on it, with the
+    # API's field names. The count is not recorded as a token count, since nothing is generated
+    # or billed.
+    yield OUTPUT_VALUE, safe_json_dumps(_to_jsonable(response))
+    yield OUTPUT_MIME_TYPE, JSON
 
 
 def _is_api_response(response: Any) -> bool:
@@ -393,7 +491,12 @@ def _parsing_runs_caller_code(response: Any) -> bool:
     return not isinstance(getattr(options, "post_parser", None), NotGiven)
 
 
-def _finish_api_response_tracing(span: _WithSpan, response: Any, streaming: bool) -> None:
+def _finish_api_response_tracing(
+    span: _WithSpan,
+    response: Any,
+    streaming: bool,
+    finish: Callable[[_WithSpan, Any], None] = _finish_message_tracing,
+) -> None:
     """
     The output attributes are recorded only if the body has been read and parsing runs no caller
     code; the response caches the parsed message for the caller's own parse(). An unread body
@@ -412,11 +515,14 @@ def _finish_api_response_tracing(span: _WithSpan, response: Any, streaming: bool
         logger.exception("Failed to parse the raw response")
         span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return
-    _finish_message_tracing(span, message)
+    finish(span, message)
 
 
 async def _async_finish_api_response_tracing(
-    span: _WithSpan, response: Any, streaming: bool
+    span: _WithSpan,
+    response: Any,
+    streaming: bool,
+    finish: Callable[[_WithSpan, Any], None] = _finish_message_tracing,
 ) -> None:
     """
     See _finish_api_response_tracing.
@@ -433,7 +539,7 @@ async def _async_finish_api_response_tracing(
         logger.exception("Failed to parse the raw response")
         span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return
-    _finish_message_tracing(span, message)
+    finish(span, message)
 
 
 class _MessagesStreamWrapper(_WithTracer):
@@ -446,8 +552,9 @@ class _MessagesStreamWrapper(_WithTracer):
         tracer: trace_api.Tracer,
         span_name: str,
         manager_class: "Type[_MessageStreamManager]",
+        config: Optional[TraceConfig] = None,
     ) -> None:
-        super().__init__(tracer=tracer, span_name=span_name)
+        super().__init__(tracer=tracer, span_name=span_name, config=config)
         self._manager_class = manager_class
 
     def __call__(
@@ -457,16 +564,16 @@ class _MessagesStreamWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        params = _Params(kwargs, get_attributes=_get_attributes_from_messages_create)
+        params = _Params(kwargs, get_attributes=self._get_attributes_from_request)
         with self._start_as_current_span(
             params=params,
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_provider(),
+                    _get_llm_provider(instance),
                     _get_llm_system(),
                     _get_llm_span_kind(),
                     _get_inputs(kwargs),
@@ -489,8 +596,9 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
         tracer: trace_api.Tracer,
         span_name: str,
         manager_class: "Type[_AsyncMessageStreamManager]",
+        config: Optional[TraceConfig] = None,
     ) -> None:
-        super().__init__(tracer=tracer, span_name=span_name)
+        super().__init__(tracer=tracer, span_name=span_name, config=config)
         self._manager_class = manager_class
 
     def __call__(
@@ -500,16 +608,16 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        params = _Params(kwargs, get_attributes=_get_attributes_from_messages_create)
+        params = _Params(kwargs, get_attributes=self._get_attributes_from_request)
         with self._start_as_current_span(
             params=params,
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_provider(),
+                    _get_llm_provider(instance),
                     _get_llm_system(),
                     _get_llm_span_kind(),
                     _get_inputs(kwargs),
@@ -551,8 +659,8 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type
         try:
             # the request is sent here, after stream() has returned, and anthropic>=1.8.0
             # prepares its body here, so the params are made current again for the body
-            # preparation wrapper
-            with self._self_params:
+            # preparation wrapper, and the span is made current for the request, see _sdk_spans
+            with self._self_params, _sending_request_of(self._self_with_span.span):
                 message_stream = self.__wrapped__.__enter__()
         except BaseException as exception:
             # a failed request never reaches __exit__, so the span has to be finished here
@@ -601,8 +709,8 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,
         try:
             # the request is sent here, after stream() has returned, and anthropic>=1.8.0
             # prepares its body here, so the params are made current again for the body
-            # preparation wrapper
-            with self._self_params:
+            # preparation wrapper, and the span is made current for the request, see _sdk_spans
+            with self._self_params, _sending_request_of(self._self_with_span.span):
                 message_stream = self.__wrapped__.__enter__()
         except BaseException as exception:
             # a failed request never reaches __exit__, so the span has to be finished here
@@ -654,8 +762,8 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined
         try:
             # the request is sent here, after stream() has returned, and anthropic>=1.8.0
             # prepares its body here, so the params are made current again for the body
-            # preparation wrapper
-            with self._self_params:
+            # preparation wrapper, and the span is made current for the request, see _sdk_spans
+            with self._self_params, _sending_request_of(self._self_with_span.span):
                 message_stream = await self.__wrapped__.__aenter__()
         except BaseException as exception:
             # a failed request never reaches __exit__, so the span has to be finished here
@@ -704,8 +812,8 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-def
         try:
             # the request is sent here, after stream() has returned, and anthropic>=1.8.0
             # prepares its body here, so the params are made current again for the body
-            # preparation wrapper
-            with self._self_params:
+            # preparation wrapper, and the span is made current for the request, see _sdk_spans
+            with self._self_params, _sending_request_of(self._self_with_span.span):
                 message_stream = await self.__wrapped__.__aenter__()
         except BaseException as exception:
             # a failed request never reaches __exit__, so the span has to be finished here
@@ -737,13 +845,14 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-def
 
 @_stop_on_exception
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    yield INPUT_VALUE, safe_json_dumps(arguments)
+    # as JSON, so e.g. response blocks passed back as input are dumped rather than repr'd
+    yield INPUT_VALUE, safe_json_dumps(_to_jsonable(_get_request_params(arguments)))
     yield INPUT_MIME_TYPE, JSON
 
 
 @_stop_on_exception
 def _get_outputs(response: "BaseModel") -> Iterator[Tuple[str, Any]]:
-    yield OUTPUT_VALUE, response.model_dump_json()
+    yield OUTPUT_VALUE, _dump_json(response)
     yield OUTPUT_MIME_TYPE, JSON
 
 
@@ -758,8 +867,31 @@ def _get_llm_span_kind() -> Iterator[Tuple[str, Any]]:
     yield OPENINFERENCE_SPAN_KIND, LLM
 
 
+# The base classes of the clients of the platforms that host Claude, by name, so that none of
+# their modules, some of which need optional dependencies, has to be imported to check them.
+_PLATFORM_CLIENT_PROVIDERS = {
+    "BaseBedrockClient": OpenInferenceLLMProviderValues.AWS.value,
+    "BaseMantleClient": OpenInferenceLLMProviderValues.AWS.value,  # Bedrock Mantle
+    "AnthropicAWS": OpenInferenceLLMProviderValues.AWS.value,  # Claude Platform on AWS
+    "AsyncAnthropicAWS": OpenInferenceLLMProviderValues.AWS.value,
+    "BaseVertexClient": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "BaseGoogleCloudClient": OpenInferenceLLMProviderValues.GOOGLE.value,  # on Google Cloud
+    "BaseFoundryClient": OpenInferenceLLMProviderValues.AZURE.value,  # Microsoft Foundry
+}
+
+
 @_stop_on_exception
-def _get_llm_provider() -> Iterator[Tuple[str, Any]]:
+def _get_llm_provider(instance: Any = None) -> Iterator[Tuple[str, Any]]:
+    """
+    The provider hosting the model, from the client the resource `instance` belongs to.
+    """
+    client = getattr(instance, "_client", None)
+    for cls in type(client).__mro__:
+        if (provider := _PLATFORM_CLIENT_PROVIDERS.get(cls.__name__)) and cls.__module__.startswith(
+            "anthropic."
+        ):
+            yield LLM_PROVIDER, provider
+            return
     yield LLM_PROVIDER, LLM_PROVIDER_ANTHROPIC
 
 
@@ -796,6 +928,7 @@ def _get_llm_model_name_from_response(message: "Message") -> Iterator[Tuple[str,
 def _get_llm_input_messages(
     messages: Iterable[MessageParam],
     system: str | Iterable[TextBlockParam] | None = None,
+    hide_images: bool = False,
 ) -> Iterator[Tuple[str, Any]]:
     """
     Extracts the messages from the chat response.
@@ -804,172 +937,70 @@ def _get_llm_input_messages(
     rather than as a system role entry in `messages`. When provided, prepend a
     synthetic system message so OI consumers see system content in
     LLM_INPUT_MESSAGES alongside user/assistant turns.
-    """
-    start = 1 if system else 0
-    for i, message in enumerate(messages, start=start):
-        tool_index = 0
-        if role := message["role"]:
-            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
-        if content := message["content"]:
-            if isinstance(content, str):
-                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
-                continue
-            for j, block in enumerate(content):
-                if isinstance(block, dict):
-                    if block["type"] == "text":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block["text"]
-                    elif block["type"] == "tool_use":
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_ID}",
-                            block["id"],
-                        )
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
-                            block["name"],
-                        )
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            safe_json_dumps(block["input"]),
-                        )
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
-                        yield f"{prefix}.{TOOL_CALL_ID}", block["id"]
-                        yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", block["name"]
-                        yield (
-                            f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            safe_json_dumps(block["input"]),
-                        )
-                        tool_index += 1
-                    elif block["type"] == "tool_result":
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALL_ID}",
-                            block["tool_use_id"],
-                        )
-                        if (tool_result_content := block.get("content")) is not None:
-                            yield (
-                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
-                                tool_result_content
-                                if isinstance(tool_result_content, str)
-                                else safe_json_dumps(tool_result_content),
-                            )
-                    elif block["type"] == "image":
-                        if source := block["source"]:
-                            image_data = f"data:{source.get('media_type')};{source.get('type')}"
-                            image_data = f"{image_data},{source.get('data')}"
-                            prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "image"
-                            yield f"{prefix}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", image_data
-                    elif block["type"] == "document":
-                        pass
-                    elif block["type"] == "search_result":
-                        pass
-                    elif block["type"] == "thinking":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block["thinking"]
-                        if signature := block.get("signature"):
-                            yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
-                    elif block["type"] == "redacted_thinking":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-                        yield f"{prefix}.{MESSAGE_CONTENT_DATA}", block["data"]
-                    elif block["type"] == "server_tool_use":
-                        pass
-                    elif block["type"] == "web_search_tool_result":
-                        pass
-                    elif block["type"] == "web_fetch_tool_result":
-                        pass
-                    elif block["type"] == "code_execution_tool_result":
-                        pass
-                    elif block["type"] == "bash_code_execution_tool_result":
-                        pass
-                    elif block["type"] == "text_editor_code_execution_tool_result":
-                        pass
-                    elif block["type"] == "tool_search_tool_result":
-                        pass
-                    elif block["type"] == "container_upload":
-                        pass
-                    elif block["type"] == "mid_conv_system":
-                        pass
-                    elif TYPE_CHECKING:
-                        assert_never(block)
-                else:
-                    if block.type == "text":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.text
-                    elif block.type == "tool_use":
-                        if tool_call_id := block.id:
-                            yield (
-                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_ID}",
-                                tool_call_id,
-                            )
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
-                            block.name,
-                        )
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            safe_json_dumps(block.input),
-                        )
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
-                        if tool_call_id := block.id:
-                            yield f"{prefix}.{TOOL_CALL_ID}", tool_call_id
-                        yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", block.name
-                        yield (
-                            f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            safe_json_dumps(block.input),
-                        )
-                        tool_index += 1
-                    elif block.type == "thinking":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.thinking
-                        if signature := block.signature:
-                            yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
-                    elif block.type == "redacted_thinking":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-                        yield f"{prefix}.{MESSAGE_CONTENT_DATA}", block.data
-                    elif block.type == "server_tool_use":
-                        pass
-                    elif block.type == "web_search_tool_result":
-                        pass
-                    elif block.type == "web_fetch_tool_result":
-                        pass
-                    elif block.type == "code_execution_tool_result":
-                        pass
-                    elif block.type == "bash_code_execution_tool_result":
-                        pass
-                    elif block.type == "text_editor_code_execution_tool_result":
-                        pass
-                    elif block.type == "tool_search_tool_result":
-                        pass
-                    elif block.type == "container_upload":
-                        pass
-                    elif TYPE_CHECKING:
-                        assert_never(block)
 
+    The system message comes first, and each message is guarded individually, so a failure on
+    one message keeps the indices of, and does not drop, the others.
+    """
     if system:
-        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "system"
-        if isinstance(system, str):
-            yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", system
-        else:
-            for j, block in enumerate(system):
-                if block["type"] == "text":
-                    yield (
-                        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TYPE}",
-                        "text",
-                    )
-                    yield (
-                        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TEXT}",
-                        block["text"],
-                    )
-                elif TYPE_CHECKING:
-                    assert_never(block)
+        yield from _attributes_or_nothing(_get_llm_input_system_message, system, hide_images)
+    i = 1 if system else 0
+    for message in messages:
+        content = _get(message, "content")
+        blocks = (
+            list(content) if not isinstance(content, str) and isinstance(content, Iterable) else []
+        )
+        if blocks:
+            # Reuse the materialized content so one-shot SDK iterables are not consumed twice.
+            message = message.copy()
+            message["content"] = blocks
+        tool_results = [block for block in blocks if _get(block, "type") == "tool_result"]
+        # Each result needs its own message so parallel tool results cannot overwrite one another.
+        # Anthropic requires tool results before the remaining content of a user message.
+        for block in tool_results:
+            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", "tool"
+            yield from _get_message_contents_attributes(
+                f"{LLM_INPUT_MESSAGES}.{i}", [block], hide_images
+            )
+            i += 1
+        if tool_results:
+            remaining = [block for block in blocks if _get(block, "type") != "tool_result"]
+            if not remaining:
+                continue
+            message["content"] = remaining
+        yield from _attributes_or_nothing(_get_llm_input_message, i, message, hide_images)
+        i += 1
+
+
+def _get_llm_input_system_message(
+    system: str | Iterable[TextBlockParam],
+    hide_images: bool = False,
+) -> Iterator[Tuple[str, Any]]:
+    yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "system"
+    if isinstance(system, str):
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", system
+        return
+    yield from _get_message_contents_attributes(f"{LLM_INPUT_MESSAGES}.0", system, hide_images)
+
+
+def _get_llm_input_message(
+    i: int, message: MessageParam, hide_images: bool = False
+) -> Iterator[Tuple[str, Any]]:
+    if role := _require(message, "role"):
+        yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
+    if content := _require(message, "content"):
+        if isinstance(content, str):
+            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+            return
+        yield from _get_message_contents_attributes(
+            f"{LLM_INPUT_MESSAGES}.{i}", content, hide_images
+        )
+
+
+@_stop_on_exception
+def _get_metadata(message: Message, span: _WithSpan) -> Iterator[Tuple[str, Any]]:
+    yield from _get_metadata_attributes(
+        message, span.context_metadata, span.config, span.request_messages
+    )
 
 
 @_stop_on_exception
@@ -977,62 +1008,7 @@ def _get_output_messages(response: Message) -> Iterator[Tuple[str, Any]]:
     """
     Extracts the tool call information from the response
     """
-    yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", response.role
-    if stop_reason := response.stop_reason:
-        yield LLM_FINISH_REASON, stop_reason
-    tool_index = 0
-    for j, block in enumerate(response.content):
-        if block.type == "text":
-            prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}"
-            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
-            yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.text
-        elif block.type == "tool_use":
-            yield (
-                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_ID}",
-                block.id,
-            )
-            yield (
-                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
-                block.name,
-            )
-            yield (
-                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                safe_json_dumps(block.input),
-            )
-            prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}"
-            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
-            yield f"{prefix}.{TOOL_CALL_ID}", block.id
-            yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", block.name
-            yield f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps(block.input)
-            tool_index += 1
-        elif block.type == "thinking":
-            prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}"
-            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-            yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.thinking
-            if signature := block.signature:
-                yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
-        elif block.type == "redacted_thinking":
-            prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}"
-            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-            yield f"{prefix}.{MESSAGE_CONTENT_DATA}", block.data
-        elif block.type == "server_tool_use":
-            pass
-        elif block.type == "web_search_tool_result":
-            pass
-        elif block.type == "web_fetch_tool_result":
-            pass
-        elif block.type == "code_execution_tool_result":
-            pass
-        elif block.type == "bash_code_execution_tool_result":
-            pass
-        elif block.type == "text_editor_code_execution_tool_result":
-            pass
-        elif block.type == "tool_search_tool_result":
-            pass
-        elif block.type == "container_upload":
-            pass
-        elif TYPE_CHECKING:
-            assert_never(block)
+    yield from _get_output_message_attributes(response)
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value

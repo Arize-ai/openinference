@@ -1,4 +1,5 @@
 import os
+from importlib import import_module
 from typing import Any
 
 import pytest
@@ -24,6 +25,8 @@ def _strip_response_headers(response: Any) -> Any:
 
 @pytest.fixture(scope="session")
 def vcr_config() -> dict[str, Any]:
+    # Load DSPy's lazy OpenAI proxy before LiteLLM imports openai._models.
+    import_module("openai").OpenAI
     return {
         "before_record_request": _strip_request_headers,
         "before_record_response": _strip_response_headers,

@@ -71,9 +71,11 @@ jobs:
       - name: Run Claude Code
         if: env.READY == 'true'
         id: claude
-        uses: anthropics/claude-code-action@094bd24d575e7b30ac1576024817bf1a97c81262 # v1.0.80
+        uses: anthropics/claude-code-action@ed670b4cf9de2a5a570d130d2f6197b9e543cd64 # v1.0.240
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           github_token: ${{ secrets.MY_RELEASE_PLEASE }}
           prompt: |
             Implement GitHub issue #${{ github.event.issue.number }} end-to-end. Deliver a complete, merge-ready PR.

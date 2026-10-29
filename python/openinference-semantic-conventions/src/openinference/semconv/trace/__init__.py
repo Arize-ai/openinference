@@ -38,6 +38,16 @@ class SpanAttributes:
     A list of Image Objects produced by an operation, independent of span kind.
     Flattened with indexed prefixes, e.g. `output.images.0.image.url`.
     """
+    INPUT_DOCUMENTS = "input.documents"
+    """
+    A list of Document Objects (e.g. PDFs) that are inputs to an operation, independent of
+    span kind. Flattened with indexed prefixes, e.g. `input.documents.0.document.url`.
+    """
+    OUTPUT_DOCUMENTS = "output.documents"
+    """
+    A list of Document Objects (e.g. PDFs) produced by an operation, independent of span
+    kind. Flattened with indexed prefixes, e.g. `output.documents.0.document.url`.
+    """
 
     EMBEDDING_EMBEDDINGS = "embedding.embeddings"
     """
@@ -92,6 +102,58 @@ class SpanAttributes:
     LLM_SYSTEM = "llm.system"
     """
     The AI product as identified by the client or server
+    """
+    DECISION_MODEL_NAME = "decision.model_name"
+    """
+    The name of the decision model being used. Mirrors llm.model_name for
+    DECISION spans. A decision model takes state plus typed questions and
+    returns a typed, probabilistic answer per question instead of generated
+    text; see
+    https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+    for the convention and the decision model families it covers.
+    """
+    DECISION_REQUEST_MODEL_NAME = "decision.request.model_name"
+    """
+    The decision model requested by the caller, as sent in the request. May
+    differ from decision.response.model_name when the provider resolves an
+    alias (e.g. jev-latest) or routes the request to a different model.
+    """
+    DECISION_RESPONSE_MODEL_NAME = "decision.response.model_name"
+    """
+    The decision model that actually produced the response, as reported by the
+    provider. May differ from decision.request.model_name.
+    """
+    DECISION_PROVIDER = "decision.provider"
+    """
+    The hosting provider of the decision model: who runs the hardware that
+    answered (e.g. "typesafe" when calling TypeSafe directly, or the cloud or
+    self-hosting provider for a model served elsewhere). Distinct from
+    decision.system, which names the API shape. Well-known values are
+    OpenInferenceDecisionProviderValues, which alias the matching
+    OpenInferenceLLMProviderValues.
+    """
+    DECISION_SYSTEM = "decision.system"
+    """
+    The decision API ecosystem the call conforms to, i.e. which request and
+    response shape the client speaks, as identified by the client or server:
+    "typesafe" for the TypeSafe System One / Jev API, "openai" for the OpenAI
+    Decisions API. A self-hosted
+    vLLM server answering the Jev-compatible /v1/systemone shape is still
+    "typesafe". Distinct from decision.provider, which says who hosts the
+    model. Well-known values are OpenInferenceDecisionSystemValues, which alias
+    the matching OpenInferenceLLMSystemValues.
+    """
+    DECISION_TOKEN_COUNT_INPUT = "decision.token_count.input"
+    """
+    The number of input tokens consumed by a decision model call: the state,
+    questions, and candidate options. Maps to usage.input_tokens in TypeSafe
+    System One responses.
+    """
+    DECISION_TOKEN_COUNT_OUTPUT = "decision.token_count.output"
+    """
+    The number of output tokens produced by a decision model call. Decision
+    models emit typed answers rather than text, so this is typically small.
+    Maps to usage.output_tokens in TypeSafe System One responses.
     """
     LLM_PROMPTS = "llm.prompts"
     """
@@ -380,7 +442,7 @@ class MessageContentAttributes:
     MESSAGE_CONTENT_TYPE = "message_content.type"
     """
     The type of the content, such as "text", "image", "audio",
-    "video", "reasoning", or "tool_use".
+    "video", "document", "reasoning", or "tool_use".
     """
     MESSAGE_CONTENT_TEXT = "message_content.text"
     """
@@ -402,6 +464,12 @@ class MessageContentAttributes:
     """
     The video content of the message, if the type is "video".
     Nested leaves come from VideoAttributes.
+    """
+    MESSAGE_CONTENT_DOCUMENT = "message_content.document"
+    """
+    The document content of the message (e.g. a PDF, an uploaded file, or inline
+    text), if the type is "document".
+    Nested leaves come from DocumentAttributes.
     """
     MESSAGE_CONTENT_ID = "message_content.id"
     """
@@ -474,7 +542,9 @@ class DocumentAttributes:
 
     DOCUMENT_ID = "document.id"
     """
-    The id of the document.
+    The id of the document: a retrieved document or chunk's id in a retrieval system, or,
+    for a document passed to a model, the provider's file id (e.g. an OpenAI or
+    Anthropic Files API id).
     """
     DOCUMENT_SCORE = "document.score"
     """
@@ -482,12 +552,26 @@ class DocumentAttributes:
     """
     DOCUMENT_CONTENT = "document.content"
     """
-    The content of the document.
+    The text content of the document: a retrieved passage, or an inline text document
+    passed to a model.
     """
     DOCUMENT_METADATA = "document.metadata"
     """
     The metadata of the document represented as a dictionary
     JSON string, e.g. `"{ 'title': 'foo' }"`
+    """
+    DOCUMENT_URL = "document.url"
+    """
+    The URL, object-store URI, or base64 data URI of a file document such as a PDF.
+    """
+    DOCUMENT_MIME_TYPE = "document.mime_type"
+    """
+    The MIME type of a document, e.g. `application/pdf`.
+    """
+    DOCUMENT_NAME = "document.name"
+    """
+    The name supplied with a document, such as a file name or a title, e.g. `invoice.pdf`.
+    Not a unique identifier.
     """
 
 
@@ -608,6 +692,7 @@ class OpenInferenceSpanKindValues(Enum):
     GUARDRAIL = "GUARDRAIL"
     EVALUATOR = "EVALUATOR"
     PROMPT = "PROMPT"
+    DECISION = "DECISION"
 
 
 class OpenInferenceAnnotatorKindValues(Enum):
@@ -627,6 +712,7 @@ class OpenInferenceLLMSystemValues(Enum):
     COHERE = "cohere"
     MISTRALAI = "mistralai"
     VERTEXAI = "vertexai"
+    TYPESAFE = "typesafe"
 
 
 class OpenInferenceLLMProviderValues(Enum):
@@ -650,3 +736,30 @@ class OpenInferenceLLMProviderValues(Enum):
     ZAI = "zai"
     MINIMAX = "minimax"
     ORACLE = "oracle"
+    TYPESAFE = "typesafe"
+
+
+class OpenInferenceDecisionSystemValues(Enum):
+    """
+    Well-known values for decision.system: the decision API ecosystem a DECISION
+    span conforms to. Each member aliases the OpenInferenceLLMSystemValues member
+    for the same vendor, so the same string names the same vendor on LLM and
+    DECISION spans. The list is the subset of vendors currently known to offer a
+    decision API.
+    """
+
+    TYPESAFE = OpenInferenceLLMSystemValues.TYPESAFE.value
+    """TypeSafe AI System One / Jev API, including Jev-compatible servers."""
+    OPENAI = OpenInferenceLLMSystemValues.OPENAI.value
+    """OpenAI Decisions API."""
+
+
+class OpenInferenceDecisionProviderValues(Enum):
+    """
+    Well-known values for decision.provider: who hosts the decision model that
+    answered. Each member aliases the OpenInferenceLLMProviderValues member for
+    the same vendor.
+    """
+
+    TYPESAFE = OpenInferenceLLMProviderValues.TYPESAFE.value
+    OPENAI = OpenInferenceLLMProviderValues.OPENAI.value

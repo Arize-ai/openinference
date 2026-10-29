@@ -20,6 +20,7 @@ from typing import (
     Union,
     cast,
 )
+from unittest.mock import patch
 from urllib.parse import urljoin
 
 import pytest
@@ -1901,6 +1902,19 @@ def rand_message() -> Dict[str, Any]:
         "role": "assistant",
         "content": [{"type": "output_text", "text": randstr(), "annotations": []}],
     }
+
+
+def test_cancelled_request_ends_span(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    openai = import_module("openai")
+    client = openai.OpenAI(api_key="sk-", max_retries=0)
+    with (
+        patch("httpx.Client.send", side_effect=KeyboardInterrupt),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        client.chat.completions.create(messages=get_messages(), model="gpt-4")
+    spans = in_memory_span_exporter.get_finished_spans()
+    (span,) = [s for s in spans if s.name == "ChatCompletion"]
+    assert span.status.status_code == trace_api.StatusCode.ERROR
 
 
 def get_messages() -> List[Dict[str, Any]]:

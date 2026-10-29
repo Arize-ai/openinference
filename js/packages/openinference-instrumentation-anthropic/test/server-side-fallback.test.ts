@@ -64,7 +64,8 @@ type UsageOverrides = Partial<
     Anthropic.Beta.Messages.BetaMessageDeltaUsage,
     "input_tokens" | "output_tokens" | "cache_creation_input_tokens" | "cache_read_input_tokens"
   >
->;
+> &
+  Partial<Record<"service_tier" | "inference_geo", string>>;
 
 function createStreamingFetch({
   deltaInputTokens = 12,
@@ -238,6 +239,41 @@ describe("AnthropicInstrumentation - server-side fallback", () => {
     expect(spans[0].attributes[contentAttribute(2, MESSAGE_CONTENT_TYPE)]).toBe("text");
     expect(spans[0].attributes[LLM_TOKEN_COUNT_PROMPT]).toBe(12);
     expect(spans[0].attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(6);
+  });
+
+  it("rebuilds the usage of a fallback stream from the serving hop's token counts", async () => {
+    const client = new Anthropic({
+      apiKey: "fake-api-key",
+      fetch: createStreamingFetch({
+        deltaInputTokens: null,
+        startUsage: { service_tier: "standard", inference_geo: "global" },
+      }),
+    });
+
+    const stream = await client.beta.messages.create({
+      model: requestedModel,
+      max_tokens: 100,
+      messages: [{ role: "user", content: "Hello" }],
+      stream: true,
+      fallbacks: "default",
+      betas: ["server-side-fallback-2026-07-01"],
+    });
+    for await (const _event of stream) {
+      // drain
+    }
+
+    await waitForSpans(1);
+    const [span] = memoryExporter.getFinishedSpans();
+    const output = JSON.parse(span.attributes[SemanticConventions.OUTPUT_VALUE] as string);
+    // message_start's usage, with the serving hop's counts and no iteration
+    // `type` or `model`, then message_delta's fields.
+    expect(output.usage).toEqual({
+      input_tokens: 12,
+      output_tokens: 6,
+      service_tier: "standard",
+      inference_geo: "global",
+      iterations: expect.any(Array),
+    });
   });
 
   it("takes the prompt token count from the serving hop when the stream omits it", async () => {
