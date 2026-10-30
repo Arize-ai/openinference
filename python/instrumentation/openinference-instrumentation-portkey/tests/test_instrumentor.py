@@ -1,4 +1,5 @@
 import json
+from contextlib import ExitStack
 from importlib import import_module
 from typing import Any, Iterator
 
@@ -8,6 +9,13 @@ from httpx import Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation import (
+    REDACTED_VALUE,
+    TraceConfig,
+    suppress_tracing,
+    using_attributes,
+)
+from openinference.instrumentation.portkey import PortkeyInstrumentor
 from openinference.instrumentation.portkey._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -793,6 +801,65 @@ def test_chat_completion_records_tool_calls_on_output_message(
             messages=[{"role": "user", "content": "What is the weather and time?"}],
         )
     _assert_tool_calls_attributes(in_memory_span_exporter)
+
+
+@pytest.mark.parametrize("mode", ["suppress", "context", "masking"])
+def test_tool_calls_respect_trace_controls(
+    mode: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+) -> None:
+    instrumentor = PortkeyInstrumentor()
+    instrumentor.instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_outputs=mode == "masking"),
+    )
+    try:
+        with (
+            respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock,
+            ExitStack() as stack,
+        ):
+            respx_mock.post("/v1/chat/completions").mock(
+                return_value=Response(status_code=200, json=_tool_calls_completion_payload())
+            )
+            if mode == "suppress":
+                stack.enter_context(suppress_tracing())
+            elif mode == "context":
+                stack.enter_context(
+                    using_attributes(
+                        session_id="tool-calls-session",
+                        user_id="synthetic-user",
+                        metadata={"source": "tool-calls-test"},
+                        tags=["synthetic", "tool-calls"],
+                    )
+                )
+            portkey = import_module("portkey_ai")
+            client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": "What is the weather and time?"}],
+            )
+    finally:
+        instrumentor.uninstrument()
+
+    assert [call.id for call in response.choices[0].message.tool_calls] == ["call_one", "call_two"]
+    spans = in_memory_span_exporter.get_finished_spans()
+    if mode == "suppress":
+        assert not spans
+        return
+
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    if mode == "context":
+        _assert_tool_calls_attributes(in_memory_span_exporter)
+        assert attributes[SpanAttributes.SESSION_ID] == "tool-calls-session"
+        assert attributes[SpanAttributes.USER_ID] == "synthetic-user"
+        assert attributes[SpanAttributes.METADATA] == json.dumps({"source": "tool-calls-test"})
+        assert attributes[SpanAttributes.TAG_TAGS] == ("synthetic", "tool-calls")
+    else:
+        assert attributes[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+        assert not any(key.startswith(SpanAttributes.LLM_OUTPUT_MESSAGES) for key in attributes)
+        assert attributes[SpanAttributes.LLM_FINISH_REASON] == "tool_calls"
 
 
 @pytest.mark.asyncio
