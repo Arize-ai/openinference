@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, AsyncIterator, Dict, Iterator, List, Mapping, Optional, Tuple
 
@@ -60,7 +61,10 @@ class _ChatCompletionAccumulator:
         for key in ("id", "created", "model", "system_fingerprint"):
             if (value := values.get(key)) is not None:
                 self._values[key] = value
-        if (usage := values.get("usage")) is not None:
+        usage = values.get("usage")
+        if usage is None and isinstance(x_groq := values.get("x_groq"), Mapping):
+            usage = x_groq.get("usage")
+        if usage is not None:
             self._values["usage"] = usage
         for choice in values.get("choices") or ():
             if not isinstance(choice, Mapping):
@@ -390,7 +394,7 @@ class _AsyncStream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         except StopAsyncIteration:
             self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
             raise
-        except Exception as exception:
+        except (Exception, asyncio.CancelledError) as exception:
             self._finish_error(exception)
             raise
         self._process_chunk(chunk)
