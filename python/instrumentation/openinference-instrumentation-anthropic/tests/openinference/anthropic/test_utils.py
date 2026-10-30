@@ -1,12 +1,19 @@
 import logging
-from typing import Iterator, Tuple
+from typing import Iterator, Optional, Tuple
 
 import pytest
+from anthropic.types import Usage
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation.anthropic._utils import _finish_tracing
+from openinference.instrumentation.anthropic._utils import _finish_tracing, _get_token_counts
 from openinference.instrumentation.anthropic._with_span import _WithSpan
+from openinference.semconv.trace import SpanAttributes
+
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
 
 
 class _Attributes:
@@ -17,6 +24,60 @@ class _Attributes:
 def _failing_params() -> Iterator[Tuple[str, AttributeValue]]:
     yield "llm.provider", "anthropic"
     raise RuntimeError("span finalization blew up")
+
+
+def _make_usage(
+    input_tokens: Optional[int] = None,
+    output_tokens: Optional[int] = None,
+    cache_creation_input_tokens: Optional[int] = None,
+    cache_read_input_tokens: Optional[int] = None,
+) -> Usage:
+    """Build a Usage without validation, so any field can be None."""
+    return Usage.model_construct(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cache_creation_input_tokens=cache_creation_input_tokens,
+        cache_read_input_tokens=cache_read_input_tokens,
+    )
+
+
+def test_get_token_counts_with_null_input_tokens_does_not_raise() -> None:
+    """_get_token_counts must not raise TypeError when usage.input_tokens is None.
+
+    Anthropic streaming snapshots can have input_tokens=None before the
+    final message_delta event arrives.  Previously None + 0 raised TypeError,
+    which escaped into _finish_tracing, causing the entire streaming LLM span
+    to be exported with no attributes (model name, messages, token counts all
+    dropped).
+    """
+    usage = _make_usage(input_tokens=None, output_tokens=10)
+    attrs = dict(_get_token_counts(usage))  # must not raise
+    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 0
+    assert attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
+    assert attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 10
+    assert attrs == {}
+
+
+def test_get_token_counts_with_all_none_fields_does_not_raise() -> None:
+    """When all Usage fields are None, the counts are recorded as 0."""
+    usage = _make_usage()
+    attrs = dict(_get_token_counts(usage))
+    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 0
+    assert attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 0
+    assert attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 0
+    assert attrs == {}
+
+
+def test_get_token_counts_with_normal_usage() -> None:
+    """Sanity-check: normal integer usage fields produce the expected attributes."""
+    usage = _make_usage(input_tokens=100, output_tokens=50, cache_read_input_tokens=20)
+    attrs = dict(_get_token_counts(usage))
+    # prompt = 100 + 20 = 120
+    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 120
+    assert attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 50
+    assert attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 170
+    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 20
+    assert attrs == {}
 
 
 def test_finish_tracing_logs_and_recovers_when_finalization_fails(
