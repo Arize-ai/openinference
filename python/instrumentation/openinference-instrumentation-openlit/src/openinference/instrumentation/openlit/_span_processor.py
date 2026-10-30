@@ -75,7 +75,7 @@ def _is_chain_span(attrs: Dict[str, Any]) -> bool:
     True = a framework / chain / tool span.
     False: LLM span.
     """
-    sys_name = str(attrs.get("gen_ai.system", "")).lower()
+    sys_name = str(_get_gen_ai_system(attrs, "")).lower()
     addr = attrs.get("server.address")
     port = attrs.get("server.port")
 
@@ -95,7 +95,12 @@ def _is_tool_span(attrs: dict[str, Any]) -> bool:
 
 
 def _is_llm_span(attrs: dict[str, Any]) -> bool:
-    return "gen_ai.system" in attrs
+    return "gen_ai.system" in attrs or "gen_ai.provider.name" in attrs
+
+
+def _get_gen_ai_system(attrs: Dict[str, Any], default: Any = None) -> Any:
+    # OpenLIT 1.37.0 and later write gen_ai.provider.name instead of gen_ai.system.
+    return attrs.get("gen_ai.system", attrs.get("gen_ai.provider.name", default))
 
 
 def _int_safe(v: Any) -> int | None:
@@ -275,6 +280,19 @@ def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
         token_count["completion"] = completion_tokens
     if total_tokens:
         token_count["total"] = total_tokens
+    prompt_details = oi.PromptDetails()
+    if cache_read := _int_safe(attrs.get("gen_ai.usage.cache_read.input_tokens")):
+        prompt_details["cache_read"] = cache_read
+    if cache_write := _int_safe(attrs.get("gen_ai.usage.cache_creation.input_tokens")):
+        prompt_details["cache_write"] = cache_write
+    if prompt_details:
+        token_count["prompt_details"] = prompt_details
+    reasoning_tokens = _int_safe(
+        attrs.get(
+            "gen_ai.usage.reasoning_tokens",
+            attrs.get("gen_ai.usage.completion_tokens_details.reasoning_tokens"),
+        )
+    )
 
     invocation_params = find_invocation_parameters(attrs)
     provider_val, system_val = _extract_llm_provider_and_system(attrs)
@@ -285,6 +303,11 @@ def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
         **(
             {sc.SpanAttributes.LLM_FINISH_REASON: finish_reason}
             if finish_reason is not None
+            else {}
+        ),
+        **(
+            {sc.SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: reasoning_tokens}
+            if reasoning_tokens
             else {}
         ),
         **get_llm_attributes(
@@ -328,7 +351,7 @@ def _extract_llm_provider_and_system(
     if provider_val not in {v.value for v in sc.OpenInferenceLLMProviderValues}:
         provider_val = None
 
-    system_val: Optional[str] = str(attrs.get("gen_ai.system", "unknown")).lower()
+    system_val: Optional[str] = str(_get_gen_ai_system(attrs, "unknown")).lower()
     if system_val not in {v.value for v in sc.OpenInferenceLLMSystemValues}:
         system_val = None
 
