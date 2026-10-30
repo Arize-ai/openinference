@@ -9,7 +9,18 @@ response models (e.g. a response passed back as input), so both are read with `_
 import json
 import logging
 import warnings
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+)
 
 from opentelemetry.util.types import AttributeValue
 
@@ -148,17 +159,25 @@ def _get_message_contents_attributes(
     message_prefix: str,
     blocks: Iterable[Any],
     hide_images: bool = False,
+    unfinished_block_indexes: Optional[Set[int]] = None,
 ) -> Iterator[Tuple[str, Any]]:
     """
     Yields the attributes of each content block of the message at `message_prefix`, e.g.
     `llm.output_messages.0`. Content indices follow the block indices, and a block that cannot be
     mapped is recorded generically, so no index is skipped and no block is silently dropped.
     `hide_images` redacts the images nested in blocks that are recorded as JSON.
+    `unfinished_block_indexes` identifies blocks that never received content_block_stop.
     """
     tool_index = 0
     for j, block in enumerate(blocks):
         attributes = _attributes_or_nothing(
-            _get_content_block_attributes, message_prefix, j, tool_index, block, hide_images
+            _get_content_block_attributes,
+            message_prefix,
+            j,
+            tool_index,
+            block,
+            hide_images,
+            unfinished_block_indexes,
         )
         if not attributes:
             attributes = _attributes_or_nothing(
@@ -178,6 +197,7 @@ def _get_content_block_attributes(
     tool_index: int,
     block: Any,
     hide_images: bool = False,
+    unfinished_block_indexes: Optional[Set[int]] = None,
 ) -> Iterator[Tuple[str, Any]]:
     block_type = _require(block, "type")
     prefix = f"{message_prefix}.{MESSAGE_CONTENTS}.{j}"
@@ -195,15 +215,23 @@ def _get_content_block_attributes(
     elif block_type in TOOL_CALL_BLOCK_TYPES:
         tool_call_id = _require(block, "id")
         name = _require(block, "name")
-        arguments = safe_json_dumps(_require(block, "input"))
+        # The SDK starts a tool block with an empty input placeholder. It parses the accumulated
+        # JSON when the block stops. A completed block with real empty arguments must be kept.
+        arguments = (
+            None
+            if unfinished_block_indexes is not None and j in unfinished_block_indexes
+            else safe_json_dumps(_require(block, "input"))
+        )
         tool_call_prefix = f"{message_prefix}.{MESSAGE_TOOL_CALLS}.{tool_index}"
         yield f"{tool_call_prefix}.{TOOL_CALL_ID}", tool_call_id
         yield f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_NAME}", name
-        yield f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
+        if arguments is not None:
+            yield f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
         yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
         yield f"{prefix}.{TOOL_CALL_ID}", tool_call_id
         yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", name
-        yield f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
+        if arguments is not None:
+            yield f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
     elif block_type == "tool_result":
         yield (
             f"{message_prefix}.{MESSAGE_TOOL_CALL_ID}",
@@ -318,11 +346,17 @@ def _get_generic_content_block_attributes(
     yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", _to_json(block, hide_images)
 
 
-def _get_output_message_attributes(message: Any) -> Iterator[Tuple[str, Any]]:
+def _get_output_message_attributes(
+    message: Any, unfinished_block_indexes: Optional[Set[int]] = None
+) -> Iterator[Tuple[str, Any]]:
     yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", message.role
     if stop_reason := message.stop_reason:
         yield LLM_FINISH_REASON, stop_reason
-    yield from _get_message_contents_attributes(f"{LLM_OUTPUT_MESSAGES}.0", message.content)
+    yield from _get_message_contents_attributes(
+        f"{LLM_OUTPUT_MESSAGES}.0",
+        message.content,
+        unfinished_block_indexes=unfinished_block_indexes,
+    )
 
 
 def _get_response_metadata(
