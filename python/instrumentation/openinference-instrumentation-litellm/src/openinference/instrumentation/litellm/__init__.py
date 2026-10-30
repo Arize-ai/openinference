@@ -1300,6 +1300,9 @@ async def _finalize_aresponses_streaming_span(span: trace_api.Span, stream: Any)
 
 
 def _finalize_responses_streaming_span(span: trace_api.Span, stream: Any) -> Any:
+    from litellm.responses.litellm_completion_transformation.streaming_iterator import (
+        LiteLLMCompletionStreamingIterator,
+    )
     from litellm.responses.streaming_iterator import SyncResponsesAPIStreamingIterator
     from litellm.types.llms.openai import ResponsesAPIStreamEvents
 
@@ -1308,7 +1311,7 @@ def _finalize_responses_streaming_span(span: trace_api.Span, stream: Any) -> Any
         ResponsesAPIStreamEvents.RESPONSE_INCOMPLETE,
         ResponsesAPIStreamEvents.RESPONSE_FAILED,
     )
-    if isinstance(stream, SyncResponsesAPIStreamingIterator):
+    if isinstance(stream, (SyncResponsesAPIStreamingIterator, LiteLLMCompletionStreamingIterator)):
         try:
             for token in stream:
                 if token.type in terminal_events and span.is_recording():
@@ -1486,6 +1489,9 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
         return _finalize_anthropic_messages_result(span, result)
 
     def _responses_wrapper(self, *args: Any, **kwargs: Any) -> Any:
+        from litellm.responses.litellm_completion_transformation.streaming_iterator import (
+            LiteLLMCompletionStreamingIterator,
+        )
         from litellm.responses.streaming_iterator import SyncResponsesAPIStreamingIterator
 
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -1506,7 +1512,9 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             except BaseException as e:
                 _end_span_with_error(span, e)
                 raise
-            if isinstance(result, SyncResponsesAPIStreamingIterator):
+            if isinstance(
+                result, (SyncResponsesAPIStreamingIterator, LiteLLMCompletionStreamingIterator)
+            ):
                 return _TracedSyncStream(
                     result, _finalize_responses_streaming_span(span, result), span
                 )
