@@ -48,6 +48,9 @@ class _ChunkAccumulator:
                 if (finish_reason := getattr(choice, "finish_reason", None)) is not None:
                     self._finish_reasons[index] = finish_reason
                 if (delta := getattr(choice, "delta", None)) is None:
+                    # Prompt completion chunks carry text instead of a delta.
+                    if text := getattr(choice, "text", None):
+                        self._contents[index].append(text)
                     continue
                 if (role := getattr(delta, "role", None)) and index not in self._roles:
                     self._roles[index] = role
@@ -108,6 +111,9 @@ class _ChunkAccumulator:
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         choices = self._get_completion().choices
+        if not choices:
+            # Nothing was received, so there is no output to record.
+            return
         if len(choices) == 1 and choices[0].message.content and not choices[0].message.tool_calls:
             yield SpanAttributes.OUTPUT_VALUE, choices[0].message.content
         else:
@@ -199,7 +205,8 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         try:
             return self.__wrapped__.__exit__(*args)
         finally:
-            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
+            # An exhausted stream has already finished OK in ``__next__``.
+            self._finish(None)
 
     async def __aenter__(self) -> "_Stream":
         await self.__wrapped__.__aenter__()
@@ -209,7 +216,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         try:
             return await self.__wrapped__.__aexit__(*args)
         finally:
-            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
+            self._finish(None)
 
     def close(self) -> Any:
         # ``openai.AsyncStream.close`` is a coroutine, so the wrapped close is
@@ -220,6 +227,14 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         finally:
             # Closed before exhaustion: leave the span status UNSET to
             # distinguish a truncated stream from a completed one.
+            self._finish(None)
+
+    async def aclose(self) -> None:
+        # portkey_ai 1.x streams async through an async generator, which closes with aclose.
+        try:
+            if callable(aclose := getattr(self.__wrapped__, "aclose", None)):
+                await aclose()
+        finally:
             self._finish(None)
 
     def __del__(self) -> None:
