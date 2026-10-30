@@ -1,0 +1,99 @@
+name: Factory Triage
+
+# Triages an issue in the factory sandbox when it gets the `triage` label, which the issue
+# templates add as it is opened; again when its author replies to a `needs information`
+# report; and by number on demand. triage.py starts an issue-triager session, whose subagents
+# try to reproduce the issue, then labels the issue from the verdict, nominates it
+# `factory-candidate` when the factory can build it, and posts the report. See "Triaging an
+# issue" in factory/README.md.
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to triage
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  triage:
+    # Anyone can open an issue or reply to one, so triage.py caps the runs it starts for
+    # requesters without write access. A Bot comment never reruns triage, so the factory's own
+    # report can't trigger another.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && github.event.label.name == 'triage') ||
+      (github.event_name == 'issue_comment' && !github.event.issue.pull_request &&
+       github.event.comment.user.type != 'Bot' &&
+       github.event.comment.user.login == github.event.issue.user.login &&
+       contains(github.event.issue.labels.*.name, 'needs information'))
+    # A second trigger for the same issue waits for this one, and then usually finds its
+    # report already covers the reply. Set on the job, so skipped runs never enter the group.
+    concurrency:
+      group: factory-triage-${{ github.event.issue.number || inputs.issue }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      issues: read # the app posts the report and labels; GITHUB_TOKEN only reads
+      pull-requests: read # open PRs that already address the issue
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue }}
+    steps:
+      # triage.py checks code pointers against this checkout, which is main, like the session's.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install the Anthropic SDK and PyJWT
+        run: pip install --quiet "anthropic==1.12.1" "PyJWT[crypto]==2.15.1"
+
+      # Factory Sync keeps the agent, environment and vault IDs on the factory-state branch.
+      - name: Pull claude-lock.json
+        run: |
+          git fetch --quiet --depth=1 origin factory-state
+          git show FETCH_HEAD:claude-lock.json > factory/claude-lock.json
+
+      - name: Start session
+        id: start
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.FACTORY_ANTHROPIC_API_KEY }}
+          # The session's token is minted read-only and written to the read-only vault.
+          FACTORY_APP_CLIENT_ID: ${{ vars.FACTORY_APP_CLIENT_ID }}
+          FACTORY_APP_PRIVATE_KEY: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
+          FACTORY_GITHUB_LOGIN: ${{ vars.FACTORY_GITHUB_LOGIN }}
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_BY: ${{ github.event.sender.login }}
+        run: |
+          case "$EVENT_NAME" in
+            issues) TRIGGER=label ;;
+            issue_comment) TRIGGER=reply ;;
+            *) TRIGGER=dispatch ;;
+          esac
+          python factory/triage.py --repo "$GH_REPO" --issue "$ISSUE_NUMBER" start --requested-by "$REQUESTED_BY" --trigger "$TRIGGER"
+
+      # Answers the session's submissions, then labels the issue and posts the report as the app.
+      # A run that ends without a valid submission fails here and posts nothing on the issue;
+      # the `triage` label stays, so the weekday digest still lists it for a maintainer.
+      - name: Watch session
+        if: steps.start.outputs.started == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.FACTORY_ANTHROPIC_API_KEY }}
+          FACTORY_APP_CLIENT_ID: ${{ vars.FACTORY_APP_CLIENT_ID }}
+          FACTORY_APP_PRIVATE_KEY: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
+          FACTORY_GITHUB_LOGIN: ${{ vars.FACTORY_GITHUB_LOGIN }}
+          SESSION_ID: ${{ steps.start.outputs.session_id }}
+        run: python factory/triage.py --repo "$GH_REPO" --issue "$ISSUE_NUMBER" watch --session-id "$SESSION_ID"
