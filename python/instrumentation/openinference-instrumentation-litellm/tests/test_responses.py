@@ -461,7 +461,9 @@ def test_streamed_responses_bridged_to_completion_creates_single_span(
     spans = in_memory_span_exporter.get_finished_spans()
     assert [span.name for span in spans] == ["responses"]
     assert spans[0].status.status_code.name == "OK"
-    assert (spans[0].attributes or {})["llm.token_count.total"] > 0
+    token_count = (spans[0].attributes or {})["llm.token_count.total"]
+    assert isinstance(token_count, int)
+    assert token_count > 0
 
 
 async def test_streamed_aresponses_bridged_to_acompletion_creates_single_span(
@@ -479,7 +481,9 @@ async def test_streamed_aresponses_bridged_to_acompletion_creates_single_span(
     spans = in_memory_span_exporter.get_finished_spans()
     assert [span.name for span in spans] == ["aresponses"]
     assert spans[0].status.status_code.name == "OK"
-    assert (spans[0].attributes or {})["llm.token_count.total"] > 0
+    token_count = (spans[0].attributes or {})["llm.token_count.total"]
+    assert isinstance(token_count, int)
+    assert token_count > 0
 
 
 def test_completion_after_failed_responses_is_still_traced(
