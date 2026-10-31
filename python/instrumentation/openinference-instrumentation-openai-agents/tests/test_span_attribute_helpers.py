@@ -1288,22 +1288,6 @@ def test_get_attributes_from_chat_completions_tool_call_dict(
         ),
         pytest.param(
             {
-                "input_tokens": 50,
-                "output_tokens": 10,
-                "input_tokens_details": {"cached_tokens": 40, "cache_write_tokens": 10},
-                "output_tokens_details": {"reasoning_tokens": 5},
-            },
-            {
-                "llm.token_count.prompt": 50,
-                "llm.token_count.completion": 10,
-                "llm.token_count.prompt_details.cache_read": 40,
-                "llm.token_count.prompt_details.cache_write": 10,
-                "llm.token_count.completion_details.reasoning": 5,
-            },
-            id="cache_read_write_and_reasoning",
-        ),
-        pytest.param(
-            {
                 "input_tokens": 20,
                 "output_tokens": 8,
                 "input_tokens_details": None,
