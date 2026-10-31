@@ -54,6 +54,7 @@ from openinference.instrumentation.anthropic._stream import _MessageExtractor
 from openinference.instrumentation.anthropic._wrappers import (
     _get_llm_input_messages,
     _get_llm_token_counts,
+    _get_llm_tools,
     _get_output_messages,
     _Params,
     _PrepareRequestDataWrapper,
@@ -1000,6 +1001,16 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert json.loads(tool_schema0) == get_weather_tool_schema
     assert isinstance(tool_schema1 := attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}"), str)
     assert json.loads(tool_schema1) == get_time_tool_schema
+    assert attributes.pop(f"{LLM_TOOLS}.0.{TOOL_NAME}") == "get_weather"
+    assert (
+        attributes.pop(f"{LLM_TOOLS}.0.{TOOL_DESCRIPTION}")
+        == "Get the current weather in a given location"
+    )
+    assert attributes.pop(f"{LLM_TOOLS}.1.{TOOL_NAME}") == "get_time"
+    assert (
+        attributes.pop(f"{LLM_TOOLS}.1.{TOOL_DESCRIPTION}")
+        == "Get the current time in a given time zone"
+    )
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -1197,6 +1208,16 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert json.loads(tool_schema0) == get_weather_tool_schema
     assert isinstance(tool_schema1 := attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}"), str)
     assert json.loads(tool_schema1) == get_time_tool_schema
+    assert attributes.pop(f"{LLM_TOOLS}.0.{TOOL_NAME}") == "get_weather"
+    assert (
+        attributes.pop(f"{LLM_TOOLS}.0.{TOOL_DESCRIPTION}")
+        == "Get the current weather in a given location"
+    )
+    assert attributes.pop(f"{LLM_TOOLS}.1.{TOOL_NAME}") == "get_time"
+    assert (
+        attributes.pop(f"{LLM_TOOLS}.1.{TOOL_DESCRIPTION}")
+        == "Get the current time in a given time zone"
+    )
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -4391,6 +4412,8 @@ TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+TOOL_NAME = ToolAttributes.TOOL_NAME
+TOOL_DESCRIPTION = ToolAttributes.TOOL_DESCRIPTION
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 USER_ID = SpanAttributes.USER_ID
@@ -4398,3 +4421,19 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROVIDER_ANTHROPIC = OpenInferenceLLMProviderValues.ANTHROPIC.value
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
+
+
+def test_get_llm_tools_omits_missing_name_and_description() -> None:
+    tools = [
+        {"type": "web_search_20250305", "name": "web_search"},
+        {"name": "", "description": ""},
+        "not a mapping",
+    ]
+
+    attributes = dict(_get_llm_tools(tools))
+
+    assert attributes.pop(f"{LLM_TOOLS}.0.{TOOL_NAME}") == "web_search"
+    assert f"{LLM_TOOLS}.0.{TOOL_DESCRIPTION}" not in attributes
+    assert f"{LLM_TOOLS}.1.{TOOL_NAME}" not in attributes
+    assert f"{LLM_TOOLS}.1.{TOOL_DESCRIPTION}" not in attributes
+    assert f"{LLM_TOOLS}.2.{TOOL_JSON_SCHEMA}" in attributes
