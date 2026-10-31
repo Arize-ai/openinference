@@ -5,7 +5,12 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_output_attributes
 from openinference.instrumentation.ollama._utils import _as_arguments_json
-from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 __all__ = ("_ResponseAttributesExtractor",)
 
@@ -45,8 +50,34 @@ class _ResponseAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if role := getattr(message, "role", None):
             yield MessageAttributes.MESSAGE_ROLE, role
-        if content := getattr(message, "content", None):
+        content = getattr(message, "content", None)
+        if content:
             yield MessageAttributes.MESSAGE_CONTENT, content
+        # Thinking models put their reasoning in `message.thinking`. Following
+        # `spec/llm_spans.md`, it is recorded as a "reasoning" content item so the
+        # message is also emitted as ordered contents (reasoning, then text) the way
+        # the other instrumentors do. The flat `message.content` above stays, so
+        # existing consumers keep seeing the answer.
+        thinking = _as_text(getattr(message, "thinking", None))
+        if thinking:
+            contents_prefix = MessageAttributes.MESSAGE_CONTENTS
+            yield (
+                f"{contents_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                "reasoning",
+            )
+            yield (
+                f"{contents_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                thinking,
+            )
+            if text := _as_text(content):
+                yield (
+                    f"{contents_prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                    "text",
+                )
+                yield (
+                    f"{contents_prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                    text,
+                )
         if (tool_calls := getattr(message, "tool_calls", None)) and isinstance(
             tool_calls, Iterable
         ):
@@ -77,3 +108,8 @@ class _ResponseAttributesExtractor:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
         if prompt_tokens is not None and completion_tokens is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, prompt_tokens + completion_tokens
+
+
+def _as_text(value: Any) -> str:
+    """Return the value as a string, or "" when there is nothing to record."""
+    return value if isinstance(value, str) else ""
