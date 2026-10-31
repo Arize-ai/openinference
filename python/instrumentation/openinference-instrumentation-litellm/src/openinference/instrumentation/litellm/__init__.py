@@ -4,6 +4,8 @@ import functools
 import inspect
 import logging
 import weakref
+from contextlib import contextmanager
+from contextvars import ContextVar
 from enum import Enum
 from types import SimpleNamespace
 from typing import (
@@ -1050,6 +1052,23 @@ def _end_span_if_unread(span: trace_api.Span, read_state: _ReadState) -> None:
         span.end()
 
 
+# Set while litellm.responses()/aresponses() runs. For providers without native Responses API
+# support, LiteLLM bridges the call to litellm.completion()/acompletion(); the Responses span
+# already covers that call, so the completion wrappers must not open a second LLM span.
+_IN_RESPONSES_CALL: ContextVar[bool] = ContextVar(
+    "openinference_litellm_in_responses_call", default=False
+)
+
+
+@contextmanager
+def _responses_call() -> Iterator[None]:
+    token = _IN_RESPONSES_CALL.set(True)
+    try:
+        yield
+    finally:
+        _IN_RESPONSES_CALL.reset(token)
+
+
 def _end_span_with_error(span: trace_api.Span, error: BaseException) -> None:
     span.record_exception(error)
     span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(error)))
@@ -1281,6 +1300,9 @@ async def _finalize_aresponses_streaming_span(span: trace_api.Span, stream: Any)
 
 
 def _finalize_responses_streaming_span(span: trace_api.Span, stream: Any) -> Any:
+    from litellm.responses.litellm_completion_transformation.streaming_iterator import (
+        LiteLLMCompletionStreamingIterator,
+    )
     from litellm.responses.streaming_iterator import SyncResponsesAPIStreamingIterator
     from litellm.types.llms.openai import ResponsesAPIStreamEvents
 
@@ -1289,7 +1311,7 @@ def _finalize_responses_streaming_span(span: trace_api.Span, stream: Any) -> Any
         ResponsesAPIStreamEvents.RESPONSE_INCOMPLETE,
         ResponsesAPIStreamEvents.RESPONSE_FAILED,
     )
-    if isinstance(stream, SyncResponsesAPIStreamingIterator):
+    if isinstance(stream, (SyncResponsesAPIStreamingIterator, LiteLLMCompletionStreamingIterator)):
         try:
             for token in stream:
                 if token.type in terminal_events and span.is_recording():
@@ -1467,6 +1489,9 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
         return _finalize_anthropic_messages_result(span, result)
 
     def _responses_wrapper(self, *args: Any, **kwargs: Any) -> Any:
+        from litellm.responses.litellm_completion_transformation.streaming_iterator import (
+            LiteLLMCompletionStreamingIterator,
+        )
         from litellm.responses.streaming_iterator import SyncResponsesAPIStreamingIterator
 
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -1482,11 +1507,14 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 with trace_api.use_span(
                     span, end_on_exit=False, record_exception=False, set_status_on_exception=False
                 ):
-                    result = self.original_litellm_funcs["responses"](*args, **kwargs)
+                    with _responses_call():
+                        result = self.original_litellm_funcs["responses"](*args, **kwargs)
             except BaseException as e:
                 _end_span_with_error(span, e)
                 raise
-            if isinstance(result, SyncResponsesAPIStreamingIterator):
+            if isinstance(
+                result, (SyncResponsesAPIStreamingIterator, LiteLLMCompletionStreamingIterator)
+            ):
                 return _TracedSyncStream(
                     result, _finalize_responses_streaming_span(span, result), span
                 )
@@ -1497,7 +1525,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 name="responses", attributes=dict(get_attributes_from_context())
             ) as span:
                 _instrument_func_type_responses(span, kwargs)
-                result = self.original_litellm_funcs["responses"](*args, **kwargs)
+                with _responses_call():
+                    result = self.original_litellm_funcs["responses"](*args, **kwargs)
                 _finalize_span(span, result)
                 return result
 
@@ -1514,7 +1543,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 with trace_api.use_span(
                     span, end_on_exit=False, record_exception=False, set_status_on_exception=False
                 ):
-                    result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
+                    with _responses_call():
+                        result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
             except BaseException as e:
                 _end_span_with_error(span, e)
                 raise
@@ -1531,14 +1561,15 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 name="aresponses", attributes=dict(get_attributes_from_context())
             ) as span:
                 _instrument_func_type_responses(span, kwargs)
-                result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
+                with _responses_call():
+                    result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
                 _finalize_span(span, result)
                 return result
 
     def _completion_wrapper(self, *args: Any, **kwargs: Any) -> Any:
         from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 
-        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY) or _IN_RESPONSES_CALL.get():
             return self.original_litellm_funcs["completion"](*args, **kwargs)
 
         if kwargs.get("stream", False):
@@ -1572,7 +1603,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 return result
 
     async def _acompletion_wrapper(self, *args: Any, **kwargs: Any) -> Any:
-        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY) or _IN_RESPONSES_CALL.get():
             return await self.original_litellm_funcs["acompletion"](*args, **kwargs)
 
         if kwargs.get("stream", False):
