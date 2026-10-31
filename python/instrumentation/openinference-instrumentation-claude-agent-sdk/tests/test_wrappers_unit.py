@@ -9,13 +9,13 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from openinference.semconv.trace import SpanAttributes
 
 from openinference.instrumentation.claude_agent_sdk._wrappers import (
     _extract_model_name_from_usage,
     _extract_usage_and_cost_attributes,
     _TurnUsageAccumulator,
 )
-from openinference.semconv.trace import SpanAttributes
 
 # ---------------------------------------------------------------------------
 # Mapping-shaped `modelUsage` — the case #3136 was about
@@ -239,6 +239,85 @@ def test_token_counts_fold_cache_tokens(
     assert (
         attrs.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == expected_cache_write
     )
+
+
+# ---------------------------------------------------------------------------
+# `modelUsage` on a result message covers the whole session, so it must not
+# override the model an assistant message already named for the span.
+# ---------------------------------------------------------------------------
+
+
+def _model_name_after_turn(
+    assistant_model: str | None, model_usage: dict[str, Any], init_model: str | None = None
+) -> str | None:
+    from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    from openinference.instrumentation.claude_agent_sdk._wrappers import (
+        _process_message,
+        _TurnUsageAccumulator,
+    )
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    span = provider.get_tracer("test").start_span("turn")
+    turn_usage = _TurnUsageAccumulator()
+    if init_model is not None:
+        init_message = {"type": "system", "subtype": "init", "data": {"model": init_model}}
+        turn_usage.add(init_message)
+        _process_message(init_message, span)
+    if assistant_model is not None:
+        assistant = AssistantMessage(content=[TextBlock(text="hi")], model=assistant_model)
+        turn_usage.add(assistant)
+        _process_message(assistant, span)
+    result = ResultMessage(
+        subtype="success",
+        duration_ms=1,
+        duration_api_ms=1,
+        is_error=False,
+        num_turns=1,
+        session_id="s",
+        total_cost_usd=0.1,
+        usage={"input_tokens": 10, "output_tokens": 20},
+        result="ok",
+        model_usage=model_usage,
+    )
+    turn_usage.add(result)
+    _process_message(result, span, use_model_usage=not turn_usage.has_assistant_model)
+    span.end()
+    value = span.attributes.get(SpanAttributes.LLM_MODEL_NAME) if span.attributes else None
+    return str(value) if value is not None else None
+
+
+def test_result_model_usage_does_not_override_the_assistant_model() -> None:
+    # Turn 2 after set_model(): usage still holds the earlier, heavier model.
+    usage = {
+        "claude-sonnet-5-5": {"outputTokens": 400},
+        "claude-haiku-4-5-20251001": {"outputTokens": 60},
+    }
+    assert _model_name_after_turn("claude-haiku-4-5-20251001", usage) == "claude-haiku-4-5-20251001"
+
+
+def test_result_model_usage_is_still_used_when_no_model_was_seen() -> None:
+    usage = {
+        "claude-haiku-4-5": {"outputTokens": 5},
+        "claude-sonnet-5-5": {"outputTokens": 400},
+    }
+    assert _model_name_after_turn(None, usage) == "claude-sonnet-5-5"
+
+
+def test_result_model_usage_overrides_a_model_named_only_by_init() -> None:
+    # The init metadata model is not an assistant message; session modelUsage wins.
+    usage = {
+        "claude-haiku-4-5": {"outputTokens": 10},
+        "claude-sonnet-5-5": {"outputTokens": 400},
+    }
+    assert _model_name_after_turn(None, usage, init_model="claude-haiku-4-5") == "claude-sonnet-5-5"
 
 
 def test_turn_usage_accumulator_sums_distinct_root_assistant_messages() -> None:
