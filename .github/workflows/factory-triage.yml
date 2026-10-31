@@ -9,7 +9,10 @@ name: Factory Triage
 on:
   issues:
     types: [labeled]
-  issue_comment:
+  # The job runs triage.py from the default branch and passes no issue or comment text to a
+  # shell or to the session's prompt. Its `if` admits only the issue's author replying on an
+  # issue (not a PR) labeled `needs information`, and triage.py caps the runs they can start.
+  issue_comment: # zizmor: ignore[dangerous-triggers] see the comment above
     types: [created]
   workflow_dispatch:
     inputs:

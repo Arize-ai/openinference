@@ -125,7 +125,9 @@ the PR bot's and never go on issues.
 These describe state a maintainer or a bot owns. The stages read them (a
 `blocked` or `stale` issue never gates) and the report may recommend them.
 
-`needs information` is the exception: stage 2 adds and removes it.
+`needs information` is the exception: stage 2 adds and removes it. The factory's triage
+lane (`factory/triage.py`) also writes `duplicate`, when it closes a new issue as a
+duplicate of an older open one; the sweep never does.
 
 | Label | Read as |
 | --- | --- |

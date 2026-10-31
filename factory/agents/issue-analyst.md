@@ -33,7 +33,7 @@ Never edit a tracked file outside a package's tests, and never commit or push. W
 
 1. **Locate.** Name the files, entry points and functions a fix or feature would touch, as `path:line`. `.agents/skills/issue-triage/references/instrumentor-requirements.md` § Where the code lives maps each language's layout. Read the package's code, not just the issue: an import in a stack trace beats a title.
 2. **Already shipped?** Grep the package's `CHANGELOG.md` and source for the feature, attribute or fix, as the issue-triage skill's Already shipped? section describes. Report the file and line or the CHANGELOG entry and version, or say it isn't there. Evidence or silence: never "looks done" without a pointer.
-3. **Duplicates and open work.** Search open and closed issues in `Arize-ai/openinference` with `search_issues` for the same symptom in the same package, and open PRs with `search_pull_requests`. Report only strong matches, each with its number and one line on why it matches.
+3. **Duplicates and open work.** Search open and closed issues in `Arize-ai/openinference` with `search_issues` for the same symptom in the same package, and open PRs with `search_pull_requests`. Report only strong matches, each with its number, whether it is open, and one line on why it matches. Call a match `same` when it reports the same behavior in the same package, so one fix would close both, and `related` otherwise.
 4. **Pattern and decisions.** For an enhancement, find the instrumentor or helper that already does the closest thing and name it (`Pattern: path`). List each decision the implementer would have to make that the issue and the semantic conventions (`spec/`) don't settle: an attribute name, a span boundary, an API shape, a change to `spec/`, a behavior change for existing users. For a bug, name the cause if the code shows it, and say how sure you are.
 5. **Probe.** For an enhancement in Python or TypeScript, show that `main` lacks the behavior: the narrowest test or script that drives the instrumentor and shows the attribute or span missing, run the way `factory/agents/bug-reproducer.md` runs tests (`tox run -e ci-<env> -- <test path>` from `python/`, `pnpm --filter <package> test <test path>` from `js/`), with the same limits on mocks. Skip it for Java, Go and `spec/`; the sandbox has no JDK or Go toolchain.
 6. **Recording.** Decide whether verifying a fix needs a new recording against a live provider: the call the change covers has no cassette, recording or mock transport in the package's tests, and its response shape isn't documented well enough to write one by hand. The sandbox has no provider API keys.
@@ -54,7 +54,7 @@ Then one line each:
 ```
 Code path: <path:line - what happens there>, one per entry point
 Already shipped: <no | partly | fully> - <evidence>
-Duplicates and open PRs: <#N - why it matches>, or none
+Duplicates and open PRs: <#N (open | closed, same | related) - why it matches>, or none
 Pattern: <path - what to follow>, or none
 Decisions: <each open decision>, or none
 Probe: <command, and the output that shows the gap>, or not run and why
