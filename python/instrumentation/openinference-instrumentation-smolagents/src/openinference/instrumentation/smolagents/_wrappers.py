@@ -152,6 +152,10 @@ class _RunWrapper:
         except Exception as e:
             span.record_exception(e)
             span.set_status(trace_api.StatusCode.ERROR)
+            # A failed run never reaches the finalizer below, so close the span and
+            # detach the context here instead of leaking both.
+            span.end()
+            context_api.detach(token)
             raise
 
         is_generator = isinstance(agent_output, Generator)
@@ -161,12 +165,14 @@ class _RunWrapper:
             output_chunks: list[str] = []
 
             def wrapped_generator() -> Generator[str, None, None]:
+                has_error = False
                 try:
                     # Collect chunks for final output
                     for chunk in agent_output:
                         output_chunks.append(str(chunk))
                         yield chunk
                 except Exception as e:
+                    has_error = True
                     span.record_exception(e)
                     span.set_status(trace_api.StatusCode.ERROR)
                     raise
@@ -199,7 +205,10 @@ class _RunWrapper:
                         + agent.monitor.total_output_token_count,
                     )
 
-                    span.set_status(trace_api.StatusCode.OK)
+                    # A failing run already set ERROR above and the finally still runs on
+                    # the way out, so only a clean run may be relabelled as OK.
+                    if not has_error:
+                        span.set_status(trace_api.StatusCode.OK)
                     span.end()
                     context_api.detach(token)
 
@@ -207,6 +216,7 @@ class _RunWrapper:
 
         # Handle non-streaming (normal) run
         else:
+            has_error = False
             try:
                 # Set output value from the agent output
                 span.set_attribute(OUTPUT_VALUE, str(agent_output))
@@ -222,12 +232,15 @@ class _RunWrapper:
                 return agent_output
 
             except Exception as e:
+                has_error = True
                 span.record_exception(e)
                 span.set_status(trace_api.StatusCode.ERROR)
                 raise
 
             finally:
-                span.set_status(trace_api.StatusCode.OK)
+                # See wrapped_generator: an ERROR set by the handler above must survive.
+                if not has_error:
+                    span.set_status(trace_api.StatusCode.OK)
                 span.end()
                 context_api.detach(token)
 
