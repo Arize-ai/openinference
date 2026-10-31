@@ -1,3 +1,4 @@
+import { SpanStatusCode } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import OpenAI, { APIPromise } from "openai";
@@ -315,6 +316,80 @@ describe("OpenAIInstrumentation - Responses", () => {
       }
     `);
   });
+
+  it.each([
+    {
+      eventType: "response.incomplete",
+      status: "incomplete",
+      extra: { incomplete_details: { reason: "max_output_tokens" } },
+      spanStatus: SpanStatusCode.OK,
+    },
+    {
+      eventType: "response.failed",
+      status: "failed",
+      extra: { error: { code: "server_error", message: "The model failed" } },
+      spanStatus: SpanStatusCode.ERROR,
+    },
+  ])(
+    "records output and token counts for a stream that ends with $eventType",
+    async ({ eventType, status, extra, spanStatus }) => {
+      vi.spyOn(openai, "post").mockImplementation(
+        // @ts-expect-error the response type is not correct - this is just for testing
+        (): Promise<unknown> => {
+          const iterator = () =>
+            (async function* () {
+              yield { type: "response.output_text.delta", delta: "I am cut" };
+              yield {
+                type: eventType,
+                response: {
+                  ...responseBase,
+                  ...extra,
+                  status,
+                  id: "resp-789",
+                  model: "gpt-4.1",
+                  output: [
+                    {
+                      type: "message",
+                      id: "msg_1",
+                      status: "incomplete",
+                      role: "assistant",
+                      content: [{ type: "output_text", text: "I am cut", annotations: [] }],
+                    },
+                  ],
+                },
+              };
+            })();
+          const controller = new AbortController();
+          const stream = new Stream(iterator, controller);
+          return new APIPromise(
+            new OpenAI({ apiKey: "fake-api-key" }),
+            // @ts-expect-error the response type is not correct - this is just for testing
+            Promise.resolve({ response: new Response(), options: {}, controller }),
+            () => stream,
+          );
+        },
+      );
+      const stream = await openai.responses.create({
+        input: "Say something long",
+        model: "gpt-4.1",
+        stream: true,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _event of stream) {
+        // drain the stream so the span is recorded
+      }
+      await new Promise((resolve) => setTimeout(resolve));
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      const attributes = spans[0].attributes;
+      expect(spans[0].status.code).toBe(spanStatus);
+      expect(attributes["output.value"]).toContain("I am cut");
+      expect(attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+      expect(attributes["llm.token_count.prompt"]).toBe(12);
+      expect(attributes["llm.token_count.completion"]).toBe(6);
+      expect(attributes["llm.token_count.total"]).toBe(18);
+    },
+  );
 
   it("should capture tool calls with streaming responses", async () => {
     // Mock out the post endpoint to return a stream with tool calls
