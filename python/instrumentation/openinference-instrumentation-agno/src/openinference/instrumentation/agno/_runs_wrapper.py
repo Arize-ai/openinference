@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import threading
 from typing import (
@@ -214,18 +215,36 @@ def _agent_run_attributes(
 
         if agent.tools:
             tool_names = []
-            # Handle both list of tools and callable that returns tools
-            tools = agent.tools() if callable(agent.tools) else agent.tools
-            for tool in tools:
-                if isinstance(tool, Function):
-                    tool_names.append(tool.name)
-                elif isinstance(tool, Toolkit):
-                    tool_names.extend([f for f in tool.functions.keys()])
-                elif callable(tool):
-                    tool_names.append(tool.__name__)
-                else:
-                    tool_names.append(str(tool))
-            yield f"agno{key_suffix}.tools", tool_names
+            # `tools` is either a list or a factory that returns one. Agno awaits
+            # async factories and injects `agent`/`team`/`run_context`/`session_state`
+            # into them, none of which we can do here; skip any factory we cannot
+            # call bare instead of breaking the instrumented run.
+            tools = agent.tools
+            resolved_tools: Any = None
+            if not callable(tools):
+                resolved_tools = tools
+            elif not inspect.iscoroutinefunction(tools):
+                try:
+                    resolved_tools = tools()
+                except Exception:
+                    resolved_tools = None
+                if inspect.isawaitable(resolved_tools):
+                    # e.g. an object whose `__call__` is async
+                    if inspect.iscoroutine(resolved_tools):
+                        resolved_tools.close()
+                    resolved_tools = None
+
+            if resolved_tools is not None:
+                for tool in resolved_tools:
+                    if isinstance(tool, Function):
+                        tool_names.append(tool.name)
+                    elif isinstance(tool, Toolkit):
+                        tool_names.extend([f for f in tool.functions.keys()])
+                    elif callable(tool):
+                        tool_names.append(tool.__name__)
+                    else:
+                        tool_names.append(str(tool))
+                yield f"agno{key_suffix}.tools", tool_names
 
 
 def _setup_team_context(
