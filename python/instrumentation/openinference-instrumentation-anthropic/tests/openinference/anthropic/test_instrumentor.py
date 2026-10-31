@@ -52,6 +52,7 @@ from openinference.instrumentation.anthropic._stream import _MessageExtractor
 from openinference.instrumentation.anthropic._wrappers import (
     _get_llm_input_messages,
     _get_llm_token_counts,
+    _get_llm_tools,
     _get_output_messages,
     _Params,
     _PrepareRequestDataWrapper,
@@ -3766,3 +3767,19 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROVIDER_ANTHROPIC = OpenInferenceLLMProviderValues.ANTHROPIC.value
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
+
+
+def test_get_llm_tools_omits_missing_name_and_description() -> None:
+    tools = [
+        {"type": "web_search_20250305", "name": "web_search"},
+        {"name": "", "description": ""},
+        "not a mapping",
+    ]
+
+    attributes = dict(_get_llm_tools(tools))
+
+    assert attributes.pop(f"{LLM_TOOLS}.0.{TOOL_NAME}") == "web_search"
+    assert f"{LLM_TOOLS}.0.{TOOL_DESCRIPTION}" not in attributes
+    assert f"{LLM_TOOLS}.1.{TOOL_NAME}" not in attributes
+    assert f"{LLM_TOOLS}.1.{TOOL_DESCRIPTION}" not in attributes
+    assert f"{LLM_TOOLS}.2.{TOOL_JSON_SCHEMA}" in attributes
