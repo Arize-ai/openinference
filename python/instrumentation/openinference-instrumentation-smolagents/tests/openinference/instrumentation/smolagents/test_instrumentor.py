@@ -19,6 +19,7 @@ from smolagents.models import (  # type: ignore[import-untyped]
     ChatMessageToolCallFunction,
     MessageRole,
 )
+from smolagents.utils import AgentGenerationError  # type: ignore[import-untyped]
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
@@ -854,6 +855,48 @@ final_answer("Test result from CodeAgent")
 
         assert main_span_non_stream.status.status_code == trace_api.StatusCode.OK
         assert main_span_stream.status.status_code == trace_api.StatusCode.OK
+
+    @pytest.mark.parametrize("stream", [False, True])
+    def test_failed_run_is_not_reported_as_ok(
+        self, in_memory_span_exporter: InMemorySpanExporter, stream: bool
+    ) -> None:
+        class ExplodingModel:
+            def __call__(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                raise RuntimeError("model exploded mid-run")
+
+            def generate(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                return self(messages, stop_sequences, grammar, tools_to_call_from)
+
+        code_agent = CodeAgent(tools=[], model=ExplodingModel(), max_steps=3)
+
+        with pytest.raises(AgentGenerationError):
+            result = code_agent.run("Test question for a failing run", stream=stream)
+            if stream:
+                list(result)
+
+        agent_spans = [
+            span
+            for span in in_memory_span_exporter.get_finished_spans()
+            if span.name == "CodeAgent.run"
+        ]
+        assert len(agent_spans) == 1
+        agent_span = agent_spans[0]
+        # The run failed, so the ERROR the exception handler set must survive the
+        # finally block that finalizes the span.
+        assert any(event.name == "exception" for event in agent_span.events)
+        assert agent_span.status.status_code == trace_api.StatusCode.ERROR
 
     def test_multiagents(self) -> None:
         class FakeModelMultiagentsManagerAgent:
