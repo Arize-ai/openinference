@@ -1,8 +1,10 @@
+import gc
 import json
 from contextlib import ExitStack
 from importlib import import_module
-from typing import Any, Iterator
+from typing import Any, Dict, Iterator, Tuple
 
+import httpx
 import pytest
 import respx
 from httpx import Response
@@ -899,3 +901,370 @@ async def test_async_chat_completion_with_failing_generator_content(
             )
     assert not route.called
     _assert_failed_content_span(in_memory_span_exporter)
+
+
+_STREAM_CHUNKS: Tuple[Dict[str, Any], ...] = (
+    {"choices": [{"index": 0, "delta": {"role": "assistant", "content": "Hel"}}]},
+    {
+        "choices": [{"index": 0, "delta": {"content": "lo"}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 8, "completion_tokens": 2, "total_tokens": 10},
+    },
+)
+
+
+def _stream_events(chunks: Tuple[Dict[str, Any], ...]) -> str:
+    header = {
+        "id": "chatcmpl-stream",
+        "object": "chat.completion.chunk",
+        "created": 1750000000,
+        "model": "gpt-4o-mini",
+    }
+    return "".join(f"data: {json.dumps({**header, **chunk})}\n\n" for chunk in chunks)
+
+
+def _stream_response(chunks: Tuple[Dict[str, Any], ...] = _STREAM_CHUNKS) -> Response:
+    """A chat-completion SSE stream, read by both the portkey_ai 1.x and 2.x clients."""
+    return Response(
+        status_code=200,
+        headers={"content-type": "text/event-stream"},
+        content=(_stream_events(chunks) + "data: [DONE]\n\n").encode(),
+    )
+
+
+def _pop_stream_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    name: str,
+    status_code: trace_api.StatusCode,
+) -> Dict[str, Any]:
+    """Checks the span of a streamed call and returns its attributes, less the request's."""
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == name
+    assert span.status.status_code == status_code
+    attributes: Dict[str, Any] = dict(span.attributes or {})
+    assert (
+        attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    )
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert json.loads(attributes.pop(SpanAttributes.INPUT_VALUE)) == {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": "hi"}],
+        "stream": True,
+    }
+    assert json.loads(attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS)) == {
+        "model": "gpt-4o-mini",
+        "stream": True,
+    }
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_CONTENT}") == "hi"
+    return attributes
+
+
+def _assert_stream_span(in_memory_span_exporter: InMemorySpanExporter, name: str) -> None:
+    attributes = _pop_stream_span(in_memory_span_exporter, name, trace_api.StatusCode.OK)
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Hello"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}") == "Hello"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 8
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 2
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 10
+    assert not attributes
+
+
+def _assert_truncated_stream_span(in_memory_span_exporter: InMemorySpanExporter, name: str) -> None:
+    """The span of a stream that was stopped after its first chunk."""
+    attributes = _pop_stream_span(in_memory_span_exporter, name, trace_api.StatusCode.UNSET)
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Hel"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}") == "Hel"
+    assert not attributes
+
+
+def _create_stream(**kwargs: Any) -> Any:
+    portkey = import_module("portkey_ai")
+    client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+    return client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=True,
+        **kwargs,
+    )
+
+
+def test_chat_completion_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    portkey = import_module("portkey_ai")
+    client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
+        stream = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "hi"}],
+            stream=True,
+        )
+        # The span stays open until the stream is read.
+        assert not in_memory_span_exporter.get_finished_spans()
+        text = "".join(chunk.choices[0].delta.content or "" for chunk in stream if chunk.choices)
+    assert text == "Hello"
+    _assert_stream_span(in_memory_span_exporter, "Completions")
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    portkey = import_module("portkey_ai")
+    client = portkey.AsyncPortkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
+        stream = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "hi"}],
+            stream=True,
+        )
+        assert not in_memory_span_exporter.get_finished_spans()
+        text = "".join(
+            [chunk.choices[0].delta.content or "" async for chunk in stream if chunk.choices]
+        )
+    assert text == "Hello"
+    _assert_stream_span(in_memory_span_exporter, "AsyncCompletions")
+
+
+def test_chat_completion_stream_closed_early(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
+        stream = _create_stream()
+        next(stream)
+        stream.close()
+    _assert_truncated_stream_span(in_memory_span_exporter, "Completions")
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_stream_closed_early(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    portkey = import_module("portkey_ai")
+    client = portkey.AsyncPortkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
+        stream = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "hi"}],
+            stream=True,
+        )
+        await stream.__anext__()
+        if hasattr(stream.__wrapped__, "aclose"):
+            # portkey_ai 1.x: an async generator
+            await stream.aclose()
+        else:
+            # portkey_ai 2.x: openai's AsyncStream
+            await stream.close()
+    _assert_truncated_stream_span(in_memory_span_exporter, "AsyncCompletions")
+
+
+def test_chat_completion_stream_context_manager_exited_early(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
+        stream = _create_stream()
+        if not hasattr(stream.__wrapped__, "__enter__"):
+            stream.close()
+            pytest.skip("portkey_ai 1.x streams through a generator, not a context manager")
+        with stream:
+            for _ in stream:
+                break
+    _assert_truncated_stream_span(in_memory_span_exporter, "Completions")
+
+
+def test_chat_completion_stream_abandoned(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    # portkey_ai 1.x sends the request on the first read, so it may never be called.
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=False) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
+        stream = _create_stream()
+        assert not in_memory_span_exporter.get_finished_spans()
+        del stream
+        gc.collect()
+    attributes = _pop_stream_span(
+        in_memory_span_exporter, "Completions", trace_api.StatusCode.UNSET
+    )
+    assert not attributes
+
+
+def test_chat_completion_stream_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    def body() -> Iterator[bytes]:
+        yield _stream_events(_STREAM_CHUNKS[:1]).encode()
+        raise httpx.ReadError("connection lost")
+
+    def respond(request: httpx.Request) -> Response:
+        return Response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            content=body(),
+        )
+
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(side_effect=respond)
+        stream = _create_stream()
+        with pytest.raises(httpx.ReadError, match="connection lost"):
+            for _ in stream:
+                pass
+    events = in_memory_span_exporter.get_finished_spans()[0].events
+    assert [event.name for event in events] == ["exception"]
+    attributes = _pop_stream_span(
+        in_memory_span_exporter, "Completions", trace_api.StatusCode.ERROR
+    )
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Hel"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}") == "Hel"
+    assert not attributes
+
+
+def test_chat_completion_stream_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    chunks: Tuple[Dict[str, Any], ...] = (
+        {
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {"name": "get_weather", "arguments": ""},
+                            },
+                        ],
+                    },
+                },
+            ],
+        },
+        {
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"tool_calls": [{"index": 0, "function": {"arguments": '{"city":'}}]},
+                },
+            ],
+        },
+        {
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"tool_calls": [{"index": 0, "function": {"arguments": '"Paris"}'}}]},
+                    "finish_reason": "tool_calls",
+                },
+            ],
+        },
+    )
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response(chunks))
+        for _ in _create_stream():
+            pass
+    attributes = _pop_stream_span(in_memory_span_exporter, "Completions", trace_api.StatusCode.OK)
+    assert json.loads(attributes.pop(SpanAttributes.OUTPUT_VALUE)) == [
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "function": {"name": "get_weather", "arguments": '{"city":"Paris"}'},
+                },
+            ],
+        },
+    ]
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "tool_calls"
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert not attributes
+
+
+def test_prompt_completion_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    chunks: Tuple[Dict[str, Any], ...] = (
+        {"choices": [{"index": 0, "text": "Hel"}]},
+        {"choices": [{"index": 0, "text": "lo", "finish_reason": "stop"}]},
+    )
+    portkey = import_module("portkey_ai")
+    client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/prompts/pp-test/completions").mock(
+            return_value=_stream_response(chunks)
+        )
+        for _ in client.prompts.completions.create(prompt_id="pp-test", stream=True):
+            pass
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.OK
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
+    assert (
+        attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    )
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert json.loads(attributes.pop(SpanAttributes.INPUT_VALUE)) == {
+        "prompt_id": "pp-test",
+        "stream": True,
+    }
+    assert json.loads(attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS)) == {
+        "prompt_id": "pp-test",
+        "stream": True,
+    }
+    assert attributes.pop(SpanAttributes.PROMPT_ID) == "pp-test"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Hello"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}") == "Hello"
+    assert not attributes
