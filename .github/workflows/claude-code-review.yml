@@ -38,6 +38,26 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      # The bundled /code-review skill follows CLAUDE.md files and does not read REVIEW.md;
+      # only the managed Code Review service does
+      # (https://code.claude.com/docs/en/code-review-customize). Load REVIEW.md as a
+      # CLAUDE.local.md so the review applies it. It is read from the base commit, as the
+      # managed service does, so a pull request cannot rewrite the rules it is reviewed by.
+      - name: Load REVIEW.md from the base branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          {
+            echo "# Pull request review instructions"
+            echo
+            echo "These are this repository's REVIEW.md rules, read from the base branch."
+            echo "Apply them to every code review; they override the default review guidance."
+            echo
+            gh api -H "Accept: application/vnd.github.raw" \
+              "repos/$GITHUB_REPOSITORY/contents/REVIEW.md?ref=$BASE_SHA"
+          } > CLAUDE.local.md
+
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@ed670b4cf9de2a5a570d130d2f6197b9e543cd64 # v1.0.240
@@ -47,10 +67,10 @@ jobs:
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_bots: 'openinference-factory[bot]'
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
+          # The bundled /code-review skill, not the code-review plugin: the plugin checks
+          # CLAUDE.md compliance with its own fixed rubric.
           prompt: |
-            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment
+            /code-review high --comment ${{ github.event.pull_request.number }}
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(git fetch *),Bash(git diff *),Bash(git log *),Bash(git show *)"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
