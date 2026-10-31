@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -250,8 +251,15 @@ func isOversizedBase64Image(url string) bool {
 type responsesResponsePayload struct {
 	ID     string            `json:"id"`
 	Model  string            `json:"model"`
+	Status string            `json:"status"`
+	Error  *responsesError   `json:"error,omitempty"`
 	Output []json.RawMessage `json:"output"`
 	Usage  *responsesUsage   `json:"usage,omitempty"`
+}
+
+// responsesError is the error object of a failed response.
+type responsesError struct {
+	Message string `json:"message"`
 }
 
 // responsesUsage mirrors the Responses API usage object. Detail counts
@@ -277,29 +285,39 @@ func (m *middleware) setResponsesResponseAttrs(span trace.Span, body []byte, sta
 	m.setResponsesOutputAttrs(span, body, true)
 }
 
+// responsesTerminalEvents are the stream events that end a Responses
+// stream. Each carries the final Response object: besides
+// response.completed, a stream can end with response.incomplete (for
+// example when max_output_tokens is reached) or response.failed, and
+// both still carry the partial output and the billed usage.
+var responsesTerminalEvents = []string{"response.completed", "response.incomplete", "response.failed"}
+
 // observeResponsesStream parses a streamed Responses call as the caller
 // reads it and, when the span ends, records the response carried by the
-// response.completed event, as Python and JS do. A stream closed before
-// that event ends the span with request attributes only.
+// terminal event (response.completed, response.incomplete or
+// response.failed). A stream closed before that event ends the span
+// with request attributes only.
 func (m *middleware) observeResponsesStream(span trace.Span, body *httputil.SpanEndingBody) {
 	// Read and Close may run on different goroutines (e.g. a context
 	// cancellation closing the body), so guard the parser state.
 	var mu sync.Mutex
-	var completed []byte
+	var final []byte
 	parser := &httputil.SSEParser{OnEvent: func(data []byte) {
 		// Skip the JSON decode for the many delta events.
-		if !bytes.Contains(data, []byte(`"response.completed"`)) {
+		if !slices.ContainsFunc(responsesTerminalEvents, func(t string) bool {
+			return bytes.Contains(data, []byte(`"`+t+`"`))
+		}) {
 			return
 		}
 		var event struct {
 			Type     string          `json:"type"`
 			Response json.RawMessage `json:"response"`
 		}
-		if err := json.Unmarshal(data, &event); err != nil || event.Type != "response.completed" ||
+		if err := json.Unmarshal(data, &event); err != nil || !slices.Contains(responsesTerminalEvents, event.Type) ||
 			!bytes.HasPrefix(bytes.TrimSpace(event.Response), []byte("{")) {
 			return
 		}
-		completed = append([]byte(nil), event.Response...)
+		final = append([]byte(nil), event.Response...)
 	}}
 	body.OnRead = func(p []byte) {
 		mu.Lock()
@@ -309,19 +327,20 @@ func (m *middleware) observeResponsesStream(span trace.Span, body *httputil.Span
 	body.BeforeEnd = func(end httputil.StreamEnd) {
 		mu.Lock()
 		defer mu.Unlock()
-		if completed != nil {
-			// Don't mark a stream that hit a read or close error as OK:
-			// an OK status would overwrite the recorded Error.
-			m.setResponsesOutputAttrs(span, completed, !end.Failed)
+		if final != nil {
+			// Don't set a status on a stream that hit a read or close
+			// error: it would overwrite the recorded Error.
+			m.setResponsesOutputAttrs(span, final, !end.Failed)
 		}
 	}
 }
 
 // setResponsesOutputAttrs records the attributes of a Response object,
 // either a non-streaming response body or the response carried by a
-// stream's response.completed event, and sets the span status to OK
-// when markOK is true, as Python and JS do.
-func (m *middleware) setResponsesOutputAttrs(span trace.Span, body []byte, markOK bool) {
+// stream's terminal event. When setStatus is true it sets the span
+// status to OK, as Python and JS do, or to Error with the error message
+// for a failed response.
+func (m *middleware) setResponsesOutputAttrs(span trace.Span, body []byte, setStatus bool) {
 	var r responsesResponsePayload
 	if err := json.Unmarshal(body, &r); err != nil {
 		span.RecordError(fmt.Errorf("parse response body: %w", err))
@@ -365,8 +384,16 @@ func (m *middleware) setResponsesOutputAttrs(span trace.Span, body []byte, markO
 		}
 	}
 
-	if markOK {
-		span.SetStatus(codes.Ok, "")
+	if setStatus {
+		if r.Status == "failed" {
+			var msg string
+			if r.Error != nil {
+				msg = r.Error.Message
+			}
+			span.SetStatus(codes.Error, msg)
+		} else {
+			span.SetStatus(codes.Ok, "")
+		}
 	}
 }
 
