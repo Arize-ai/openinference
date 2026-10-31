@@ -166,6 +166,64 @@ def test_agent_no_metadata() -> None:
     assert "metadata" not in attributes
 
 
+def test_async_tools_factory_does_not_break_run_attributes() -> None:
+    """An async `tools` factory must not abort attribute extraction (#3997).
+
+    Resolving it here cannot await the coroutine, and iterating the coroutine
+    the factory returns raised `TypeError: 'coroutine' object is not iterable`,
+    which took down the whole instrumented run.
+    """
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    async def tools_factory(run_context: Any = None) -> Any:
+        return []
+
+    agent = Agent(name="Test Agent", tools=tools_factory)  # type: ignore[arg-type]
+    attributes = dict(_agent_run_attributes(agent))
+    assert "agno.tools" not in attributes
+
+
+def test_sync_tools_factory_yields_tool_names() -> None:
+    """A synchronous `tools` factory is still resolved into tool names."""
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    def tools_factory(run_context: Any = None) -> Any:
+        return [DuckDuckGoTools()]
+
+    agent = Agent(name="Test Agent", tools=tools_factory)
+    attributes = dict(_agent_run_attributes(agent))
+    assert attributes["agno.tools"]
+
+
+def test_tools_factory_requiring_arguments_does_not_break_run_attributes() -> None:
+    """Agno injects arguments such as `run_context` into a tools factory."""
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    def tools_factory(run_context: Any) -> Any:
+        return [DuckDuckGoTools()]
+
+    agent = Agent(name="Test Agent", tools=tools_factory)
+    attributes = dict(_agent_run_attributes(agent))
+    assert "agno.tools" not in attributes
+
+
+def test_async_callable_object_tools_factory_does_not_break_run_attributes() -> None:
+    """An object with an async `__call__` is not a coroutine function."""
+    import warnings
+
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    class ToolsFactory:
+        async def __call__(self) -> Any:
+            return []
+
+    agent = Agent(name="Test Agent", tools=ToolsFactory())  # type: ignore[arg-type]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        attributes = dict(_agent_run_attributes(agent))
+    assert "agno.tools" not in attributes
+
+
 def test_team_metadata_captured() -> None:
     """Test that Team.metadata dict is captured as a span attribute."""
     import json
