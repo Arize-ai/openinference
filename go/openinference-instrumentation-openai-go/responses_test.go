@@ -884,6 +884,68 @@ func TestResponses_StreamingReadErrorIsNotMarkedOK(t *testing.T) {
 	assertExactAttrs(t, attrMap(spans[0].Attributes()), streamCompletedAttrs())
 }
 
+func TestResponses_StreamingRecordsIncompleteOrFailedResponse(t *testing.T) {
+	// A stream can end with response.incomplete (here max_output_tokens
+	// was reached) or response.failed instead of response.completed.
+	// Both carry the partial output and the billed usage.
+	const usage = `"usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7}`
+	const output = `"output":[{"type":"message","id":"msg_1","role":"assistant","status":"incomplete",` +
+		`"content":[{"type":"output_text","text":"hi there","annotations":[]}]}]`
+	for _, tc := range []struct {
+		event    string
+		response string
+		status   trace.Status
+	}{
+		{
+			event: "response.incomplete",
+			response: `{"id":"resp_s","object":"response","status":"incomplete","model":"gpt-6.1-sol-2026-09-01",` +
+				`"incomplete_details":{"reason":"max_output_tokens"},` + output + `,` + usage + `}`,
+			status: trace.Status{Code: codes.Ok},
+		},
+		{
+			event: "response.failed",
+			response: `{"id":"resp_s","object":"response","status":"failed","model":"gpt-6.1-sol-2026-09-01",` +
+				`"error":{"code":"server_error","message":"The model failed to respond."},` + output + `,` + usage + `}`,
+			status: trace.Status{Code: codes.Error, Description: "The model failed to respond."},
+		},
+	} {
+		t.Run(tc.event, func(t *testing.T) {
+			stream := "event: response.output_text.delta\n" +
+				"data: {\"type\":\"response.output_text.delta\",\"sequence_number\":1,\"item_id\":\"msg_1\",\"output_index\":0,\"content_index\":0,\"delta\":\"hi there\"}\n\n" +
+				"event: " + tc.event + "\n" +
+				"data: {\"type\":\"" + tc.event + "\",\"sequence_number\":2,\"response\":" + tc.response + "}\n\n"
+			resp, recorder := startStream(t, strings.NewReader(stream))
+			if _, err := io.ReadAll(resp.Body); err != nil {
+				t.Fatalf("drain body: %v", err)
+			}
+			_ = resp.Body.Close()
+
+			spans := recorder.Ended()
+			if len(spans) != 1 {
+				t.Fatalf("expected 1 ended span, got %d", len(spans))
+			}
+			if got := spans[0].Status(); got != tc.status {
+				t.Errorf("span status: got %+v want %+v", got, tc.status)
+			}
+			want := streamRequestAttrs()
+			for k, v := range map[string]any{
+				semconv.LLMModelName:               "gpt-6.1-sol-2026-09-01",
+				semconv.LLMOutputMessageRoleKey(0): "assistant",
+				contentKey(semconv.LLMOutputMessages, 0, 0, semconv.MessageContentType): "text",
+				contentKey(semconv.LLMOutputMessages, 0, 0, semconv.MessageContentText): "hi there",
+				semconv.OutputValue:             tc.response,
+				semconv.OutputMimeType:          semconv.MimeTypeJSON,
+				semconv.LLMTokenCountPrompt:     int64(5),
+				semconv.LLMTokenCountCompletion: int64(2),
+				semconv.LLMTokenCountTotal:      int64(7),
+			} {
+				want[k] = v
+			}
+			assertExactAttrs(t, attrMap(spans[0].Attributes()), want)
+		})
+	}
+}
+
 func TestResponses_OtherResponsesEndpointsUntouched(t *testing.T) {
 	server := serveJSON(t, http.StatusOK, textResponse, nil)
 
