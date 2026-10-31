@@ -12,10 +12,18 @@ from pydantic import BaseModel
 
 # Import necessary Pydantic AI components
 from pydantic_ai import Agent
-from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    UserPromptPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.usage import RequestUsage
 
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -409,3 +417,44 @@ def test_openai_tool_span_instrumentation_v5(
     )
     assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT not in agent_attrs
     assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION not in agent_attrs
+
+
+def test_llm_span_token_count_details(
+    in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
+) -> None:
+    """Cache and reasoning counts that pydantic-ai records on a chat span reach the LLM span."""
+    trace.set_tracer_provider(tracer_provider)
+
+    def respond(messages: List[ModelMessage], info: AgentInfo) -> ModelResponse:
+        return ModelResponse(
+            parts=[TextPart("Hello.")],
+            usage=RequestUsage(
+                input_tokens=100,
+                cache_read_tokens=60,
+                cache_write_tokens=30,
+                output_tokens=50,
+                details={"reasoning_tokens": 20},
+            ),
+        )
+
+    agent = Agent(FunctionModel(respond))
+    # Put the usage on the agent span under gen_ai.usage.* too, so the suppression is exercised.
+    agent.instrument = InstrumentationSettings(use_aggregated_usage_attribute_names=False)
+
+    agent.run_sync("Say hello.")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
+    llm_attrs = dict(cast(Mapping[str, AttributeValue], llm_span.attributes))
+    assert llm_attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 100
+    assert llm_attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 60
+    assert llm_attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 30
+    assert llm_attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 50
+    assert llm_attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] == 20
+
+    agent_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
+    agent_attrs = dict(cast(Mapping[str, AttributeValue], agent_span.attributes))
+    assert agent_attrs["gen_ai.usage.cache_read.input_tokens"] == 60
+    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ not in agent_attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE not in agent_attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING not in agent_attrs
