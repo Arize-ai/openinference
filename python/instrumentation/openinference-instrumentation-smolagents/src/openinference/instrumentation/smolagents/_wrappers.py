@@ -152,6 +152,10 @@ class _RunWrapper:
         except Exception as e:
             span.record_exception(e)
             span.set_status(trace_api.StatusCode.ERROR)
+            # A failed run never reaches the finalizer below, so close the span and
+            # detach the context here instead of leaking both.
+            span.end()
+            context_api.detach(token)
             raise
 
         is_generator = isinstance(agent_output, Generator)
