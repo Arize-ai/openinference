@@ -2901,13 +2901,17 @@ def test_image_generation_url(
     span = spans[0]
     assert span.name == "image_generation"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 0
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 0
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 0
 
-    assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+    assert attributes.pop(ImageAttributes.IMAGE_URL) == "https://dummy-url"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
     assert (
-        attributes.get(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
+        attributes.pop(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
         == "https://dummy-url"
     )
     assert span.status.status_code == StatusCode.OK
@@ -2923,6 +2927,7 @@ def test_image_generation_url(
             prompt_template_version,
             prompt_template_variables,
         )
+    assert not attributes
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -2973,13 +2978,15 @@ def test_image_generation_b64json(
     span = spans[0]
     assert span.name == "image_generation"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 0
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 0
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 0
 
-    assert ImageAttributes.IMAGE_URL not in attributes
-    assert SpanAttributes.OUTPUT_VALUE not in attributes
     assert (
-        attributes.get(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
+        attributes.pop(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
         == "data:image/png;base64,dummy_b64_json"
     )
     assert span.status.status_code == StatusCode.OK
@@ -2995,6 +3002,7 @@ def test_image_generation_b64json(
             prompt_template_version,
             prompt_template_variables,
         )
+    assert not attributes
 
 
 @pytest.mark.parametrize(
@@ -3037,14 +3045,47 @@ def test_image_generation_output_images_respect_trace_config(
     (span,) = in_memory_span_exporter.get_finished_spans()
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     output_images = {
-        index: attributes[key]
+        index: attributes.pop(key)
         for index in range(2)
         if (key := f"{SpanAttributes.OUTPUT_IMAGES}.{index}.{ImageAttributes.IMAGE_URL}")
         in attributes
     }
     assert output_images == expected_images
-    assert ImageAttributes.IMAGE_URL not in attributes
-    assert SpanAttributes.OUTPUT_VALUE not in attributes
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 0
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 0
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 0
+    assert not attributes
+
+
+def test_image_generation_extractor_error_does_not_raise(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+    mock_response_image_gen = ImageResponse(
+        created=1722359754,
+        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")],  # type: ignore
+    )
+    with (
+        patch.object(
+            OpenAIChatCompletion, "image_generation", return_value=mock_response_image_gen
+        ),
+        patch(
+            "openinference.instrumentation.litellm._set_cost_from_response",
+            side_effect=RuntimeError("extractor failure"),
+        ),
+    ):
+        response = litellm.image_generation(model="dall-e-2", prompt="a sunrise over the mountains")
+
+    assert isinstance(response, ImageResponse)
+    assert response.data is not None
+    assert response.data[0].url == "https://dummy-url"
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.name == "image_generation"
+    assert span.status.status_code != StatusCode.ERROR
 
 
 def test_image_generation_with_invalid_model_triggers_exception_event(
@@ -3122,13 +3163,17 @@ async def test_aimage_generation(
     span = spans[0]
     assert span.name == "aimage_generation"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 0
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 0
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 0
 
-    assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+    assert attributes.pop(ImageAttributes.IMAGE_URL) == "https://dummy-url"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
     assert (
-        attributes.get(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
+        attributes.pop(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
         == "https://dummy-url"
     )
     assert span.status.status_code == StatusCode.OK
@@ -3144,6 +3189,7 @@ async def test_aimage_generation(
             prompt_template_version,
             prompt_template_variables,
         )
+    assert not attributes
 
 
 async def test_aimage_generation_with_invalid_model_triggers_exception_event(

@@ -728,19 +728,6 @@ async def _finalize_anthropic_messages_awaitable(span: trace_api.Span, result: A
 
 
 @_suppress_extractor_errors
-def _image_b64_to_data_url(b64_json: str, image_format: Any = None) -> str:
-    """Wrap an image generation ``b64_json`` payload as an image data URL."""
-    if b64_json.startswith("data:image/"):
-        return b64_json
-    normalized = image_format.lower() if isinstance(image_format, str) else None
-    if normalized == "jpg":
-        normalized = "jpeg"
-    media_type = (
-        f"image/{normalized}" if normalized in ("png", "jpeg", "webp", "gif") else "image/png"
-    )
-    return f"data:{media_type};base64,{b64_json}"
-
-
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
     from openai.types.image import Image
 
@@ -806,6 +793,12 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                     )
     elif isinstance(result, ImageResponse):
         image_format = getattr(result, "output_format", None)
+        normalized = image_format.lower() if isinstance(image_format, str) else None
+        if normalized == "jpg":
+            normalized = "jpeg"
+        media_type = (
+            f"image/{normalized}" if normalized in ("png", "jpeg", "webp", "gif") else "image/png"
+        )
         for index, img_data in enumerate(result.data or ()):
             if isinstance(img_data, Image):
                 url, b64_json = img_data.url, img_data.b64_json
@@ -816,7 +809,14 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
             if url and index == 0:
                 _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
                 _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
-            if image_url := url or (b64_json and _image_b64_to_data_url(b64_json, image_format)):
+            image_url = url
+            if not image_url and b64_json:
+                image_url = (
+                    b64_json
+                    if b64_json.startswith("data:image/")
+                    else f"data:{media_type};base64,{b64_json}"
+                )
+            if image_url:
                 _set_span_attribute(
                     span,
                     f"{SpanAttributes.OUTPUT_IMAGES}.{index}.{ImageAttributes.IMAGE_URL}",
