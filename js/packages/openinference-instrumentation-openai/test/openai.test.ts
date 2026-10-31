@@ -756,6 +756,224 @@ describe("OpenAIInstrumentation", () => {
       }
     `);
   });
+  describe("parallel tool calls with streaming", () => {
+    // Streams one chunk per entry, each carrying the given tool call deltas
+    const streamToolCallDeltas = async (toolCallDeltas: object[][]) => {
+      vi.spyOn(openai, "post").mockImplementation(
+        mockAPIPromise(openai, async () => {
+          const iterator = () =>
+            (async function* () {
+              for (const tool_calls of toolCallDeltas) {
+                yield {
+                  id: "chatcmpl-parallel",
+                  object: "chat.completion.chunk",
+                  created: 1705535755,
+                  model: "gpt-4o-mini",
+                  choices: [{ index: 0, delta: { tool_calls }, finish_reason: null }],
+                };
+              }
+              yield {
+                id: "chatcmpl-parallel",
+                object: "chat.completion.chunk",
+                created: 1705535755,
+                model: "gpt-4o-mini",
+                choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+              };
+            })();
+          return new Stream(iterator, new AbortController());
+        }),
+      );
+      const stream = await openai.chat.completions.create({
+        messages: [{ role: "user", content: "What's the weather in Paris and Tokyo?" }],
+        model: "gpt-4o-mini",
+        stream: true,
+      });
+      for await (const _chunk of stream) {
+        // consume the stream
+      }
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      return Object.fromEntries(
+        Object.entries(spans[0].attributes).filter(([key]) => key.includes(".tool_calls.")),
+      );
+    };
+
+    it("keys each tool call by its index when calls arrive in separate chunks", async () => {
+      const attributes = await streamToolCallDeltas([
+        [
+          {
+            index: 0,
+            id: "call_paris",
+            type: "function",
+            function: { name: "get_weather", arguments: "" },
+          },
+        ],
+        [{ index: 0, function: { arguments: '{"city":' } }],
+        [{ index: 0, function: { arguments: '"Paris"}' } }],
+        [
+          {
+            index: 1,
+            id: "call_tokyo",
+            type: "function",
+            function: { name: "get_weather", arguments: "" },
+          },
+        ],
+        [{ index: 1, function: { arguments: '{"city":"Tokyo"}' } }],
+      ]);
+      expect(attributes).toEqual({
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_paris",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments":
+          '{"city":"Paris"}',
+        "llm.output_messages.0.message.tool_calls.1.tool_call.id": "call_tokyo",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments":
+          '{"city":"Tokyo"}',
+      });
+    });
+
+    it("keys each tool call by its index when several calls share a chunk", async () => {
+      const attributes = await streamToolCallDeltas([
+        [
+          {
+            index: 0,
+            id: "call_paris",
+            type: "function",
+            function: { name: "get_weather", arguments: "" },
+          },
+          {
+            index: 1,
+            id: "call_tokyo",
+            type: "function",
+            function: { name: "get_weather", arguments: "" },
+          },
+        ],
+        [{ index: 1, function: { arguments: '{"city":"Tokyo"}' } }],
+        [{ index: 0, function: { arguments: '{"city":"Paris"}' } }],
+      ]);
+      expect(attributes).toEqual({
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_paris",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments":
+          '{"city":"Paris"}',
+        "llm.output_messages.0.message.tool_calls.1.tool_call.id": "call_tokyo",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments":
+          '{"city":"Tokyo"}',
+      });
+    });
+
+    it("separates tool calls that arrive without an index", async () => {
+      // Gemini's OpenAI-compatible endpoint omits the index
+      const attributes = await streamToolCallDeltas([
+        [
+          {
+            id: "call_paris",
+            type: "function",
+            function: { name: "get_weather", arguments: '{"city":"Paris"}' },
+          },
+        ],
+        [
+          {
+            id: "call_tokyo",
+            type: "function",
+            function: { name: "get_weather", arguments: '{"city":' },
+          },
+        ],
+        [{ function: { arguments: '"Tokyo"}' } }],
+        [{ type: "function", function: { name: "get_time", arguments: '{"city":"Lima"}' } }],
+      ]);
+      expect(attributes).toEqual({
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_paris",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments":
+          '{"city":"Paris"}',
+        "llm.output_messages.0.message.tool_calls.1.tool_call.id": "call_tokyo",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments":
+          '{"city":"Tokyo"}',
+        "llm.output_messages.0.message.tool_calls.2.tool_call.function.name": "get_time",
+        "llm.output_messages.0.message.tool_calls.2.tool_call.function.arguments":
+          '{"city":"Lima"}',
+      });
+    });
+  });
+  describe("streaming span status", () => {
+    const contentChunk = (content: string, finish_reason: string | null = null) => ({
+      id: "chatcmpl-status",
+      object: "chat.completion.chunk",
+      created: 1705535755,
+      model: "gpt-4o-mini",
+      choices: [{ index: 0, delta: { content }, finish_reason }],
+    });
+    // Mocks a stream that yields the given chunks and then awaits `end`, which can throw
+    const mockStream = (chunks: object[], end?: (signal: AbortSignal) => Promise<void>) => {
+      const controller = new AbortController();
+      vi.spyOn(openai, "post").mockImplementation(
+        mockAPIPromise(openai, async () => {
+          const iterator = () =>
+            (async function* () {
+              for (const chunk of chunks) {
+                yield chunk;
+              }
+              await end?.(controller.signal);
+            })();
+          return new Stream(iterator, controller);
+        }),
+      );
+      return controller;
+    };
+    const createStream = () =>
+      openai.chat.completions.create({
+        messages: [{ role: "user", content: "Say this is a test" }],
+        model: "gpt-4o-mini",
+        stream: true,
+      });
+
+    it("ends the span with status OK when the stream completes", async () => {
+      mockStream([contentChunk("This is "), contentChunk("a test.", "stop")]);
+      for await (const _chunk of await createStream()) {
+        // consume the stream
+      }
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.status).toEqual({ code: SpanStatusCode.OK });
+      expect(span.attributes["output.value"]).toBe("This is a test.");
+    });
+
+    it("ends the span with status ERROR when the stream fails", async () => {
+      mockStream([contentChunk("This is ")], async () => {
+        throw new Error("connection reset");
+      });
+      const stream = await createStream();
+      await expect(async () => {
+        for await (const _chunk of stream) {
+          // consume the stream
+        }
+      }).rejects.toThrow("connection reset");
+      await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: "connection reset" });
+      expect(span.events.map((event) => event.name)).toEqual(["exception"]);
+      expect(span.events[0].attributes?.["exception.message"]).toBe("connection reset");
+      // What was streamed before the failure is still recorded
+      expect(span.attributes["output.value"]).toBe("This is ");
+    });
+
+    it("leaves the status unset when the stream is aborted", async () => {
+      // Like the SDK, the stream waits on the server and then ends quietly once aborted
+      const controller = mockStream(
+        [contentChunk("This is ")],
+        (signal) => new Promise((resolve) => signal.addEventListener("abort", () => resolve())),
+      );
+      for await (const _chunk of await createStream()) {
+        controller.abort();
+      }
+      await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.status).toEqual({ code: SpanStatusCode.UNSET });
+      expect(span.attributes["output.value"]).toBe("This is ");
+    });
+  });
   it("should capture a function call with streaming", async () => {
     vi.spyOn(openai, "post").mockImplementation(
       mockAPIPromise(openai, async () => {

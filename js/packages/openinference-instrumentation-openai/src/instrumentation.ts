@@ -567,8 +567,17 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 // First split the stream via tee
                 const [leftStream, rightStream] = result.tee();
                 // take the right stream, consuming it and then recording the final chunk
-                // into the span
-                void consumeResponseStreamEvents(rightStream).then(recordSpan);
+                // into the span. If reading it fails, the caller gets the same error from
+                // the left stream and the span ends with status ERROR.
+                void consumeResponseStreamEvents(rightStream).then((response) => {
+                  // An aborted request ends the stream without an error or a completed
+                  // response, so leave the status unset
+                  if (!response && rightStream.controller.signal.aborted) {
+                    span.end();
+                    return;
+                  }
+                  recordSpan(response);
+                }, recordError);
                 // give the left stream back to the caller
                 result = leftStream;
               }
@@ -996,7 +1005,10 @@ function getEmbeddingUsageAttributes(response: CreateEmbeddingResponse): Attribu
 }
 
 /**
- * Consumes the stream chunks and adds them to the span
+ * Consumes the stream chunks and adds them to the span.
+ * The span ends with status OK when the stream is read to the end, with status ERROR when
+ * reading it fails, and with the status unset when the request is aborted. In every case it
+ * keeps what was streamed so far.
  */
 async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionChunk>, span: Span) {
   let streamResponse = "";
@@ -1005,34 +1017,44 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   // So the final tool and function calls need to be aggregated
   // across chunks
   const toolAndFunctionCallAttributes: Attributes = {};
+  const getToolCallIndex = createStreamToolCallIndexResolver();
   let finishReason: string | undefined;
-  // The first message is for the assistant response so we start at 1
-  for await (const chunk of stream) {
-    // With `stream_options.include_usage`, the final chunk carries the request's
-    // usage and an empty `choices` array, so read it before the guard below.
-    if (chunk.usage) {
-      span.setAttributes(getUsageAttributes(chunk));
-    }
-    if (chunk.choices.length <= 0) {
-      continue;
-    }
-    const choice = chunk.choices[0];
-    if (choice.delta.content) {
-      streamResponse += choice.delta.content;
-    }
-    if (choice.finish_reason) {
-      finishReason = choice.finish_reason;
-    }
-    // Accumulate the tool and function call attributes
-    const toolAndFunctionCallAttributesDiff =
-      getToolAndFunctionCallAttributesFromStreamChunk(chunk);
-    for (const [key, value] of Object.entries(toolAndFunctionCallAttributesDiff)) {
-      if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
-        toolAndFunctionCallAttributes[key] += value;
-      } else if (isString(value)) {
-        toolAndFunctionCallAttributes[key] = value;
+  let streamFailed = false;
+  let streamError: unknown;
+  try {
+    for await (const chunk of stream) {
+      // With `stream_options.include_usage`, the final chunk carries the request's
+      // usage and an empty `choices` array, so read it before the guard below.
+      if (chunk.usage) {
+        span.setAttributes(getUsageAttributes(chunk));
+      }
+      if (chunk.choices.length <= 0) {
+        continue;
+      }
+      const choice = chunk.choices[0];
+      if (choice.delta.content) {
+        streamResponse += choice.delta.content;
+      }
+      if (choice.finish_reason) {
+        finishReason = choice.finish_reason;
+      }
+      // Accumulate the tool and function call attributes
+      const toolAndFunctionCallAttributesDiff = getToolAndFunctionCallAttributesFromStreamChunk(
+        chunk,
+        getToolCallIndex,
+      );
+      for (const [key, value] of Object.entries(toolAndFunctionCallAttributesDiff)) {
+        if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
+          toolAndFunctionCallAttributes[key] += value;
+        } else if (isString(value)) {
+          toolAndFunctionCallAttributes[key] = value;
+        }
       }
     }
+  } catch (error) {
+    // The caller reads the other branch of the tee and gets the same error
+    streamFailed = true;
+    streamError = error;
   }
   const messageIndexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
@@ -1051,20 +1073,59 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
   span.setAttributes(attributes);
+  if (streamFailed) {
+    endSpanWithError(span, streamError);
+    return;
+  }
+  // An aborted request ends the stream without an error, but did not run to completion
+  if (!stream.controller.signal.aborted) {
+    span.setStatus({ code: SpanStatusCode.OK });
+  }
   span.end();
+}
+
+/**
+ * Returns a function that gives the position of a streamed tool call delta within the message.
+ * OpenAI sends an index with every delta. Some OpenAI-compatible providers (such as Gemini)
+ * leave it out, so a delta with a new id, or a function name without an id, starts the next
+ * tool call and any other delta continues the latest one.
+ */
+function createStreamToolCallIndexResolver() {
+  let latestIndex = -1;
+  let latestId: string | undefined;
+  let nextIndex = 0;
+  return (toolCall: ChatCompletionChunk.Choice.Delta.ToolCall): number => {
+    // The SDK types the index as required, but some providers omit it
+    if (typeof toolCall.index === "number") {
+      latestIndex = toolCall.index;
+      nextIndex = Math.max(nextIndex, toolCall.index + 1);
+      return toolCall.index;
+    }
+    const startsNewToolCall =
+      latestIndex < 0 || (toolCall.id ? toolCall.id !== latestId : toolCall.function?.name != null);
+    if (startsNewToolCall) {
+      latestIndex = nextIndex++;
+      latestId = toolCall.id;
+    }
+    return latestIndex;
+  };
 }
 
 /**
  * Extracts the semantic attributes from the stream chunk for tool_calls and function_calls
  */
-function getToolAndFunctionCallAttributesFromStreamChunk(chunk: ChatCompletionChunk): Attributes {
+function getToolAndFunctionCallAttributesFromStreamChunk(
+  chunk: ChatCompletionChunk,
+  getToolCallIndex: (toolCall: ChatCompletionChunk.Choice.Delta.ToolCall) => number,
+): Attributes {
   if (chunk.choices.length <= 0) {
     return {};
   }
   const choice = chunk.choices[0];
   const attributes: Attributes = {};
   if (choice.delta.tool_calls) {
-    choice.delta.tool_calls.forEach((toolCall, index) => {
+    choice.delta.tool_calls.forEach((toolCall) => {
+      const index = getToolCallIndex(toolCall);
       const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
       // Add the tool call id if it exists
       if (toolCall.id) {
