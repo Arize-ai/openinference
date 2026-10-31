@@ -1,5 +1,6 @@
 import inspect
 import logging
+from abc import ABCMeta
 from random import getrandbits
 from typing import (
     Any,
@@ -61,7 +62,13 @@ def _proxy(
     return obj
 
 
-class _Proxy(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+class _ProxyMeta(ABCMeta, type(wrapt.ObjectProxy)):  # type: ignore[misc]
+    # Without wrapt's C extension, `wrapt.ObjectProxy` has its own metaclass, which conflicts
+    # with the `ABCMeta` of the `collections.abc` bases below unless they share a subclass.
+    pass
+
+
+class _Proxy(wrapt.ObjectProxy, metaclass=_ProxyMeta):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     def __init__(
         self,
         wrapped: _WrappedT,
