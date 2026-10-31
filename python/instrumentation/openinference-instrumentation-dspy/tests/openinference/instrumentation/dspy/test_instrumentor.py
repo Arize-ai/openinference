@@ -1,10 +1,19 @@
 import json
 from importlib.metadata import version
-from typing import Any, Generator, List, Tuple, cast
+from typing import Any, Dict, Generator, List, Tuple, cast
 
 import dspy
 import pytest
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
@@ -18,15 +27,9 @@ from openinference.instrumentation.dspy import (
     LLM_MODEL_NAME,
     LLM_PROVIDER,
     DSPyInstrumentor,
-)
-from openinference.semconv.trace import (
-    DocumentAttributes,
-    EmbeddingAttributes,
-    MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolCallAttributes,
+    _flatten,
+    _input_value_and_mime_type,
+    _llm_input_messages,
 )
 
 VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy").split(".")[:3])))
@@ -1349,15 +1352,29 @@ def test_lm_call_with_mixed_type_content_list_does_not_raise(
     assert attributes.get(f"{content_prefix}.1") == "plain-string-part"
 
 
-def test_lm_call_with_circular_reference_in_inputs_does_not_raise(
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    lm = dspy.utils.DummyLM(answers=[{"answer": "dummy answer"}])
+def test_extractors_with_circular_reference_in_inputs_do_not_raise() -> None:
+    # dspy >= 3.4 rejects circular message payloads inside its own prepare() before
+    # the instrumented call runs, so this exercises the extractor layer directly:
+    # extraction failures must stay contained and _flatten must not recurse forever.
     circular: List[Any] = []
     circular.append(circular)
+    arguments: Dict[str, Any] = {
+        "messages": [{"role": "user", "content": [{"type": "text", "text": "hi"}, circular]}],
+        "kwargs": {},
+    }
 
-    result = lm(messages=[{"role": "user", "content": [{"type": "text", "text": "hi"}, circular]}])
+    attributes = dict(
+        _flatten(
+            {
+                **dict(_input_value_and_mime_type(arguments)),
+                **dict(_llm_input_messages(arguments)),
+            }
+        )
+    )
 
-    assert "dummy answer" in result[0]
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
+    content_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+    assert attributes[f"{content_prefix}.0.type"] == "text"
+    assert attributes[f"{content_prefix}.0.text"] == "hi"
+    assert attributes[f"{content_prefix}.1"] == "<circular reference>"
+    # the failing serialization drops input.value entirely instead of raising
+    assert SpanAttributes.INPUT_VALUE not in attributes

@@ -11,11 +11,14 @@ from typing import (
     AsyncGenerator,
     Callable,
     Dict,
+    FrozenSet,
     Iterator,
+    List,
     Literal,
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Union,
 )
@@ -25,6 +28,16 @@ from autogen_core.models import (
     LLMMessage,
 )
 from autogen_core.tools import Tool
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _RUNTIME_CONTEXT
@@ -41,16 +54,6 @@ from openinference.instrumentation import (
     get_llm_token_count_attributes,
     get_output_attributes,
     safe_json_dumps,
-)
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
 )
 
 if TYPE_CHECKING:
@@ -85,23 +88,67 @@ class SafeJSONEncoder(json.JSONEncoder):
             return repr(o)
 
 
-def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
+def _contains_cycle(root: Any) -> bool:
+    """Return True if a Mapping or List contains itself, directly or indirectly."""
+    in_path: Set[int] = set()
+
+    def _children(node: Any) -> Iterator[Any]:
+        if isinstance(node, Mapping):
+            return iter(node.values())
+        return iter(node)
+
+    stack: List[Tuple[int, Iterator[Any]]] = [(id(root), _children(root))]
+    in_path.add(id(root))
+    while stack:
+        node_id, children = stack[-1]
+        pushed = False
+        for child in children:
+            if isinstance(child, (Mapping, List)):
+                child_id = id(child)
+                if child_id in in_path:
+                    return True
+                in_path.add(child_id)
+                stack.append((child_id, _children(child)))
+                pushed = True
+                break
+        if not pushed:
+            in_path.discard(node_id)
+            stack.pop()
+    return False
+
+
+def _flatten(
+    mapping: Optional[Mapping[str, Any]], _seen: FrozenSet[int] = frozenset()
+) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
         return
+    seen = _seen or frozenset((id(mapping),))
     for key, value in mapping.items():
         if value is None:
             continue
         if isinstance(value, Mapping):
-            for sub_key, sub_value in _flatten(value):
-                yield f"{key}.{sub_key}", sub_value
+            if id(value) in seen:
+                yield key, "<circular reference>"
+            else:
+                for sub_key, sub_value in _flatten(value, seen | {id(value)}):
+                    yield f"{key}.{sub_key}", sub_value
         elif isinstance(value, list) and any(isinstance(item, Mapping) for item in value):
+            seen_with_value = seen | {id(value)}
             for index, item in enumerate(value):
                 if isinstance(item, Mapping):
-                    for sub_key, sub_value in _flatten(item):
-                        yield f"{key}.{index}.{sub_key}", sub_value
+                    if id(item) in seen_with_value:
+                        yield f"{key}.{index}", "<circular reference>"
+                    else:
+                        for sub_key, sub_value in _flatten(item, seen_with_value | {id(item)}):
+                            yield f"{key}.{index}.{sub_key}", sub_value
+                elif isinstance(item, list) and _contains_cycle(item):
+                    yield f"{key}.{index}", "<circular reference>"
                 else:
                     yield f"{key}.{index}", item
         else:
+            if isinstance(value, list) and _contains_cycle(value):
+                yield key, "<circular reference>"
+                continue
             if isinstance(value, Enum):
                 value = value.value
             yield key, value

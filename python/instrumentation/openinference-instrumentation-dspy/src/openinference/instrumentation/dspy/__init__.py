@@ -11,15 +11,24 @@ from typing import (
     Callable,
     Collection,
     Dict,
+    FrozenSet,
     Iterable,
     Iterator,
     List,
     Mapping,
     Optional,
+    Set,
     Tuple,
 )
 
 import opentelemetry.context as context_api
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import StatusCode
@@ -34,13 +43,6 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
-from openinference.semconv.trace import (
-    DocumentAttributes,
-    MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 
 if TYPE_CHECKING:
     from dspy import LM
@@ -423,12 +425,7 @@ class _PredictForwardWrapper(_WithTracer):
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: CHAIN,
-                        INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                        INPUT_MIME_TYPE: JSON,
+                        **dict(_get_input_value_and_mime_type(wrapped, *args, **kwargs)),
                     }
                 )
             ),
@@ -508,12 +505,7 @@ class _PredictAforwardWrapper(_WithTracer):
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: CHAIN,
-                        INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                        INPUT_MIME_TYPE: JSON,
+                        **dict(_get_input_value_and_mime_type(wrapped, *args, **kwargs)),
                     }
                 )
             ),
@@ -574,11 +566,10 @@ class _ModuleForwardWrapper(_WithTracer):
                         # method, but assumes that user-defined subclasses implement the
                         # forward method.
                         **(
-                            {INPUT_VALUE: _get_input_value(forward_method, *args, **kwargs)}
+                            dict(_get_input_value_and_mime_type(forward_method, *args, **kwargs))
                             if (forward_method := getattr(instance.__class__, "forward", None))
                             else {}
                         ),
-                        INPUT_MIME_TYPE: JSON,
                     }
                 )
             ),
@@ -620,11 +611,10 @@ class _ModuleAforwardWrapper(_WithTracer):
                         # method, but assumes that user-defined subclasses implement the
                         # forward method.
                         **(
-                            {INPUT_VALUE: _get_input_value(forward_method, *args, **kwargs)}
+                            dict(_get_input_value_and_mime_type(forward_method, *args, **kwargs))
                             if (forward_method := getattr(instance.__class__, "aforward", None))
                             else {}
                         ),
-                        INPUT_MIME_TYPE: JSON,
                     }
                 )
             ),
@@ -663,8 +653,7 @@ class _RetrieverForwardWrapper(_WithTracer):
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: RETRIEVER.value,
-                        INPUT_VALUE: _get_input_value(wrapped, *args, **kwargs),
-                        INPUT_MIME_TYPE: JSON,
+                        **dict(_get_input_value_and_mime_type(wrapped, *args, **kwargs)),
                     }
                 )
             ),
@@ -711,8 +700,7 @@ class _RetrieverModelCallWrapper(_WithTracer):
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: RETRIEVER.value,
-                        INPUT_VALUE: (_get_input_value(wrapped, *args, **kwargs)),
-                        INPUT_MIME_TYPE: JSON,
+                        **dict(_get_input_value_and_mime_type(wrapped, *args, **kwargs)),
                     }
                 )
             ),
@@ -925,7 +913,7 @@ class SafeJSONEncoder(json.JSONEncoder):
             return repr(o)
 
 
-def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
+def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Optional[str]:
     """
     Parses a method call's inputs into a JSON string. Ensures a consistent
     output regardless of whether the those inputs are passed as positional or
@@ -961,7 +949,15 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         )
     except Exception:
         logger.exception("Failed to serialize input value")
-        return ""
+        return None
+
+
+def _get_input_value_and_mime_type(
+    method: Callable[..., Any], *args: Any, **kwargs: Any
+) -> Iterator[Tuple[str, Any]]:
+    if (input_value := _get_input_value(method, *args, **kwargs)) is not None:
+        yield INPUT_VALUE, input_value
+        yield INPUT_MIME_TYPE, JSON
 
 
 def _get_predict_span_name(instance: Any) -> str:
@@ -991,21 +987,65 @@ def _get_signature_name(signature: Any) -> Optional[str]:
     return str(qual_name.split(".")[-1])
 
 
-def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
+def _contains_cycle(root: Any) -> bool:
+    """Return True if a Mapping or List contains itself, directly or indirectly."""
+    in_path: Set[int] = set()
+
+    def _children(node: Any) -> Iterator[Any]:
+        if isinstance(node, Mapping):
+            return iter(node.values())
+        return iter(node)
+
+    stack: List[Tuple[int, Iterator[Any]]] = [(id(root), _children(root))]
+    in_path.add(id(root))
+    while stack:
+        node_id, children = stack[-1]
+        pushed = False
+        for child in children:
+            if isinstance(child, (Mapping, List)):
+                child_id = id(child)
+                if child_id in in_path:
+                    return True
+                in_path.add(child_id)
+                stack.append((child_id, _children(child)))
+                pushed = True
+                break
+        if not pushed:
+            in_path.discard(node_id)
+            stack.pop()
+    return False
+
+
+def _flatten(
+    mapping: Mapping[str, Any], _seen: FrozenSet[int] = frozenset()
+) -> Iterator[Tuple[str, AttributeValue]]:
+    seen = _seen or frozenset((id(mapping),))
     for key, value in mapping.items():
         if value is None:
             continue
         if isinstance(value, Mapping):
-            for sub_key, sub_value in _flatten(value):
-                yield f"{key}.{sub_key}", sub_value
+            if id(value) in seen:
+                yield key, "<circular reference>"
+            else:
+                for sub_key, sub_value in _flatten(value, seen | {id(value)}):
+                    yield f"{key}.{sub_key}", sub_value
         elif isinstance(value, List) and any(isinstance(item, Mapping) for item in value):
+            seen_with_value = seen | {id(value)}
             for index, item in enumerate(value):
                 if isinstance(item, Mapping):
-                    for sub_key, sub_value in _flatten(item):
-                        yield f"{key}.{index}.{sub_key}", sub_value
+                    if id(item) in seen_with_value:
+                        yield f"{key}.{index}", "<circular reference>"
+                    else:
+                        for sub_key, sub_value in _flatten(item, seen_with_value | {id(item)}):
+                            yield f"{key}.{index}.{sub_key}", sub_value
+                elif isinstance(item, List) and _contains_cycle(item):
+                    yield f"{key}.{index}", "<circular reference>"
                 else:
                     yield f"{key}.{index}", item
         else:
+            if isinstance(value, List) and _contains_cycle(value):
+                yield key, "<circular reference>"
+                continue
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
@@ -1028,8 +1068,9 @@ def _suppress_extractor_errors(
 
 @_suppress_extractor_errors
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    value = safe_json_dumps(arguments)
     yield INPUT_MIME_TYPE, JSON
-    yield INPUT_VALUE, safe_json_dumps(arguments)
+    yield INPUT_VALUE, value
 
 
 @_suppress_extractor_errors

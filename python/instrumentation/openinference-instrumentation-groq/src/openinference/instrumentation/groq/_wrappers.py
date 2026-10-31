@@ -4,9 +4,26 @@ from abc import ABC
 from contextlib import contextmanager
 from enum import Enum
 from inspect import Signature, signature
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    FrozenSet,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Set,
+    Tuple,
+)
 
 import opentelemetry.context as context_api
+from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    MessageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
@@ -21,32 +38,70 @@ from openinference.instrumentation.groq._response_attributes_extractor import (
 )
 from openinference.instrumentation.groq._utils import _finish_tracing
 from openinference.instrumentation.groq._with_span import _WithSpan
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    MessageAttributes,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
+def _contains_cycle(root: Any) -> bool:
+    """Return True if a Mapping or List contains itself, directly or indirectly."""
+    in_path: Set[int] = set()
+
+    def _children(node: Any) -> Iterator[Any]:
+        if isinstance(node, Mapping):
+            return iter(node.values())
+        return iter(node)
+
+    stack: List[Tuple[int, Iterator[Any]]] = [(id(root), _children(root))]
+    in_path.add(id(root))
+    while stack:
+        node_id, children = stack[-1]
+        pushed = False
+        for child in children:
+            if isinstance(child, (Mapping, List)):
+                child_id = id(child)
+                if child_id in in_path:
+                    return True
+                in_path.add(child_id)
+                stack.append((child_id, _children(child)))
+                pushed = True
+                break
+        if not pushed:
+            in_path.discard(node_id)
+            stack.pop()
+    return False
+
+
+def _flatten(
+    mapping: Mapping[str, Any], _seen: FrozenSet[int] = frozenset()
+) -> Iterator[Tuple[str, AttributeValue]]:
+    seen = _seen or frozenset((id(mapping),))
     for key, value in mapping.items():
         if value is None:
             continue
         if isinstance(value, Mapping):
-            for sub_key, sub_value in _flatten(value):
-                yield f"{key}.{sub_key}", sub_value
+            if id(value) in seen:
+                yield key, "<circular reference>"
+            else:
+                for sub_key, sub_value in _flatten(value, seen | {id(value)}):
+                    yield f"{key}.{sub_key}", sub_value
         elif isinstance(value, List) and any(isinstance(item, Mapping) for item in value):
+            seen_with_value = seen | {id(value)}
             for index, item in enumerate(value):
                 if isinstance(item, Mapping):
-                    for sub_key, sub_value in _flatten(item):
-                        yield f"{key}.{index}.{sub_key}", sub_value
+                    if id(item) in seen_with_value:
+                        yield f"{key}.{index}", "<circular reference>"
+                    else:
+                        for sub_key, sub_value in _flatten(item, seen_with_value | {id(item)}):
+                            yield f"{key}.{index}.{sub_key}", sub_value
+                elif isinstance(item, List) and _contains_cycle(item):
+                    yield f"{key}.{index}", "<circular reference>"
                 else:
                     yield f"{key}.{index}", item
         else:
+            if isinstance(value, List) and _contains_cycle(value):
+                yield key, "<circular reference>"
+                continue
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
