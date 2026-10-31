@@ -6,3 +6,5 @@ openai
 ddgs
 yfinance
 fastapi
+anthropic
+httpx2
