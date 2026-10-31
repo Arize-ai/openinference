@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.75](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.74...python-openinference-instrumentation-v0.1.75) (2026-10-31)
+
+
+### Bug Fixes
+
+* type-guard llm message role and content attributes ([#4194](https://github.com/Arize-ai/openinference/issues/4194)) ([98aa84b](https://github.com/Arize-ai/openinference/commit/98aa84b5e7f5cd2423bcfccaf61e4645890795db))
+
 ## [0.1.74](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.73...python-openinference-instrumentation-v0.1.74) (2026-10-29)
 
 

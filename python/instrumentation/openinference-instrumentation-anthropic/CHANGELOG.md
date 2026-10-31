@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.2.0...python-openinference-instrumentation-anthropic-v3.3.0) (2026-10-31)
+
+
+### Features
+
+* **anthropic:** record document blocks with document semantic conventions ([#4156](https://github.com/Arize-ai/openinference/issues/4156)) ([5d6dbbb](https://github.com/Arize-ai/openinference/commit/5d6dbbbd2e899d10fe4d1e5a620be0e2a83effbd))
+
+
+### Bug Fixes
+
+* **anthropic:** avoid false tool arguments and token totals on interrupted streams ([#3982](https://github.com/Arize-ai/openinference/issues/3982)) ([5ee0356](https://github.com/Arize-ai/openinference/commit/5ee0356952ecc2096924425c822dc78ff2e60c9b))
+
 ## [3.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.1.1...python-openinference-instrumentation-anthropic-v3.2.0) (2026-10-29)
 
 
