@@ -12,6 +12,9 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.bedrock._wrappers import _NovaStreamCallback
+from openinference.instrumentation.bedrock.utils._extract_invoke_model_attributes import (
+    _set_nova_body_token_attributes,
+)
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -461,9 +464,10 @@ class TestNovaStreamCallbackUnit:
         span_data = spans[-1]
         attributes = dict(span_data.attributes or {})
 
-        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 30
+        # inputTokens excludes cache reads and writes, so the prompt count adds them.
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 30 + 5 + 7
         assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 12
-        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 42
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 54
         assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 5
         assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 7
 
@@ -495,6 +499,66 @@ class TestNovaStreamCallbackUnit:
             attributes["llm.output_messages.0.message.contents.0.message_content.text"]
             == "Looking up weather."
         )
+
+    def test_streaming_without_cache_tokens_keeps_input_tokens(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        span = tracer_provider.get_tracer(__name__).start_span("nova.stream.test")
+        callback = _NovaStreamCallback(span, {"modelId": "us.amazon.nova-pro-v1:0", "body": {}})
+        callback(self._chunk({"metadata": {"usage": {"inputTokens": 10, "outputTokens": 5}}}))
+        callback(StopIteration())
+
+        attributes = dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 10
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 5
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 15
+        assert LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ not in attributes
+
+
+class TestNovaBodyTokenCounts:
+    """``_set_nova_body_token_attributes`` reads usage from the invoke_model response body."""
+
+    def test_prompt_token_count_includes_cache_tokens(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        span = tracer_provider.get_tracer(__name__).start_span("nova.body.test")
+        usage = {
+            "inputTokens": 4299,
+            "outputTokens": 631,
+            "totalTokens": 58291,
+            "cacheReadInputTokenCount": 35574,
+            "cacheWriteInputTokenCount": 17787,
+        }
+        _set_nova_body_token_attributes(span, {"usage": usage})
+        span.end()
+
+        attributes = dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 4299 + 35574 + 17787
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 631
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 58291
+        assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 35574
+        assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 17787
+
+    def test_prompt_token_count_without_cache_tokens(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        span = tracer_provider.get_tracer(__name__).start_span("nova.body.test")
+        _set_nova_body_token_attributes(
+            span, {"usage": {"inputTokens": 10, "outputTokens": 5, "totalTokens": 15}}
+        )
+        span.end()
+
+        attributes = dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 10
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 5
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 15
+        assert LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ not in attributes
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
