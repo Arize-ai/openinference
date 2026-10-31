@@ -9,9 +9,9 @@
     "./agents/bug-fixer.md": {
       "kind": "agent",
       "id": "agent_01NkFvouKXmdoiDJEycizTrs",
-      "version": "1",
-      "hash": "d3d9f8106ca41d1c91682e93a1053b8f",
-      "remote_hash": "21dfe06640a23a6ee11539b03aafc195"
+      "version": "2",
+      "hash": "7cbaa9dde5116d9c3305a8de80a71cce",
+      "remote_hash": "50729a21f895476a778fb202a4aea454"
     },
     "./agents/bug-reproducer.md": {
       "kind": "agent",
@@ -19,6 +19,20 @@
       "version": "1",
       "hash": "5307e3943cd460f1de2ce99d118201bf",
       "remote_hash": "18eebe58a5894407620416bf2d655d57"
+    },
+    "./agents/issue-analyst.md": {
+      "kind": "agent",
+      "id": "agent_013EeZsLyvEDRvteYm1WoVzi",
+      "version": "1",
+      "hash": "b304d4029e9193b2b4a603d483e4c04f",
+      "remote_hash": "94f2b1f0475893acd7ac0ea3f8018681"
+    },
+    "./agents/issue-triager.md": {
+      "kind": "agent",
+      "id": "agent_01Ug3BkYoVZZvdoVPXVJLAqc",
+      "version": "1",
+      "hash": "6bf7f7c6570f5458975986b19553071b",
+      "remote_hash": "b1fe5f4080d765e9625a60d90a40cab0"
     },
     "./agents/js-reviewer.md": {
       "kind": "agent",
@@ -46,6 +60,12 @@
       "id": "env_014mYFyZD5KnePiuKSY65faX",
       "hash": "2ccced50eee91fad0a94abfcf080ec01",
       "remote_hash": "0c019e44d46d1269300e24d8add27ef3"
+    },
+    "./vaults/github-readonly.yaml": {
+      "kind": "vault",
+      "id": "vlt_011CgZZJ6uN3ewgLqvGe5aoE",
+      "hash": "a5f60b29f4bf8503ab3e3f6a07a896b2",
+      "remote_hash": "a5f60b29f4bf8503ab3e3f6a07a896b2"
     },
     "./vaults/github.yaml": {
       "kind": "vault",
