@@ -11,6 +11,7 @@ Run:
 """
 
 import anthropic
+from anthropic import beta_tool
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -24,12 +25,13 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
+@beta_tool
 def get_weather(location: str) -> str:
     """A local tool the runner invokes when the model asks for weather."""
     return f"The weather in {location} is sunny and 72 degrees."
 
 
-client = anthropic.Anthropic(api_key="sk-proj-...")
+client = anthropic.Anthropic()
 runner = client.beta.messages.tool_runner(
     model="claude-sonnet-4-6",
     max_tokens=1024,
