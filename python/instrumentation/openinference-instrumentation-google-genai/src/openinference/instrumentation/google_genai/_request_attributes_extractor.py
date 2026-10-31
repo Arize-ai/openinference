@@ -37,6 +37,11 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
+def _normalize_tuple_contents(contents: Any) -> Any:
+    """Match the SDK's tuple-to-list request validation before calling t_contents."""
+    return list(contents) if isinstance(contents, tuple) else contents
+
+
 class _RequestAttributesExtractor:
     def get_attributes_from_request(
         self,
@@ -67,7 +72,7 @@ class _RequestAttributesExtractor:
             # System instruction as the first message
             if config and (system_instruction := config.system_instruction):
                 try:
-                    for content in t_contents(system_instruction):
+                    for content in t_contents(_normalize_tuple_contents(system_instruction)):
                         for attr, value in self._get_attributes_from_content(content):
                             yield (
                                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
@@ -84,7 +89,7 @@ class _RequestAttributesExtractor:
 
         if input_contents := request_parameters.get("contents"):
             try:
-                for content in t_contents(input_contents):
+                for content in t_contents(_normalize_tuple_contents(input_contents)):
                     for message_attributes in self._iter_messages_from_content(content):
                         for attr, value in message_attributes:
                             yield (
