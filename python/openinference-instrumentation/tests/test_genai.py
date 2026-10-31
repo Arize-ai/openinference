@@ -35,9 +35,9 @@ from openinference.semconv.trace import (
     ToolAttributes,
 )
 
-# OTel GenAI semconv JSON schemas (v1.41.1) vendored at tests/fixtures/genai_schemas/.
-# Source: https://github.com/open-telemetry/semantic-conventions/tree/v1.41.1/docs/gen-ai
-# Refresh from ~/.cache/oi-conformance/semconv/<version>/docs/gen-ai/ when bumping.
+# OTel GenAI semconv JSON schemas vendored at tests/fixtures/genai_schemas/.
+# Source: https://github.com/open-telemetry/semantic-conventions-genai/tree/6fd0d763a092/model/gen-ai
+# Refresh from ~/.cache/oi-conformance/semconv-genai/<ref>/model/gen-ai/ when bumping.
 _SCHEMA_DIR = Path(__file__).parent / "fixtures" / "genai_schemas"
 _GENAI_SCHEMA_VALIDATORS: Dict[str, Draft202012Validator] = {
     GenAIAttributes.GEN_AI_INPUT_MESSAGES: Draft202012Validator(
@@ -99,6 +99,7 @@ def test_get_genai_attributes_maps_llm_chat_attributes() -> None:
             model_name="gpt-4o-mini",
             invocation_parameters={
                 "temperature": 0.5,
+                "top_k": 40.0,
                 "max_tokens": 128,
                 "stop": ["DONE"],
                 "n": 2,
@@ -166,6 +167,8 @@ def test_get_genai_attributes_maps_llm_chat_attributes() -> None:
     assert genai_attributes[GenAIAttributes.GEN_AI_CONVERSATION_ID] == "conversation-123"
     assert genai_attributes[GenAIAttributes.GEN_AI_REQUEST_MODEL] == "gpt-4o-mini"
     assert genai_attributes[GenAIAttributes.GEN_AI_REQUEST_TEMPERATURE] == 0.5
+    top_k = genai_attributes[GenAIAttributes.GEN_AI_REQUEST_TOP_K]
+    assert isinstance(top_k, int) and top_k == 40
     assert genai_attributes[GenAIAttributes.GEN_AI_REQUEST_MAX_TOKENS] == 128
     assert genai_attributes[GenAIAttributes.GEN_AI_REQUEST_STOP_SEQUENCES] == ("DONE",)
     assert genai_attributes[GenAIAttributes.GEN_AI_REQUEST_CHOICE_COUNT] == 2
@@ -173,7 +176,7 @@ def test_get_genai_attributes_maps_llm_chat_attributes() -> None:
     assert genai_attributes[GenAIAttributes.GEN_AI_USAGE_INPUT_TOKENS] == 10
     assert genai_attributes[GenAIAttributes.GEN_AI_USAGE_OUTPUT_TOKENS] == 4
     assert genai_attributes[GenAIAttributes.GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS] == 2
-    assert genai_attributes[GenAIAttributes.GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS] == 1
+    assert genai_attributes[GenAIAttributes.GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS] == 1
     assert genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS] == ("tool_call",)
 
     input_messages = _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_INPUT_MESSAGES)
