@@ -784,3 +784,24 @@ async def test_chat_with_raising_generator(
     event_attrs = dict(event.attributes or {})
     assert event_attrs["exception.type"] == "RuntimeError"
     assert event_attrs["exception.message"] == "generator failed"
+
+
+async def test_async_chat_stream_context_body_error_sets_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
+        stream = await AsyncTogether().chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "Count from one to five."}],
+            stream=True,
+        )
+        with pytest.raises(RuntimeError, match="body failed"):
+            async with stream:
+                raise RuntimeError("body failed")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == StatusCode.ERROR
+    assert any(event.name == "exception" for event in span.events)

@@ -160,7 +160,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         except StopIteration:
             self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
             raise
-        except Exception as exception:
+        except BaseException as exception:
             self._finish_error(exception)
             raise
         self._self_accumulator.process_chunk(chunk)
@@ -175,7 +175,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         except StopAsyncIteration:
             self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
             raise
-        except Exception as exception:
+        except BaseException as exception:
             self._finish_error(exception)
             raise
         self._self_accumulator.process_chunk(chunk)
@@ -185,21 +185,27 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         self.__wrapped__.__enter__()
         return self
 
-    def __exit__(self, *args: Any) -> Any:
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
         try:
-            return self.__wrapped__.__exit__(*args)
+            return self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
         finally:
-            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
+            if exc_val is not None:
+                self._finish_error(exc_val)
+            else:
+                self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
 
     async def __aenter__(self) -> "_Stream":
         await self.__wrapped__.__aenter__()
         return self
 
-    async def __aexit__(self, *args: Any) -> Any:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
         try:
-            return await self.__wrapped__.__aexit__(*args)
+            return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         finally:
-            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
+            if exc_val is not None:
+                self._finish_error(exc_val)
+            else:
+                self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
 
     def close(self) -> Any:
         # ``together.AsyncStream.close`` is a coroutine, so the wrapped close is
@@ -219,7 +225,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         except BaseException:
             pass
 
-    def _finish_error(self, exception: Exception) -> None:
+    def _finish_error(self, exception: BaseException) -> None:
         self._self_with_span.record_exception(exception)
         self._finish(
             trace_api.Status(
