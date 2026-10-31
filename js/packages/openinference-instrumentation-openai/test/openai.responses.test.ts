@@ -138,6 +138,8 @@ describe("OpenAIInstrumentation - Responses", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -225,6 +227,8 @@ describe("OpenAIInstrumentation - Responses", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -312,6 +316,8 @@ describe("OpenAIInstrumentation - Responses", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp-567","model":"gpt-4.1","output":[{"type":"output_text","text":"I am streaming!","annotations":[]}]}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -456,6 +462,8 @@ describe("OpenAIInstrumentation - Responses", () => {
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
   "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
+  "server.address": "api.openai.com",
+  "server.port": 443,
 }
 `);
   });
@@ -609,6 +617,8 @@ describe("OpenAIInstrumentation - Responses", () => {
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
   "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
+  "server.address": "api.openai.com",
+  "server.port": 443,
 }
 `);
   });
