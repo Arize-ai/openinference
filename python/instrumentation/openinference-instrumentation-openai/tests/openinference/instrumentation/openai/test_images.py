@@ -39,6 +39,13 @@ _PNG_BYTES = b"\x89PNG\r\n\x1a\nimage"
 _JPEG_BYTES = b"\xff\xd8\xffimage"
 _WEBP_BYTES = b"RIFF\x00\x00\x00\x00WEBPimage"
 
+_IMAGE_USAGE = {
+    "input_tokens": 50,
+    "output_tokens": 4160,
+    "total_tokens": 4210,
+    "input_tokens_details": {"text_tokens": 40, "image_tokens": 10},
+}
+
 
 def _client(is_async: bool) -> Any:
     openai = import_module("openai")
@@ -150,7 +157,8 @@ async def test_image_generation_records_the_generated_image(
     request_format: str | None,
     expected_url: str,
 ) -> None:
-    response_json: dict[str, Any] = {"created": 1, "data": [response_image]}
+    # dall-e models return no usage, and these requests name no model.
+    response_json: dict[str, Any] = {"created": 1, "data": [response_image], "usage": None}
     if response_format:
         response_json["output_format"] = response_format
     respx_mock.post(urljoin(_OPENAI_BASE_URL, "images/generations")).mock(
@@ -167,6 +175,48 @@ async def test_image_generation_records_the_generated_image(
 
     attributes = _image_span_attributes(in_memory_span_exporter, request)
     assert attributes.pop(_output_image()) == expected_url
+    assert attributes == {}
+
+
+def _pop_image_token_counts(attributes: dict[str, AttributeValue]) -> None:
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 50
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 4160
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 4210
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize(
+    ("data", "expected_url"),
+    [
+        pytest.param([{"b64_json": "aW1hZ2U="}], "data:image/png;base64,aW1hZ2U=", id="with-data"),
+        pytest.param([], None, id="empty-data"),
+    ],
+)
+async def test_image_generation_records_the_model_and_token_counts(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    is_async: bool,
+    data: list[Mapping[str, str]],
+    expected_url: str | None,
+) -> None:
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, "images/generations")).mock(
+        return_value=Response(
+            status_code=200,
+            json={"created": 1, "data": data, "usage": _IMAGE_USAGE},
+        )
+    )
+    request = {"prompt": "a lighthouse in a storm", "model": "gpt-image-1"}
+
+    if is_async:
+        await _client(is_async).images.generate(**request)
+    else:
+        _client(is_async).images.generate(**request)
+
+    attributes = _image_span_attributes(in_memory_span_exporter, request)
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-image-1"
+    _pop_image_token_counts(attributes)
+    if expected_url:
+        assert attributes.pop(_output_image()) == expected_url
     assert attributes == {}
 
 
@@ -331,6 +381,73 @@ async def test_streaming_records_the_completed_image(
     assert attributes.pop(_output_image()) == (
         f"data:image/{event['output_format']};base64,{event['b64_json']}"
     )
+    if expected_input_url:
+        assert attributes.pop(_input_image()) == expected_input_url
+    assert attributes == {}
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize(
+    ("endpoint", "event_type", "call", "expected_request", "expected_input_url"),
+    [
+        pytest.param(
+            "images/generations",
+            "image_generation.completed",
+            lambda client: client.images.generate(
+                prompt="a lighthouse", model="gpt-image-1", stream=True
+            ),
+            {"prompt": "a lighthouse", "model": "gpt-image-1", "stream": True},
+            None,
+            id="generation",
+        ),
+        pytest.param(
+            "images/edits",
+            "image_edit.completed",
+            lambda client: client.images.edit(
+                image=_PNG_BYTES, prompt="edit this", model="gpt-image-1", stream=True
+            ),
+            {"prompt": "edit this", "model": "gpt-image-1", "stream": True},
+            _data_url("image/png", _PNG_BYTES),
+            id="edit",
+        ),
+    ],
+)
+async def test_streaming_records_the_completed_event_token_counts(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    is_async: bool,
+    endpoint: str,
+    event_type: str,
+    call: Callable[[Any], Any],
+    expected_request: Mapping[str, Any],
+    expected_input_url: str | None,
+) -> None:
+    event = {
+        "type": event_type,
+        "b64_json": "c3RyZWFtZWQ=",
+        "output_format": "png",
+        "usage": _IMAGE_USAGE,
+    }
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, endpoint)).mock(
+        return_value=Response(
+            status_code=200,
+            text=f"data: {json.dumps(event)}\n\n",
+            headers={"content-type": "text/event-stream"},
+        )
+    )
+
+    stream = call(_client(is_async))
+    if is_async:
+        async for _ in await stream:
+            pass
+    else:
+        for _ in stream:
+            pass
+
+    attributes = _image_span_attributes(in_memory_span_exporter, expected_request)
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-image-1"
+    _pop_image_token_counts(attributes)
+    assert attributes.pop(_output_image()) == "data:image/png;base64,c3RyZWFtZWQ="
     if expected_input_url:
         assert attributes.pop(_input_image()) == expected_input_url
     assert attributes == {}

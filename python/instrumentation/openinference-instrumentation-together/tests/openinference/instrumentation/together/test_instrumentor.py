@@ -1,5 +1,6 @@
+import gc
 import json
-from typing import Any, Iterable, Iterator, List
+from typing import Any, Dict, Iterable, Iterator, List
 
 import pytest
 import respx
@@ -206,6 +207,179 @@ async def test_async_chat_stream(in_memory_span_exporter: InMemorySpanExporter) 
     assert attrs[SpanAttributes.OUTPUT_VALUE] == content
 
 
+_SSE_CONTENTS = ("1", ",", " 2")
+_ENDED_TWICE = "Calling end() on an ended span."
+
+
+def _chunk(content: str) -> Dict[str, Any]:
+    return {
+        "id": "chatcmpl-stream",
+        "object": "chat.completion.chunk",
+        "created": 1786077894,
+        "choices": [
+            {
+                "index": 0,
+                "text": content,
+                "logprobs": None,
+                "finish_reason": None,
+                "seed": None,
+                "delta": {"token_id": 16, "role": "assistant", "content": content},
+            }
+        ],
+        "model": _MODEL,
+        "usage": None,
+    }
+
+
+def _streaming_response() -> Response:
+    """An SSE chat-completion stream in the format ``together.Stream`` decodes."""
+    events = (
+        "".join(f"data: {json.dumps(_chunk(content))}\n\n" for content in _SSE_CONTENTS)
+        + "data: [DONE]\n\n"
+    )
+    return Response(
+        status_code=200,
+        headers={"content-type": "text/event-stream"},
+        content=events.encode(),
+    )
+
+
+def test_chat_stream_explicit_close(
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
+        stream = Together().chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "Count from one to five."}],
+            stream=True,
+        )
+        for _ in stream:
+            break
+        stream.close()
+    del stream
+    gc.collect()
+
+    assert _ENDED_TWICE not in caplog.text
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Completions"
+    # Closing before exhaustion leaves the status UNSET so that a truncated
+    # stream can still be told apart from a fully consumed one.
+    assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == "1"
+
+
+def test_chat_stream_abandoned_after_partial_iteration(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
+        stream = Together().chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "Count from one to five."}],
+            stream=True,
+        )
+        for _ in stream:
+            break
+    del stream
+    gc.collect()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Completions"
+    assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == "1"
+
+
+async def test_async_chat_stream_explicit_close(
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
+        stream = await AsyncTogether().chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "Count from one to five."}],
+            stream=True,
+        )
+        async for _ in stream:
+            break
+        await stream.close()
+    del stream
+    gc.collect()
+
+    assert _ENDED_TWICE not in caplog.text
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncCompletions"
+    assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == "1"
+
+
+async def test_async_chat_stream_abandoned_after_partial_iteration(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
+        stream = await AsyncTogether().chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "Count from one to five."}],
+            stream=True,
+        )
+        async for _ in stream:
+            break
+    del stream
+    gc.collect()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncCompletions"
+    assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == "1"
+
+
+def test_chat_stream_context_manager_exit_raises(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _failing_close() -> None:
+        raise RuntimeError("close failed")
+
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
+        stream = Together().chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "Count from one to five."}],
+            stream=True,
+        )
+        monkeypatch.setattr(stream.response, "close", _failing_close)
+        with pytest.raises(RuntimeError, match="close failed"):
+            with stream:
+                pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "Completions"
+    assert span.status.status_code == StatusCode.OK
+
+
 @pytest.mark.vcr
 def test_suppress_tracing(in_memory_span_exporter: InMemorySpanExporter) -> None:
     from openinference.instrumentation import suppress_tracing
@@ -292,10 +466,9 @@ def test_finish_reason_values(
     in_memory_span_exporter.clear()
 
     with respx.mock(
-        base_url="https://api.together.ai",
         assert_all_called=True,
     ) as respx_mock:
-        respx_mock.post("/v1/chat/completions").mock(
+        respx_mock.post(path="/v1/chat/completions").mock(
             return_value=Response(
                 status_code=200,
                 json={
@@ -339,10 +512,9 @@ def test_chat_with_multimodal_input(in_memory_span_exporter: InMemorySpanExporte
     in_memory_span_exporter.clear()
 
     with respx.mock(
-        base_url="https://api.together.ai",
         assert_all_called=True,
     ) as respx_mock:
-        respx_mock.post("/v1/chat/completions").mock(
+        respx_mock.post(path="/v1/chat/completions").mock(
             return_value=Response(
                 status_code=200,
                 json={
@@ -506,8 +678,8 @@ def test_chat_with_generator_content(
     )
     content: Iterator[Any] = (part for part in parts)
 
-    with respx.mock(base_url="https://api.together.ai", assert_all_called=True) as respx_mock:
-        route = respx_mock.post("/v1/chat/completions").mock(
+    with respx.mock(assert_all_called=True) as respx_mock:
+        route = respx_mock.post(path="/v1/chat/completions").mock(
             return_value=Response(
                 status_code=200,
                 json={
@@ -587,7 +759,7 @@ async def test_chat_with_raising_generator(
         if generator_location == "content"
         else failing_generator()
     )
-    with respx.mock(base_url="https://api.together.ai") as respx_mock:
+    with respx.mock() as respx_mock:
         with pytest.raises(RuntimeError) as exc_info:
             if is_async:
                 async with AsyncTogether() as client:

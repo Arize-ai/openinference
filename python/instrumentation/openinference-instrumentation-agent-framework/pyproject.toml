@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference span processor for Microsoft Agent Framework - transforms native OpenTelemetry spans to OpenInference format"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.10, <3.15"
+requires-python = ">=3.10, <3.16"
 authors = [
     { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -23,12 +23,13 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 dependencies = [
     "opentelemetry-api>=1.39.0",
     "opentelemetry-sdk>=1.39.0",
     "opentelemetry-semantic-conventions>=0.52b0",
-    "openinference-semantic-conventions>=0.1.41",
+    "openinference-semantic-conventions>=0.1.42",
     "typing-extensions",
 ]
 

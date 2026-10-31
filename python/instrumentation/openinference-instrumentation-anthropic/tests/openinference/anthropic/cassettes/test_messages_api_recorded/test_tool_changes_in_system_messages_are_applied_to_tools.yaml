@@ -1,0 +1,19 @@
+interactions:
+- request:
+    body: '{"max_tokens":256,"messages":[{"role":"user","content":"Which tools can
+      you use? Answer in one line."},{"role":"system","content":[{"type":"tool_removal","tool":{"type":"tool_reference","name":"get_date"}},{"type":"tool_addition","tool":{"type":"tool_definition","definition":{"name":"get_weather","description":"The
+      get weather.","input_schema":{"type":"object","properties":{}}}}}]}],"model":"claude-haiku-5-5","tools":[{"name":"get_time","description":"The
+      get time.","input_schema":{"type":"object","properties":{}}},{"name":"get_date","description":"The
+      get date.","input_schema":{"type":"object","properties":{}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"model":"claude-haiku-5-5","id":"msg_011CgT5EU8RVFg8T5czfsbB8","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQSiQcKEAgTGAI4AUIIdGhpbmtpbmcSDPCcsVUM/lurFYHBnRoMIHWQ0F8Fgkameu4hIjBb5Brq81mTS5t4tk3Z8UEHDUoEnQPvAGCbSMj8ngJob8y4mPOeVUPoXdTlxdRCwfYqpgbQ+Of59RUNLS6q/PHp/I4rs/SAh389IJEO+zl9jRBKZb2/29VPUFjXsXwtdDxHMOAOnvJYKwNpqW0jakIXHyq2WtXU4c1txK9TgFaotex17LQRySsYc7gP7Mt5wgVUvi0U5RfO1NYl/jE/1IQOR9Vmuo6O4Vh27Ll1I1EEEAqooCpWa1rMUFKItpxANikrL7PLiCjMHRYmmZ8daQxH+NCMVvePWubppbAUDUFiOfy/2IQmEsB0TcbrxggV9blw9yVDX4oRkXvmyjJ/LD0IY1aDbLb4e7YGOQzyTUDUHmiKT+DoWrGL/8E3xEquYEQRE7KErPZsuAIrnun06g2LnoQ2mIsIRUjHCMEoO8P56OoNkdEc68+pZ2nK9HY/GOJqpJM/pDI8JItnhY9INrX60p4jSO/PKpsSbDLRJGixXngr5oUMCszXzuLOVrGmbZYiFV4qm48b1qxVgghlaPfElA7DMgdtUWcuvzV9Z496MzPKFowrm81fcQRi7tdo6ZBHKxFQMIZDYbaR5TuWDvztWArH1jWVmoGQTVkVPhbaofpGhd8rcEbrHwFFxnFmFs7GQ1PbD7Ml/ovkjiukX4OBuvy6r4vCEcRcBSjCxhKC9R4+O+E4HUEvZoAjqqC2F7U0yZxsXbhUL8FnWnD2SCxnTgNDX5Q8ZXerKjU2QmmoHfHCo3mCoMHLcHo7LbeEJCnECKkfJWaCNavbD1pAhBA9eUmhnWvcHJyBnpWMHSPHSTPLjIfEzjgLkKvQvLa/s29plSUHJ9gG1muGS+r4fOfsuEt6CSdEXOf8tuomCPKZzWP7ltPTW7VgRPQIM/0VTqHhTRws9EBegc17vFvirV1BKBCxU8fsyx+T4E9hdBf2yEFN0hJQInDMRe+3zzohaawiTlwO5m9RZJnmaNd5KsUnJ/pEIVOgjSJhU6CJf/1+/EE7Afo6jE8vgjILg8AT9bNCYCjkaxcDPzzgMKzo1HV9sR/dX4rON5mWlbG/u14eGB9KkAwe57D3v9cFm/ZMd8oF3Xk3BtiKUq1VpeEICz8AFP3hlM0BBm/NJyVF4EVF7bMVogZ+/IjzKhgB"},{"type":"text","text":"I
+        can use **get_time** and **get_weather**."}],"container":null,"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":516,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":108,"output_tokens_details":{"thinking_tokens":90},"service_tier":"standard","inference_geo":"global","speed":"standard"},"diagnostics":null}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

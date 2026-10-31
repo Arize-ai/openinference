@@ -1,0 +1,46 @@
+name: Factory Guard
+
+# Factory agents push their own branches, so there is no post-step to strip files the way
+# claude-implement-issue.yml does. This check fails a factory PR that touches automation
+# or agent-instruction files instead; make it required on main.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    # A factory PR is one on a `factory/` branch or one the factory's app opened, since the
+    # agent chooses the branch. The app also opens the release and sync PRs; those whose
+    # branches change guarded paths (release-please, changesets, skills-update.yml) are exempt.
+    if: >-
+      startsWith(github.head_ref, 'factory/') ||
+      (vars.FACTORY_GITHUB_LOGIN != '' && github.event.pull_request.user.login == vars.FACTORY_GITHUB_LOGIN &&
+       !startsWith(github.head_ref, 'release-please--') &&
+       !startsWith(github.head_ref, 'changeset-release/') &&
+       !startsWith(github.head_ref, 'chore/weekly-skills-update-'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject changes to protected paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # The files API has no diff-size limit but lists at most 3000 files; a failure to
+          # list them fails the check rather than passing it. Renames count from both paths.
+          CHANGED_FILES=$(gh pr view "$PR_NUMBER" --json changedFiles --jq .changedFiles)
+          if [ "$CHANGED_FILES" -gt 3000 ]; then
+            echo "::error::Factory PRs may not change more than 3000 files ($CHANGED_FILES changed)."
+            exit 1
+          fi
+          FILES=$(gh api --paginate "repos/$GH_REPO/pulls/$PR_NUMBER/files" --jq '.[] | .filename, (.previous_filename // empty)')
+          BLOCKED=$(printf '%s\n' "$FILES" | grep -E '^(\.github|\.claude|\.agents|factory)/|(^|/)(AGENTS|CLAUDE|CHANGELOG)\.md$|^(release-please-config|\.release-please-manifest)\.json$' || true)
+          if [ -n "$BLOCKED" ]; then
+            echo "::error::Factory PRs may not modify automation, agent-instruction or release files:"
+            printf '%s\n' "$BLOCKED"
+            exit 1
+          fi

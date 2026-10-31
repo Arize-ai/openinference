@@ -125,7 +125,9 @@ the PR bot's and never go on issues.
 These describe state a maintainer or a bot owns. The stages read them (a
 `blocked` or `stale` issue never gates) and the report may recommend them.
 
-`needs information` is the exception: stage 2 adds and removes it.
+`needs information` is the exception: stage 2 adds and removes it. The factory's triage
+lane (`factory/triage.py`) also writes `duplicate`, when it closes a new issue as a
+duplicate of an older open one; the sweep never does.
 
 | Label | Read as |
 | --- | --- |
@@ -145,6 +147,9 @@ These describe state a maintainer or a bot owns. The stages read them (a
 | `good-agent-issue` | Applying it runs `.github/workflows/claude-implement-issue.yml`: assigns the issue, adds `agent-in-progress`, opens a PR. Only the opt-in `good-agent-issue` gate policy may apply it |
 | `agent-fix` | Starts the oss-support-agent fix pipeline |
 | `agent-in-progress` | An agent is working the issue. Never edit its body or labels |
+| `factory` | Applying it runs `.github/workflows/factory-dispatch.yml`: the factory's bug lane opens a PR. An issue carrying it is being built; never edit its body or labels |
+| `factory-candidate` | Set by the factory's triage lane (`factory/triage.py`) when it reproduced the issue and the factory can build it. A maintainer adds `factory` to start the build |
+| `factory-review` | Applying it to a PR runs `.github/workflows/factory-review.yml` |
 | `lgtm`, `autorelease: pending`, `autorelease: tagged`, `dependencies` | Release and review bots |
 
 ## Gate labels (stage 8)

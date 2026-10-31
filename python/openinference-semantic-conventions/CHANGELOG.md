@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.42...python-openinference-semantic-conventions-v0.1.43) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.41...python-openinference-semantic-conventions-v0.1.42) (2026-10-23)
+
+
+### Features
+
+* **semconv:** add document content semantic conventions ([#4099](https://github.com/Arize-ai/openinference/issues/4099)) ([dc63d01](https://github.com/Arize-ai/openinference/commit/dc63d01d474e0fa14eb379f0d32d9808990e9b23))
+
 ## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.40...python-openinference-semantic-conventions-v0.1.41) (2026-10-01)
 
 

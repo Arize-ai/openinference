@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.69](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.68...python-openinference-instrumentation-openai-v0.1.69) (2026-10-31)
+
+
+### Bug Fixes
+
+* **openai:** record token counts and model name for image generation ([#4197](https://github.com/Arize-ai/openinference/issues/4197)) ([e4a6e70](https://github.com/Arize-ai/openinference/commit/e4a6e70335222436c7a9c1aee1244b44a90f0a18))
+
+## [0.1.68](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.67...python-openinference-instrumentation-openai-v0.1.68) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [0.1.67](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.66...python-openinference-instrumentation-openai-v0.1.67) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
+## [0.1.66](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.65...python-openinference-instrumentation-openai-v0.1.66) (2026-10-23)
+
+
+### Bug Fixes
+
+* **openai:** accumulate streamed refusal and reasoning_content ([#3797](https://github.com/Arize-ai/openinference/issues/3797)) ([9adeca5](https://github.com/Arize-ai/openinference/commit/9adeca5a58231207e5a92929d682aafbb00827e1))
+* **openai:** end the LLM span when a stream is abandoned or closed early ([#3796](https://github.com/Arize-ai/openinference/issues/3796)) ([f2e444b](https://github.com/Arize-ai/openinference/commit/f2e444b1000c20550e7aa71ede2410ffa3c6f6f8))
+
 ## [0.1.65](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.64...python-openinference-instrumentation-openai-v0.1.65) (2026-10-09)
 
 

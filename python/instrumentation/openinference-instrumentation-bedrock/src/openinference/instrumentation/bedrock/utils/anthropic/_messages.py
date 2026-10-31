@@ -37,11 +37,16 @@ from openinference.instrumentation.bedrock.__generated__.anthropic._types import
     TextDelta,
     ToolUseBlock,
 )
-from openinference.instrumentation.bedrock.utils import _finish
+from openinference.instrumentation.bedrock.utils import _finish, _StreamClosed
+from openinference.instrumentation.bedrock.utils.anthropic._attributes import (
+    _get_llm_model_name_from_input,
+)
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -96,12 +101,15 @@ class _AnthropicMessagesCallback:
                     logger.warning(str(e))
                     pass
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            closed = isinstance(obj, _StreamClosed)
             if (message := self._snapshot) is None:
-                _finish(span, None, self._request_attributes)
+                _finish(span, None, self._request_attributes, closed)
             else:
+                if message.model:
+                    self._request_attributes[LLM_MODEL_NAME] = message.model
                 for k, v in _attributes_from_message(message, f"{LLM_OUTPUT_MESSAGES}.{0}."):
                     span.set_attribute(k, v)
-                _finish(span, asdict(message), self._request_attributes)
+                _finish(span, asdict(message), self._request_attributes, closed)
         elif isinstance(obj, BaseException):
             _finish(span, obj, self._request_attributes)
         return obj
@@ -224,7 +232,7 @@ def _attributes_from_system_message(
         return
     for i, block in enumerate(system):
         try:
-            yield f"{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", block["text"]
+            yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", block["text"]
         except KeyError:
             pass
 
@@ -327,7 +335,7 @@ def _attributes_from_request(
     request: Mapping[str, Any],
 ) -> Iterator[tuple[str, AttributeValue]]:
     try:
-        yield LLM_MODEL_NAME, request["modelId"]
+        yield LLM_MODEL_NAME, _get_llm_model_name_from_input(request["modelId"])
     except KeyError:
         pass
     num_messages = 0
@@ -345,6 +353,8 @@ def _attributes_from_request(
     yield INPUT_MIME_TYPE, JSON
     yield INPUT_VALUE, safe_json_dumps(body)
     yield OPENINFERENCE_SPAN_KIND, LLM
+    yield LLM_PROVIDER, OpenInferenceLLMProviderValues.AWS.value
+    yield LLM_SYSTEM, OpenInferenceLLMSystemValues.ANTHROPIC.value
 
 
 def _invocation_parameters(
@@ -367,6 +377,8 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT

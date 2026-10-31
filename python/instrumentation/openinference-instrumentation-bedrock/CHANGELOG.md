@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.62](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.61...python-openinference-instrumentation-bedrock-v0.1.62) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
+## [0.1.61](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.60...python-openinference-instrumentation-bedrock-v0.1.61) (2026-10-23)
+
+
+### Bug Fixes
+
+* **bedrock:** end stream spans when the stream is closed or abandoned ([#4056](https://github.com/Arize-ai/openinference/issues/4056)) ([abce72c](https://github.com/Arize-ai/openinference/commit/abce72cd58d0fd226616ebec57feaaf2605dcd82))
+* **bedrock:** record Converse model request fields in invocation parameters ([#3984](https://github.com/Arize-ai/openinference/issues/3984)) ([94f907a](https://github.com/Arize-ai/openinference/commit/94f907a57022f97d1153ae206ae7e3b2229ed854))
+* **bedrock:** record the system prompt and tools for Anthropic invoke_model ([#4014](https://github.com/Arize-ai/openinference/issues/4014)) ([d7dbb9c](https://github.com/Arize-ai/openinference/commit/d7dbb9c8383a252ebf91b17777979de5d8a43db4))
+* **bedrock:** redact Anthropic system prompt fields ([#3950](https://github.com/Arize-ai/openinference/issues/3950)) ([7da3360](https://github.com/Arize-ai/openinference/commit/7da3360c377afd8d23830b05b21c3164703705c1))
+* **bedrock:** support file-like invoke_model body ([#3983](https://github.com/Arize-ai/openinference/issues/3983)) ([2df25f9](https://github.com/Arize-ai/openinference/commit/2df25f9bad4e60a4d9d1555bb58c99df2a273fa9))
+
 ## [0.1.60](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.59...python-openinference-instrumentation-bedrock-v0.1.60) (2026-10-10)
 
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.7.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.6.1...python-openinference-instrumentation-openai-agents-v2.7.0) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [2.6.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.6.0...python-openinference-instrumentation-openai-agents-v2.6.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
+## [2.6.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.5.3...python-openinference-instrumentation-openai-agents-v2.6.0) (2026-10-23)
+
+
+### Features
+
+* **openai-agents:** add tool_span_kinds and unregister the tracing processor on uninstrument ([#4087](https://github.com/Arize-ai/openinference/issues/4087)) ([9683d60](https://github.com/Arize-ai/openinference/commit/9683d60dc2aaeb704607fb9b6c2efe2ba13d2698))
+
 ## [2.5.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.5.2...python-openinference-instrumentation-openai-agents-v2.5.3) (2026-10-09)
 
 
