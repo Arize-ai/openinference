@@ -224,11 +224,6 @@ class _ChatCompletionAccumulator:
                         )
                         for tool_call in message["tool_calls"]
                     ]
-                message_values = {
-                    key: value
-                    for key, value in message_values.items()
-                    if key in ChatCompletionMessage.model_fields
-                }
                 choices.append(
                     Choice.model_construct(
                         index=choice["index"],
@@ -239,13 +234,7 @@ class _ChatCompletionAccumulator:
                 )
             usage = None
             if (usage_values := result.get("usage")) is not None:
-                usage = CompletionUsage.model_construct(
-                    **{
-                        key: value
-                        for key, value in usage_values.items()
-                        if key in CompletionUsage.model_fields
-                    }
-                )
+                usage = CompletionUsage.model_construct(**usage_values)
             response = ChatCompletion.model_construct(
                 id=result.get("id") or "",
                 object="chat.completion",

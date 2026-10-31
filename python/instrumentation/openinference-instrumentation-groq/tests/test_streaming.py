@@ -25,7 +25,12 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.groq import GroqInstrumentor
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 MODEL = "fake_model"
 
@@ -134,6 +139,53 @@ def _chat_attributes(spans: List[Any]) -> Dict[str, Any]:
     return dict(span.attributes or {})
 
 
+def _client_from_chunks(chunks: List[Dict[str, Any]]) -> Groq:
+    body = "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks)
+    body += "data: [DONE]\n\n"
+    return Groq(
+        api_key="fake",
+        http_client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    headers={"content-type": "text/event-stream"},
+                    content=body.encode(),
+                )
+            )
+        ),
+    )
+
+
+def _raw_chunk(
+    delta: Dict[str, Any],
+    *,
+    finish_reason: Any = None,
+    usage: Any = None,
+    choices: Any = None,
+) -> Dict[str, Any]:
+    return {
+        "id": "chatcmpl-stream",
+        "object": "chat.completion.chunk",
+        "created": 1722531851,
+        "model": MODEL,
+        "system_fingerprint": "fp0",
+        "choices": (
+            [
+                {
+                    "index": 0,
+                    "delta": delta,
+                    "logprobs": None,
+                    "finish_reason": finish_reason,
+                }
+            ]
+            if choices is None
+            else choices
+        ),
+        "usage": usage,
+        "x_groq": None,
+    }
+
+
 @pytest.mark.usefixtures("setup_groq_instrumentation")
 @pytest.mark.parametrize("usage_location", ["usage", "x_groq", "both"])
 def test_stream_span_ends_after_consumption(
@@ -166,6 +218,91 @@ def test_stream_span_ends_after_consumption(
     assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == USAGE["prompt_tokens"]
     assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == USAGE["completion_tokens"]
     assert attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{'message.role'}"] == "assistant"
+
+
+@pytest.mark.usefixtures("setup_groq_instrumentation")
+def test_stream_keeps_reasoning_and_usage_details(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    chunks = [
+        _raw_chunk({"role": "assistant", "content": "A", "reasoning": "R"}),
+        _raw_chunk({}, finish_reason="stop"),
+        _raw_chunk(
+            {},
+            choices=[],
+            usage={
+                **USAGE,
+                "prompt_tokens_details": {"cached_tokens": 5},
+                "completion_tokens_details": {"reasoning_tokens": 7},
+            },
+        ),
+    ]
+    stream = _client_from_chunks(chunks).chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": "hi"}],
+        stream=True,
+    )
+    list(stream)
+
+    attributes = _chat_attributes(list(in_memory_span_exporter.get_finished_spans()))
+    output = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    contents = f"{output}.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert (
+        attributes[f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "reasoning"
+    )
+    assert attributes[f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"] == "R"
+    assert attributes[f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "text"
+    assert attributes[f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"] == "A"
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 5
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] == 7
+
+
+@pytest.mark.usefixtures("setup_groq_instrumentation")
+def test_stream_accumulates_tool_call_arguments(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    chunks = [
+        _raw_chunk(
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "add", "arguments": '{"x"'},
+                    }
+                ],
+            }
+        ),
+        _raw_chunk(
+            {
+                "tool_calls": [
+                    {"index": 0, "function": {"arguments": ": 1}"}},
+                ]
+            },
+            finish_reason="tool_calls",
+        ),
+    ]
+    stream = _client_from_chunks(chunks).chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": "hi"}],
+        stream=True,
+    )
+    list(stream)
+
+    attributes = _chat_attributes(list(in_memory_span_exporter.get_finished_spans()))
+    tool_call = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+        f".{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    arguments = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+        f".{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert attributes[tool_call] == "add"
+    assert attributes[arguments] == '{"x": 1}'
 
 
 @pytest.mark.usefixtures("setup_groq_instrumentation")
