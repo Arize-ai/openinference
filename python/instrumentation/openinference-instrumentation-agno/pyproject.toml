@@ -49,6 +49,7 @@ test = [
   "ddgs",
   "yfinance",
   "fastapi",
+  "sqlalchemy",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
