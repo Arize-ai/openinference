@@ -80,7 +80,7 @@ class _WithTracer:
         ) as span:
             yield _WithSpan(span=span, extra_attributes=dict(attributes))
 
-    def _finalize_error(self, span: _WithSpan, exception: Exception) -> None:
+    def _finalize_error(self, span: _WithSpan, exception: BaseException) -> None:
         span.record_exception(exception)
         span.finish_tracing(
             status=trace_api.Status(
@@ -133,7 +133,7 @@ class _CompletionsWrapper(_WithTracer):
                 if materialize_error is not None:
                     raise materialize_error
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 self._finalize_error(span, exception)
                 raise
             if isinstance(response, (Stream, AsyncStream)):
@@ -175,7 +175,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 if materialize_error is not None:
                     raise materialize_error
                 response = await wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 self._finalize_error(span, exception)
                 raise
             if isinstance(response, (Stream, AsyncStream)):

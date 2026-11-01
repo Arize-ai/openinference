@@ -1,3 +1,4 @@
+import asyncio
 import gc
 import json
 from typing import Any, Dict, Iterable, Iterator, List
@@ -17,6 +18,10 @@ from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.together import TogetherInstrumentor
 from openinference.instrumentation.together._request_attributes_extractor import (
     _RequestAttributesExtractor,
+)
+from openinference.instrumentation.together._wrappers import (
+    _AsyncCompletionsWrapper,
+    _CompletionsWrapper,
 )
 from openinference.semconv.trace import (
     AudioAttributes,
@@ -784,3 +789,49 @@ async def test_chat_with_raising_generator(
     event_attrs = dict(event.attributes or {})
     assert event_attrs["exception.type"] == "RuntimeError"
     assert event_attrs["exception.message"] == "generator failed"
+
+
+def test_non_stream_keyboard_interrupt_ends_span_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+) -> None:
+    """Ctrl-C during a non-stream call must not leak the span."""
+
+    def failing(*_args: Any, **_kwargs: Any) -> Any:
+        raise KeyboardInterrupt()
+
+    wrapper = _CompletionsWrapper(tracer_provider.get_tracer(__name__))
+    with pytest.raises(KeyboardInterrupt):
+        wrapper(
+            failing,
+            None,
+            (),
+            {"model": _MODEL, "messages": [{"role": "user", "content": "hi"}]},
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.ERROR
+
+
+async def test_async_non_stream_cancellation_ends_span_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+) -> None:
+    """CancelledError during a non-stream call must not leak the span."""
+
+    async def failing(*_args: Any, **_kwargs: Any) -> Any:
+        raise asyncio.CancelledError()
+
+    wrapper = _AsyncCompletionsWrapper(tracer_provider.get_tracer(__name__))
+    with pytest.raises(asyncio.CancelledError):
+        await wrapper(
+            failing,
+            None,
+            (),
+            {"model": _MODEL, "messages": [{"role": "user", "content": "hi"}]},
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.ERROR
