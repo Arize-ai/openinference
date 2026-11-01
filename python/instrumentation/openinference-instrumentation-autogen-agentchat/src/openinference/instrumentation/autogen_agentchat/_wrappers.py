@@ -28,16 +28,6 @@ from autogen_core.models import (
     LLMMessage,
 )
 from autogen_core.tools import Tool
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _RUNTIME_CONTEXT
@@ -54,6 +44,16 @@ from openinference.instrumentation import (
     get_llm_token_count_attributes,
     get_output_attributes,
     safe_json_dumps,
+)
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
 )
 
 if TYPE_CHECKING:

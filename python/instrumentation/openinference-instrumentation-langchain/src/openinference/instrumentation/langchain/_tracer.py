@@ -41,6 +41,16 @@ from langchain_core.messages import BaseMessage
 from langchain_core.messages.ai import UsageMetadata
 from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
+from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
+from opentelemetry.trace import Span
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import NotRequired, TypeGuard
+from wrapt import ObjectProxy
+
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -56,16 +66,6 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
-from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
-from opentelemetry.trace import Span
-from opentelemetry.util.types import AttributeValue
-from typing_extensions import NotRequired, TypeGuard
-from wrapt import ObjectProxy
-
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 
 _message_to_dict: Optional[Callable[[BaseMessage], Dict[Any, Any]]]
 try:

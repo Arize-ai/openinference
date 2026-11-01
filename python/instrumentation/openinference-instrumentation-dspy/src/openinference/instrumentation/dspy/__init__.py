@@ -22,13 +22,6 @@ from typing import (
 )
 
 import opentelemetry.context as context_api
-from openinference.semconv.trace import (
-    DocumentAttributes,
-    MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import StatusCode
@@ -43,6 +36,13 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 if TYPE_CHECKING:
     from dspy import LM

@@ -5,15 +5,6 @@ from typing import Any, Dict, Generator, List, Tuple, cast
 import dspy
 import pytest
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
-from openinference.semconv.trace import (
-    DocumentAttributes,
-    EmbeddingAttributes,
-    MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
@@ -30,6 +21,15 @@ from openinference.instrumentation.dspy import (
     _flatten,
     _input_value_and_mime_type,
     _llm_input_messages,
+)
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolCallAttributes,
 )
 
 VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy").split(".")[:3])))

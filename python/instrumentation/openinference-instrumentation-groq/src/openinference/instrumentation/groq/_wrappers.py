@@ -18,12 +18,6 @@ from typing import (
 )
 
 import opentelemetry.context as context_api
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    MessageAttributes,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
@@ -38,6 +32,12 @@ from openinference.instrumentation.groq._response_attributes_extractor import (
 )
 from openinference.instrumentation.groq._utils import _finish_tracing
 from openinference.instrumentation.groq._with_span import _WithSpan
+from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    MessageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

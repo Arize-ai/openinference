@@ -18,12 +18,6 @@ from typing import (
 )
 
 import opentelemetry.context as context_api
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    MessageAttributes,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
@@ -51,6 +45,12 @@ from openinference.instrumentation.google_genai.interactions_attributes import (
     get_attributes_from_get_request,
     get_attributes_from_request,
     get_attributes_from_response,
+)
+from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    MessageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
 
 logger = logging.getLogger(__name__)
