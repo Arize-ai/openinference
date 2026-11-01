@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.15...python-openinference-instrumentation-agent-framework-v0.1.16) (2026-11-01)
+
+
+### Bug Fixes
+
+* **agent-framework:** keep parallel tool results with their own tool call ([#4103](https://github.com/Arize-ai/openinference/issues/4103)) ([2f0ee49](https://github.com/Arize-ai/openinference/commit/2f0ee4963bfef5a869f4420b6c048340e309d9f1))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.14...python-openinference-instrumentation-agent-framework-v0.1.15) (2026-10-29)
 
 
