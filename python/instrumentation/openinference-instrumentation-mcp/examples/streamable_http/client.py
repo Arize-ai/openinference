@@ -20,7 +20,7 @@ async def main() -> None:
     server_url = "http://localhost:8765/mcp"
     with tracer.start_as_current_span("client.session") as root:
         root.set_attribute("mcp.server.url", server_url)
-        async with streamable_http_client(server_url) as (reader, writer, _):
+        async with streamable_http_client(server_url) as (reader, writer, *_):
             async with ClientSession(reader, writer) as session:
                 await session.initialize()
                 tools = await session.list_tools()
