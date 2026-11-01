@@ -1,6 +1,6 @@
 # Multimodal Attributes
 
-This document describes how message content arrays represent multimodal content (text, images, audio, video) in OpenInference spans. The same `message.contents` structure is also used for reasoning and provider-native tool-use parts when item ordering must be preserved.
+This document describes how message content arrays represent multimodal content (text, images, audio, video, and documents such as PDFs or inline text) in OpenInference spans. The same `message.contents` structure is also used for reasoning and provider-native tool-use parts when item ordering must be preserved.
 
 Vendor mappings live in [`internal_docs/specs/audio_video/`](../internal_docs/specs/audio_video/vendor_comparison.md). openai-agents realtime still emits instrumentor-local `input.audio.*` and `output.audio.*` strings. Those keys are not published `SpanAttributes` yet.
 
@@ -24,6 +24,7 @@ Each content item has a `type` attribute that identifies its kind:
 - `"image"` - Image content (URL or base64)
 - `"audio"` - Audio content (URL or base64)
 - `"video"` - Video content (URL or base64)
+- `"document"` - Document content such as a PDF (URL or base64), an uploaded file, or inline text
 - `"reasoning"` - Reasoning or thinking content, including visible summaries and Anthropic `redacted_thinking`
 - `"tool_use"` - Provider-native tool-use part when a tool call must remain ordered relative to adjacent content items
 
@@ -79,23 +80,62 @@ Do not emit a MIME type attribute for video. Consumers infer MIME type from the 
 
 The doubled prefix (`message_content.video.video.url`) matches `message_content.image.image.url`. It is the concatenation of `message_content.video` and `video.url`.
 
+### Document Content
+
+Documents passed to a model, such as PDFs, uploaded files, or inline text, use `message_content.type` `"document"`:
+
+```
+llm.input_messages.0.message.contents.4.message_content.type = "document"
+llm.input_messages.0.message.contents.4.message_content.document.document.url = "data:application/pdf;base64,JVBERi0xLjcK..."
+llm.input_messages.0.message.contents.4.message_content.document.document.mime_type = "application/pdf"
+llm.input_messages.0.message.contents.4.message_content.document.document.name = "report.pdf"
+```
+
+| Leaf | Holds |
+|---|---|
+| `document.url` | The document bytes: a URI copied verbatim (`https://`, `gs://`, `s3://`), or a base64 data URI |
+| `document.content` | Inline text the provider receives as a string |
+| `document.id` | The provider file id of a file uploaded through a Files API |
+| `document.mime_type` | The MIME type stated in the request |
+| `document.name` | The file name or title supplied with the document; not a unique identifier |
+
+- Set exactly one of `document.url`, `document.content`, or `document.id`. Never put a file id in `document.url`.
+- Data URIs use standard base64; re-encode URL-safe base64 such as the Gemini REST API sends.
+- Record `document.content` byte-for-byte, with no trimming, line-ending normalization, or truncation: provider citations index into it by character offset. To hide it, replace the whole value with `"__REDACTED__"` or omit it.
+- Copy `document.mime_type` (a provider field or the data URI prefix) and `document.name` from the request; never infer them. Omit them when the request does not state them.
+- Anthropic and Bedrock `content` sources (nested content blocks) are not represented by these leaves. Do not put documents in `image.url`.
+
+Provider mappings:
+
+| Provider part | `url` | `content` | `mime_type` | `id` | `name` |
+|---|---|---|---|---|---|
+| OpenAI Chat `file`, Azure OpenAI, LiteLLM | `file_data` | | data URI prefix, LiteLLM `format` | `file_id` | `filename` |
+| OpenAI Responses `input_file`, openai-agents | `file_data`, `file_url` | | data URI prefix | `file_id` | `filename` |
+| Anthropic `document`: `base64` / `url` / `text` / `file` source | data URI from `data`, or `url` | `data` (`text` source) | `media_type`; `application/pdf` for `url` sources | `file_id` | `title` |
+| Bedrock Converse `document` | data URI from `bytes`, or `s3Location.uri` | `text` | from `format` | | `name` |
+| Gemini `inline_data` / `file_data` | data URI from `data`, or `file_uri` | | `mime_type` | | `display_name` |
+| LangChain `file` / `text-plain` | data URI from `base64`, or `url` | `text` | `mime_type` | `file_id` | `extras.filename` |
+
+The doubled prefix (`message_content.document.document.url`) matches `message_content.image.image.url`.
+
 ## External Storage for Large Media
 
-Inline base64 payloads can exceed OTLP message limits and inflate backend storage. As an **experimental** capability, instrumentations MAY externalize oversized images at capture time: upload the decoded bytes to configured blob storage and record the destination URI in the same `image.image.url` attribute where the data URI would have been recorded.
+Inline base64 payloads can exceed OTLP message limits and inflate backend storage. As an **experimental** capability, instrumentations MAY externalize oversized images and documents at capture time: upload the decoded bytes to configured blob storage and record the destination URI in the same `image.image.url` or `document.url` attribute where the data URI would have been recorded.
 
 ```
 llm.input_messages.0.message.contents.1.message_content.type = "image"
 llm.input_messages.0.message.contents.1.message_content.image.image.url = "s3://my-bucket/oi-media/3a7bd3e2....png"
+llm.input_messages.0.message.contents.2.message_content.document.document.url = "s3://my-bucket/oi-media/9f86d081....pdf"
 ```
 
-The same applies to output-message images (`llm.output_messages.*.message.contents.*.message_content.image.image.url`).
+The same applies to output-message images (`llm.output_messages.*.message.contents.*.message_content.image.image.url`), to output-message documents, and to `input.documents` / `output.documents`.
 
 Semantics:
 - Externalization applies only to base64 data URIs exceeding `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH`. Small payloads stay inline.
 - The recorded value MUST be a valid absolute URI (a scheme is required), and SHOULD be the most consumer-resolvable form available — an `https://` or signed URL where possible; storage-scheme URIs (`gs://`, `s3://`) are valid canonical references but require viewer-side resolution. Invalid values are replaced with `"__REDACTED__"`.
 - The destination URI SHOULD be content-addressed (e.g. keyed by the SHA-256 of the decoded bytes) with a mime-derived file extension, so identical content deduplicates and the URI can be computed before the upload completes.
 - If no uploader is configured or the upload cannot be accepted, the existing redaction behavior applies (`"__REDACTED__"`).
-- Hide settings (`OPENINFERENCE_HIDE_INPUT_IMAGES`) take precedence over externalization: hidden content is never uploaded.
+- Hide settings (for example `OPENINFERENCE_HIDE_INPUTS`, `OPENINFERENCE_HIDE_INPUT_MESSAGES`, `OPENINFERENCE_HIDE_INPUT_IMAGES`) take precedence over externalization: hidden content is never uploaded.
 - Consumers are responsible for dereferencing: URIs are not guaranteed to be publicly resolvable, and a consumer without access SHOULD treat the value as it would `"__REDACTED__"`.
 
 This maps directly onto the OTel GenAI semantic conventions message model: an inline data URI corresponds to a `blob` part, while an externalized reference corresponds to a `uri` part. The same blob/uri split will apply to `message_content.audio.audio.url` and `message_content.video.video.url` (`modality` `audio` or `video`) when GenAI dual-write covers those parts. Shared `TraceConfig.mask()` does not yet hide or size-gate audio or video.
@@ -163,6 +203,25 @@ images:
 Support matches what each SDK already does for message-content images: Python enforces the size
 limit and can externalize to a blob uploader; JavaScript enforces the size limit and redacts
 oversized images to `"__REDACTED__"`; Java and Go apply the hide flags only.
+
+## Span-Kind-Independent Documents
+
+Spans other than `LLM` record documents with `input.documents` / `output.documents`, following
+[span-kind-independent images](#span-kind-independent-images). Each leaf means the same as under
+[Document Content](#document-content).
+
+`<input|output>.documents.<documentIndex>.document.<attribute>`
+
+```json
+{
+  "openinference.span.kind": "TOOL",
+  "input.documents.0.document.url": "data:application/pdf;base64,JVBERi0xLjcK...",
+  "input.documents.0.document.mime_type": "application/pdf",
+  "output.documents.0.document.url": "https://example.com/filled-form.pdf"
+}
+```
+
+An `LLM` span records its documents in `message.contents` and SHOULD NOT repeat them here.
 
 ## Privacy Considerations
 

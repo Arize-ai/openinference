@@ -4,7 +4,7 @@ from typing import Any, Iterable, Iterator, Mapping, Tuple
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.portkey._utils import _as_output_attributes, _io_value_and_type
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
+from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -60,6 +60,29 @@ class _ResponseAttributesExtractor:
                 yield MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, name
             if arguments := getattr(function_call, "arguments", None):
                 yield MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
+        if (tool_calls := getattr(message, "tool_calls", None)) and isinstance(
+            tool_calls, Iterable
+        ):
+            for index, tool_call in enumerate(tool_calls):
+                if (tool_call_id := getattr(tool_call, "id", None)) is not None:
+                    yield (
+                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                        f"{ToolCallAttributes.TOOL_CALL_ID}",
+                        tool_call_id,
+                    )
+                if function := getattr(tool_call, "function", None):
+                    if name := getattr(function, "name", None):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                            name,
+                        )
+                    if arguments := getattr(function, "arguments", None):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            arguments,
+                        )
 
     def _get_attributes_from_completion_usage(
         self,

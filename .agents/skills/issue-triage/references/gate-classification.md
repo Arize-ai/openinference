@@ -11,11 +11,15 @@ them; when they disagree with it, fix the path.
 
 ## Step 0 — Is there anything to pick up?
 
-Read: `assignees`, `agent-in-progress`, the already-shipped finding.
+Read: `assignees`, `agent-in-progress`, `factory`, `factory-candidate`, the
+already-shipped finding.
 
 - Assigned, or `agent-in-progress` → **stop**. Someone or something has it.
   (Regression pass: leave existing gates alone — assignment after gating is the
   label working.)
+- `factory` or `factory-candidate` → **stop**. The factory is building it, or
+  its triage nominated it for a build. One implementer per issue: a maintainer
+  who wants it for a person instead removes `factory-candidate`.
 - Already shipped, fully → **stop**. Comment with evidence; let a maintainer
   close it.
 

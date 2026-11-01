@@ -132,6 +132,7 @@ class _ResponseAttributesExtractor:
         response: "ImagesResponse",
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield from _get_attributes_from_image_usage(getattr(response, "usage", None))
         image_format = getattr(response, "output_format", None) or request_parameters.get(
             "output_format"
         )
@@ -349,3 +350,14 @@ class _ResponseAttributesExtractor:
             yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
         if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+
+
+def _get_attributes_from_image_usage(
+    usage: object,
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if isinstance(total_tokens := getattr(usage, "total_tokens", None), int):
+        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
+    if isinstance(input_tokens := getattr(usage, "input_tokens", None), int):
+        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_tokens
+    if isinstance(output_tokens := getattr(usage, "output_tokens", None), int):
+        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, output_tokens

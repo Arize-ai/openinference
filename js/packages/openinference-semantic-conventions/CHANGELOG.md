@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.15.0
+
+### Minor Changes
+
+- dc63d01: Add `message_content.document`, `document.url`, `document.mime_type`, `document.name`, `input.documents`, and `output.documents` constants for file documents such as PDFs.
+
 ## 2.14.0
 
 ### Minor Changes

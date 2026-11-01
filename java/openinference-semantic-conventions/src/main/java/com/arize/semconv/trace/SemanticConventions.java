@@ -123,6 +123,7 @@ public class SemanticConventions {
         public static final String IMAGE = "image";
         public static final String AUDIO = "audio";
         public static final String VIDEO = "video";
+        public static final String DOCUMENT = "document";
         public static final String ID = "id";
         public static final String SIGNATURE = "signature";
         public static final String DATA = "data";
@@ -153,6 +154,9 @@ public class SemanticConventions {
         public static final String CONTENT = "content";
         public static final String SCORE = "score";
         public static final String METADATA = "metadata";
+        public static final String URL = "url";
+        public static final String MIME_TYPE = "mime_type";
+        public static final String NAME = "name";
     }
 
     @UtilityClass
@@ -262,6 +266,12 @@ public class SemanticConventions {
     public static final String INPUT_IMAGES = SemanticAttributePrefixes.INPUT + ".images";
 
     /**
+     * Documents (e.g. PDFs) passed as input to a span of any kind. Flattened with an index, for
+     * example {@code input.documents.0.document.url}.
+     */
+    public static final String INPUT_DOCUMENTS = SemanticAttributePrefixes.INPUT + ".documents";
+
+    /**
      * The output of any span
      */
     public static final String OUTPUT_VALUE = SemanticAttributePrefixes.OUTPUT + ".value";
@@ -273,6 +283,12 @@ public class SemanticConventions {
      * {@code output.images.0.image.url}.
      */
     public static final String OUTPUT_IMAGES = SemanticAttributePrefixes.OUTPUT + ".images";
+
+    /**
+     * Documents (e.g. PDFs) produced as output by a span of any kind. Flattened with an index,
+     * for example {@code output.documents.0.document.url}.
+     */
+    public static final String OUTPUT_DOCUMENTS = SemanticAttributePrefixes.OUTPUT + ".documents";
 
     /**
      * The messages sent to the LLM for completions
@@ -609,7 +625,7 @@ public class SemanticConventions {
 
     /**
      * The type of content sent to the LLM, such as "text", "image", "audio",
-     * "video", "reasoning", or "tool_use"
+     * "video", "document", "reasoning", or "tool_use"
      */
     public static final String MESSAGE_CONTENT_TYPE =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.TYPE;
@@ -637,6 +653,12 @@ public class SemanticConventions {
      */
     public static final String MESSAGE_CONTENT_VIDEO =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.VIDEO;
+
+    /**
+     * The document content (e.g. a PDF, an uploaded file, or inline text) of the message sent to the LLM
+     */
+    public static final String MESSAGE_CONTENT_DOCUMENT =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.DOCUMENT;
 
     /**
      * Provider-assigned identifier for this message content item. For OpenAI
@@ -687,6 +709,24 @@ public class SemanticConventions {
 
     public static final String DOCUMENT_METADATA =
             SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.METADATA;
+
+    /**
+     * The URL, object-store URI, or base64 data URI of a file document such as a PDF.
+     */
+    public static final String DOCUMENT_URL = SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.URL;
+
+    /**
+     * The MIME type of a document, for example {@code application/pdf}.
+     */
+    public static final String DOCUMENT_MIME_TYPE =
+            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.MIME_TYPE;
+
+    /**
+     * The name supplied with a document, such as a file name or a title, for example
+     * {@code invoice.pdf}. Not a unique identifier.
+     */
+    public static final String DOCUMENT_NAME =
+            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.NAME;
 
     /**
      * The text that was embedded to create the vector
