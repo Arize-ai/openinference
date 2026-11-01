@@ -1025,6 +1025,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _separate_trace_from_runtime_context: bool = PrivateAttr()
     _export_queue: _ExportQueue = PrivateAttr()
     _pending_streams: weakref.WeakKeyDictionary[Any, List[Tuple[_Span, Context]]] = PrivateAttr()
+    _llm_streams: weakref.WeakKeyDictionary[Any, _Span] = PrivateAttr()
 
     def __init__(
         self,
@@ -1043,6 +1044,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
         self._export_queue = _ExportQueue()
         self._pending_streams = weakref.WeakKeyDictionary()
+        self._llm_streams = weakref.WeakKeyDictionary()
 
     def new_span(
         self,
@@ -1125,6 +1127,8 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
                 and result.ag_frame is not None
             ):
                 span._end_time = time_ns()
+                with self.lock:
+                    self._llm_streams[result] = span
                 self._export_queue.put(span)
                 return span
             span.process_output(instance, result)
@@ -1132,6 +1136,18 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         else:
             logger.warning(f"Open span is missing for {id_=}")
         return span
+
+    def pop_llm_stream_span(self, stream: Any) -> Optional[Span]:
+        """The LLM span `stream` was returned from, once per stream.
+
+        Only the stream methods wrapped in `_llm_stream` ask; the other generators recorded
+        here are dropped with them.
+        """
+        if not isinstance(stream, (Generator, AsyncGenerator)):
+            return None
+        with self.lock:
+            span = self._llm_streams.pop(stream, None)
+        return None if span is None else span._otel_span
 
     def prepare_to_drop_span(
         self,
