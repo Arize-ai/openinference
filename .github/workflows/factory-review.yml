@@ -1,8 +1,8 @@
 name: Factory Review
 
 # Reviews a pull request labeled `factory-review`, or dispatched by number, in the factory
-# sandbox. It covers fork PRs, which Claude Code Review skips because `pull_request` gets no
-# secrets for a fork.
+# sandbox. It covers fork PRs, which the managed Claude Code Review service skips unless a
+# maintainer comments `@claude review`.
 on:
   # zizmor: ignore[dangerous-triggers] The job checks out only the base branch and runs
   # review.py from it. The PR's code runs in the Managed Agents sandbox, which holds no repo

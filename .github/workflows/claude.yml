@@ -17,9 +17,12 @@ jobs:
   claude:
     # Runs when maintainers comment @claude on issues/PRs (including forked PRs)
     # This is safe because comment events run in base repo context with access to secrets
+    # A PR comment starting with `@claude review` is a command for the managed Code Review
+    # service, so it does not start this workflow too.
     if: |
       github.actor != 'claude[bot]' && (
-        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') &&
+          !(github.event.issue.pull_request && startsWith(github.event.comment.body, '@claude review'))) ||
         (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
         (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
         (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))

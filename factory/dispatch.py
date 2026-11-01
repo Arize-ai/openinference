@@ -98,10 +98,10 @@ TERMINAL_OUTCOME_RESULTS = {"satisfied", "max_iterations_reached", "failed", "in
 CONFIGURATION_CHECKS = {"CLAAssistant"}
 # Rounds of CI failures and review findings sent back to the session.
 MAX_FEEDBACK_ROUNDS = 3
-REVIEW_WORKFLOW_FILE = "claude-code-review.yml"
-# claude-code-review.yml posts with the workflow's GITHUB_TOKEN, so its comments come
-# from github-actions[bot]; claude[bot] covers a switch to the Claude app's token.
-REVIEW_BOT_LOGINS = {"github-actions[bot]", "claude[bot]"}
+# The managed Code Review service reports each review as a check run with this name on the
+# commit it reviewed, and posts its findings as inline comments through the Claude GitHub App.
+REVIEW_CHECK_NAME = "Claude Code Review"
+REVIEW_BOT_LOGINS = {"claude[bot]"}
 REVIEW_RUN_START_TIMEOUT_SECONDS = 600
 POLL_INTERVAL_SECONDS = 60
 MAX_FAILED_JOB_LOGS = 6
@@ -483,37 +483,40 @@ def format_cost(*, session: Any) -> str:
     return f"${int(list_cost.amount) / 100:.2f}"
 
 
-def wait_for_review_run(*, head_sha: str, created_after: datetime, deadline: float) -> bool:
-    """Wait for the automated code review of `head_sha` to finish; False if it never started.
+def wait_for_review_run(
+    *, head_sha: str, created_after: datetime, deadline: float
+) -> Optional[dict[str, Any]]:
+    """Wait for the Code Review check run on `head_sha` to finish; None if it never started.
 
-    Runs created before `created_after` are ignored: the review workflow also logs a run,
-    with its job skipped, for every push while the PR is still a draft.
+    A check run started before `created_after` is ignored: it reviewed the PR while it was
+    still a draft. GitHub lists only the newest check run of a name on a commit.
     """
     start_deadline = time.monotonic() + REVIEW_RUN_START_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
-        review_runs = [
-            review_run
-            for review_run in json.loads(
+        check_runs = [
+            check_run
+            for check_run in json.loads(
                 run_gh(
-                    "run",
-                    "list",
-                    "--workflow",
-                    REVIEW_WORKFLOW_FILE,
-                    "--commit",
-                    head_sha,
-                    "--json",
-                    "status,createdAt",
+                    "api",
+                    f"repos/{{owner}}/{{repo}}/commits/{head_sha}/check-runs",
+                    "-X",
+                    "GET",
+                    "-f",
+                    f"check_name={REVIEW_CHECK_NAME}",
+                    "--jq",
+                    ".check_runs",
                 )
             )
-            if datetime.fromisoformat(review_run["createdAt"].replace("Z", "+00:00"))
+            if check_run["started_at"]
+            and datetime.fromisoformat(check_run["started_at"].replace("Z", "+00:00"))
             >= created_after
         ]
-        if review_runs and all(review_run["status"] == "completed" for review_run in review_runs):
-            return True
-        if not review_runs and time.monotonic() > start_deadline:
-            return False
+        if check_runs and check_runs[0]["status"] == "completed":
+            return check_runs[0]
+        if not check_runs and time.monotonic() > start_deadline:
+            return None
         time.sleep(POLL_INTERVAL_SECONDS)
-    return False
+    return None
 
 
 def read_review_findings(*, pr_number: int, head_sha: str) -> list[dict[str, Any]]:
@@ -628,9 +631,10 @@ def watch_session(
                     # Leaving draft is what starts the automated code review.
                     ready_at = datetime.now(timezone.utc) - timedelta(minutes=1)
                     run_gh("pr", "ready", str(pr["number"]), token=app_token.refresh())
-                if not wait_for_review_run(
+                review_run = wait_for_review_run(
                     head_sha=pr["headRefOid"], created_after=ready_at, deadline=deadline
-                ):
+                )
+                if review_run is None:
                     status_line = (
                         f"opened {pr['url']}; required CI passed, but the automated review "
                         "did not run. It is ready for review"
@@ -641,9 +645,10 @@ def watch_session(
                     pr_number=pr["number"], head_sha=pr["headRefOid"]
                 )
                 if not review_findings:
+                    review_title = review_run["output"]["title"] or "no findings"
                     status_line = (
-                        f"opened {pr['url']}; required CI passed, the automated review is "
-                        "handled, and it is ready for review"
+                        f"opened {pr['url']}; required CI passed, the automated review "
+                        f"reports: {review_title}. It is ready for review"
                     )
                     run_outcome = "success"
                     break
