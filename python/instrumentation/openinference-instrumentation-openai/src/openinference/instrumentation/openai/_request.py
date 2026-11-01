@@ -489,10 +489,9 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 # `.parse()` gets it back, as with the sync `.parse()` in `_finalize_response`.
                 try:
                     await response.parse()
-                except Exception:
-                    logger.exception(f"Failed to parse response of type {type(response)}")
                 except BaseException as exception:
-                    # E.g. a cancellation while the body is read; end the span before re-raising.
+                    # E.g. a body read that fails or is cancelled. The body is consumed by now, so
+                    # the caller's own `.parse()` could not raise the original error; re-raise it.
                     with_span.record_exception(exception)
                     with_span.finish_tracing(
                         status=trace_api.Status(

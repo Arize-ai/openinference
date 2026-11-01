@@ -24,7 +24,7 @@ from unittest.mock import patch
 from urllib.parse import urljoin
 
 import pytest
-from httpx import AsyncByteStream, Response
+from httpx import AsyncByteStream, ReadError, Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -320,6 +320,27 @@ def test_chat_completions(
     assert attributes == {}  # test should account for all span attributes
 
 
+def _pop_chat_request_attributes(
+    attributes: Dict[str, AttributeValue],
+    input_messages: List[Dict[str, Any]],
+    invocation_parameters: Dict[str, Any],
+) -> None:
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+        == invocation_parameters
+    )
+    for i, message in enumerate(input_messages):
+        _check_llm_message(LLM_INPUT_MESSAGES, i, attributes, message)
+
+
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("is_stream", [False, True])
 def test_chat_completions_with_streaming_response(
@@ -421,6 +442,42 @@ def test_async_with_streaming_response_cancelled_while_parsing_ends_span(
     asyncio.run(main())
     span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def test_async_with_streaming_response_read_error_reaches_caller(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    # The instrumentor reads the body when it awaits `.parse()`, which consumes it, so a failed
+    # read must reach the caller as the original error.
+    class BrokenBody(AsyncByteStream):
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            yield b'{"choices": ['
+            raise ReadError("boom")
+
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, "chat/completions")).mock(
+        return_value=Response(status_code=200, stream=BrokenBody())
+    )
+    input_messages = get_messages()
+    invocation_parameters = {"model": randstr()}
+    openai = import_module("openai")
+
+    async def task() -> None:
+        client = openai.AsyncOpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL, max_retries=0)
+        async with client.chat.completions.with_streaming_response.create(
+            messages=input_messages, **invocation_parameters
+        ) as raw:
+            await raw.parse()
+
+    with pytest.raises(ReadError, match="boom"):
+        asyncio.run(task())
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.status.description == "ReadError: boom"
+    assert [event.name for event in span.events] == ["exception"]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    _pop_chat_request_attributes(attributes, input_messages, invocation_parameters)
+    assert attributes == {}  # test should account for all span attributes
 
 
 def test_async_speech_with_streaming_response_is_not_read_by_the_instrumentor(
