@@ -941,6 +941,62 @@ def test_chat_stream_error_ends_span(
     assert span.status.status_code == StatusCode.ERROR
 
 
+def test_chat_stream_keyboard_interrupt_ends_span_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cancellation and Ctrl-C are BaseException, not Exception."""
+
+    @contextmanager
+    def _interrupting_stream(self: Any, **kwargs: Any) -> Iterator[Any]:
+        def _data() -> Iterator[Any]:
+            yield _stream_events()[0]
+            raise KeyboardInterrupt()
+
+        yield SimpleNamespace(data=_data())
+
+    monkeypatch.setattr(RawV2Client, "chat_stream", _interrupting_stream)
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    with pytest.raises(KeyboardInterrupt):
+        list(stream)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.ERROR
+
+
+async def test_async_chat_stream_cancellation_ends_span_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @asynccontextmanager
+    async def _cancelling_stream(self: Any, **kwargs: Any) -> Any:
+        async def _data() -> Any:
+            yield _stream_events()[0]
+            raise asyncio.CancelledError()
+
+        yield SimpleNamespace(data=_data())
+
+    monkeypatch.setattr(AsyncRawV2Client, "chat_stream", _cancelling_stream)
+
+    client = cohere.AsyncClientV2(api_key="fake-key")
+    stream = client.chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await stream.__anext__()
+        await stream.__anext__()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.ERROR
+
+
 async def test_async_chat_stream(
     in_memory_span_exporter: InMemorySpanExporter,
     monkeypatch: pytest.MonkeyPatch,
