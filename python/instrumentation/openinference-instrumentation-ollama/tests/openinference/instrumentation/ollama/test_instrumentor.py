@@ -22,6 +22,7 @@ from openinference.instrumentation import (
 from openinference.instrumentation.ollama import OllamaInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -639,6 +640,106 @@ def test_chat_stream_merges_thinking(
     output = json.loads(str(attrs[SpanAttributes.OUTPUT_VALUE]))
     assert output["message"]["thinking"] == "Let me think."
     assert output["message"]["content"] == "Blue."
+    # The reasoning must also reach the structured attributes, not only the raw
+    # output value: without them the trace has no reasoning content item.
+    contents = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attrs[f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "reasoning"
+    assert attrs[f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"] == "Let me think."
+    assert attrs[f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "text"
+    assert attrs[f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"] == "Blue."
+
+
+THINKING = "Let me think. 17 * 23 = 391."
+
+
+def test_chat_records_thinking_as_reasoning_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        Client,
+        "_request",
+        lambda self, *a, **k: ChatResponse(
+            model=MODEL,
+            message=Message(role="assistant", content="391", thinking=THINKING),
+            done=True,
+            done_reason="stop",
+            prompt_eval_count=17,
+            eval_count=42,
+        ),
+    )
+
+    ollama.chat(model=MODEL, messages=[{"role": "user", "content": "What is 17 * 23?"}])
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    contents = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attrs[f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "reasoning"
+    assert attrs[f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"] == THINKING
+    assert attrs[f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "text"
+    assert attrs[f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"] == "391"
+    # The flat message content is kept, so existing consumers still see the answer.
+    assert (
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "391"
+    )
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        TraceConfig(hide_output_text=True),
+        TraceConfig(hide_output_messages=True),
+        TraceConfig(hide_outputs=True),
+    ],
+    ids=["hide_output_text", "hide_output_messages", "hide_outputs"],
+)
+def test_trace_config_masking_hides_thinking_text(
+    config: TraceConfig,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        Client,
+        "_request",
+        lambda self, *a, **k: ChatResponse(
+            model=MODEL,
+            message=Message(role="assistant", content="391", thinking=THINKING),
+            done=True,
+            done_reason="stop",
+            prompt_eval_count=1,
+            eval_count=2,
+        ),
+    )
+    instrumentor = OllamaInstrumentor()
+    instrumentor.uninstrument()
+    instrumentor.instrument(tracer_provider=tracer_provider, config=config)
+    try:
+        ollama.chat(model=MODEL, messages=[{"role": "user", "content": "What is 17 * 23?"}])
+    finally:
+        # Leave the autouse fixture's instrumentation in place for teardown.
+        instrumentor.uninstrument()
+        OllamaInstrumentor().instrument()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    # The reasoning must not reach the structured output message attributes that
+    # these flags govern. (`output.value` is not covered by them -- it leaks the
+    # answer text today too -- so it is out of scope here.)
+    output_message_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    structured = {k: v for k, v in attrs.items() if k.startswith(output_message_prefix)}
+    assert THINKING not in str(structured)
+    if config.hide_output_text:
+        contents = f"{output_message_prefix}.{MessageAttributes.MESSAGE_CONTENTS}"
+        assert (
+            attrs[f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"] == REDACTED_VALUE
+        )
+        assert (
+            attrs[f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"] == REDACTED_VALUE
+        )
 
 
 @pytest.mark.parametrize("done_reason", ["stop", "length"])
