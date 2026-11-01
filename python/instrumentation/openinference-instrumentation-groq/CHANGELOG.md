@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.35...python-openinference-instrumentation-groq-v0.1.36) (2026-11-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
 ## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.34...python-openinference-instrumentation-groq-v0.1.35) (2026-10-29)
 
 

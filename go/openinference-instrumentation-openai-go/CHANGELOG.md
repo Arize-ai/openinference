@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/go/openinference-instrumentation-openai-go/v0.1.1...go/openinference-instrumentation-openai-go/v0.1.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* **openai-go:** record Responses streams that end incomplete or failed ([#4105](https://github.com/Arize-ai/openinference/issues/4105)) ([f6c4763](https://github.com/Arize-ai/openinference/commit/f6c476333bee3a4124c279e9c4dfaf45294dcd2b))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/go/openinference-instrumentation-openai-go/v0.1.0...go/openinference-instrumentation-openai-go/v0.1.1) (2026-10-09)
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.0...python-openinference-instrumentation-agno-v1.1.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **agno:** restore the current span after Team.run and Team.arun ([#4116](https://github.com/Arize-ai/openinference/issues/4116)) ([d6d2800](https://github.com/Arize-ai/openinference/commit/d6d2800baa6f42bc6cfb96d3dff487e116be3e19))
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
 ## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.16...python-openinference-instrumentation-agno-v1.1.0) (2026-10-29)
 
 

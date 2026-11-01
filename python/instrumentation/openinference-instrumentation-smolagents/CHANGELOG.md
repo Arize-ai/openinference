@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.45...python-openinference-instrumentation-smolagents-v0.1.46) (2026-11-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+* **smolagents:** restore inherited generate methods on uninstrument ([#3890](https://github.com/Arize-ai/openinference/issues/3890)) ([6c29338](https://github.com/Arize-ai/openinference/commit/6c29338db6d037c23d95073e06ca49a0a17759a8))
+
 ## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.44...python-openinference-instrumentation-smolagents-v0.1.45) (2026-10-29)
 
 
