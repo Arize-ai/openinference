@@ -280,6 +280,10 @@ def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
         token_count["completion"] = completion_tokens
     if total_tokens:
         token_count["total"] = total_tokens
+    # The cache counts are not folded into the prompt count. openlit's Anthropic module
+    # writes Anthropic's input_tokens, which leaves the cache out, but its LangChain module
+    # writes the same gen_ai.provider.name with a count that includes it (streamed
+    # ChatAnthropic), and nothing on the span tells the two apart. See the README.
     prompt_details = oi.PromptDetails()
     if cache_read := _int_safe(attrs.get("gen_ai.usage.cache_read.input_tokens")):
         prompt_details["cache_read"] = cache_read
