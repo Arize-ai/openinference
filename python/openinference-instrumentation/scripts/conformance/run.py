@@ -11,7 +11,7 @@ Pipeline:
   4. Stop weaver, parse its JSON output, and print the summary.
 
 `uv` is used to manage Python dependencies for the sibling scripts via PEP 723
-inline metadata. Weaver and the semantic-conventions registry are downloaded on
+inline metadata. Weaver and the GenAI semantic-conventions registry are downloaded on
 first run and cached under `~/.cache/oi-conformance/`.
 """
 
@@ -32,8 +32,12 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CACHE_ROOT = Path.home() / ".cache" / "oi-conformance"
-SEMCONV_VERSION = "v1.41.1"
-WEAVER_VERSION = "v0.23.0"
+# The GenAI conventions moved out of open-telemetry/semantic-conventions (deprecated
+# there from v1.42.0) into their own repository, which has no releases yet, so the
+# registry is pinned to a commit. WEAVER_VERSION matches that repository's versions.env.
+SEMCONV_GENAI_REPO = "https://github.com/open-telemetry/semantic-conventions-genai.git"
+SEMCONV_GENAI_REF = "6fd0d763a092db245a54104fc1124031eb3c51d2"
+WEAVER_VERSION = "v0.26.1"
 WEAVER_INACTIVITY_TIMEOUT = 90
 PROVIDER_SCRIPTS = (
     "anthropic_conformance.py",
@@ -87,28 +91,21 @@ def _wait_for_health(url: str, label: str, proc: subprocess.Popen, timeout: int)
 
 
 def _ensure_semconv_registry() -> Path:
-    cache = CACHE_ROOT / "semconv" / SEMCONV_VERSION
+    cache = CACHE_ROOT / "semconv-genai" / SEMCONV_GENAI_REF
     model = cache / "model"
     if model.is_dir():
         return model
     cache.parent.mkdir(parents=True, exist_ok=True)
     if cache.exists():
         shutil.rmtree(cache)
-    print(f"Cloning semantic-conventions {SEMCONV_VERSION}...")
-    subprocess.run(
-        [
-            "git",
-            "clone",
-            "--branch",
-            SEMCONV_VERSION,
-            "--depth",
-            "1",
-            "-q",
-            "https://github.com/open-telemetry/semantic-conventions.git",
-            str(cache),
-        ],
-        check=True,
-    )
+    print(f"Fetching semantic-conventions-genai {SEMCONV_GENAI_REF[:12]}...")
+    cache.mkdir()
+    for git_args in (
+        ["init", "-q"],
+        ["fetch", "-q", "--depth", "1", SEMCONV_GENAI_REPO, SEMCONV_GENAI_REF],
+        ["checkout", "-q", "FETCH_HEAD"],
+    ):
+        subprocess.run(["git", "-C", str(cache), *git_args], check=True)
     return model
 
 
