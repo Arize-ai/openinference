@@ -290,7 +290,9 @@ def _model_name_after_turn(
     turn_usage.add(result)
     _process_message(result, span, use_model_usage=not turn_usage.has_assistant_model)
     span.end()
-    value = span.attributes.get(SpanAttributes.LLM_MODEL_NAME) if span.attributes else None
+    finished = exporter.get_finished_spans()
+    attrs = finished[-1].attributes if finished else None
+    value = attrs.get(SpanAttributes.LLM_MODEL_NAME) if attrs else None
     return str(value) if value is not None else None
 
 
