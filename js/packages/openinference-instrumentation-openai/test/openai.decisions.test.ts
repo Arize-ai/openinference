@@ -94,6 +94,8 @@ describe("OpenAIInstrumentation - Decisions", () => {
         "openinference.span.kind": "DECISION",
         "output.mime_type": "application/json",
         "output.value": "{"model":"gpt-6-luna-2026-10-01","answers":[{"type":"predicate","name":"wants_escalation","probability":0.87}],"usage":{"input_tokens":42,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens":3,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":45}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -163,6 +165,8 @@ describe("OpenAIInstrumentation - Decisions", () => {
         "openinference.span.kind": "DECISION",
         "output.mime_type": "application/json",
         "output.value": "{"model":"gpt-6-luna","answers":[{"type":"choice","name":"route","choice":"billing","confidence":0.91,"probabilities":[{"value":"billing","probability":0.91},{"value":"technical","probability":0.07},{"value":false,"probability":0.02}]}],"usage":{"input_tokens":42,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens":3,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":45}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -221,6 +225,8 @@ describe("OpenAIInstrumentation - Decisions", () => {
         "openinference.span.kind": "DECISION",
         "output.mime_type": "application/json",
         "output.value": "{"model":"gpt-6-luna","answers":[{"type":"score","name":"severity","score":2,"confidence":0.64,"probabilities":[{"value":0,"label":"low","probability":0.1},{"value":1,"label":"medium","probability":0.26},{"value":2,"label":"high","probability":0.64}]}],"usage":{"input_tokens":42,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens":3,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":45}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -289,6 +295,8 @@ describe("OpenAIInstrumentation - Decisions", () => {
         "openinference.span.kind": "DECISION",
         "output.mime_type": "application/json",
         "output.value": "{"model":"gpt-6-luna","answers":[{"type":"predicate","name":"is_spam","probability":0.02},{"type":"choice","name":"language","choice":"en","confidence":0.99,"probabilities":[{"value":"en","probability":0.99},{"value":"de","probability":0.01}]},{"type":"refusal","name":"contains_pii"},{"type":"refusal","name":null}],"usage":{"input_tokens":42,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens":7,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":49}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -337,6 +345,8 @@ describe("OpenAIInstrumentation - Decisions", () => {
         "openinference.span.kind": "DECISION",
         "output.mime_type": "application/json",
         "output.value": "{"model":"gpt-6-luna","answers":[{"type":"predicate","name":"is_cat","probability":0.98}],"usage":{"input_tokens":42,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens":3,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":45}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -464,6 +474,8 @@ describe("OpenAIInstrumentation - Decisions with TraceConfig", () => {
         "input.value": "__REDACTED__",
         "openinference.span.kind": "DECISION",
         "output.value": "__REDACTED__",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });

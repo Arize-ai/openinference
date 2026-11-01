@@ -79,6 +79,40 @@ describe("OpenAIInstrumentation", () => {
     instrumentation.enable();
     expect(isPatched()).toBe(true);
   });
+  it.each([
+    ["https://ai-gateway.vercel.sh/v1", "ai-gateway.vercel.sh", 443],
+    ["http://localhost:8000/v1", "localhost", 8000],
+    ["http://vllm.internal/v1", "vllm.internal", 80],
+  ])(
+    "records the server address and port for %s, which has no known provider",
+    async (baseURL, serverAddress, serverPort) => {
+      const client = new OpenAI({ apiKey: "fake-api-key", baseURL });
+      vi.spyOn(client, "post").mockImplementation(
+        mockAPIPromise(client, async () => ({
+          id: "chatcmpl-1",
+          object: "chat.completion",
+          created: 1703743645,
+          model: "gpt-3.5-turbo-0613",
+          choices: [
+            {
+              index: 0,
+              message: { role: "assistant", content: "This is a test." },
+              logprobs: null,
+              finish_reason: "stop",
+            },
+          ],
+        })),
+      );
+      await client.chat.completions.create({
+        messages: [{ role: "user", content: "Say this is a test" }],
+        model: "gpt-3.5-turbo",
+      });
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.attributes["server.address"]).toBe(serverAddress);
+      expect(span.attributes["server.port"]).toBe(serverPort);
+      expect(span.attributes["llm.provider"]).toBeUndefined();
+    },
+  );
   it("creates a span for chat completions", async () => {
     const response = {
       id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
@@ -135,6 +169,8 @@ describe("OpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -238,6 +274,8 @@ describe("OpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17,"prompt_tokens_details":{"cached_tokens":1,"cache_write_tokens":2}}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -285,6 +323,8 @@ describe("OpenAIInstrumentation", () => {
   "openinference.span.kind": "LLM",
   "output.mime_type": "text/plain",
   "output.value": "This is a test",
+  "server.address": "api.openai.com",
+  "server.port": 443,
 }
 `);
   });
@@ -390,6 +430,8 @@ describe("OpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "text/plain",
         "output.value": "This is a test.",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -547,6 +589,8 @@ describe("OpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8hhqZDFTRD0vzExhqWnMLE7viVl7E","object":"chat.completion","created":1705427343,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}"}}]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":70,"completion_tokens":7,"total_tokens":77},"system_fingerprint":null}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
     expect(span2.name).toBe("OpenAI Chat Completions");
@@ -582,6 +626,8 @@ describe("OpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8hhsP9eAplUFYB3mHUJxBkq7IwnjZ","object":"chat.completion","created":1705427457,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_0LCdYLkdRUt3rV3dawoIFHBf","type":"function","function":{"name":"getWeather","arguments":"{\\n  \\"location\\": \\"Boston\\"\\n}"}}]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101},"system_fingerprint":null}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
     expect(span3.name).toBe("OpenAI Chat Completions");
@@ -622,6 +668,8 @@ describe("OpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8hhtfzSD33tsG7XJiBg4F9MqnXKDp","object":"chat.completion","created":1705427535,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"The weather in Boston this week is expected to be rainy with a temperature of 52 degrees."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":121,"completion_tokens":20,"total_tokens":141},"system_fingerprint":null}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -753,6 +801,8 @@ describe("OpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "text/plain",
         "output.value": "",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -866,6 +916,8 @@ describe("OpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "text/plain",
         "output.value": "",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -983,6 +1035,8 @@ describe("OpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -1046,6 +1100,8 @@ describe("OpenAIInstrumentation", () => {
   "openinference.span.kind": "LLM",
   "output.mime_type": "text/plain",
   "output.value": "This is a test",
+  "server.address": "api.openai.com",
+  "server.port": 443,
   "session.id": "session-id",
 }
 `);
@@ -1145,6 +1201,8 @@ describe("OpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-parseTest","object":"chat.completion","created":1706000000,"model":"gpt-4o-2024-08-06","choices":[{"index":0,"message":{"role":"assistant","content":"{\\"name\\":\\"science fair\\",\\"date\\":\\"Friday\\",\\"participants\\":[\\"Alice\\",\\"Bob\\"]}"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":10,"total_tokens":30}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -1328,6 +1386,8 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
   "openinference.span.kind": "LLM",
   "output.mime_type": "text/plain",
   "output.value": "This is a test",
+  "server.address": "api.openai.com",
+  "server.port": 443,
 }
 `);
   });
@@ -1425,6 +1485,8 @@ describe("AzureOpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-35-turbo","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
+        "server.address": "my-azure-openai.openai.azure.com",
+        "server.port": 443,
       }
     `);
   });
@@ -1532,6 +1594,8 @@ describe("AzureOpenAIInstrumentation", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "text/plain",
         "output.value": "This is a test.",
+        "server.address": "my-azure-openai.openai.azure.com",
+        "server.port": 443,
       }
     `);
   });
