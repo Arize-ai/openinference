@@ -1,4 +1,5 @@
 import json
+import sys
 from enum import Enum
 from inspect import signature
 from os import getenv
@@ -75,6 +76,23 @@ def _get_llm_system(model: Model) -> Optional[str]:
             return None
         return "vertexai" if vertexai else "google"
     return system.value
+
+
+def _cache_tokens_excluded_from_input(model: Model, metrics: Any) -> int:
+    """Return the cache tokens that the model's ``input_tokens`` leaves out.
+
+    Agno's Anthropic ``Claude`` (and its Bedrock, Vertex AI and Azure subclasses) copies
+    Anthropic's ``usage.input_tokens``, which excludes cache reads and writes, so they are
+    folded back into the prompt and total counts as the semantic conventions require.
+    Other agno models already count cached tokens in ``input_tokens``.
+    """
+    # Look the class up without importing it: agno.models.anthropic needs the anthropic SDK.
+    claude = getattr(sys.modules.get("agno.models.anthropic.claude"), "Claude", None)
+    if not (isinstance(claude, type) and isinstance(model, claude)):
+        return 0
+    cache_read = getattr(metrics, "cache_read_tokens", None) or 0
+    cache_write = getattr(metrics, "cache_write_tokens", None) or 0
+    return int(cache_read) + int(cache_write)
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
@@ -485,8 +503,9 @@ class _ModelWrapper:
                 metrics = response.response_usage
 
                 # Set token usage attributes
-                if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
+                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
+                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
@@ -562,8 +581,9 @@ class _ModelWrapper:
                 metrics = final_response_with_metrics.response_usage
 
                 # Set token usage attributes
-                if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
+                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
+                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
@@ -623,14 +643,15 @@ class _ModelWrapper:
                 metrics = response.response_usage
 
                 # Set token usage attributes
-                if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
+                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
+                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
 
                 if hasattr(metrics, "total_tokens") and metrics.total_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.total_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.total_tokens + cache_tokens)
 
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
@@ -707,8 +728,9 @@ class _ModelWrapper:
                 metrics = final_response_with_metrics.response_usage
 
                 # Set token usage attributes
-                if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
+                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
+                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
