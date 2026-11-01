@@ -364,7 +364,6 @@ def stop_on_exception(
     return wrapper
 
 
-@stop_on_exception
 def _contains_cycle(root: Any) -> bool:
     """Return True if a Mapping or List contains itself, directly or indirectly."""
     in_path: Set[int] = set()

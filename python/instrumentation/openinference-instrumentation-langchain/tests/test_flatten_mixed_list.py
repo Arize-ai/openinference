@@ -40,3 +40,14 @@ def test_flatten_with_circular_mapping_yields_placeholder() -> None:
     flattened = dict(_flatten({"payload": circular}.items()))
 
     assert flattened["payload.self"] == "<circular reference>"
+
+
+def test_flatten_keeps_non_circular_lists() -> None:
+    # Regression: _contains_cycle wrapped in @stop_on_exception became a
+    # generator function, so every list read as circular and was dropped.
+    flattened = dict(_flatten({"tags": ["a", "b", "c"]}.items()))
+    assert flattened["tags"] == ["a", "b", "c"]
+
+    mixed = dict(_flatten({"messages": [{"role": "user"}, ["x", "y"]]}.items()))
+    assert mixed["messages.0.role"] == "user"
+    assert mixed["messages.1"] == ["x", "y"]
