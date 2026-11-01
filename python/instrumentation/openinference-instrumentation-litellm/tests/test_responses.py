@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Any, Dict, Iterator
 
@@ -376,3 +377,183 @@ def test_responses_input_typed_reasoning_item(
     assert attributes.pop("output.mime_type") == "application/json"
     assert isinstance(attributes.pop("output.value"), str)
     assert attributes == {}
+
+
+def _bridged_completion_response() -> litellm.ModelResponse:
+    # A ModelResponse mock (not a str) skips the Responses-level mock, so LiteLLM
+    # bridges the call to chat completions as it does for providers without
+    # native Responses API support.
+    return litellm.ModelResponse(
+        model="gemini-2.5-flash",
+        choices=[
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": "hello"},
+            }
+        ],
+        usage={"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4},
+    )
+
+
+def test_responses_bridged_to_completion_creates_single_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    litellm.responses(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        input="hi",
+        mock_response=_bridged_completion_response(),
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["responses"]
+    attributes = dict(spans[0].attributes or {})
+    assert attributes["llm.model_name"] == "gemini-2.5-flash"
+    assert attributes["llm.token_count.total"] == 4
+
+
+async def test_aresponses_bridged_to_acompletion_creates_single_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    await litellm.aresponses(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        input="hi",
+        mock_response=_bridged_completion_response(),
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["aresponses"]
+    attributes = dict(spans[0].attributes or {})
+    assert attributes["llm.model_name"] == "gemini-2.5-flash"
+    assert attributes["llm.token_count.total"] == 4
+
+
+async def test_acompletion_after_bridged_aresponses_is_still_traced(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    await litellm.aresponses(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        input="hi",
+        mock_response=_bridged_completion_response(),
+    )
+    await litellm.acompletion(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        messages=[{"role": "user", "content": "hi"}],
+        mock_response="hello",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["aresponses", "acompletion"]
+
+
+def test_streamed_responses_bridged_to_completion_creates_single_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    events = litellm.responses(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        input="hi",
+        mock_response=_bridged_completion_response(),
+        stream=True,
+    )
+    list(events)
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["responses"]
+    assert spans[0].status.status_code.name == "OK"
+    token_count = (spans[0].attributes or {})["llm.token_count.total"]
+    assert isinstance(token_count, int)
+    assert token_count > 0
+
+
+async def test_streamed_aresponses_bridged_to_acompletion_creates_single_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    events = await litellm.aresponses(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        input="hi",
+        mock_response=_bridged_completion_response(),
+        stream=True,
+    )
+    async for _ in events:
+        pass
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["aresponses"]
+    assert spans[0].status.status_code.name == "OK"
+    token_count = (spans[0].attributes or {})["llm.token_count.total"]
+    assert isinstance(token_count, int)
+    assert token_count > 0
+
+
+def test_completion_after_failed_responses_is_still_traced(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_responses(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("responses failed")
+
+    monkeypatch.setitem(LiteLLMInstrumentor.original_litellm_funcs, "responses", fail_responses)
+    with pytest.raises(RuntimeError, match="responses failed"):
+        litellm.responses(model="gemini/gemini-2.5-flash", input="hi")
+
+    litellm.completion(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        messages=[{"role": "user", "content": "hi"}],
+        mock_response="hello",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["responses", "completion"]
+
+
+async def test_acompletion_after_failed_aresponses_is_still_traced(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fail_aresponses(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("aresponses failed")
+
+    monkeypatch.setitem(LiteLLMInstrumentor.original_litellm_funcs, "aresponses", fail_aresponses)
+    with pytest.raises(RuntimeError, match="aresponses failed"):
+        await litellm.aresponses(model="gemini/gemini-2.5-flash", input="hi")
+
+    await litellm.acompletion(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        messages=[{"role": "user", "content": "hi"}],
+        mock_response="hello",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["aresponses", "acompletion"]
+
+
+async def test_concurrent_acompletion_is_traced_during_aresponses(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def paused_aresponses(*args: Any, **kwargs: Any) -> None:
+        entered.set()
+        await release.wait()
+
+    monkeypatch.setitem(LiteLLMInstrumentor.original_litellm_funcs, "aresponses", paused_aresponses)
+    response_task = asyncio.create_task(
+        litellm.aresponses(model="gemini/gemini-2.5-flash", input="hi")
+    )
+    await entered.wait()
+    try:
+        await litellm.acompletion(
+            model="gemini/gemini-2.5-flash",
+            api_key="fake-key",
+            messages=[{"role": "user", "content": "hi"}],
+            mock_response="hello",
+        )
+    finally:
+        release.set()
+        await response_task
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["acompletion", "aresponses"]
