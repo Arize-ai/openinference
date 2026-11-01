@@ -323,11 +323,14 @@ class _WithOpenAI(ABC):
                 # New in openai v1.8.0. Streaming with .with_raw_response now returns
                 # LegacyAPIResponse and caching is done differently.
                 # See https://github.com/openai/openai-python/blob/d231d1fa783967c1d3a1db3ba1b52647fff148ac/src/openai/_legacy_response.py#L112-L113  # noqa: E501
-                response._parsed_by_type[cast_to] = _Stream(
+                stream = _Stream(
                     stream=parsed,
                     with_span=with_span,
                     response_accumulator=response_accumulator,
                 )
+                response._parsed_by_type[cast_to] = stream
+                if is_async_response:
+                    _finish_tracing_on_close(response, stream)
                 return response
             return _Stream(
                 stream=response,
@@ -511,6 +514,21 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 logger.exception(f"Failed to finalize response of type {type(response)}")
                 with_span.finish_tracing()
         return response
+
+
+def _finish_tracing_on_close(response: Any, stream: _Stream) -> None:
+    # A caller may read the body with `.iter_lines()` and the like, or not at all, instead of
+    # iterating the stream returned by `.parse()`. Closing the response, which leaving
+    # `.with_streaming_response` does, then has to end the span.
+    close = response.close
+
+    async def close_and_finish() -> None:
+        try:
+            await close()
+        finally:
+            stream._finish_tracing(status=None)
+
+    response.close = close_and_finish
 
 
 def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any], Any]:

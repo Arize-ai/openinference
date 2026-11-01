@@ -480,6 +480,39 @@ def test_async_with_streaming_response_read_error_reaches_caller(
     assert attributes == {}  # test should account for all span attributes
 
 
+def test_async_with_streaming_response_stream_read_raw_ends_span(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    chat_completion_mock_stream: Tuple[List[bytes], List[Dict[str, Any]]],
+) -> None:
+    # A caller can read the lines itself instead of iterating the stream from `.parse()`.
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, "chat/completions")).mock(
+        return_value=Response(
+            status_code=200, stream=MockAsyncByteStream(chat_completion_mock_stream[0])
+        )
+    )
+    input_messages = get_messages()
+    invocation_parameters = {"model": randstr(), "stream": True}
+    openai = import_module("openai")
+
+    async def task() -> Any:
+        client = openai.AsyncOpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL)
+        async with client.chat.completions.with_streaming_response.create(
+            messages=input_messages, **invocation_parameters
+        ) as raw:
+            assert [line async for line in raw.iter_lines()]
+        return raw
+
+    # Keep the response alive, so the span cannot be ended by garbage collection instead.
+    raw = asyncio.run(task())
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    _pop_chat_request_attributes(attributes, input_messages, invocation_parameters)
+    assert attributes == {}  # the stream was not iterated, so there is no output
+    del raw
+
+
 def test_async_speech_with_streaming_response_is_not_read_by_the_instrumentor(
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
