@@ -794,16 +794,36 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                         vector,
                     )
     elif isinstance(result, ImageResponse):
-        if result.data and len(result.data) > 0:
-            if img_data := result.data[0]:
-                if isinstance(img_data, Image) and (url := (img_data.url or img_data.b64_json)):
-                    _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
-                    _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
-                elif isinstance(img_data, dict) and (
-                    url := (img_data.get("url") or img_data.get("b64_json"))
-                ):
-                    _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
-                    _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
+        image_format = getattr(result, "output_format", None)
+        normalized = image_format.lower() if isinstance(image_format, str) else None
+        if normalized == "jpg":
+            normalized = "jpeg"
+        media_type = (
+            f"image/{normalized}" if normalized in ("png", "jpeg", "webp", "gif") else "image/png"
+        )
+        for index, img_data in enumerate(result.data or ()):
+            if isinstance(img_data, Image):
+                url, b64_json = img_data.url, img_data.b64_json
+            elif isinstance(img_data, dict):
+                url, b64_json = img_data.get("url"), img_data.get("b64_json")
+            else:
+                continue
+            if url and index == 0:
+                _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
+                _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
+            image_url = url
+            if not image_url and b64_json:
+                image_url = (
+                    b64_json
+                    if b64_json.startswith("data:image/")
+                    else f"data:{media_type};base64,{b64_json}"
+                )
+            if image_url:
+                _set_span_attribute(
+                    span,
+                    f"{SpanAttributes.OUTPUT_IMAGES}.{index}.{ImageAttributes.IMAGE_URL}",
+                    image_url,
+                )
     elif isinstance(result, ResponsesAPIResponse):
         span.set_attributes(_get_attributes_from_response_output(result))
 
