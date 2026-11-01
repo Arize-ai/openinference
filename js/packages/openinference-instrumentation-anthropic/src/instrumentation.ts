@@ -2,7 +2,14 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { APIPromise } from "@anthropic-ai/sdk";
 import type { Stream } from "@anthropic-ai/sdk/streaming";
 import type { Attributes, Span, Tracer, TracerProvider } from "@opentelemetry/api";
-import { context, diag, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
+import {
+  context,
+  diag,
+  INVALID_SPAN_CONTEXT,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+} from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
 import type {
   InstrumentationConfig,
@@ -308,10 +315,16 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
               ),
             },
           });
+          const [, options, ...rest] = args;
+          const callArgs = [
+            body,
+            withSDKCallSpan(options, SDK_MESSAGES_CREATE_SPAN_NAME, span),
+            ...rest,
+          ];
           return traceAnthropicAPIPromise<Message | Stream<RawMessageStreamEvent>>({
             span,
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-            invoke: () => Reflect.apply(original, this, args) as ReturnType<CreateType>,
+            invoke: () => Reflect.apply(original, this, callArgs) as ReturnType<CreateType>,
             onResult: (result, { endSpan, recordError }) => {
               if (isAnthropicMessageResponse(result)) {
                 // Record the results
@@ -355,6 +368,8 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       diag.debug(`Cannot find Beta.Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
     }
 
+    this.patchStreams(anthropicModule, betaMessages);
+
     // Patch stable and beta messages.countTokens: an LLM span with the
     // request and the counted tokens as its output.
     type CountTokensType =
@@ -376,10 +391,16 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             ),
           },
         });
+        const [, options, ...rest] = args;
+        const callArgs = [
+          body,
+          withSDKCallSpan(options, SDK_MESSAGES_COUNT_TOKENS_SPAN_NAME, span),
+          ...rest,
+        ];
         return traceAnthropicAPIPromise<TokensCount>({
           span,
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-          invoke: () => Reflect.apply(original, this, args) as PromiseLike<TokensCount>,
+          invoke: () => Reflect.apply(original, this, callArgs) as PromiseLike<TokensCount>,
           onResult: (result, { endSpan }) => {
             span.setAttributes(
               safelyGetAttributes(() => getOutputAttributes(toJSONOutput(result))),
@@ -462,6 +483,43 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
   }
 
   /**
+   * Patches stable and beta messages.stream: the helper starts the SDK's span
+   * of the call before it calls the patched create(), so it is handed the call
+   * span that create() then gives the LLM span's context. Only an SDK with
+   * spans of its own (0.134.0 and later) is patched.
+   */
+  private patchStreams(
+    anthropicModule: ReturnType<typeof resolveAnthropicModule>["anthropicModule"],
+    betaMessages: ReturnType<typeof resolveAnthropicModule>["betaMessages"],
+  ) {
+    type StreamType =
+      | typeof anthropicModule.Messages.prototype.stream
+      | typeof anthropicModule.Beta.Messages.prototype.stream;
+    const patchStream = <AnyStreamType extends StreamType>(
+      original: AnyStreamType,
+    ): AnyStreamType => {
+      const patched = function patchedStream(this: unknown, ...args: Parameters<AnyStreamType>) {
+        const [body, options, ...rest] = args;
+        if (isTracingSuppressed(context.active()) || hasSDKCallSpan(options)) {
+          return Reflect.apply(original, this, args);
+        }
+        const call = makeSDKCallSpan(SDK_MESSAGES_CREATE_SPAN_NAME);
+        return Reflect.apply(original, this, [body, { ...options, __span: call }, ...rest]);
+      };
+      return isPatchOf(original, patched) ? patched : original;
+    };
+    if (!startsOwnSpans(anthropicModule)) {
+      return;
+    }
+    if (typeof anthropicModule.Messages.prototype.stream === "function") {
+      this._wrap(anthropicModule.Messages.prototype, "stream", patchStream);
+    }
+    if (betaMessages?.prototype?.stream) {
+      this._wrap(betaMessages.prototype, "stream", patchStream);
+    }
+  }
+
+  /**
    * Un-patches the Anthropic module's messages API
    */
   private unpatch(
@@ -473,6 +531,14 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     this._unwrap(anthropicModule.Messages.prototype, "create");
     if (typeof anthropicModule.Messages.prototype.countTokens === "function") {
       this._unwrap(anthropicModule.Messages.prototype, "countTokens");
+    }
+    if (startsOwnSpans(anthropicModule)) {
+      if (typeof anthropicModule.Messages.prototype.stream === "function") {
+        this._unwrap(anthropicModule.Messages.prototype, "stream");
+      }
+      if (betaMessages?.prototype?.stream) {
+        this._unwrap(betaMessages.prototype, "stream");
+      }
     }
     if (betaMessages?.prototype?.create) {
       this._unwrap(betaMessages.prototype, "create");
@@ -494,6 +560,96 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     } catch (e) {
       diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
     }
+  }
+}
+
+/**
+ * `@anthropic-ai/sdk` >= 0.134.0 starts a span of its own for each API call,
+ * so a call traced here would have two spans for one model call, and the
+ * SDK's span of a `messages.stream()` call would not be under the LLM span.
+ *
+ * An SDK method uses the call span it finds in its request options (`__span`)
+ * instead of starting one; the SDK's stream helpers pass theirs to `create()`
+ * that way. A traced call passes a non-recording span with the LLM span's
+ * context there, which is what the SDK has when a sampler drops its span:
+ * nothing is recorded, the request carries the LLM span's trace context if
+ * the client propagates one, and HTTP instrumentation spans are children of
+ * the LLM span. A client whose spans are disabled ignores the option, and so
+ * does an SDK without spans of its own.
+ */
+interface SDKCallSpan {
+  span: Span;
+  name: string;
+  startTime: number;
+}
+
+/** Whether the SDK's client starts spans of its own, which its `openTelemetry` option says. */
+function startsOwnSpans(anthropicModule: typeof Anthropic): boolean {
+  return "openTelemetry" in anthropicModule.prototype;
+}
+
+const SDK_MESSAGES_CREATE_SPAN_NAME = "anthropic.messages.create";
+const SDK_MESSAGES_COUNT_TOKENS_SPAN_NAME = "anthropic.messages.count_tokens";
+
+/** The call spans made here, which a later `create()` of the same call takes over. */
+const sdkCallSpans = new WeakSet<object>();
+
+function makeSDKCallSpan(name: string): SDKCallSpan {
+  // The caller's context until the LLM span takes the call span over.
+  const span = trace.wrapSpanContext(trace.getActiveSpan()?.spanContext() ?? INVALID_SPAN_CONTEXT);
+  const call = { span, name, startTime: Date.now() };
+  sdkCallSpans.add(call);
+  return call;
+}
+
+function isSDKCallSpanMadeHere(value: unknown): value is SDKCallSpan {
+  return typeof value === "object" && value !== null && sdkCallSpans.has(value);
+}
+
+function hasSDKCallSpan(options: object | undefined): boolean {
+  return options !== undefined && Reflect.get(options, "__span") !== undefined;
+}
+
+function withoutSDKCallSpan<Options extends object>(options: Options | undefined) {
+  if (options === undefined) {
+    return options;
+  }
+  const copy = Object.assign({}, options);
+  Reflect.deleteProperty(copy, "__span");
+  return copy;
+}
+
+/**
+ * The request options of a call traced by `llmSpan`, with a call span for the
+ * SDK that has the LLM span's context. Options that have a call span made
+ * elsewhere are left as they are.
+ */
+function withSDKCallSpan<Options extends object>(
+  options: Options | undefined,
+  name: string,
+  llmSpan: Span,
+): Options | undefined {
+  try {
+    const spanContext = llmSpan.spanContext();
+    const existing: unknown = options === undefined ? undefined : Reflect.get(options, "__span");
+    if (!trace.isSpanContextValid(spanContext)) {
+      // No LLM span was recorded, e.g. the instrumentation's tracer provider
+      // makes none, so the SDK starts its span as it would without us.
+      return isSDKCallSpanMadeHere(existing) ? withoutSDKCallSpan(options) : options;
+    }
+    if (isSDKCallSpanMadeHere(existing)) {
+      existing.span = trace.wrapSpanContext(spanContext);
+      return options;
+    }
+    if (existing !== undefined) {
+      return options;
+    }
+    const call = makeSDKCallSpan(name);
+    call.span = trace.wrapSpanContext(spanContext);
+    return Object.assign({}, options, { __span: call });
+  } catch (error) {
+    diag.debug(`Failed to give the ${MODULE_NAME} call the LLM span`, error);
+    return options;
   }
 }
 
