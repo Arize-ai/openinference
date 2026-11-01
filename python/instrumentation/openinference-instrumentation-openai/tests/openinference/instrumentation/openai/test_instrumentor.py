@@ -24,7 +24,7 @@ from unittest.mock import patch
 from urllib.parse import urljoin
 
 import pytest
-from httpx import AsyncByteStream, Response
+from httpx import AsyncByteStream, ReadError, Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -318,6 +318,256 @@ def test_chat_completions(
             prompt_template_variables,
         )
     assert attributes == {}  # test should account for all span attributes
+
+
+def _pop_chat_request_attributes(
+    attributes: Dict[str, AttributeValue],
+    input_messages: List[Dict[str, Any]],
+    invocation_parameters: Dict[str, Any],
+) -> None:
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+        == invocation_parameters
+    )
+    for i, message in enumerate(input_messages):
+        _check_llm_message(LLM_INPUT_MESSAGES, i, attributes, message)
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("is_stream", [False, True])
+def test_chat_completions_with_streaming_response(
+    is_async: bool,
+    is_stream: bool,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    completion_usage: Dict[str, Any],
+    model_name: str,
+    chat_completion_mock_stream: Tuple[List[bytes], List[Dict[str, Any]]],
+) -> None:
+    # On the async client, `.with_streaming_response` returns an `AsyncAPIResponse`, whose
+    # `.parse()` is a coroutine.
+    output_messages: List[Dict[str, Any]] = (
+        chat_completion_mock_stream[1] if is_stream else get_messages()
+    )
+    respx_kwargs: Dict[str, Any] = (
+        {"stream": MockAsyncByteStream(chat_completion_mock_stream[0])}
+        if is_stream
+        else {
+            "json": {
+                "choices": [
+                    {"index": i, "message": message, "finish_reason": "stop"}
+                    for i, message in enumerate(output_messages)
+                ],
+                "model": model_name,
+                "usage": completion_usage,
+            }
+        }
+    )
+    url = urljoin(_OPENAI_BASE_URL, "chat/completions")
+    respx_mock.post(url).mock(return_value=Response(status_code=200, **respx_kwargs))
+    input_messages = get_messages()
+    invocation_parameters = {"model": randstr(), "stream": is_stream}
+    create_kwargs = {"messages": input_messages, **invocation_parameters}
+    openai = import_module("openai")
+
+    async def task() -> None:
+        client = openai.AsyncOpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL)
+        async with client.chat.completions.with_streaming_response.create(**create_kwargs) as raw:
+            response = await raw.parse()
+            if is_stream:
+                async for _ in response:
+                    pass
+
+    if is_async:
+        asyncio.run(task())
+    else:
+        client = openai.OpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL)
+        with client.chat.completions.with_streaming_response.create(**create_kwargs) as raw:
+            response = raw.parse()
+            if is_stream:
+                for _ in response:
+                    pass
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
+    assert span.status.is_ok
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    _pop_chat_request_attributes(attributes, input_messages, invocation_parameters)
+    output_value = attributes.pop(OUTPUT_VALUE, None)
+    assert isinstance(output_value, str)
+    assert json.loads(output_value)["choices"]
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    for i, message in enumerate(output_messages):
+        _check_llm_message(LLM_OUTPUT_MESSAGES, i, attributes, message)
+    assert attributes.pop(LLM_FINISH_REASON, None) == ("tool_calls" if is_stream else "stop")
+    if not is_stream:
+        assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == completion_usage["prompt_tokens"]
+        assert (
+            attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None)
+            == completion_usage["completion_tokens"]
+        )
+        assert attributes.pop(LLM_MODEL_NAME, None) == model_name
+    assert attributes == {}  # test should account for all span attributes
+
+
+def test_async_with_streaming_response_cancelled_while_parsing_ends_span(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    # The instrumentor reads the body when it awaits `.parse()`, so a cancellation (e.g. a
+    # timeout) can land there, and the span must still end.
+    input_messages = get_messages()
+    invocation_parameters = {"model": randstr()}
+    openai = import_module("openai")
+
+    async def main() -> None:
+        body_started = asyncio.Event()
+
+        class StalledBody(AsyncByteStream):
+            async def __aiter__(self) -> AsyncIterator[bytes]:
+                body_started.set()
+                yield b'{"choices": ['
+                await asyncio.sleep(60)
+
+        respx_mock.post(urljoin(_OPENAI_BASE_URL, "chat/completions")).mock(
+            return_value=Response(status_code=200, stream=StalledBody())
+        )
+
+        async def task() -> None:
+            client = openai.AsyncOpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL)
+            async with client.chat.completions.with_streaming_response.create(
+                messages=input_messages, **invocation_parameters
+            ) as raw:
+                await raw.parse()
+
+        running = asyncio.ensure_future(task())
+        await body_started.wait()
+        running.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await running
+
+    asyncio.run(main())
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert [event.name for event in span.events] == ["exception"]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    _pop_chat_request_attributes(attributes, input_messages, invocation_parameters)
+    assert attributes == {}  # test should account for all span attributes
+
+
+def test_async_with_streaming_response_read_error_reaches_caller(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    # The instrumentor reads the body when it awaits `.parse()`, which consumes it, so a failed
+    # read must reach the caller as the original error.
+    class BrokenBody(AsyncByteStream):
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            yield b'{"choices": ['
+            raise ReadError("boom")
+
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, "chat/completions")).mock(
+        return_value=Response(status_code=200, stream=BrokenBody())
+    )
+    input_messages = get_messages()
+    invocation_parameters = {"model": randstr()}
+    openai = import_module("openai")
+
+    async def task() -> None:
+        client = openai.AsyncOpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL, max_retries=0)
+        async with client.chat.completions.with_streaming_response.create(
+            messages=input_messages, **invocation_parameters
+        ) as raw:
+            await raw.parse()
+
+    with pytest.raises(ReadError, match="boom"):
+        asyncio.run(task())
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.status.description == "ReadError: boom"
+    assert [event.name for event in span.events] == ["exception"]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    _pop_chat_request_attributes(attributes, input_messages, invocation_parameters)
+    assert attributes == {}  # test should account for all span attributes
+
+
+def test_async_with_streaming_response_stream_read_raw_ends_span(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    chat_completion_mock_stream: Tuple[List[bytes], List[Dict[str, Any]]],
+) -> None:
+    # A caller can read the lines itself instead of iterating the stream from `.parse()`.
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, "chat/completions")).mock(
+        return_value=Response(
+            status_code=200, stream=MockAsyncByteStream(chat_completion_mock_stream[0])
+        )
+    )
+    input_messages = get_messages()
+    invocation_parameters = {"model": randstr(), "stream": True}
+    openai = import_module("openai")
+
+    async def task() -> Any:
+        client = openai.AsyncOpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL)
+        async with client.chat.completions.with_streaming_response.create(
+            messages=input_messages, **invocation_parameters
+        ) as raw:
+            assert [line async for line in raw.iter_lines()]
+        return raw
+
+    # Keep the response alive, so the span cannot be ended by garbage collection instead.
+    raw = asyncio.run(task())
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    _pop_chat_request_attributes(attributes, input_messages, invocation_parameters)
+    assert attributes == {}  # the stream was not iterated, so there is no output
+    del raw
+
+
+def test_async_speech_with_streaming_response_is_not_read_by_the_instrumentor(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    audio = [b"\xff\xf3" * 512, b"\x00\x01" * 512]
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, "audio/speech")).mock(
+        return_value=Response(status_code=200, stream=MockAsyncByteStream(audio))
+    )
+    openai = import_module("openai")
+
+    async def task() -> bytes:
+        client = openai.AsyncOpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL)
+        async with client.audio.speech.with_streaming_response.create(
+            model="tts-1", voice="alloy", input="hi"
+        ) as raw:
+            # The audio is still streamed to the caller rather than read up front.
+            assert not raw.http_response.is_stream_consumed
+            return b"".join([chunk async for chunk in raw.iter_bytes()])
+
+    assert asyncio.run(task()) == b"".join(audio)
+    span = _openinference_span(in_memory_span_exporter, "HttpxBinaryResponseContent")
+    assert span.status.is_ok
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    request = {"input": "hi", "model": "tts-1", "voice": "alloy"}
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+    assert json.loads(cast(str, attributes.pop(INPUT_VALUE, None))) == request
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))) == request
+    assert attributes == {}  # in particular, no output.value
 
 
 @pytest.mark.parametrize(
