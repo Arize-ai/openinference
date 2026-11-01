@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.31...python-openinference-instrumentation-vertexai-v0.1.32) (2026-11-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+* **vertexai:** end the stream span when the stream is dropped before it is exhausted ([#4144](https://github.com/Arize-ai/openinference/issues/4144)) ([5c68f3a](https://github.com/Arize-ai/openinference/commit/5c68f3a6d1ba1095e9b7ae594fabfbe0271c6948))
+
 ## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.30...python-openinference-instrumentation-vertexai-v0.1.31) (2026-10-29)
 
 
