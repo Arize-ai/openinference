@@ -218,7 +218,9 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_INPUT_TEXT,
         },
     )
-    """Hides text from input messages, including message document content"""
+    """Hides text from input messages, including message document content and
+    tool call arguments (``message.function_call_arguments_json`` and
+    ``message.tool_calls.*.tool_call.function.arguments_json``)"""
     hide_output_text: Optional[bool] = field(
         default=None,
         metadata={
@@ -226,7 +228,9 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_OUTPUT_TEXT,
         },
     )
-    """Hides text from output messages, including message document content"""
+    """Hides text from output messages, including message document content and
+    tool call arguments (``message.function_call_arguments_json`` and
+    ``message.tool_calls.*.tool_call.function.arguments_json``)"""
     hide_embedding_vectors: Optional[bool] = field(
         default=None,
         metadata={
