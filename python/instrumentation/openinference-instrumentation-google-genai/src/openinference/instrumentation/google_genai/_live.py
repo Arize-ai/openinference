@@ -155,16 +155,30 @@ def _usage_attributes(usage_metadata: Any) -> Iterator[tuple[str, AttributeValue
 
 
 class _Generation:
-    __slots__ = ("span", "texts", "thoughts", "transcript", "function_calls", "usage", "reason")
+    __slots__ = (
+        "span",
+        "system_contents",
+        "texts",
+        "thoughts",
+        "transcript",
+        "function_calls",
+        "usage",
+        "reason",
+        "completed_at",
+    )
 
-    def __init__(self, span: _WithSpan) -> None:
+    def __init__(self, span: _WithSpan, system_contents: Sequence[Any]) -> None:
         self.span = span
+        # the system instruction in effect for this generation
+        self.system_contents = system_contents
         self.texts: list[str] = []
         self.thoughts: list[str] = []
         self.transcript: list[str] = []
         self.function_calls: list[Any] = []
         self.usage: Any = None
         self.reason: Optional[str] = None
+        # When the model finished. turn_complete can come later, once audio has played.
+        self.completed_at: Optional[int] = None
 
     def visible_text(self) -> str:
         return "".join(self.texts) or "".join(self.transcript)
@@ -191,11 +205,12 @@ class _EndedGeneration:
         span: _WithSpan,
         status: Optional[trace_api.Status],
         attributes: dict[str, AttributeValue],
+        end_time: Optional[int],
     ) -> None:
         self.span = span
         self.status = status
         self.attributes = attributes
-        self.end_time = time.time_ns()
+        self.end_time = end_time or time.time_ns()
 
 
 class _ToolCall:
@@ -300,6 +315,10 @@ class _LiveSessionTracer:
         # When audio or video input began. A span is only started once the input leads to
         # something (a server message or a failure), since a microphone may stream silence.
         self._input_started_at: Optional[int] = None
+        # set while the current turn was started under suppress_tracing(), so that what
+        # follows it is not traced whichever context it is sent or received in
+        self.suppressed_turn = False
+        self._api_client = api_client
         self.closing = False
         # set once the session is closed; anything sent or received later is not traced
         self.closed = False
@@ -320,11 +339,11 @@ class _LiveSessionTracer:
         if isinstance(model, str) and model:
             self._llm_attributes[SpanAttributes.LLM_MODEL_NAME] = model
         try:
-            self._read_connect_config(config, api_client)
+            self._read_connect_config(config)
         except Exception:
             logger.exception("Failed to read Live connect config")
 
-    def _read_connect_config(self, config: Any, api_client: Any) -> None:
+    def _read_connect_config(self, config: Any) -> None:
         if config is None:
             return
         from google.genai import types
@@ -341,16 +360,27 @@ class _LiveSessionTracer:
             self._llm_attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS] = safe_json_dumps(
                 parameters
             )
-        tools = list(config.tools or ())
-        if tools and api_client is not None:
+        self._set_tools(config.tools or ())
+
+    def _set_tools(self, tools: Iterable[Any]) -> None:
+        tools = list(tools)
+        if tools and self._api_client is not None:
             try:
                 from google.genai._transformers import t_tool, t_tools
 
                 # the same conversion the SDK applies before sending (e.g. Python functions)
-                tools = [t_tool(api_client, tool) for tool in t_tools(api_client, tools)]
+                tools = [
+                    t_tool(self._api_client, tool) for tool in t_tools(self._api_client, tools)
+                ]
             except Exception:
                 logger.debug("Failed to convert Live tools", exc_info=True)
+        self._llm_attributes = {
+            key: value
+            for key, value in self._llm_attributes.items()
+            if not key.startswith(f"{SpanAttributes.LLM_TOOLS}.")
+        }
         self._llm_attributes.update(self._tool_attributes(tools))
+        self._non_blocking = set()
         for tool in tools:
             for declaration in getattr(tool, "function_declarations", None) or ():
                 behavior = getattr(declaration.behavior, "value", declaration.behavior)
@@ -468,7 +498,8 @@ class _LiveSessionTracer:
                     interaction.context,
                     parent=interaction.span,
                     start_time=start_time,
-                )
+                ),
+                self._system_contents,
             )
             interaction.generation.usage, interaction.pending_usage = (
                 interaction.pending_usage,
@@ -489,10 +520,10 @@ class _LiveSessionTracer:
         return safe_json_dumps(request)
 
     def _input_message_attributes(
-        self, contents: Sequence[Any]
+        self, system_contents: Sequence[Any], contents: Sequence[Any]
     ) -> Iterator[tuple[str, AttributeValue]]:
         index = 0
-        for content in self._system_contents:
+        for content in system_contents:
             for key, value in self._request_extractor._get_attributes_from_content(content):
                 yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
             yield (
@@ -541,7 +572,9 @@ class _LiveSessionTracer:
             if interaction.history:
                 attributes[SpanAttributes.INPUT_VALUE] = self._input_value(interaction.history)
                 attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
-            attributes.update(self._input_message_attributes(interaction.history))
+            attributes.update(
+                self._input_message_attributes(generation.system_contents, interaction.history)
+            )
             if content.parts:
                 attributes[SpanAttributes.OUTPUT_VALUE] = content.model_dump_json(exclude_none=True)
                 attributes[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
@@ -559,9 +592,13 @@ class _LiveSessionTracer:
         if exception is not None:
             generation.span.record_exception(exception)
         if await_usage:
-            interaction.ended_generation = _EndedGeneration(generation.span, status, attributes)
+            interaction.ended_generation = _EndedGeneration(
+                generation.span, status, attributes, generation.completed_at
+            )
         else:
-            generation.span.finish_tracing(status=status, attributes=attributes)
+            generation.span.finish_tracing(
+                status=status, attributes=attributes, end_time=generation.completed_at
+            )
 
     def _finish_ended_generation(self, interaction: _Interaction, usage: Any = None) -> None:
         if (ended := interaction.ended_generation) is None:
@@ -620,6 +657,7 @@ class _LiveSessionTracer:
     def on_client_content(self, kwargs: Mapping[str, Any]) -> Optional[_AfterSend]:
         from google.genai._transformers import t_contents
 
+        self.suppressed_turn = False
         self._input_started_at = None
         interaction = self._ensure_interaction()
         interaction.flush_input_transcript()
@@ -638,6 +676,7 @@ class _LiveSessionTracer:
         # previous interaction, which includes any silence a microphone streams before
         # the user speaks.
         if kwargs.get("activity_start") is not None:
+            self.suppressed_turn = False
             self._input_started_at = time.time_ns()
             return self._fail_input_if_send_fails
         if any(kwargs.get(key) is not None for key in ("media", "audio", "video")):
@@ -646,6 +685,7 @@ class _LiveSessionTracer:
             return None
         from google.genai import types
 
+        self.suppressed_turn = False
         self._input_started_at = None
         interaction = self._ensure_interaction()
         interaction.flush_input_transcript()
@@ -655,6 +695,7 @@ class _LiveSessionTracer:
         return None
 
     def _on_media_input(self) -> _AfterSend:
+        self.suppressed_turn = False
         if self._interaction is None and self._input_started_at is None:
             self._input_started_at = time.time_ns()
         return self._fail_input_if_send_fails
@@ -671,11 +712,34 @@ class _LiveSessionTracer:
         self._ensure_interaction()
         self._end_interaction(_error_status(exception), exception)
 
+    def on_suppressed_send(self, kwargs: Mapping[str, Any]) -> None:
+        # What the server replies with is suppressed too. Spans that already started are
+        # not affected, and a SILENT tool response gets no reply.
+        if self._interaction is not None:
+            return
+        responses = kwargs.get("function_responses")
+        if responses is not None:
+            if not isinstance(responses, Sequence) or isinstance(responses, Mapping):
+                responses = [responses]
+            if all(_is_silent(response) for response in responses):
+                return
+        self._input_started_at = None
+        self.suppressed_turn = True
+
+    def on_context_update(self, kwargs: Mapping[str, Any]) -> None:
+        # only the fields that are set are updated; an empty tool list clears the tools
+        if (system_instruction := kwargs.get("system_instruction")) is not None:
+            from google.genai._transformers import t_contents
+
+            self._system_contents = list(t_contents(system_instruction))
+        if (tools := kwargs.get("tools")) is not None:
+            self._set_tools(tools)
+
     def on_tool_response(self, kwargs: Mapping[str, Any]) -> Optional[_AfterSend]:
         from google.genai import types
 
         responses = kwargs.get("function_responses")
-        if responses is None:
+        if responses is None or self.suppressed_turn:
             return None
         if not isinstance(responses, Sequence) or isinstance(responses, Mapping):
             responses = [responses]
@@ -774,11 +838,24 @@ class _LiveSessionTracer:
 
     # ----- server messages -----
 
-    def on_server_message(self, message: Any) -> None:
+    def on_server_message(self, message: Any, suppressed: bool = False) -> None:
         server_content = getattr(message, "server_content", None)
         tool_call = getattr(message, "tool_call", None)
         cancellation = getattr(message, "tool_call_cancellation", None)
         usage = getattr(message, "usage_metadata", None)
+        # Only a new turn is suppressed here; one that already started needs its messages
+        # to finish its spans.
+        if (
+            suppressed
+            and self._interaction is None
+            and self._input_started_at is None
+            and (server_content is not None or tool_call is not None)
+        ):
+            self.suppressed_turn = True
+        if self.suppressed_turn:
+            if server_content is not None and _is_interaction_complete(server_content):
+                self.suppressed_turn = False
+            server_content = tool_call = usage = None
         if server_content is None and tool_call is None and cancellation is None and not usage:
             return  # setup, resumption, go-away and voice-activity messages
         if server_content is not None:
@@ -823,6 +900,9 @@ class _LiveSessionTracer:
         if reason := getattr(server_content, "turn_complete_reason", None):
             if self._interaction is not None and self._interaction.generation is not None:
                 self._interaction.generation.reason = getattr(reason, "value", str(reason))
+        if getattr(server_content, "generation_complete", None):
+            if self._interaction is not None and (open_generation := self._interaction.generation):
+                open_generation.completed_at = open_generation.completed_at or time.time_ns()
 
     def _on_tool_call(self, function_calls: Sequence[Any]) -> None:
         new_calls = []
@@ -1051,8 +1131,15 @@ class _AsyncSessionSendWrapper:
         args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if (state := _sessions.get(instance)) is None or state.closed or _is_suppressed():
+        if (state := _sessions.get(instance)) is None or state.closed:
             return await wrapped(*args, **kwargs)
+        if _is_suppressed():
+            state.on_suppressed_send(kwargs)
+            try:
+                return await wrapped(*args, **kwargs)
+            except BaseException:
+                state.suppressed_turn = False  # no reply is coming
+                raise
         # Recorded before sending: the reply may be received by another task before
         # this call returns.
         after_send: Optional[_AfterSend] = None
@@ -1070,6 +1157,25 @@ class _AsyncSessionSendWrapper:
                 state.fail_interaction(exception, interaction)
             raise
         _call_after_send(after_send, None)
+        return result
+
+
+class _AsyncSessionContextUpdateWrapper:
+    """Applies a change of system instruction or tools to the spans that follow it."""
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        result = await wrapped(*args, **kwargs)
+        if (state := _sessions.get(instance)) is not None and not state.closed:
+            try:
+                state.on_context_update(kwargs)
+            except Exception:
+                logger.exception("Failed to record Live context update")
         return result
 
 
@@ -1104,9 +1210,9 @@ class _AsyncSessionReceiveWrapper:
                 state.fail(exception)
             raise
         # a receive that was already waiting can return after the session closed
-        if not state.closed and not _is_suppressed():
+        if not state.closed:
             try:
-                state.on_server_message(message)
+                state.on_server_message(message, suppressed=_is_suppressed())
             except Exception:
                 logger.exception("Failed to record Live server message")
         return message

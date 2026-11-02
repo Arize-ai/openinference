@@ -1689,6 +1689,252 @@ async def test_text_interaction_ignores_earlier_audio_input(
     assert (llm.start_time or 0) >= before_text
 
 
+async def test_reply_to_suppressed_send_is_not_traced(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        with suppress_tracing():
+            await session.send_client_content(turns=_user("secret"))
+        websocket.push(_text("Secret reply."), _turn_complete(totalTokenCount=5))
+        await _drain(session)
+        assert not in_memory_span_exporter.get_finished_spans()
+        # the next turn is traced as usual
+        await session.send_client_content(turns=_user("hello"))
+        websocket.push(_text("Hi."), _turn_complete())
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM"]
+    assert (spans[0].attributes or {})[SpanAttributes.INPUT_VALUE] == "hello"
+    for span in spans:
+        assert "Secret" not in str(dict(span.attributes or {}))
+
+
+async def test_tool_round_trip_of_suppressed_turn_is_not_traced(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        with suppress_tracing():
+            await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_tool_call())
+        await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-1", name="get_weather", response={"result": "sunny"}
+            )
+        )
+        websocket.push(_text("It is sunny."), _turn_complete())
+        await _drain(session)
+
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
+async def test_suppressed_receive_finishes_interaction_that_already_started(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("hello"))
+        websocket.push(_text("Hi."), _turn_complete(totalTokenCount=5))
+        with suppress_tracing():
+            await _drain(session)
+        spans = _spans(in_memory_span_exporter)
+        assert [_kind(span) for span in spans] == ["CHAIN", "LLM"]
+        assert spans[0].status.status_code is trace_api.StatusCode.OK
+        assert (spans[1].attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 5
+
+
+async def test_turn_first_received_under_suppression_is_not_traced(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        websocket.push(_audio(), _audio(), _turn_complete())
+        with suppress_tracing():
+            await session._receive()
+        await _drain(session)
+
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
+async def test_failed_suppressed_send_does_not_suppress_later_turns(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        websocket.send_error = RuntimeError("send failed")
+        with suppress_tracing(), pytest.raises(RuntimeError, match="send failed"):
+            await session.send_client_content(turns=_user("secret"))
+        websocket.send_error = None
+        websocket.push(_audio(), _turn_complete())
+        await _drain(session)
+
+    assert [_kind(span) for span in _spans(in_memory_span_exporter)] == ["CHAIN", "LLM"]
+
+
+async def test_silent_suppressed_tool_response_does_not_suppress_later_turns(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL, config=NON_BLOCKING_CONFIG) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_tool_call(), _text("Checking."), _turn_complete())
+        await _drain(session)
+        with suppress_tracing():
+            await session.send_tool_response(
+                function_responses=types.FunctionResponse(
+                    id="call-1",
+                    name="get_weather",
+                    response={"result": "sunny"},
+                    scheduling=types.FunctionResponseScheduling.SILENT,
+                )
+            )
+        websocket.push(_audio(), _turn_complete())
+        await _drain(session)
+
+    chains = [span for span in _spans(in_memory_span_exporter) if _kind(span) == "CHAIN"]
+    assert len(chains) == 2
+
+
+_needs_context_update = pytest.mark.skipif(
+    not hasattr(live.AsyncSession, "send_context_update"),
+    reason="send_context_update is not in this google-genai version",
+)
+
+
+async def _send_context_update(session: Any, **kwargs: Any) -> None:
+    await session.send_context_update(**kwargs)
+
+
+@_needs_context_update
+async def test_context_update_applies_to_later_spans(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    config = types.LiveConnectConfig(system_instruction="old", tools=TOOLS)
+    new_tools: types.ToolListUnion = [
+        types.Tool(
+            function_declarations=[
+                types.FunctionDeclaration(
+                    name="get_time",
+                    description="Get the time",
+                    behavior=types.Behavior.NON_BLOCKING,
+                )
+            ]
+        )
+    ]
+    async with client.aio.live.connect(model=MODEL, config=config) as session:
+        await session.send_client_content(turns=_user("one"))
+        # the generation in progress keeps what it started with
+        await _send_context_update(session, system_instruction="new", tools=new_tools)
+        websocket.push(_text("1"), _turn_complete())
+        await _drain(session)
+        await session.send_client_content(turns=_user("two"))
+        websocket.push(_text("2"), _turn_complete())
+        await _drain(session)
+        await _send_context_update(session, tools=[])
+        await session.send_client_content(turns=_user("three"))
+        websocket.push(_text("3"), _turn_complete())
+        await _drain(session)
+
+    first, second, third = [
+        dict(span.attributes or {})
+        for span in _spans(in_memory_span_exporter)
+        if _kind(span) == "LLM"
+    ]
+    system = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+    schema = f"{SpanAttributes.LLM_TOOLS}.0.tool.json_schema"
+    assert first[system] == "old"
+    assert "get_weather" in str(first[schema])
+    assert second[system] == "new"
+    assert "get_time" in str(second[schema])
+    assert third[system] == "new"
+    assert schema not in third
+
+
+@_needs_context_update
+async def test_context_update_changes_only_the_fields_that_are_set(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    config = types.LiveConnectConfig(system_instruction="old", tools=TOOLS)
+    async with client.aio.live.connect(model=MODEL, config=config) as session:
+        await _send_context_update(session, system_instruction="new")
+        await session.send_client_content(turns=_user("one"))
+        websocket.push(_text("1"), _turn_complete())
+        await _drain(session)
+
+    (llm,) = [span for span in _spans(in_memory_span_exporter) if _kind(span) == "LLM"]
+    attributes = llm.attributes or {}
+    assert (
+        attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "new"
+    )
+    assert "get_weather" in str(attributes[f"{SpanAttributes.LLM_TOOLS}.0.tool.json_schema"])
+
+
+@_needs_context_update
+async def test_failed_context_update_keeps_the_previous_context(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    config = types.LiveConnectConfig(system_instruction="old")
+    async with client.aio.live.connect(model=MODEL, config=config) as session:
+        websocket.send_error = RuntimeError("send failed")
+        with pytest.raises(RuntimeError, match="send failed"):
+            await _send_context_update(session, system_instruction="new")
+        websocket.send_error = None
+        await session.send_client_content(turns=_user("one"))
+        websocket.push(_text("1"), _turn_complete())
+        await _drain(session)
+
+    (llm,) = [span for span in _spans(in_memory_span_exporter) if _kind(span) == "LLM"]
+    system = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+    assert (llm.attributes or {})[system] == "old"
+
+
+async def test_generation_ends_at_generation_complete(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("hello"))
+        websocket.push(_audio(), {"serverContent": {"generationComplete": True}})
+        await session._receive()
+        await session._receive()
+        # audio is still playing; usage comes with turn_complete
+        before_turn_complete = time.time_ns()
+        websocket.push(_turn_complete(totalTokenCount=5))
+        await _drain(session)
+
+    chain, llm = _spans(in_memory_span_exporter)
+    assert (llm.end_time or 0) <= before_turn_complete
+    assert (llm.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 5
+    assert (chain.end_time or 0) >= before_turn_complete
+
+
 def _with_usage(frame: dict[str, Any], **usage: Any) -> dict[str, Any]:
     return {**frame, "usageMetadata": usage}
 

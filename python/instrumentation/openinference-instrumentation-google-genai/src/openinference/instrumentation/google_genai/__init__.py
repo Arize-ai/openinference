@@ -252,6 +252,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             SEND_WRAPPERS,
             _AsyncLiveConnectWrapper,
             _AsyncSessionCloseWrapper,
+            _AsyncSessionContextUpdateWrapper,
             _AsyncSessionReceiveWrapper,
             _AsyncSessionSendWrapper,
             _ConnectConfigWrapper,
@@ -263,6 +264,12 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             (live, "_t_live_connect_config", "_t_live_connect_config", _ConnectConfigWrapper()),
             (AsyncSession, "_receive", "AsyncSession._receive", _AsyncSessionReceiveWrapper()),
             (AsyncSession, "close", "AsyncSession.close", _AsyncSessionCloseWrapper()),
+            (
+                AsyncSession,
+                "send_context_update",
+                "AsyncSession.send_context_update",
+                _AsyncSessionContextUpdateWrapper(),
+            ),
             *(
                 (AsyncSession, name, f"AsyncSession.{name}", _AsyncSessionSendWrapper(record))
                 for name, record in SEND_WRAPPERS.items()
@@ -270,7 +277,9 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         ]
         for owner, name, path, wrapper in wrappers:
             if not callable(original := vars(owner).get(name)):
-                logger.warning(f"Live session tracing skips missing google.genai.live.{path}")
+                # send_context_update does not exist in older versions of google-genai
+                if name != "send_context_update":
+                    logger.warning(f"Live session tracing skips missing google.genai.live.{path}")
                 continue
             self._original_live_methods.append((owner, name, original))
             wrap_function_wrapper("google.genai.live", path, wrapper)
