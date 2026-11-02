@@ -219,21 +219,24 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
             self._finish(None)
 
     def close(self) -> Any:
+        # Looked up first, so a stream without ``close`` (the 1.x async generator)
+        # raises AttributeError, as it would unwrapped, and the span stays open.
         # ``openai.AsyncStream.close`` is a coroutine, so the wrapped close is
         # handed back to the caller to await.
-        close = getattr(self.__wrapped__, "close", None)
+        close = self.__wrapped__.close
         try:
-            return close() if callable(close) else None
+            return close()
         finally:
             # Closed before exhaustion: leave the span status UNSET to
             # distinguish a truncated stream from a completed one.
             self._finish(None)
 
     async def aclose(self) -> None:
-        # portkey_ai 1.x streams async through an async generator, which closes with aclose.
+        # portkey_ai 1.x streams async through an async generator, which closes with
+        # aclose. openai's AsyncStream has none, so this raises AttributeError for it.
+        aclose = self.__wrapped__.aclose
         try:
-            if callable(aclose := getattr(self.__wrapped__, "aclose", None)):
-                await aclose()
+            await aclose()
         finally:
             self._finish(None)
 

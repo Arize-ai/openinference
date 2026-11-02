@@ -1,7 +1,7 @@
 import gc
 import json
 from importlib import import_module
-from typing import Any, Dict, Iterator, Tuple
+from typing import Any, AsyncIterator, Dict, Iterator, Tuple
 
 import httpx
 import pytest
@@ -797,9 +797,13 @@ def _assert_stream_span(in_memory_span_exporter: InMemorySpanExporter, name: str
     assert not attributes
 
 
-def _assert_truncated_stream_span(in_memory_span_exporter: InMemorySpanExporter, name: str) -> None:
+def _assert_truncated_stream_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    name: str,
+    status_code: trace_api.StatusCode = trace_api.StatusCode.UNSET,
+) -> None:
     """The span of a stream that was stopped after its first chunk."""
-    attributes = _pop_stream_span(in_memory_span_exporter, name, trace_api.StatusCode.UNSET)
+    attributes = _pop_stream_span(in_memory_span_exporter, name, status_code)
     assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Hel"
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
     output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
@@ -816,6 +820,25 @@ def _create_stream(**kwargs: Any) -> Any:
         messages=[{"role": "user", "content": "hi"}],
         stream=True,
         **kwargs,
+    )
+
+
+async def _create_async_stream() -> Any:
+    portkey = import_module("portkey_ai")
+    client = portkey.AsyncPortkey(api_key="REDACTED", virtual_key="REDACTED")
+    return await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=True,
+    )
+
+
+def _failing_stream_response(content: Any) -> Response:
+    """A stream whose connection drops after the bytes in ``content``."""
+    return Response(
+        status_code=200,
+        headers={"content-type": "text/event-stream"},
+        content=content,
     )
 
 
@@ -886,15 +909,9 @@ async def test_async_chat_completion_stream_closed_early(
     setup_portkey_instrumentation: None,
 ) -> None:
     in_memory_span_exporter.clear()
-    portkey = import_module("portkey_ai")
-    client = portkey.AsyncPortkey(api_key="REDACTED", virtual_key="REDACTED")
     with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
         respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
-        stream = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": "hi"}],
-            stream=True,
-        )
+        stream = await _create_async_stream()
         await stream.__anext__()
         if hasattr(stream.__wrapped__, "aclose"):
             # portkey_ai 1.x: an async generator
@@ -921,6 +938,51 @@ def test_chat_completion_stream_context_manager_exited_early(
             for _ in stream:
                 break
     _assert_truncated_stream_span(in_memory_span_exporter, "Completions")
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_stream_context_manager_exited_early(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
+        stream = await _create_async_stream()
+        if not hasattr(stream.__wrapped__, "__aenter__"):
+            await stream.aclose()
+            pytest.skip("portkey_ai 1.x streams through an async generator")
+        async with stream:
+            async for _ in stream:
+                break
+    _assert_truncated_stream_span(in_memory_span_exporter, "AsyncCompletions")
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_stream_missing_close_method(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    """A close method the stream lacks raises as it would unwrapped and leaves the span open."""
+    in_memory_span_exporter.clear()
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(return_value=_stream_response())
+        stream = await _create_async_stream()
+        await stream.__anext__()
+        if hasattr(stream.__wrapped__, "aclose"):
+            # portkey_ai 1.x: an async generator, which has no close
+            with pytest.raises(AttributeError):
+                stream.close()
+        else:
+            # portkey_ai 2.x: openai's AsyncStream, which has no aclose
+            with pytest.raises(AttributeError):
+                await stream.aclose()
+        assert not in_memory_span_exporter.get_finished_spans()
+        async for _ in stream:
+            pass
+    _assert_stream_span(in_memory_span_exporter, "AsyncCompletions")
 
 
 def test_chat_completion_stream_abandoned(
@@ -953,30 +1015,46 @@ def test_chat_completion_stream_error(
         yield _stream_events(_STREAM_CHUNKS[:1]).encode()
         raise httpx.ReadError("connection lost")
 
-    def respond(request: httpx.Request) -> Response:
-        return Response(
-            status_code=200,
-            headers={"content-type": "text/event-stream"},
-            content=body(),
-        )
-
     with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
-        respx_mock.post("/v1/chat/completions").mock(side_effect=respond)
+        respx_mock.post("/v1/chat/completions").mock(
+            side_effect=lambda request: _failing_stream_response(body())
+        )
         stream = _create_stream()
         with pytest.raises(httpx.ReadError, match="connection lost"):
             for _ in stream:
                 pass
     events = in_memory_span_exporter.get_finished_spans()[0].events
     assert [event.name for event in events] == ["exception"]
-    attributes = _pop_stream_span(
+    _assert_truncated_stream_span(
         in_memory_span_exporter, "Completions", trace_api.StatusCode.ERROR
     )
-    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Hel"
-    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
-    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
-    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
-    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}") == "Hel"
-    assert not attributes
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_stream_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    async def body() -> AsyncIterator[bytes]:
+        yield _stream_events(_STREAM_CHUNKS[:1]).encode()
+        raise httpx.ReadError("connection lost")
+
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            side_effect=lambda request: _failing_stream_response(body())
+        )
+        stream = await _create_async_stream()
+        with pytest.raises(httpx.ReadError, match="connection lost"):
+            async for _ in stream:
+                pass
+    events = in_memory_span_exporter.get_finished_spans()[0].events
+    assert [event.name for event in events] == ["exception"]
+    _assert_truncated_stream_span(
+        in_memory_span_exporter, "AsyncCompletions", trace_api.StatusCode.ERROR
+    )
 
 
 def test_chat_completion_stream_tool_calls(
