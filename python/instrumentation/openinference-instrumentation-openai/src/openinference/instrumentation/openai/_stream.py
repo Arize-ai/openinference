@@ -1,4 +1,6 @@
+import inspect
 import logging
+from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -7,6 +9,7 @@ from typing import (
     Optional,
     Protocol,
     Tuple,
+    Type,
     Union,
 )
 
@@ -66,7 +69,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             self.__wrapped__.__next__()
         try:
             chunk: Any = self.__wrapped__.__next__()
-        except Exception as exception:
+        except BaseException as exception:
             if not self._self_is_finished:
                 if isinstance(exception, StopIteration):
                     status = trace_api.Status(status_code=trace_api.StatusCode.OK)
@@ -93,7 +96,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             self.__wrapped__.__anext__()
         try:
             chunk: Any = await self.__wrapped__.__anext__()
-        except Exception as exception:
+        except BaseException as exception:
             if not self._self_is_finished:
                 if isinstance(exception, StopAsyncIteration):
                     status = trace_api.Status(status_code=trace_api.StatusCode.OK)
@@ -123,8 +126,18 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             return self
         return obj
 
-    def __exit__(self, *args: Any, **kwargs: Any) -> None:
-        self.__wrapped__.__exit__(*args, **kwargs)
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        try:
+            self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+        except BaseException as exception:
+            self._finish_tracing_with_error(exception)
+            raise
+        self._finish_tracing_on_exit(exc_val)
 
     async def __aenter__(self) -> Any:
         obj = await self.__wrapped__.__aenter__()
@@ -132,8 +145,69 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             return self
         return obj
 
-    async def __aexit__(self, *args: Any, **kwargs: Any) -> None:
-        await self.__wrapped__.__aexit__(*args, **kwargs)
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        try:
+            await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        except BaseException as exception:
+            self._finish_tracing_with_error(exception)
+            raise
+        self._finish_tracing_on_exit(exc_val)
+
+    def close(self) -> Any:
+        is_awaitable = False
+        try:
+            close = getattr(self.__wrapped__, "close", None)
+            result = close() if callable(close) else None
+            is_awaitable = inspect.isawaitable(result)
+        except BaseException as exception:
+            self._finish_tracing_with_error(exception)
+            raise
+        finally:
+            if not is_awaitable:
+                self._finish_tracing(status=None)
+        # `Stream.close` is synchronous while `AsyncStream.close` is a coroutine, so an
+        # awaited close finishes the span once the wrapped close has run.
+        if is_awaitable:
+            return self._close_and_finish(result)
+        return result
+
+    async def aclose(self) -> None:
+        try:
+            # Older releases of the SDK have no `AsyncStream.aclose`, only `close`.
+            close = getattr(self.__wrapped__, "aclose", None)
+            if not callable(close):
+                close = getattr(self.__wrapped__, "close", None)
+            if callable(close):
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
+        except BaseException as exception:
+            self._finish_tracing_with_error(exception)
+            raise
+        finally:
+            self._finish_tracing(status=None)
+
+    async def _close_and_finish(self, awaitable: Any) -> None:
+        try:
+            await awaitable
+        except BaseException as exception:
+            self._finish_tracing_with_error(exception)
+            raise
+        finally:
+            self._finish_tracing(status=None)
+
+    def __del__(self) -> None:
+        # Abandoned without any explicit teardown, possibly never iterated: the span must
+        # still be ended, otherwise the call is missing from the trace entirely.
+        try:
+            self._finish_tracing(status=None)
+        except BaseException:
+            pass
 
     def _process_chunk(self, chunk: Any) -> None:
         if not self._self_iteration_count:
@@ -158,6 +232,28 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             has_attributes=self,
         )
         self._self_is_finished = True
+
+    def _finish_tracing_on_exit(self, exception: Optional[BaseException]) -> None:
+        # Leaving the context manager without exhausting the stream ends the HTTP response
+        # but never raises StopIteration, so finish the span here. The status stays UNSET to
+        # distinguish a truncated stream from a completed one, the same way the ollama
+        # instrumentor reports an abandoned stream.
+        # GeneratorExit: a generator holding the context was closed, which leaves the stream
+        # early in the same way.
+        if exception is None or isinstance(exception, GeneratorExit):
+            self._finish_tracing(status=None)
+        else:
+            self._finish_tracing_with_error(exception)
+
+    def _finish_tracing_with_error(self, exception: BaseException) -> None:
+        # A stream that fails or is cancelled is an error, unlike one that is just left early.
+        self._self_with_span.record_exception(exception)
+        self._finish_tracing(
+            status=trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+        )
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if self._self_response_accumulator is not None:

@@ -1,5 +1,13 @@
 # @arizeai/openinference-core
 
+## 2.8.1
+
+### Patch Changes
+
+- 298ff79: Read the `OPENINFERENCE_*` environment variables when no `traceConfig` is passed. `generateTraceConfig()` returned the hard-coded defaults for an undefined config, so `OPENINFERENCE_HIDE_INPUTS=true` and the other masking variables had no effect on any instrumentation constructed without a `traceConfig`.
+- Updated dependencies [dc63d01]
+  - @arizeai/openinference-semantic-conventions@2.15.0
+
 ## 2.8.0
 
 ### Minor Changes

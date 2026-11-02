@@ -1,5 +1,6 @@
 import json
 import os
+from types import SimpleNamespace
 from typing import Any, Dict, Generator, List, Mapping, Optional, Union, cast
 from unittest.mock import patch
 
@@ -530,6 +531,144 @@ def test_completion_streaming_with_tool_calls(
     assert attributes.get(tool_call_function_name) == "get_weather"
     assert attributes.get(tool_call_function_args) == '{"location": "New York"}'
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) is None
+
+
+@pytest.mark.parametrize("fail_after_chunk", [False, True])
+def test_completion_sync_streaming_sets_error_status_on_mid_stream_failure(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+    fail_after_chunk: bool,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    class MidStreamError(Exception):
+        pass
+
+    class FailingStreamWrapper:
+        def __init__(self) -> None:
+            self._yield_chunk = fail_after_chunk
+
+        def __iter__(self) -> "FailingStreamWrapper":
+            return self
+
+        def __next__(self) -> Any:
+            if self._yield_chunk:
+                self._yield_chunk = False
+                return SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            index=0,
+                            delta=SimpleNamespace(role="assistant", content="partial"),
+                            finish_reason=None,
+                        )
+                    ]
+                )
+            raise MidStreamError("connection dropped")
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: FailingStreamWrapper()
+        )
+        with patch(
+            "litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper",
+            FailingStreamWrapper,
+        ):
+            response = litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=[{"content": "hi", "role": "user"}],
+                stream=True,
+            )
+            received = []
+            with pytest.raises(MidStreamError, match="connection dropped"):
+                for chunk in response:
+                    received.append(chunk)
+                    assert not in_memory_span_exporter.get_finished_spans()
+            assert len(received) == int(fail_after_chunk)
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description == "connection dropped"
+    exceptions = [e for e in span.events if e.name == "exception"]
+    assert len(exceptions) == 1
+    exception_attributes = exceptions[0].attributes
+    assert exception_attributes is not None
+    assert exception_attributes["exception.message"] == "connection dropped"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fail_after_chunk", [False, True])
+async def test_acompletion_streaming_sets_error_status_on_mid_stream_failure(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+    fail_after_chunk: bool,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    class MidStreamError(Exception):
+        pass
+
+    class FailingAsyncStreamWrapper:
+        def __init__(self) -> None:
+            self._yield_chunk = fail_after_chunk
+
+        def __aiter__(self) -> "FailingAsyncStreamWrapper":
+            return self
+
+        async def __anext__(self) -> Any:
+            if self._yield_chunk:
+                self._yield_chunk = False
+                return SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            index=0,
+                            delta=SimpleNamespace(role="assistant", content="partial"),
+                            finish_reason=None,
+                        )
+                    ]
+                )
+            raise MidStreamError("connection dropped")
+
+    async def fake_acompletion(*args: Any, **kwargs: Any) -> Any:
+        return FailingAsyncStreamWrapper()
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["acompletion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = fake_acompletion
+        with patch(
+            "litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper",
+            FailingAsyncStreamWrapper,
+        ):
+            response = await litellm.acompletion(
+                model="gpt-3.5-turbo",
+                messages=[{"content": "hi", "role": "user"}],
+                stream=True,
+            )
+            received = []
+            with pytest.raises(MidStreamError, match="connection dropped"):
+                async for chunk in response:
+                    received.append(chunk)
+                    assert not in_memory_span_exporter.get_finished_spans()
+            assert len(received) == int(fail_after_chunk)
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "acompletion"
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description == "connection dropped"
+    exceptions = [e for e in span.events if e.name == "exception"]
+    assert len(exceptions) == 1
+    exception_attributes = exceptions[0].attributes
+    assert exception_attributes is not None
+    assert exception_attributes["exception.message"] == "connection dropped"
 
 
 @pytest.mark.asyncio

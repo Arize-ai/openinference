@@ -1,6 +1,7 @@
+import asyncio
 import gc
 import json
-from typing import Any, Iterator
+from typing import Any, AsyncIterator, Dict, Iterator
 
 import ollama
 import pytest
@@ -292,6 +293,149 @@ def test_chat_error_records_model_name(in_memory_span_exporter: InMemorySpanExpo
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "nonexistent-model:latest"
+
+
+def _assert_interrupted_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+    name: str,
+    exception_type: "type[BaseException]",
+) -> Dict[str, Any]:
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == name
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.status.description is not None
+    assert span.status.description.startswith(f"{exception_type.__name__}:")
+    assert [event.name for event in span.events] == ["exception"]
+    event_type = str(dict(span.events[0].attributes or {})["exception.type"])
+    assert event_type.rsplit(".", 1)[-1] == exception_type.__name__
+    assert "Calling end() on an ended span" not in caplog.text
+    attrs = dict(span.attributes or {})
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    return attrs
+
+
+def test_chat_keyboard_interrupt_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    interrupt = KeyboardInterrupt()
+
+    def _interrupted(self: Any, *a: Any, **k: Any) -> Any:
+        raise interrupt
+
+    monkeypatch.setattr(Client, "_request", _interrupted)
+
+    with pytest.raises(KeyboardInterrupt) as excinfo:
+        ollama.chat(model=MODEL, messages=[{"role": "user", "content": "hi"}])
+
+    assert excinfo.value is interrupt
+    attrs = _assert_interrupted_span(in_memory_span_exporter, caplog, "Chat", KeyboardInterrupt)
+    assert SpanAttributes.OUTPUT_VALUE not in attrs
+
+
+async def test_async_chat_cancelled_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    started = asyncio.Event()
+
+    async def _hang(self: Any, *a: Any, **k: Any) -> Any:
+        started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(AsyncClient, "_request", _hang)
+
+    task = asyncio.create_task(
+        AsyncClient().chat(model=MODEL, messages=[{"role": "user", "content": "hi"}])
+    )
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert task.cancelled()
+    attrs = _assert_interrupted_span(
+        in_memory_span_exporter, caplog, "AsyncChat", asyncio.CancelledError
+    )
+    assert SpanAttributes.OUTPUT_VALUE not in attrs
+
+
+def test_chat_stream_keyboard_interrupt_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    interrupt = KeyboardInterrupt()
+
+    def _stream_chunks(self: Any, *a: Any, **k: Any) -> Iterator[ChatResponse]:
+        yield ChatResponse(
+            model=MODEL,
+            message=Message(role="assistant", content="The sky "),
+            done=False,
+        )
+        raise interrupt
+
+    monkeypatch.setattr(Client, "_request", _stream_chunks)
+
+    stream = ollama.chat(model=MODEL, messages=[{"role": "user", "content": "hi"}], stream=True)
+    with pytest.raises(KeyboardInterrupt) as excinfo:
+        list(stream)
+
+    assert excinfo.value is interrupt
+    attrs = _assert_interrupted_span(in_memory_span_exporter, caplog, "Chat", KeyboardInterrupt)
+    assert (
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "The sky "
+    )
+
+
+async def test_async_chat_stream_cancelled_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    first_chunk = asyncio.Event()
+
+    async def _stream_chunks() -> AsyncIterator[ChatResponse]:
+        yield ChatResponse(
+            model=MODEL,
+            message=Message(role="assistant", content="The sky "),
+            done=False,
+        )
+        await asyncio.Event().wait()
+
+    async def _request(self: Any, *a: Any, **k: Any) -> AsyncIterator[ChatResponse]:
+        return _stream_chunks()
+
+    monkeypatch.setattr(AsyncClient, "_request", _request)
+
+    async def _consume() -> None:
+        stream = await AsyncClient().chat(
+            model=MODEL, messages=[{"role": "user", "content": "hi"}], stream=True
+        )
+        async for _ in stream:
+            first_chunk.set()
+
+    task = asyncio.create_task(_consume())
+    await first_chunk.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert task.cancelled()
+    attrs = _assert_interrupted_span(
+        in_memory_span_exporter, caplog, "AsyncChat", asyncio.CancelledError
+    )
+    assert (
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "The sky "
+    )
 
 
 @pytest.mark.vcr
