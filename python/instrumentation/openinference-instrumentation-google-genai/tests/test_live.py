@@ -1810,6 +1810,74 @@ async def test_silent_suppressed_tool_response_does_not_suppress_later_turns(
     assert len(chains) == 2
 
 
+@pytest.mark.parametrize(
+    "scheduling",
+    ["SILENT", types.FunctionResponseScheduling.SILENT],
+    ids=["string", "enum"],
+)
+async def test_silent_suppressed_dict_response_does_not_suppress_later_turns(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+    scheduling: Any,
+) -> None:
+    response: Any = {
+        "id": "call-1",
+        "name": "get_weather",
+        "response": {"result": "sunny"},
+        "scheduling": scheduling,
+    }
+    async with client.aio.live.connect(model=MODEL, config=NON_BLOCKING_CONFIG) as session:
+        with suppress_tracing():
+            await session.send_tool_response(function_responses=response)
+        websocket.push(_audio(), _turn_complete())
+        await _drain(session)
+
+    assert [_kind(span) for span in _spans(in_memory_span_exporter)] == ["CHAIN", "LLM"]
+
+
+async def test_silent_suppressed_deprecated_send_does_not_suppress_later_turns(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL, config=NON_BLOCKING_CONFIG) as session:
+        with suppress_tracing():
+            await session.send(
+                input=types.LiveClientToolResponse(
+                    function_responses=[
+                        types.FunctionResponse(
+                            id="call-1",
+                            name="get_weather",
+                            response={"result": "sunny"},
+                            scheduling=types.FunctionResponseScheduling.SILENT,
+                        )
+                    ]
+                )
+            )
+        websocket.push(_audio(), _turn_complete())
+        await _drain(session)
+
+    assert [_kind(span) for span in _spans(in_memory_span_exporter)] == ["CHAIN", "LLM"]
+
+
+async def test_suppressed_deprecated_send_suppresses_its_reply(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        with suppress_tracing():
+            await session.send(input="secret", end_of_turn=True)
+        websocket.push(_text("Secret reply."), _turn_complete())
+        await _drain(session)
+
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
 _needs_context_update = pytest.mark.skipif(
     not hasattr(live.AsyncSession, "send_context_update"),
     reason="send_context_update is not in this google-genai version",
@@ -1979,6 +2047,96 @@ async def test_usage_after_tool_call_belongs_to_the_generation_that_made_it(
     assert (second_llm.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 20
     # the span's end time is when the model stopped, not when the usage arrived
     assert (first_llm.end_time or 0) <= (tool.start_time or 0)
+
+
+async def test_usage_after_the_client_answered_belongs_to_the_generation_that_made_the_call(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_tool_call())
+        await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-1", name="get_weather", response={"result": "sunny"}
+            )
+        )
+        websocket.push(
+            {"usageMetadata": {"totalTokenCount": 7}},
+            _text("It is sunny."),
+            _turn_complete(totalTokenCount=20),
+        )
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM", "TOOL", "LLM"]
+    _, first_llm, tool, second_llm = spans
+    assert (first_llm.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 7
+    assert (second_llm.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 20
+    assert (first_llm.end_time or 0) <= (tool.start_time or 0)
+
+
+async def test_usage_after_the_model_continued_belongs_to_the_continuation(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_tool_call())
+        await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-1", name="get_weather", response={"result": "sunny"}
+            )
+        )
+        websocket.push(
+            _text("It is sunny."),
+            {"usageMetadata": {"totalTokenCount": 20}},
+            _turn_complete(),
+        )
+        await _drain(session)
+
+    _, first_llm, _, second_llm = _spans(in_memory_span_exporter)
+    assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL not in (first_llm.attributes or {})
+    assert (second_llm.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 20
+
+
+async def test_consecutive_tool_calls_each_keep_their_usage(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_tool_call("call-1"))
+        await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-1", name="get_weather", response={"result": "sunny"}
+            )
+        )
+        websocket.push(_with_usage(_tool_call("call-2"), totalTokenCount=9))
+        await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-2", name="get_weather", response={"result": "rainy"}
+            )
+        )
+        websocket.push(_text("Done."), _turn_complete(totalTokenCount=20))
+        await _drain(session)
+
+    llms = [span for span in _spans(in_memory_span_exporter) if _kind(span) == "LLM"]
+    assert [(span.attributes or {}).get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) for span in llms] == [
+        None,
+        9,
+        20,
+    ]
 
 
 async def test_generation_before_tool_call_ends_without_usage_when_session_closes(

@@ -196,7 +196,8 @@ class _Generation:
 
 
 class _EndedGeneration:
-    """A generation that stopped at a tool call, kept open for usage that may follow."""
+    """A generation that stopped at a tool call, kept open until the model continues,
+    since usage for it may follow."""
 
     __slots__ = ("span", "status", "attributes", "end_time")
 
@@ -243,7 +244,11 @@ def _find_tool(
 def _is_silent(response: Any) -> bool:
     # SILENT responses to NON_BLOCKING calls are added to the context without prompting
     # the model; the other schedulings (WHEN_IDLE, the default, and INTERRUPT) prompt it.
-    scheduling = getattr(response, "scheduling", None)
+    scheduling = (
+        response.get("scheduling")
+        if isinstance(response, Mapping)
+        else getattr(response, "scheduling", None)
+    )
     return bool(getattr(scheduling, "value", scheduling) == "SILENT")
 
 
@@ -489,7 +494,6 @@ class _LiveSessionTracer:
     def _ensure_generation(self) -> _Generation:
         interaction = self._ensure_interaction()
         if interaction.generation is None:
-            self._finish_ended_generation(interaction)
             start_time, interaction.input_started_at = interaction.input_started_at, None
             interaction.generation = _Generation(
                 self._start_span(
@@ -712,12 +716,18 @@ class _LiveSessionTracer:
         self._ensure_interaction()
         self._end_interaction(_error_status(exception), exception)
 
-    def on_suppressed_send(self, kwargs: Mapping[str, Any]) -> None:
+    def on_suppressed_send(self, session: Any, kwargs: Mapping[str, Any]) -> None:
         # What the server replies with is suppressed too. Spans that already started are
         # not affected, and a SILENT tool response gets no reply.
         if self._interaction is not None:
             return
         responses = kwargs.get("function_responses")
+        if "input" in kwargs:  # the deprecated send()
+            try:
+                message = session._parse_client_message(kwargs["input"], kwargs.get("end_of_turn"))
+            except Exception:
+                return  # invalid input; send() raises the same error
+            responses = (message.get("tool_response") or {}).get("function_responses")
         if responses is not None:
             if not isinstance(responses, Sequence) or isinstance(responses, Mapping):
                 responses = [responses]
@@ -871,12 +881,15 @@ class _LiveSessionTracer:
                     tool.span.finish_tracing()
         if usage and (interaction := self._interaction) is not None:
             # Usage normally arrives with turn_complete. After a tool call it belongs to
-            # the generation that made the call. If there is no generation at all, keep it
-            # for the next one instead of starting an empty LLM span.
-            if interaction.generation is not None:
-                interaction.generation.usage = usage
-            elif interaction.ended_generation is not None:
+            # the generation that made the call, even if the client has already answered,
+            # until the model continues. If there is no generation at all, keep it for the
+            # next one instead of starting an empty LLM span.
+            if interaction.ended_generation is not None and (
+                server_content is None or interaction.generation is None
+            ):
                 self._finish_ended_generation(interaction, usage)
+            elif interaction.generation is not None:
+                interaction.generation.usage = usage
             else:
                 interaction.pending_usage = usage
         if server_content is not None:
@@ -892,11 +905,13 @@ class _LiveSessionTracer:
         if model_turn is not None and model_turn.parts:
             # any output starts a generation, including audio that is not recorded
             generation = self._ensure_generation()
+            self._finish_ended_generation(self._ensure_interaction())
             for part in model_turn.parts:
                 if part.text:
                     (generation.thoughts if part.thought else generation.texts).append(part.text)
         if (transcription := server_content.output_transcription) and transcription.text:
             self._ensure_generation().transcript.append(transcription.text)
+            self._finish_ended_generation(self._ensure_interaction())
         if reason := getattr(server_content, "turn_complete_reason", None):
             if self._interaction is not None and self._interaction.generation is not None:
                 self._interaction.generation.reason = getattr(reason, "value", str(reason))
@@ -921,6 +936,7 @@ class _LiveSessionTracer:
         if not new_calls:
             return
         generation = self._ensure_generation()
+        self._finish_ended_generation(self._ensure_interaction())
         generation.function_calls.extend(new_calls)
         # A blocking call ends the generation; the model continues in a new one once
         # the client sends the tool response. With only NON_BLOCKING calls the model
@@ -1134,7 +1150,7 @@ class _AsyncSessionSendWrapper:
         if (state := _sessions.get(instance)) is None or state.closed:
             return await wrapped(*args, **kwargs)
         if _is_suppressed():
-            state.on_suppressed_send(kwargs)
+            state.on_suppressed_send(instance, kwargs)
             try:
                 return await wrapped(*args, **kwargs)
             except BaseException:
