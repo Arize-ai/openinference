@@ -12,6 +12,7 @@ kept as references.
 
 import asyncio
 import logging
+import time
 import weakref
 from contextvars import ContextVar
 from typing import Any, Callable, Iterable, Iterator, Mapping, Optional, Sequence
@@ -179,6 +180,23 @@ class _Generation:
         return types.Content(role="model", parts=parts)
 
 
+class _EndedGeneration:
+    """A generation that stopped at a tool call, kept open for usage that may follow."""
+
+    __slots__ = ("span", "status", "attributes", "end_time")
+
+    def __init__(
+        self,
+        span: _WithSpan,
+        status: Optional[trace_api.Status],
+        attributes: dict[str, AttributeValue],
+    ) -> None:
+        self.span = span
+        self.status = status
+        self.attributes = attributes
+        self.end_time = time.time_ns()
+
+
 class _ToolCall:
     __slots__ = ("id", "name", "span", "answered")
 
@@ -216,21 +234,25 @@ def _is_silent(response: Any) -> bool:
 class _Interaction:
     __slots__ = (
         "span",
+        "context",
         "history",
         "user_texts",
         "input_transcript",
         "generation",
+        "ended_generation",
         "tools",
         "last_output",
         "pending_usage",
     )
 
-    def __init__(self, span: _WithSpan) -> None:
+    def __init__(self, span: _WithSpan, context: context_api.Context) -> None:
         self.span = span
+        self.context = context
         self.history: list[Any] = []
         self.user_texts: list[str] = []
         self.input_transcript: list[str] = []
         self.generation: Optional[_Generation] = None
+        self.ended_generation: Optional[_EndedGeneration] = None
         self.tools: list[_ToolCall] = []
         self.last_output = ""
         # usage that arrived while no generation was open; it goes on the next one
@@ -365,25 +387,22 @@ class _LiveSessionTracer:
         self,
         name: str,
         attributes: Mapping[str, AttributeValue],
+        context: context_api.Context,
         parent: Optional[_WithSpan] = None,
     ) -> _WithSpan:
-        # The context from connect() is attached so context attributes such as
-        # session.id are read from it, whichever task sends or receives.
-        token = context_api.attach(self._parent_context)
+        # The interaction's context is attached so that the span's parent and context
+        # attributes such as session.id do not depend on which task sends or receives.
+        token = context_api.attach(context)
         span: trace_api.Span
         try:
-            context_attributes = dict(get_attributes_from_context())
-            if self._provider_session_id and SpanAttributes.SESSION_ID not in context_attributes:
-                context_attributes[SpanAttributes.SESSION_ID] = self._provider_session_id
-            context = (
-                trace_api.set_span_in_context(parent._span, self._parent_context)
-                if parent is not None
-                else self._parent_context
-            )
             span = self._tracer.start_span(
                 name=name,
-                context=context,
-                attributes={**context_attributes, **attributes},
+                context=(
+                    trace_api.set_span_in_context(parent._span, context)
+                    if parent is not None
+                    else context
+                ),
+                attributes=attributes,
             )
         except Exception:
             logger.exception("Failed to start span")
@@ -394,19 +413,43 @@ class _LiveSessionTracer:
 
     def _ensure_interaction(self) -> _Interaction:
         if self._interaction is None:
+            context = self._interaction_context()
             self._interaction = _Interaction(
                 self._start_span(
                     _CHAIN_SPAN_NAME,
                     {SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN},
-                )
+                    context,
+                ),
+                context,
             )
         return self._interaction
+
+    def _interaction_context(self) -> context_api.Context:
+        # Context attributes active when the interaction starts apply on top of those from
+        # connect(), so using_session() and the like can be used per interaction.
+        context = self._parent_context
+        for key, value in get_attributes_from_context():
+            context = context_api.set_value(key, value, context)
+        if (
+            self._provider_session_id
+            and context_api.get_value(SpanAttributes.SESSION_ID, context) is None
+        ):
+            context = context_api.set_value(
+                SpanAttributes.SESSION_ID, self._provider_session_id, context
+            )
+        return context
 
     def _ensure_generation(self) -> _Generation:
         interaction = self._ensure_interaction()
         if interaction.generation is None:
+            self._finish_ended_generation(interaction)
             interaction.generation = _Generation(
-                self._start_span(_LLM_SPAN_NAME, self._llm_attributes, parent=interaction.span)
+                self._start_span(
+                    _LLM_SPAN_NAME,
+                    self._llm_attributes,
+                    interaction.context,
+                    parent=interaction.span,
+                )
             )
             interaction.generation.usage, interaction.pending_usage = (
                 interaction.pending_usage,
@@ -464,6 +507,7 @@ class _LiveSessionTracer:
         self,
         status: Optional[trace_api.Status],
         exception: Optional[BaseException] = None,
+        await_usage: bool = False,
     ) -> None:
         interaction = self._interaction
         if interaction is None or (generation := interaction.generation) is None:
@@ -474,8 +518,10 @@ class _LiveSessionTracer:
         try:
             interaction.flush_input_transcript()
             content = generation.content()
-            attributes[SpanAttributes.INPUT_VALUE] = self._input_value(interaction.history)
-            attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
+            # nothing to record when the user spoke and no transcription is enabled
+            if interaction.history:
+                attributes[SpanAttributes.INPUT_VALUE] = self._input_value(interaction.history)
+                attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
             attributes.update(self._input_message_attributes(interaction.history))
             if content.parts:
                 attributes[SpanAttributes.OUTPUT_VALUE] = content.model_dump_json(exclude_none=True)
@@ -493,7 +539,23 @@ class _LiveSessionTracer:
                 interaction.last_output = text
         if exception is not None:
             generation.span.record_exception(exception)
-        generation.span.finish_tracing(status=status, attributes=attributes)
+        if await_usage:
+            interaction.ended_generation = _EndedGeneration(generation.span, status, attributes)
+        else:
+            generation.span.finish_tracing(status=status, attributes=attributes)
+
+    def _finish_ended_generation(self, interaction: _Interaction, usage: Any = None) -> None:
+        if (ended := interaction.ended_generation) is None:
+            return
+        interaction.ended_generation = None
+        if usage is not None:
+            try:
+                ended.attributes.update(_usage_attributes(usage))
+            except Exception:
+                logger.exception("Failed to get Live usage attributes")
+        ended.span.finish_tracing(
+            status=ended.status, attributes=ended.attributes, end_time=ended.end_time
+        )
 
     def _end_interaction(
         self,
@@ -503,6 +565,7 @@ class _LiveSessionTracer:
         if (interaction := self._interaction) is None:
             return
         self._end_generation(status, exception)
+        self._finish_ended_generation(interaction)
         for tool in interaction.tools:
             if exception is not None:
                 tool.span.finish_tracing(status=status)
@@ -679,10 +742,13 @@ class _LiveSessionTracer:
                     tool.span.add_event("cancelled")
                     tool.span.finish_tracing()
         if usage and (interaction := self._interaction) is not None:
-            # Usage normally arrives with turn_complete. If it comes while no generation
-            # is open, keep it for the next one instead of starting an empty LLM span.
+            # Usage normally arrives with turn_complete. After a tool call it belongs to
+            # the generation that made the call. If there is no generation at all, keep it
+            # for the next one instead of starting an empty LLM span.
             if interaction.generation is not None:
                 interaction.generation.usage = usage
+            elif interaction.ended_generation is not None:
+                self._finish_ended_generation(interaction, usage)
             else:
                 interaction.pending_usage = usage
         if server_content is not None:
@@ -696,9 +762,10 @@ class _LiveSessionTracer:
             self._ensure_interaction().input_transcript.append(transcription.text)
         model_turn = server_content.model_turn
         if model_turn is not None and model_turn.parts:
+            # any output starts a generation, including audio that is not recorded
+            generation = self._ensure_generation()
             for part in model_turn.parts:
                 if part.text:
-                    generation = self._ensure_generation()
                     (generation.thoughts if part.thought else generation.texts).append(part.text)
         if (transcription := server_content.output_transcription) and transcription.text:
             self._ensure_generation().transcript.append(transcription.text)
@@ -728,7 +795,7 @@ class _LiveSessionTracer:
         # the client sends the tool response. With only NON_BLOCKING calls the model
         # keeps generating.
         if any(call.name not in self._non_blocking for call in new_calls):
-            self._end_generation(_OK)
+            self._end_generation(_OK, await_usage=True)
         interaction = self._ensure_interaction()
         for call in new_calls:
             attributes: dict[str, AttributeValue] = {
@@ -745,7 +812,12 @@ class _LiveSessionTracer:
                 _ToolCall(
                     call.id,
                     call.name,
-                    self._start_span(call.name or "tool", attributes, parent=interaction.span),
+                    self._start_span(
+                        call.name or "tool",
+                        attributes,
+                        interaction.context,
+                        parent=interaction.span,
+                    ),
                 )
             )
 

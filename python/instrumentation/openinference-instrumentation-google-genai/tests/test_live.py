@@ -14,7 +14,12 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.instrumentation import TraceConfig, suppress_tracing, using_session
+from openinference.instrumentation import (
+    TraceConfig,
+    suppress_tracing,
+    using_attributes,
+    using_session,
+)
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -657,7 +662,10 @@ async def test_usage_without_open_generation_does_not_start_a_span(
         websocket.push(
             _tool_call(),
             {"usageMetadata": {"promptTokenCount": 7, "totalTokenCount": 7}},
+            # nothing is left to attach this one to, so it waits for the next generation
+            {"usageMetadata": {"promptTokenCount": 8, "totalTokenCount": 8}},
         )
+        await session._receive()
         await session._receive()
         await session._receive()
         await session.send_tool_response(
@@ -676,8 +684,8 @@ async def test_usage_without_open_generation_does_not_start_a_span(
     spans = _spans(in_memory_span_exporter)
     assert [_kind(span) for span in spans] == ["CHAIN", "LLM", "TOOL", "LLM"]
     first, second = spans[1], spans[3]
-    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT not in (first.attributes or {})
-    assert (second.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 7
+    assert (first.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 7
+    assert (second.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 8
 
 
 async def test_tool_calls_without_ids_match_by_name(
@@ -693,7 +701,6 @@ async def test_tool_calls_without_ids_match_by_name(
             {"toolCall": {"functionCalls": [{"name": "get_weather", "args": {"city": "Rome"}}]}}
         )
         await session._receive()
-        assert [_kind(span) for span in in_memory_span_exporter.get_finished_spans()] == ["LLM"]
         await session.send_tool_response(
             function_responses=types.FunctionResponse(
                 name="get_weather", response={"result": "warm"}
@@ -1489,3 +1496,171 @@ async def test_deprecated_send_drops_embedded_media(
     spans = _spans(in_memory_span_exporter)
     assert [_kind(span) for span in spans] == ["CHAIN", "LLM"]
     _assert_payload_not_recorded(spans)
+
+
+async def test_audio_interaction_without_transcription(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    config = types.LiveConnectConfig(response_modalities=[types.Modality.AUDIO])
+    async with client.aio.live.connect(model=MODEL, config=config) as session:
+        await session.send_realtime_input(
+            audio=types.Blob(data=b"RIFFxxxx", mime_type="audio/pcm;rate=16000")
+        )
+        # audio input alone does not start a span; the user may just be silent
+        assert not in_memory_span_exporter.get_finished_spans()
+        websocket.push(
+            _audio(),
+            _audio(),
+            _turn_complete(promptTokenCount=4, responseTokenCount=3, totalTokenCount=7),
+        )
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM"]
+    chain, llm = spans
+    assert _is_child(llm, chain)
+    assert chain.status.status_code is trace_api.StatusCode.OK
+    assert llm.status.status_code is trace_api.StatusCode.OK
+    attributes = llm.attributes or {}
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 7
+    assert SpanAttributes.INPUT_VALUE not in attributes
+    assert SpanAttributes.OUTPUT_VALUE not in attributes
+    for span in spans:
+        for value in (span.attributes or {}).values():
+            assert AUDIO_DATA not in str(value)
+
+
+def _with_usage(frame: dict[str, Any], **usage: Any) -> dict[str, Any]:
+    return {**frame, "usageMetadata": usage}
+
+
+@pytest.mark.parametrize(
+    "frames",
+    [
+        pytest.param(
+            [_with_usage(_tool_call(), totalTokenCount=7)],
+            id="same-frame",
+        ),
+        pytest.param(
+            [_tool_call(), {"usageMetadata": {"totalTokenCount": 7}}],
+            id="next-frame",
+        ),
+    ],
+)
+async def test_usage_after_tool_call_belongs_to_the_generation_that_made_it(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+    frames: list[dict[str, Any]],
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(*frames)
+        for _ in frames:
+            await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-1", name="get_weather", response={"result": "sunny"}
+            )
+        )
+        websocket.push(_text("It is sunny."), _turn_complete(totalTokenCount=20))
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM", "TOOL", "LLM"]
+    _, first_llm, tool, second_llm = spans
+    assert (first_llm.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 7
+    assert (second_llm.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 20
+    # the span's end time is when the model stopped, not when the usage arrived
+    assert (first_llm.end_time or 0) <= (tool.start_time or 0)
+
+
+async def test_generation_before_tool_call_ends_without_usage_when_session_closes(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_tool_call())
+        await session._receive()
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM", "TOOL"]
+    _, llm, tool = spans
+    assert llm.status.status_code is trace_api.StatusCode.OK
+    assert (llm.end_time or 0) <= (tool.start_time or 0)
+    assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL not in (llm.attributes or {})
+
+
+async def test_context_attributes_applied_after_connect(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        with using_attributes(
+            session_id="late-session",
+            user_id="late-user",
+            metadata={"key": "value"},
+            tags=["late-tag"],
+            prompt_template="Weather in {city}?",
+            prompt_template_version="v1",
+            prompt_template_variables={"city": "Paris"},
+        ):
+            await session.send_client_content(turns=_user("weather?"))
+        # received and answered outside the context the interaction started in
+        websocket.push(_tool_call())
+        await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-1", name="get_weather", response={"result": "sunny"}
+            )
+        )
+        websocket.push(_text("It is sunny."), _turn_complete())
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM", "TOOL", "LLM"]
+    for span in spans:
+        attributes = span.attributes or {}
+        assert attributes[SpanAttributes.SESSION_ID] == "late-session"
+        assert attributes[SpanAttributes.USER_ID] == "late-user"
+        assert json.loads(str(attributes[SpanAttributes.METADATA])) == {"key": "value"}
+        assert list(attributes[SpanAttributes.TAG_TAGS]) == ["late-tag"]  # type: ignore[arg-type]
+        assert attributes[SpanAttributes.LLM_PROMPT_TEMPLATE] == "Weather in {city}?"
+        assert attributes[SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION] == "v1"
+        assert json.loads(str(attributes[SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES])) == {
+            "city": "Paris"
+        }
+
+
+async def test_each_interaction_can_have_its_own_context_attributes(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with using_attributes(session_id="connect-session", user_id="connect-user"):
+        async with client.aio.live.connect(model=MODEL) as session:
+            with using_session("first-session"):
+                await session.send_client_content(turns=_user("one"))
+            websocket.push(_text("1"), _turn_complete())
+            await _drain(session)
+            await session.send_client_content(turns=_user("two"))
+            websocket.push(_text("2"), _turn_complete())
+            await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM", "CHAIN", "LLM"]
+    sessions = [(span.attributes or {})[SpanAttributes.SESSION_ID] for span in spans]
+    assert sessions == ["first-session", "first-session", "connect-session", "connect-session"]
+    # anything the later context does not set still comes from connect()
+    for span in spans:
+        assert (span.attributes or {})[SpanAttributes.USER_ID] == "connect-user"
