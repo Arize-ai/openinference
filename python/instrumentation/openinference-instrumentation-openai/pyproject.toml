@@ -28,7 +28,7 @@ dependencies = [
   "anyio>=3.5.0",
   "opentelemetry-api",
   "opentelemetry-instrumentation",
-  "opentelemetry-semantic-conventions",
+  "opentelemetry-semantic-conventions>=0.46b0",
   "openinference-instrumentation>=0.1.71",
   "openinference-semantic-conventions>=0.1.41",
   "typing-extensions",

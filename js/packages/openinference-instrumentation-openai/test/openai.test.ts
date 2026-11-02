@@ -83,6 +83,7 @@ describe("OpenAIInstrumentation", () => {
     ["https://ai-gateway.vercel.sh/v1", "ai-gateway.vercel.sh", 443],
     ["http://localhost:8000/v1", "localhost", 8000],
     ["http://vllm.internal/v1", "vllm.internal", 80],
+    ["http://[::1]:8000/v1", "::1", 8000],
   ])(
     "records the server address and port for %s, which has no known provider",
     async (baseURL, serverAddress, serverPort) => {
@@ -384,6 +385,8 @@ describe("OpenAIInstrumentation", () => {
     expect(span.attributes["llm.system"]).toBe("openai");
     expect(span.attributes["llm.token_count.prompt"]).toBe(4);
     expect(span.attributes["llm.token_count.total"]).toBe(4);
+    expect(span.attributes["server.address"]).toBe("api.openai.com");
+    expect(span.attributes["server.port"]).toBe(443);
   });
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream

@@ -10,6 +10,7 @@ import {
   InstrumentationNodeModuleDefinition,
   safeExecuteInTheMiddle,
 } from "@opentelemetry/instrumentation";
+import { ATTR_SERVER_ADDRESS, ATTR_SERVER_PORT } from "@opentelemetry/semantic-conventions";
 import type openai from "openai";
 import { APIPromise } from "openai";
 import type { Completion, CreateEmbeddingResponse, EmbeddingCreateParams } from "openai/resources";
@@ -146,15 +147,7 @@ function getExecContext(span: Span) {
   return execContext;
 }
 
-/**
- * OpenTelemetry semantic convention keys for the endpoint a span's request was
- * sent to. They are written as literals because
- * `@opentelemetry/semantic-conventions` is not a runtime dependency.
- */
-const SERVER_ADDRESS = "server.address";
-const SERVER_PORT = "server.port";
-
-const DEFAULT_PORTS: Record<string, number> = { "http:": 80, "https:": 443 };
+const DEFAULT_PORTS: Partial<Record<string, number>> = { "http:": 80, "https:": 443 };
 
 /**
  * Gets the baseURL of the OpenAI client instance
@@ -228,13 +221,15 @@ function getServerAttributes(clientInstance: unknown): Attributes {
       return {};
     }
     const url = new URL(baseURL);
-    if (!url.hostname) {
+    // URL keeps the brackets around an IPv6 host; server.address is the bare address.
+    const hostname = url.hostname.replace(/^\[(.*)\]$/, "$1");
+    if (!hostname) {
       return {};
     }
     const port = url.port ? Number(url.port) : DEFAULT_PORTS[url.protocol];
     return port == null
-      ? { [SERVER_ADDRESS]: url.hostname }
-      : { [SERVER_ADDRESS]: url.hostname, [SERVER_PORT]: port };
+      ? { [ATTR_SERVER_ADDRESS]: hostname }
+      : { [ATTR_SERVER_ADDRESS]: hostname, [ATTR_SERVER_PORT]: port };
   } catch (error) {
     diag.debug("Failed to determine the server address from instance", error);
   }

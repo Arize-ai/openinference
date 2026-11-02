@@ -173,9 +173,26 @@ def test_server_address_is_recorded_for_hosts_with_no_known_provider(
     attributes = dict(
         _openinference_span(in_memory_span_exporter, "ChatCompletion").attributes or {}
     )
-    assert attributes.get(SERVER_ADDRESS) == server_address
-    assert attributes.get(SERVER_PORT) == server_port
+    assert attributes.pop(SERVER_ADDRESS, None) == server_address
+    assert attributes.pop(SERVER_PORT, None) == server_port
     assert LLM_PROVIDER not in attributes
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+    assert attributes.pop(INPUT_MIME_TYPE, None) == OpenInferenceMimeTypeValues.JSON.value
+    assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE, None) == OpenInferenceMimeTypeValues.JSON.value
+    assert attributes.pop(LLM_INVOCATION_PARAMETERS, None) == json.dumps({"model": "gpt-4"})
+    assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None)
+        == "what color is the sky?"
+    )
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == "sky is blue"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
+    assert attributes == {}  # test should account for all span attributes
 
 
 @pytest.mark.parametrize(
