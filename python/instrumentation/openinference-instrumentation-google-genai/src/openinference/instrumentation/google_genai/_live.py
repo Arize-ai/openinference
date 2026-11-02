@@ -104,9 +104,10 @@ _AfterSend = Callable[[Optional[BaseException]], None]
 
 
 def _is_dropped_media(part: Any) -> bool:
-    # Only inline images are recorded; audio and video bytes are dropped.
+    # Only inline images are recorded; audio and video bytes are dropped. The check matches
+    # image redaction, so that nothing kept here can get past it.
     inline_data = getattr(part, "inline_data", None)
-    if inline_data is not None and "image" not in (inline_data.mime_type or ""):
+    if inline_data is not None and not (inline_data.mime_type or "").startswith("image/"):
         return True
     # A URI is kept as a reference to the file, unless it embeds the content itself.
     # Embedded images need an image mime type, which is what image redaction looks for.
@@ -243,11 +244,19 @@ class _Interaction:
         "tools",
         "last_output",
         "pending_usage",
+        "input_started_at",
     )
 
-    def __init__(self, span: _WithSpan, context: context_api.Context) -> None:
+    def __init__(
+        self,
+        span: _WithSpan,
+        context: context_api.Context,
+        input_started_at: Optional[int] = None,
+    ) -> None:
         self.span = span
         self.context = context
+        # when audio or video input began; the first generation starts from it as well
+        self.input_started_at = input_started_at
         self.history: list[Any] = []
         self.user_texts: list[str] = []
         self.input_transcript: list[str] = []
@@ -288,6 +297,9 @@ class _LiveSessionTracer:
         self._trace_config = trace_config
         self._parent_context = parent_context
         self._provider_session_id = provider_session_id
+        # When audio or video input began. A span is only started once the input leads to
+        # something (a server message or a failure), since a microphone may stream silence.
+        self._input_started_at: Optional[int] = None
         self.closing = False
         # set once the session is closed; anything sent or received later is not traced
         self.closed = False
@@ -389,6 +401,7 @@ class _LiveSessionTracer:
         attributes: Mapping[str, AttributeValue],
         context: context_api.Context,
         parent: Optional[_WithSpan] = None,
+        start_time: Optional[int] = None,
     ) -> _WithSpan:
         # The interaction's context is attached so that the span's parent and context
         # attributes such as session.id do not depend on which task sends or receives.
@@ -403,6 +416,7 @@ class _LiveSessionTracer:
                     else context
                 ),
                 attributes=attributes,
+                start_time=start_time,
             )
         except Exception:
             logger.exception("Failed to start span")
@@ -414,13 +428,16 @@ class _LiveSessionTracer:
     def _ensure_interaction(self) -> _Interaction:
         if self._interaction is None:
             context = self._interaction_context()
+            input_started_at, self._input_started_at = self._input_started_at, None
             self._interaction = _Interaction(
                 self._start_span(
                     _CHAIN_SPAN_NAME,
                     {SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN},
                     context,
+                    start_time=input_started_at,
                 ),
                 context,
+                input_started_at,
             )
         return self._interaction
 
@@ -443,12 +460,14 @@ class _LiveSessionTracer:
         interaction = self._ensure_interaction()
         if interaction.generation is None:
             self._finish_ended_generation(interaction)
+            start_time, interaction.input_started_at = interaction.input_started_at, None
             interaction.generation = _Generation(
                 self._start_span(
                     _LLM_SPAN_NAME,
                     self._llm_attributes,
                     interaction.context,
                     parent=interaction.span,
+                    start_time=start_time,
                 )
             )
             interaction.generation.usage, interaction.pending_usage = (
@@ -585,8 +604,10 @@ class _LiveSessionTracer:
         attributes: dict[str, AttributeValue] = {}
         if user_text := "\n".join(interaction.user_texts):
             attributes[SpanAttributes.INPUT_VALUE] = user_text
+            attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
         if interaction.last_output:
             attributes[SpanAttributes.OUTPUT_VALUE] = interaction.last_output
+            attributes[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
         if exception is not None:
             interaction.span.record_exception(exception)
         interaction.span.finish_tracing(status=status, attributes=attributes)
@@ -599,6 +620,7 @@ class _LiveSessionTracer:
     def on_client_content(self, kwargs: Mapping[str, Any]) -> Optional[_AfterSend]:
         from google.genai._transformers import t_contents
 
+        self._input_started_at = None
         interaction = self._ensure_interaction()
         interaction.flush_input_transcript()
         if turns := kwargs.get("turns"):
@@ -611,18 +633,43 @@ class _LiveSessionTracer:
         return None
 
     def on_realtime_input(self, kwargs: Mapping[str, Any]) -> Optional[_AfterSend]:
-        # Audio, video and activity signals are not recorded. A turn spoken by the
-        # user starts with the first server message about it (e.g. its transcription).
+        # Audio, video and activity signals are not recorded, only when they began. An
+        # explicit activity_start is exact; otherwise it is the first chunk after the
+        # previous interaction, which includes any silence a microphone streams before
+        # the user speaks.
+        if kwargs.get("activity_start") is not None:
+            self._input_started_at = time.time_ns()
+            return self._fail_input_if_send_fails
+        if any(kwargs.get(key) is not None for key in ("media", "audio", "video")):
+            return self._on_media_input()
         if not (text := kwargs.get("text")):
             return None
         from google.genai import types
 
+        self._input_started_at = None
         interaction = self._ensure_interaction()
         interaction.flush_input_transcript()
         interaction.history.append(types.Content(role="user", parts=[types.Part(text=text)]))
         interaction.user_texts.append(text)
         self._ensure_generation()
         return None
+
+    def _on_media_input(self) -> _AfterSend:
+        if self._interaction is None and self._input_started_at is None:
+            self._input_started_at = time.time_ns()
+        return self._fail_input_if_send_fails
+
+    def _fail_input_if_send_fails(self, exception: Optional[BaseException]) -> None:
+        # A failure while an interaction is open is handled by the send wrapper.
+        if (
+            exception is None
+            or isinstance(exception, asyncio.CancelledError)
+            or self._interaction is not None
+            or self._input_started_at is None
+        ):
+            return
+        self._ensure_interaction()
+        self._end_interaction(_error_status(exception), exception)
 
     def on_tool_response(self, kwargs: Mapping[str, Any]) -> Optional[_AfterSend]:
         from google.genai import types
@@ -662,6 +709,8 @@ class _LiveSessionTracer:
         if detached:
             self.detached_send = True
         else:
+            if self._interaction is None:
+                self._input_started_at = None
             interaction = self._ensure_interaction()
             interaction.history.append(
                 types.Content(
@@ -719,7 +768,9 @@ class _LiveSessionTracer:
             return self.on_tool_response(
                 {"function_responses": tool_response.get("function_responses")}
             )
-        return None  # realtime media is not recorded
+        if message.get("realtime_input") is not None:
+            return self._on_media_input()
+        return None
 
     # ----- server messages -----
 
@@ -828,6 +879,8 @@ class _LiveSessionTracer:
         return self._interaction
 
     def fail(self, exception: BaseException) -> None:
+        if self._input_started_at is not None:
+            self._ensure_interaction()
         self._end_interaction(_error_status(exception), exception)
         self._end_background_tools(exception)
 

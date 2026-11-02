@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import json
+import time
 from contextlib import asynccontextmanager, suppress
 from typing import Any, AsyncIterator, Iterator, Optional, Sequence, Union
 
@@ -146,7 +147,11 @@ async def _drain(session: live.AsyncSession) -> list[types.LiveServerMessage]:
 
 
 def _spans(exporter: InMemorySpanExporter) -> list[ReadableSpan]:
-    return sorted(exporter.get_finished_spans(), key=lambda span: span.start_time or 0)
+    # a CHAIN and its first LLM can share a start time; the parent goes first
+    return sorted(
+        exporter.get_finished_spans(),
+        key=lambda span: (span.start_time or 0, span.parent is not None),
+    )
 
 
 def _kind(span: ReadableSpan) -> Optional[str]:
@@ -197,7 +202,9 @@ async def test_text_interaction(
     assert dict(chain.attributes or {}) == {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "CHAIN",
         SpanAttributes.INPUT_VALUE: "Say hi.",
+        SpanAttributes.INPUT_MIME_TYPE: "text/plain",
         SpanAttributes.OUTPUT_VALUE: "Hi there.",
+        SpanAttributes.OUTPUT_MIME_TYPE: "text/plain",
     }
 
     assert _is_child(llm, chain)
@@ -1531,6 +1538,155 @@ async def test_audio_interaction_without_transcription(
     for span in spans:
         for value in (span.attributes or {}).values():
             assert AUDIO_DATA not in str(value)
+
+
+@pytest.mark.parametrize(
+    "mime_type",
+    ["audio/x-image", "video/x-image", "x-image/png", "IMAGE/PNG", None],
+)
+async def test_inline_media_is_kept_only_with_an_image_mime_type(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+    mime_type: Optional[str],
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(
+            turns=types.Content(
+                role="user",
+                parts=[
+                    types.Part(text="listen"),
+                    types.Part(inline_data=types.Blob(data=b"RIFFxxxx", mime_type=mime_type)),
+                ],
+            )
+        )
+        websocket.push(_text("Heard."), _turn_complete())
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM"]
+    _assert_payload_not_recorded(spans)
+
+
+async def test_inline_image_is_still_recorded(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(
+            turns=types.Content(
+                role="user",
+                parts=[types.Part(inline_data=types.Blob(data=b"\x89PNG", mime_type="image/png"))],
+            )
+        )
+        websocket.push(_text("A picture."), _turn_complete())
+        await _drain(session)
+
+    (llm,) = [span for span in _spans(in_memory_span_exporter) if _kind(span) == "LLM"]
+    assert "image/png" in str((llm.attributes or {})[SpanAttributes.INPUT_VALUE])
+
+
+async def test_audio_interaction_starts_when_the_input_began(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        before_input = time.time_ns()
+        await session.send_realtime_input(
+            audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+        )
+        after_input = time.time_ns()
+        # later chunks of the same input do not move the start
+        await session.send_realtime_input(
+            audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+        )
+        websocket.push(_audio(), _turn_complete())
+        await _drain(session)
+
+    chain, llm = _spans(in_memory_span_exporter)
+    assert (_kind(chain), _kind(llm)) == ("CHAIN", "LLM")
+    assert _is_child(llm, chain)
+    for span in (chain, llm):
+        assert before_input <= (span.start_time or 0) <= after_input
+
+
+async def test_activity_start_sets_when_the_input_began(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_realtime_input(
+            audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+        )
+        before_activity = time.time_ns()
+        await session.send_realtime_input(activity_start=types.ActivityStart())
+        await session.send_realtime_input(activity_end=types.ActivityEnd())
+        websocket.push(_audio(), _turn_complete())
+        await _drain(session)
+
+    chain, _ = _spans(in_memory_span_exporter)
+    assert (chain.start_time or 0) >= before_activity
+
+
+async def test_failed_audio_send_before_any_response_is_an_error_span(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        websocket.send_error = RuntimeError("send failed")
+        with pytest.raises(RuntimeError, match="send failed"):
+            await session.send_realtime_input(
+                audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+            )
+        websocket.send_error = None
+
+    (chain,) = _spans(in_memory_span_exporter)
+    assert _kind(chain) == "CHAIN"
+    assert chain.status.status_code is trace_api.StatusCode.ERROR
+    assert "send failed" in (chain.status.description or "")
+
+
+async def test_audio_input_that_gets_no_response_makes_no_span(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_realtime_input(
+            audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+        )
+
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
+async def test_text_interaction_ignores_earlier_audio_input(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_realtime_input(
+            audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+        )
+        before_text = time.time_ns()
+        await session.send_client_content(turns=_user("hello"))
+        websocket.push(_text("Hi."), _turn_complete())
+        await _drain(session)
+
+    chain, llm = _spans(in_memory_span_exporter)
+    assert (chain.start_time or 0) >= before_text
+    assert (llm.start_time or 0) >= before_text
 
 
 def _with_usage(frame: dict[str, Any], **usage: Any) -> dict[str, Any]:
