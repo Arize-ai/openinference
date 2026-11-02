@@ -556,7 +556,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   ...getResponsesOutputMessagesAttributes(result),
                   ...getResponsesUsageAttributes(result),
                 });
-                span.setStatus({ code: SpanStatusCode.OK });
+                span.setStatus(
+                  result.status === "failed"
+                    ? { code: SpanStatusCode.ERROR, message: result.error?.message }
+                    : { code: SpanStatusCode.OK },
+                );
                 span.end();
               };
               if (isResponseCreateResponse(result)) {

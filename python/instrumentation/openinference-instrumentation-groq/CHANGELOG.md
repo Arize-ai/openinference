@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.34...python-openinference-instrumentation-groq-v0.1.35) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.33...python-openinference-instrumentation-groq-v0.1.34) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.32...python-openinference-instrumentation-groq-v0.1.33) (2026-10-09)
 
 

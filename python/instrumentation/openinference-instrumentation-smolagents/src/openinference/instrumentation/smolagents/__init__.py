@@ -83,16 +83,16 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         for model_subclass in exported_model_subclasses:
-            model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)  # type: ignore[arg-type]
-
-            self._original_model_generate_methods[model_subclass] = getattr(
-                model_subclass, "generate"
-            )
-            wrap_function_wrapper(
-                "smolagents",
-                model_subclass.__name__ + ".generate",
-                model_subclass_wrapper,
-            )
+            # Only wrap classes that define `generate` themselves. A subclass that inherits
+            # it (e.g. AzureOpenAIModel) is traced through its parent's wrapper; wrapping it
+            # again would save that wrapper as the "original" and uninstrument would put it back.
+            if original_generate := model_subclass.__dict__.get("generate"):
+                self._original_model_generate_methods[model_subclass] = original_generate
+                wrap_function_wrapper(
+                    "smolagents",
+                    model_subclass.__name__ + ".generate",
+                    _ModelWrapper(tracer=self._tracer),  # type: ignore[arg-type]
+                )
             if original_generate_stream := model_subclass.__dict__.get("generate_stream"):
                 self._original_model_generate_stream_methods[model_subclass] = (
                     original_generate_stream

@@ -15,6 +15,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from openinference.instrumentation.anthropic._content import _get_response_metadata
 from openinference.instrumentation.anthropic._wrappers import _get_llm_input_messages
 from openinference.semconv.trace import (
+    DocumentAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -1188,16 +1189,11 @@ def test_metadata_respects_trace_config(
 
 
 _IMAGE_DATA = "IMAGE" * 100
-_PDF_DATA = "PDF" * 100
 
 
 def _blocks_with_nested_data() -> List[Dict[str, Any]]:
     image = {"type": "base64", "media_type": "image/png", "data": _IMAGE_DATA}
     return [
-        {
-            "type": "document",
-            "source": {"type": "base64", "media_type": "application/pdf", "data": _PDF_DATA},
-        },
         {
             "type": "document",
             "source": {
@@ -1228,14 +1224,9 @@ def test_blocks_recorded_as_json_redact_their_data(hide_images: bool) -> None:
     assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}"] == "user"
     contents = f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}"
     redacted = "__REDACTED__"
-    # base64 data is always redacted, keeping the type and media type
-    assert json.loads(str(attributes[f"{contents}.0.{MESSAGE_CONTENT_TEXT}"]))["source"] == {
-        "type": "base64",
-        "media_type": "application/pdf",
-        "data": redacted,
-    }
-    nested = json.loads(str(attributes[f"{contents}.1.{MESSAGE_CONTENT_TEXT}"]))
+    nested = json.loads(str(attributes[f"{contents}.0.{MESSAGE_CONTENT_TEXT}"]))
     base64_image, url_image = nested["source"]["content"]
+    # base64 data is always redacted, keeping the type and media type
     assert base64_image["source"] == {"type": "base64", "media_type": "image/png", "data": redacted}
     # other images are redacted only if images are hidden
     assert url_image["source"] == {
@@ -1245,7 +1236,7 @@ def test_blocks_recorded_as_json_redact_their_data(hide_images: bool) -> None:
     tool_result = json.loads(str(attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"]))
     assert tool_result[0]["source"]["data"] == redacted
     for value in attributes.values():
-        assert _IMAGE_DATA not in str(value) and _PDF_DATA not in str(value)
+        assert _IMAGE_DATA not in str(value)
 
 
 def test_trace_config_hides_images_nested_in_input_blocks(
@@ -1258,9 +1249,156 @@ def test_trace_config_hides_images_nested_in_input_blocks(
     client.messages.create(model=MODEL, max_tokens=100, messages=messages)
     attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
     nested = json.loads(
-        str(attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"])
+        str(attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"])
     )
     assert nested["source"]["content"][1]["source"]["url"] == "__REDACTED__"
+
+
+_DOCUMENT = f"{MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT}"
+DOCUMENT_URL = f"{_DOCUMENT}.{DocumentAttributes.DOCUMENT_URL}"
+DOCUMENT_CONTENT = f"{_DOCUMENT}.{DocumentAttributes.DOCUMENT_CONTENT}"
+DOCUMENT_MIME_TYPE = f"{_DOCUMENT}.{DocumentAttributes.DOCUMENT_MIME_TYPE}"
+DOCUMENT_ID = f"{_DOCUMENT}.{DocumentAttributes.DOCUMENT_ID}"
+DOCUMENT_NAME = f"{_DOCUMENT}.{DocumentAttributes.DOCUMENT_NAME}"
+# trailing whitespace and newlines, which must survive verbatim
+_PLAIN_TEXT = "  Line one.\r\nLine two.  \n\n"
+
+
+def _content_attributes(attributes: Dict[str, Any], prefix: str) -> Dict[str, Any]:
+    return {
+        key[len(prefix) + 1 :]: value
+        for key, value in attributes.items()
+        if key.startswith(f"{prefix}.")
+    }
+
+
+@pytest.mark.parametrize(
+    "block, expected",
+    [
+        pytest.param(
+            {
+                "type": "document",
+                "source": {"type": "base64", "media_type": "application/pdf", "data": "JVBERi0x"},
+            },
+            {
+                DOCUMENT_URL: "data:application/pdf;base64,JVBERi0x",
+                DOCUMENT_MIME_TYPE: "application/pdf",
+            },
+            id="base64",
+        ),
+        pytest.param(
+            {"type": "document", "source": {"type": "url", "url": "https://e.com/a.pdf"}},
+            {DOCUMENT_URL: "https://e.com/a.pdf", DOCUMENT_MIME_TYPE: "application/pdf"},
+            id="url",
+        ),
+        pytest.param(
+            {
+                "type": "document",
+                "source": {"type": "text", "media_type": "text/plain", "data": _PLAIN_TEXT},
+                "title": "notes.txt",
+                "context": "some context",
+                "citations": {"enabled": True},
+            },
+            {
+                DOCUMENT_CONTENT: _PLAIN_TEXT,
+                DOCUMENT_MIME_TYPE: "text/plain",
+                DOCUMENT_NAME: "notes.txt",
+            },
+            id="text-with-title",
+        ),
+        pytest.param(
+            {"type": "document", "source": {"type": "file", "file_id": "file_1"}, "title": "a.pdf"},
+            {DOCUMENT_ID: "file_1", DOCUMENT_NAME: "a.pdf"},
+            id="file-with-title",
+        ),
+    ],
+)
+def test_input_document_blocks_are_recorded_with_document_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+    block: Dict[str, Any],
+    expected: Dict[str, Any],
+) -> None:
+    client = _mock_anthropic_client(_text_message_handler)
+    messages: Any = [{"role": "user", "content": [{"type": "text", "text": "hi"}, block]}]
+    client.messages.create(model=MODEL, max_tokens=100, messages=messages)
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    recorded = _content_attributes(attributes, f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1")
+    # exactly these leaves: no url for file or text sources, and no context or citations
+    assert recorded == {MESSAGE_CONTENT_TYPE: "document", **expected}
+
+
+def test_content_document_source_is_recorded_as_json(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    block: Dict[str, Any] = {
+        "type": "document",
+        "source": {"type": "content", "content": [{"type": "text", "text": "chunk"}]},
+        "title": "chunks",
+    }
+    client = _mock_anthropic_client(_text_message_handler)
+    messages: Any = [{"role": "user", "content": [block]}]
+    client.messages.create(model=MODEL, max_tokens=100, messages=messages)
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    recorded = _content_attributes(attributes, f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0")
+    assert recorded.keys() == {MESSAGE_CONTENT_TYPE, MESSAGE_CONTENT_TEXT}
+    assert recorded[MESSAGE_CONTENT_TYPE] == "document"
+    assert json.loads(recorded[MESSAGE_CONTENT_TEXT]) == block
+
+
+def test_unknown_document_source_is_recorded_as_json() -> None:
+    block = {"type": "document", "source": {"type": "future", "ref": "x"}}
+    attributes = dict(_get_llm_input_messages([{"role": "user", "content": [block]}]))
+    recorded = _content_attributes(attributes, f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0")
+    assert recorded.keys() == {MESSAGE_CONTENT_TYPE, MESSAGE_CONTENT_TEXT}
+    assert recorded[MESSAGE_CONTENT_TYPE] == "document"
+    assert json.loads(recorded[MESSAGE_CONTENT_TEXT]) == block
+
+
+def test_output_document_block_is_recorded_with_document_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    document = {
+        "type": "document",
+        "source": {"type": "text", "media_type": "text/plain", "data": _PLAIN_TEXT},
+        "title": "notes.txt",
+    }
+    client = _mock_anthropic_client(
+        lambda request: httpx2.Response(200, json=_message_json([document]))
+    )
+    client.messages.create(
+        model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "hi"}]
+    )
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    recorded = _content_attributes(attributes, f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0")
+    assert recorded == {
+        MESSAGE_CONTENT_TYPE: "document",
+        DOCUMENT_CONTENT: _PLAIN_TEXT,
+        DOCUMENT_MIME_TYPE: "text/plain",
+        DOCUMENT_NAME: "notes.txt",
+    }
+
+
+def test_document_block_model_passed_back_as_input_is_recorded() -> None:
+    from anthropic.types import DocumentBlock
+
+    block = DocumentBlock.model_validate(
+        {
+            "type": "document",
+            "source": {"type": "base64", "media_type": "application/pdf", "data": "JVBERi0x"},
+            "title": "a.pdf",
+        }
+    )
+    attributes = dict(_get_llm_input_messages([{"role": "user", "content": [block]}]))
+    recorded = _content_attributes(attributes, f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0")
+    assert recorded == {
+        MESSAGE_CONTENT_TYPE: "document",
+        DOCUMENT_URL: "data:application/pdf;base64,JVBERi0x",
+        DOCUMENT_MIME_TYPE: "application/pdf",
+        DOCUMENT_NAME: "a.pdf",
+    }
 
 
 def test_models_are_dumped_without_pydantic_v2_arguments() -> None:

@@ -255,7 +255,11 @@ export async function consumeResponseStreamEvents(
 
   for await (const event of stream) {
     switch (event.type) {
-      case "response.completed": {
+      // A stream can end on any of these; the incomplete and failed ones still carry the
+      // partial output and the usage.
+      case "response.completed":
+      case "response.incomplete":
+      case "response.failed": {
         response = event.response;
         break;
       }
