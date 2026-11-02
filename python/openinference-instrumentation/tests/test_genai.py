@@ -176,7 +176,8 @@ def test_get_genai_attributes_maps_llm_chat_attributes() -> None:
     assert genai_attributes[GenAIAttributes.GEN_AI_USAGE_INPUT_TOKENS] == 10
     assert genai_attributes[GenAIAttributes.GEN_AI_USAGE_OUTPUT_TOKENS] == 4
     assert genai_attributes[GenAIAttributes.GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS] == 2
-    assert genai_attributes[GenAIAttributes.GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS] == 1
+    assert genai_attributes["gen_ai.usage.cache_write.input_tokens"] == 1
+    assert "gen_ai.usage.cache_creation.input_tokens" not in genai_attributes
     assert genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS] == ("tool_call",)
 
     input_messages = _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_INPUT_MESSAGES)
