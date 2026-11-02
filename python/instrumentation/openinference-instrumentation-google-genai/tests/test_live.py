@@ -3,7 +3,7 @@
 import asyncio
 import base64
 import json
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any, AsyncIterator, Iterator, Optional, Sequence, Union
 
 import pytest
@@ -1292,9 +1292,9 @@ async def test_audio_in_tool_response_parts_is_not_recorded(
         await session.send_client_content(turns=_user("record a sound"))
         websocket.push(_tool_call())
         await session._receive()
-        # the SDK cannot serialize raw bytes in a Live tool response and raises, but the
+        # older SDKs cannot serialize raw bytes in a Live tool response and raise, but the
         # message is recorded before it is sent
-        with pytest.raises(TypeError):
+        with suppress(TypeError):
             await session.send_tool_response(
                 function_responses=types.FunctionResponse(
                     id="call-1",
