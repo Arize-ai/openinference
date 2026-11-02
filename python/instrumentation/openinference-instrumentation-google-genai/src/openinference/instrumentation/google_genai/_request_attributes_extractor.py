@@ -69,10 +69,13 @@ class _RequestAttributesExtractor:
                 logger.warning("Failed to normalize config")
                 config = None
 
-            # System instruction as the first message
+            # System instruction as the first message. `config` is a
+            # `GenerateContentConfig` by now, so `system_instruction` is already a list:
+            # the SDK's own validation converts a tuple on the way in, and normalizing it
+            # again here would be a no-op.
             if config and (system_instruction := config.system_instruction):
                 try:
-                    for content in t_contents(_normalize_tuple_contents(system_instruction)):
+                    for content in t_contents(system_instruction):
                         for attr, value in self._get_attributes_from_content(content):
                             yield (
                                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
