@@ -59,7 +59,7 @@ from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
 from .config import (
     TraceConfig,
-    _drop_reasoning_content_parts,
+    _is_message_content_part,
     mask_without_externalization,
 )
 from .context_attributes import get_attributes_from_context
@@ -217,11 +217,17 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         sampled-out spans, and must not run twice for sampled-in spans
         (the real, uploader-enabled masking happens exactly once in
         ``OpenInferenceSpan.set_attribute`` after the span exists).
+
+        With ``hide_reasoning``, message content parts are left out entirely.
+        The SDK writes the attributes the sampler sees onto the span at start,
+        and whether a part is reasoning can depend on its type being set later,
+        so these parts only reach the span through ``OpenInferenceSpan``, which
+        holds them until ``end()``.
         """
-        if self._self_config.hide_reasoning:
-            attributes = cast(Dict[str, AttributeValue], _drop_reasoning_content_parts(attributes))
         masked_attributes: Dict[str, Any] = {}
         for key, value in attributes.items():
+            if self._self_config.hide_reasoning and _is_message_content_part(key):
+                continue
             masked_value = mask_without_externalization(self._self_config, key, value)
             if masked_value is not None:
                 masked_attributes[key] = masked_value

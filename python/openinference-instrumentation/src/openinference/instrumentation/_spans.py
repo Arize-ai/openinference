@@ -1,4 +1,5 @@
-from typing import Any, Callable, Dict, Mapping, Optional, Union, cast
+from types import TracebackType
+from typing import Any, Callable, Dict, Mapping, Optional, Type, Union, cast
 
 import wrapt
 from opentelemetry.trace import Span
@@ -83,7 +84,25 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
             span = cast(Span, self.__wrapped__)
             span.set_attribute(key, masked_value)
 
+    def __enter__(self) -> "OpenInferenceSpan":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        # The wrapped span's __exit__ records the exception and ends that span
+        # directly, so write what this proxy holds back first.
+        self._write_pending_attributes()
+        cast(Span, self.__wrapped__).__exit__(exc_type, exc_val, exc_tb)
+
     def end(self, end_time: Optional[int] = None) -> None:
+        self._write_pending_attributes()
+        cast(Span, self.__wrapped__).end(end_time)
+
+    def _write_pending_attributes(self) -> None:
         parts = _drop_reasoning_content_parts(self._self_message_content_parts)
         self._self_message_content_parts.clear()
         for k, v in parts.items():
@@ -97,7 +116,6 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
             for key, value in get_genai_attributes(source_attributes).items():
                 if key not in source_attributes:
                     span.set_attribute(key, value)
-        span.end(end_time)
 
     def set_input(
         self,

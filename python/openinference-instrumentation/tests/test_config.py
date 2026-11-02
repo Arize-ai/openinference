@@ -1,15 +1,17 @@
 import os
 from contextlib import suppress
 from random import random
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 import pytest
+from opentelemetry.context import Context
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import SpanLimits
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import TracerProvider, use_span
-from opentelemetry.util.types import AttributeValue
+from opentelemetry.sdk.trace.sampling import Decision, Sampler, SamplingResult
+from opentelemetry.trace import Link, SpanKind, TracerProvider, TraceState, use_span
+from opentelemetry.util.types import Attributes, AttributeValue
 
 from openinference.instrumentation import Message, OITracer, TraceConfig, get_llm_attributes
 from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:ignore[attr-defined]
@@ -759,8 +761,7 @@ def test_hide_reasoning_applies_to_start_span_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    """Attributes passed to start_span reach the SDK span (and the sampler) directly,
-    so they are filtered there too."""
+    """Message content parts passed to start_span are filtered like those set later."""
     tracer = OITracer(tracer_provider.get_tracer(__name__), TraceConfig(hide_reasoning=True))
     tracer.start_span(
         "llm",
@@ -799,3 +800,126 @@ def test_hide_reasoning_composes_with_output_hiding(
         assert contents == []
     else:
         assert contents[0] == expected_answer
+
+
+_OUTPUT_PART = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}.0"
+
+
+@pytest.mark.parametrize(
+    ("hide_reasoning", "content_type", "exported"),
+    [
+        pytest.param(True, "reasoning", False, id="reasoning-hidden"),
+        pytest.param(True, "text", True, id="text-kept"),
+        pytest.param(False, "reasoning", True, id="flag-off"),
+    ],
+)
+def test_hide_reasoning_holds_start_span_parts_until_their_type_is_known(
+    hide_reasoning: bool,
+    content_type: str,
+    exported: bool,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """A part's text given to start_span is not written to the span before its type,
+    set later, says whether it is reasoning."""
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__), TraceConfig(hide_reasoning=hide_reasoning)
+    )
+    span = tracer.start_span("llm", attributes={f"{_OUTPUT_PART}.{_TEXT}": "secret"})
+    span.set_attribute(f"{_OUTPUT_PART}.{_TYPE}", content_type)
+    span.end()
+    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes or {}
+    expected = [{_TYPE: content_type, _TEXT: "secret"}] if exported else []
+    assert _message_contents(attributes, SpanAttributes.LLM_OUTPUT_MESSAGES, 0) == expected
+
+
+@pytest.mark.parametrize(
+    ("hide_reasoning", "content_type", "exported"),
+    [
+        pytest.param(True, "reasoning", False, id="reasoning-hidden"),
+        pytest.param(True, "text", True, id="text-kept"),
+        pytest.param(False, "reasoning", True, id="flag-off"),
+    ],
+)
+def test_hide_reasoning_applies_to_text_set_after_a_start_span_type(
+    hide_reasoning: bool,
+    content_type: str,
+    exported: bool,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__), TraceConfig(hide_reasoning=hide_reasoning)
+    )
+    span = tracer.start_span("llm", attributes={f"{_OUTPUT_PART}.{_TYPE}": content_type})
+    span.set_attribute(f"{_OUTPUT_PART}.{_TEXT}", "secret")
+    span.end()
+    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes or {}
+    expected = [{_TYPE: content_type, _TEXT: "secret"}] if exported else []
+    assert _message_contents(attributes, SpanAttributes.LLM_OUTPUT_MESSAGES, 0) == expected
+
+
+class _AttributeCapturingSampler(Sampler):
+    def __init__(self) -> None:
+        self.attributes: Dict[str, Any] = {}
+
+    def should_sample(
+        self,
+        parent_context: Optional[Context],
+        trace_id: int,
+        name: str,
+        kind: Optional[SpanKind] = None,
+        attributes: Attributes = None,
+        links: Optional[Sequence[Link]] = None,
+        trace_state: Optional[TraceState] = None,
+    ) -> SamplingResult:
+        self.attributes.update(attributes or {})
+        return SamplingResult(Decision.RECORD_AND_SAMPLE, attributes)
+
+    def get_description(self) -> str:
+        return "AttributeCapturingSampler"
+
+
+def test_hide_reasoning_keeps_message_content_parts_from_the_sampler() -> None:
+    """Whether a part is reasoning can depend on attributes set after the sampler runs,
+    so the sampler sees no message content parts at all."""
+    sampler = _AttributeCapturingSampler()
+    tracer = OITracer(
+        trace_sdk.TracerProvider(sampler=sampler).get_tracer(__name__),
+        TraceConfig(hide_reasoning=True),
+    )
+    tracer.start_span(
+        "llm",
+        attributes={
+            f"{_OUTPUT_PART}.{_TEXT}": "secret",
+            SpanAttributes.LLM_MODEL_NAME: "model",
+        },
+    ).end()
+    assert sampler.attributes == {SpanAttributes.LLM_MODEL_NAME: "model"}
+
+
+@pytest.mark.parametrize(
+    ("hide_reasoning", "content_type"),
+    [
+        pytest.param(False, "reasoning", id="flag-off"),
+        pytest.param(True, "text", id="not-reasoning"),
+    ],
+)
+def test_held_message_content_parts_are_written_when_the_span_exits_a_with_block(
+    hide_reasoning: bool,
+    content_type: str,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__), TraceConfig(hide_reasoning=hide_reasoning)
+    )
+    span = tracer.start_span("llm")
+    with span as entered:
+        assert entered is span
+        span.set_attribute(f"{_OUTPUT_PART}.{_TYPE}", content_type)
+        span.set_attribute(f"{_OUTPUT_PART}.{_TEXT}", "answer")
+    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes or {}
+    assert _message_contents(attributes, SpanAttributes.LLM_OUTPUT_MESSAGES, 0) == [
+        {_TYPE: content_type, _TEXT: "answer"}
+    ]
