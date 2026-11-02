@@ -132,6 +132,18 @@ func OutputImageKey(i int, child string) string {
 	return OutputImages + "." + strconv.Itoa(i) + "." + child
 }
 
+// InputDocumentKey returns the attribute key for the child of the i-th input
+// file document, e.g. InputDocumentKey(0, DocumentURL) == "input.documents.0.document.url".
+func InputDocumentKey(i int, child string) string {
+	return InputDocuments + "." + strconv.Itoa(i) + "." + child
+}
+
+// OutputDocumentKey returns the attribute key for the child of the i-th output
+// file document, e.g. OutputDocumentKey(0, DocumentURL) == "output.documents.0.document.url".
+func OutputDocumentKey(i int, child string) string {
+	return OutputDocuments + "." + strconv.Itoa(i) + "." + child
+}
+
 // llmMessageKey is the internal builder for "{prefix}.{i}.{child}" keys
 // where the child is one of the Message* constants.
 func llmMessageKey(prefix string, i int, child string) string {

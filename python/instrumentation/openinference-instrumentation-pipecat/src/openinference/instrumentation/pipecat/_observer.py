@@ -754,7 +754,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         # Create turn span as root (no parent)
         # Each turn will be a separate trace automatically
         # Use an empty context to ensure no ambient parent span is picked up
-        span_attributes = {
+        span_attributes: Dict[str, Any] = {
             SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
             "conversation.turn_number": self._turn_count,
         }

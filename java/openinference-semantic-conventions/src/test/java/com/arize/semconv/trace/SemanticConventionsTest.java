@@ -37,6 +37,24 @@ class SemanticConventionsTest {
     }
 
     @Test
+    void documentAttributesUseTheDocumentedKeys() {
+        assertThat(SemanticConventions.INPUT_DOCUMENTS).isEqualTo("input.documents");
+        assertThat(SemanticConventions.OUTPUT_DOCUMENTS).isEqualTo("output.documents");
+        assertThat(SemanticConventions.MESSAGE_CONTENT_DOCUMENT).isEqualTo("message_content.document");
+        assertThat(SemanticConventions.DOCUMENT_URL).isEqualTo("document.url");
+        assertThat(SemanticConventions.DOCUMENT_MIME_TYPE).isEqualTo("document.mime_type");
+        assertThat(SemanticConventions.DOCUMENT_NAME).isEqualTo("document.name");
+    }
+
+    @Test
+    void documentPathsMatchTheFlattenedPattern() {
+        assertThat(SemanticConventions.INPUT_DOCUMENTS + ".0." + SemanticConventions.DOCUMENT_URL)
+                .isEqualTo("input.documents.0.document.url");
+        assertThat(SemanticConventions.MESSAGE_CONTENT_DOCUMENT + "." + SemanticConventions.DOCUMENT_MIME_TYPE)
+                .isEqualTo("message_content.document.document.mime_type");
+    }
+
+    @Test
     void decisionAttributesUseTheDocumentedKeys() {
         assertThat(SemanticConventions.DECISION_MODEL_NAME).isEqualTo("decision.model_name");
         assertThat(SemanticConventions.DECISION_REQUEST_MODEL_NAME).isEqualTo("decision.request.model_name");

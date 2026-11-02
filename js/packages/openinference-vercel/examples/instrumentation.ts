@@ -3,12 +3,16 @@ import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conven
 import { OpenTelemetry } from "@ai-sdk/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { Resource } from "@opentelemetry/resources";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { registerTelemetry } from "ai";
 
-import { isOpenInferenceSpan, OpenInferenceSimpleSpanProcessor } from "../src/index.js";
+import {
+  enrichSpanWithOpenInference,
+  isOpenInferenceSpan,
+  OpenInferenceSimpleSpanProcessor,
+} from "../src/index.js";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
@@ -18,7 +22,7 @@ const phoenixUrl =
   "http://localhost:6006/v1/traces";
 
 export const tracerProvider = new NodeTracerProvider({
-  resource: new Resource({
+  resource: resourceFromAttributes({
     [SEMRESATTRS_PROJECT_NAME]:
       process.env["PHOENIX_PROJECT_NAME"] ?? "openinference-vercel-examples",
   }),
@@ -49,6 +53,7 @@ tracerProvider.register();
 
 registerTelemetry(
   new OpenTelemetry({
+    enrichSpan: enrichSpanWithOpenInference,
     usage: true,
     providerMetadata: true,
     embedding: true,
@@ -57,6 +62,7 @@ registerTelemetry(
     headers: true,
     toolChoice: true,
     schema: true,
+    experimental_decision: true,
   }),
 );
 

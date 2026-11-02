@@ -2,8 +2,9 @@ import logging
 from enum import Enum
 from typing import Any, Iterable, Iterator, Mapping, Optional, Sequence, Tuple
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.together._types import AttributeValue
 from openinference.instrumentation.together._utils import _as_input_attributes, _io_value_and_type
 from openinference.semconv.trace import (
     AudioAttributes,

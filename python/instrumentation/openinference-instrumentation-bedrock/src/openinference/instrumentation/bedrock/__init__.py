@@ -10,11 +10,12 @@ body is read only when the caller awaits read(), and span attributes are set at 
 
 Streaming APIs (invoke_model_with_response_stream, converse_stream, invoke_agent, etc.)
 use wrappers that start a span and wrap the event stream so the span is ended when
-the stream is fully consumed.
+the stream is fully consumed, closed, or dropped.
 
 Request/response body types (from botocore/aiobotocore service shapes): InvokeModel
-request body is the API ``body`` payload (shape blob), so kwargs["body"] may be str or
-bytes; json.loads() accepts both in Python 3.6+. Response body is botocore's
+request body is the API ``body`` payload (shape blob), so kwargs["body"] may be str,
+bytes, or a seekable file-like object (e.g. io.BytesIO); file-like bodies are read
+and restored before parsing. Response body is botocore's
 StreamingBody (sync read) or aiobotocore's StreamingBody (async read) respectively.
 
 Edge cases and limitations:
@@ -25,8 +26,9 @@ Edge cases and limitations:
   that also records and sets status on any uncaught exception.
 - Async invoke_model: Span is completed on first read() of the response body, or in
   __del__ if the body is never read (best-effort).
-- Streaming: Span ends when the event stream is fully consumed or on first exception;
-  partial consumption then discard leaves the span ended by the stream wrapper.
+- Streaming: Span ends when the event stream is fully consumed or on first exception.
+  A stream that is closed or dropped before its end ends the span with the output
+  read so far and leaves the status unset.
 - Double consumption of the same stream is not supported; the underlying stream is
   single-read.
 - Missing response body: If InvokeModel returns without a body we raise ValueError
@@ -59,6 +61,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import Status, StatusCode, Tracer
+from opentelemetry.util.types import AttributeValue
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import (
@@ -76,7 +79,6 @@ from openinference.instrumentation.bedrock._rag_wrappers import (
     _retrieve_and_generate_wrapper,
     _retrieve_wrapper,
 )
-from openinference.instrumentation.bedrock._types import AttributeValue
 from openinference.instrumentation.bedrock._wrappers import (
     _apply_guardrail_wrapper,
     _ConverseStream,
@@ -89,6 +91,7 @@ from openinference.instrumentation.bedrock.utils import _extract_invoke_model_at
 from openinference.instrumentation.bedrock.utils.anthropic import (
     _attributes as anthropic_attributes,
 )
+from openinference.instrumentation.bedrock.utils.json_utils import parse_invoke_model_body
 from openinference.instrumentation.bedrock.version import __version__
 
 # -----------------------------------------------------------------------------
@@ -425,9 +428,10 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
             with tracer.start_as_current_span("bedrock.invoke_model") as span:
                 is_claude_message_api = False
                 try:
-                    # kwargs["body"] is InvokeModelRequest payload (blob: str or bytes).
+                    # kwargs["body"] is InvokeModelRequest payload (blob: str, bytes,
+                    # or seekable file-like object).
                     if "body" in kwargs:
-                        request_body = json.loads(kwargs["body"])
+                        request_body = parse_invoke_model_body(kwargs["body"])
                         model_id = str(kwargs.get("modelId"))
                         is_claude_message_api = (
                             _extract_invoke_model_attributes.is_claude_message_api(model_id)
@@ -494,9 +498,10 @@ def _async_model_invocation_wrapper(
             ) as span:
                 is_claude_message_api = False
                 try:
-                    # kwargs["body"] is InvokeModelRequest payload (blob: str or bytes).
+                    # kwargs["body"] is InvokeModelRequest payload (blob: str, bytes,
+                    # or seekable file-like object).
                     if "body" in kwargs:
-                        request_body = json.loads(kwargs["body"])
+                        request_body = parse_invoke_model_body(kwargs["body"])
                         model_id = str(kwargs.get("modelId"))
                         is_claude_message_api = (
                             _extract_invoke_model_attributes.is_claude_message_api(model_id)

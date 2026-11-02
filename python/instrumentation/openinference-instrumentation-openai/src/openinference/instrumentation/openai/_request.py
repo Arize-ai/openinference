@@ -20,6 +20,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
 from openinference.instrumentation import (
@@ -43,7 +44,6 @@ from openinference.instrumentation.openai._response_attributes_extractor import 
     _ResponseAttributesExtractor,
 )
 from openinference.instrumentation.openai._stream import _ResponseAccumulator, _Stream
-from openinference.instrumentation.openai._types import AttributeValue
 from openinference.instrumentation.openai._utils import (
     _as_input_attributes,
     _as_output_attributes,

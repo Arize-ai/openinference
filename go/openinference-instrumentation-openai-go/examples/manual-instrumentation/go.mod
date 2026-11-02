@@ -3,7 +3,7 @@ module github.com/Arize-ai/openinference/go/openinference-instrumentation-openai
 go 1.25.0
 
 require (
-	github.com/Arize-ai/openinference/go/openinference-semantic-conventions v0.1.0
+	github.com/Arize-ai/openinference/go/openinference-semantic-conventions v0.1.11
 	github.com/openai/openai-go v1.12.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0
