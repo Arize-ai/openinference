@@ -1646,7 +1646,10 @@ _PROVIDER_TO_SYSTEM = {
 
 # Map LangChain provider names to OpenInference provider values
 _LANGCHAIN_PROVIDER_MAP = {
+    "amazon_bedrock": OpenInferenceLLMProviderValues.AWS.value,
     "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC.value,
+    "anthropic-bedrock": OpenInferenceLLMProviderValues.AWS.value,
+    "anthropic-mantle": OpenInferenceLLMProviderValues.AWS.value,
     "azure": OpenInferenceLLMProviderValues.AZURE.value,
     "azure_ai": OpenInferenceLLMProviderValues.AZURE.value,
     "azure_openai": OpenInferenceLLMProviderValues.AZURE.value,
@@ -1666,6 +1669,7 @@ _LANGCHAIN_PROVIDER_MAP = {
     "nvidia": "nvidia",
     "ollama": "ollama",
     "openai": OpenInferenceLLMProviderValues.OPENAI.value,
+    "openai-mantle": OpenInferenceLLMProviderValues.AWS.value,
     "perplexity": "perplexity",
     "together": "together",
     "vertex": OpenInferenceLLMProviderValues.GOOGLE.value,
