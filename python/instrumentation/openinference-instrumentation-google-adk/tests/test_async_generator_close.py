@@ -134,6 +134,49 @@ async def test_aclose_ends_span_in_the_calling_task_before_closing_adk_generator
     assert trace_api.get_current_span() is trace_api.INVALID_SPAN, "context was restored"
 
 
+class _BlockingStream(_Stream):
+    """Yields one event, then waits until the consuming task is cancelled."""
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> AsyncGenerator[Event, None]:
+        try:
+            yield _event("event 0")
+            await asyncio.Event().wait()
+        finally:
+            self.closed = True
+
+
+@pytest.mark.parametrize("span_name", list(_INSTRUMENT))
+async def test_cancelled_run_ends_span_unset_like_use_span(
+    span_name: str,
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stream = _BlockingStream()
+    generator = _INSTRUMENT[span_name](tracer_provider.get_tracer(__name__), stream)
+    first_event = asyncio.Event()
+
+    async def consume() -> None:
+        async for _ in generator:
+            first_event.set()
+
+    with caplog.at_level(logging.ERROR, logger=_OTEL_CONTEXT_LOGGER):
+        task = asyncio.create_task(consume())
+        await first_event.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert stream.closed
+    assert _otel_context_errors(caplog) == []
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.name == span_name
+    # CancelledError is a BaseException: like ``use_span``, it is neither recorded
+    # nor turned into an ERROR status.
+    assert span.status.status_code is StatusCode.UNSET
+    assert not span.events
+
+
 async def test_aclose_before_iteration_only_closes_adk_generator(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
