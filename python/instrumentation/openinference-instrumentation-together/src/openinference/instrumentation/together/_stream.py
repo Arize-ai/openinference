@@ -4,13 +4,13 @@ from types import SimpleNamespace
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
 from opentelemetry import trace as trace_api
+from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.together._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.together._types import AttributeValue
 from openinference.instrumentation.together._utils import _finish_tracing
 from openinference.instrumentation.together._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
@@ -186,18 +186,38 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         return self
 
     def __exit__(self, *args: Any) -> Any:
-        result = self.__wrapped__.__exit__(*args)
-        self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
-        return result
+        try:
+            return self.__wrapped__.__exit__(*args)
+        finally:
+            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
 
     async def __aenter__(self) -> "_Stream":
         await self.__wrapped__.__aenter__()
         return self
 
     async def __aexit__(self, *args: Any) -> Any:
-        result = await self.__wrapped__.__aexit__(*args)
-        self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
-        return result
+        try:
+            return await self.__wrapped__.__aexit__(*args)
+        finally:
+            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
+
+    def close(self) -> Any:
+        # ``together.AsyncStream.close`` is a coroutine, so the wrapped close is
+        # handed back to the caller to await.
+        close = getattr(self.__wrapped__, "close", None)
+        try:
+            return close() if callable(close) else None
+        finally:
+            # Closed before exhaustion: leave the span status UNSET to
+            # distinguish a truncated stream from a completed one.
+            self._finish(None)
+
+    def __del__(self) -> None:
+        # Abandoned (possibly never iterated): the span must still be ended.
+        try:
+            self._finish(None)
+        except BaseException:
+            pass
 
     def _finish_error(self, exception: Exception) -> None:
         self._self_with_span.record_exception(exception)
@@ -208,7 +228,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
             )
         )
 
-    def _finish(self, status: trace_api.Status) -> None:
+    def _finish(self, status: Optional[trace_api.Status] = None) -> None:
         if self._self_with_span.is_finished:
             return
         _finish_tracing(

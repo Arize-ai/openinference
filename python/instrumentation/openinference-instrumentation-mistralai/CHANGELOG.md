@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.3...python-openinference-instrumentation-mistralai-v2.3.0) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [2.2.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.2...python-openinference-instrumentation-mistralai-v2.2.3) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
+## [2.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.1...python-openinference-instrumentation-mistralai-v2.2.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+* **mistralai:** end the LLM span when a stream is closed, abandoned, or used as a context manager ([#3989](https://github.com/Arize-ai/openinference/issues/3989)) ([12f2cc0](https://github.com/Arize-ai/openinference/commit/12f2cc035edfb00b60b656d977f07abfb7a69900))
+
 ## [2.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.0...python-openinference-instrumentation-mistralai-v2.2.1) (2026-10-01)
 
 

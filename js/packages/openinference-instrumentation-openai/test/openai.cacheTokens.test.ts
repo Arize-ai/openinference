@@ -15,6 +15,7 @@ import {
 import { OpenAIInstrumentation } from "../src";
 import type { CacheTokenDetails } from "./fixtures/realCacheTokenResponses";
 import { realCacheTokenResponses } from "./fixtures/realCacheTokenResponses";
+import { mockAPIPromise } from "./mockAPIPromise";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -99,14 +100,13 @@ describe("OpenAIInstrumentation - real prompt cache usage", () => {
     async (_, cacheWriteTokens, expected) => {
       const recorded = realCacheTokenResponses.chatCompletionsLuna.cacheRead;
       vi.spyOn(openai, "post").mockImplementation(
-        // @ts-expect-error mock the transport response, including fields absent from older SDK types
-        async () => ({
+        mockAPIPromise(openai, async () => ({
           ...recorded,
           usage: {
             ...recorded.usage,
             prompt_tokens_details: { cached_tokens: 7, cache_write_tokens: cacheWriteTokens },
           },
-        }),
+        })),
       );
       await openai.chat.completions.create({
         model: "gpt-5.6-luna",
@@ -120,8 +120,7 @@ describe("OpenAIInstrumentation - real prompt cache usage", () => {
 
   it("records usage from the final usage-only chunk of a chat completions stream", async () => {
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      mockAPIPromise(openai, async () => {
         const iterator = () =>
           (async function* () {
             yield { choices: [{ delta: { content: "This is " } }], usage: null };
@@ -139,7 +138,7 @@ describe("OpenAIInstrumentation - real prompt cache usage", () => {
             };
           })();
         return new Stream(iterator, new AbortController());
-      },
+      }),
     );
 
     const stream = await openai.chat.completions.create({
@@ -173,10 +172,7 @@ describe("OpenAIInstrumentation - real prompt cache usage", () => {
     "records cache write then cache read token counts for %s chat completions",
     async (model, recorded) => {
       const responses = [recorded.cacheWrite, recorded.cacheRead];
-      vi.spyOn(openai, "post").mockImplementation(
-        // @ts-expect-error the response type is not correct - this is just for testing
-        async (): Promise<unknown> => responses.shift(),
-      );
+      vi.spyOn(openai, "post").mockImplementation(mockAPIPromise(openai, () => responses.shift()));
 
       for (const question of ["Write me a haiku.", "Write me a sonnet."]) {
         await openai.chat.completions.create({

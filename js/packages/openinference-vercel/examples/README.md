@@ -3,7 +3,8 @@
 ## Prereqs
 
 - Local Phoenix running and accepting OTLP traces.
-- `OPENAI_API_KEY` exported in your shell.
+- `OPENAI_API_KEY` exported in your shell for examples that call OpenAI.
+- `TYPESAFE_API_KEY` exported in your shell for examples that call TypeSafe Jev.
 
 Phoenix defaults used by these examples:
 
@@ -18,4 +19,6 @@ From `packages/openinference-vercel`:
 pnpm i
 pnpx tsx examples/ai-sdk-stream-tools.ts
 pnpx tsx examples/ai-sdk-tool-loop-agent.ts
+pnpx tsx examples/ai-sdk-decision.ts
+# ... etc
 ```

@@ -348,6 +348,10 @@ def test_callback_llm(
         assert llm_span.parent.span_id == synthesize_span.context.span_id
         assert llm_span.context.trace_id == synthesize_span.context.trace_id
         llm_attributes = dict(llm_span.attributes or {})
+        if status_code == 200 and not is_stream:
+            assert llm_attributes.pop(LLM_FINISH_REASON, None) == "stop"
+        else:
+            llm_attributes.pop(LLM_FINISH_REASON, None)
         assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert llm_attributes.pop(LLM_MODEL_NAME, None) is not None
         assert llm_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
@@ -545,6 +549,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optio
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.portkey._request_attributes_extractor import (
@@ -16,7 +17,6 @@ from openinference.instrumentation.portkey._request_attributes_extractor import 
 from openinference.instrumentation.portkey._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.portkey._types import AttributeValue
 from openinference.instrumentation.portkey._utils import (
     _finish_tracing,
     _materialize_content_iterables,
@@ -25,6 +25,12 @@ from openinference.instrumentation.portkey._with_span import _WithSpan
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+_UNSET_SENTINEL_NAMES = frozenset({"NotGiven", "Omit"})
+
+
+def _is_set(value: Any) -> bool:
+    return value is not None and type(value).__name__ not in _UNSET_SENTINEL_NAMES
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -82,13 +88,22 @@ class _WithTracer(ABC):
 
 def _parse_args(
     signature: Signature,
-    *args: Tuple[Any],
-    **kwargs: Mapping[str, Any],
+    *args: Any,
+    **kwargs: Any,
 ) -> Dict[str, Any]:
-    """Parse args and kwargs into a dictionary of parameter names to values."""
     bound_args = signature.bind(*args, **kwargs)
-    bound_args.apply_defaults()
-    return dict(bound_args.arguments)
+    request_data: Dict[str, Any] = {}
+    for name, parameter in signature.parameters.items():
+        if name not in bound_args.arguments:
+            continue
+        value = bound_args.arguments[name]
+        if parameter.kind is parameter.VAR_KEYWORD and isinstance(value, Mapping):
+            for extra_key, extra_value in value.items():
+                if _is_set(extra_value):
+                    request_data[extra_key] = extra_value
+        elif _is_set(value):
+            request_data[name] = value
+    return request_data
 
 
 class _CompletionsWrapper(_WithTracer):

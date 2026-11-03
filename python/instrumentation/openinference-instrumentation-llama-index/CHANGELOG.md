@@ -1,5 +1,38 @@
 # Changelog
 
+## [4.7.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.6.2...python-openinference-instrumentation-llama-index-v4.7.0) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [4.6.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.6.1...python-openinference-instrumentation-llama-index-v4.6.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
+## [4.6.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.6.0...python-openinference-instrumentation-llama-index-v4.6.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **llama_index:** make spans current so OpenAIInstrumentor nests under them ([#4058](https://github.com/Arize-ai/openinference/issues/4058)) ([c8144e4](https://github.com/Arize-ai/openinference/commit/c8144e4b9ce45fb8ce86099fc2de143b4d25b239))
+
+## [4.6.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.5.4...python-openinference-instrumentation-llama-index-v4.6.0) (2026-10-09)
+
+
+### Features
+
+* **llama_index:** Add Finish Reason Attribute ([#3986](https://github.com/Arize-ai/openinference/issues/3986)) ([197f7e7](https://github.com/Arize-ai/openinference/commit/197f7e7fe8b49f4da6cc9e92cc449a4553c4c15c))
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
 ## [4.5.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.5.3...python-openinference-instrumentation-llama-index-v4.5.4) (2026-10-01)
 
 

@@ -31,6 +31,7 @@ from openai.types.chat import (
 )
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Status, StatusCode, TracerProvider, get_current_span
+from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel
 from typing_extensions import Annotated, TypeAlias
 
@@ -62,7 +63,6 @@ from openinference.instrumentation._attributes import (
     _MODEL_PREFIX_TO_SYSTEM,
 )
 from openinference.instrumentation._tracers import _infer_tool_parameters
-from openinference.instrumentation._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -3709,9 +3709,9 @@ class TestSamplerAttributeAccess:
                 return "AttributeCapturingSampler"
 
         from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+        from opentelemetry.util.types import AttributeValue
 
         from openinference.instrumentation import TraceConfig, TracerProvider
-        from openinference.instrumentation._types import AttributeValue
 
         class CustomTraceConfig(TraceConfig):
             # Deliberately overrides with the legacy two-argument signature

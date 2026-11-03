@@ -38,6 +38,16 @@ class SpanAttributes:
     A list of Image Objects produced by an operation, independent of span kind.
     Flattened with indexed prefixes, e.g. `output.images.0.image.url`.
     """
+    INPUT_DOCUMENTS = "input.documents"
+    """
+    A list of Document Objects (e.g. PDFs) that are inputs to an operation, independent of
+    span kind. Flattened with indexed prefixes, e.g. `input.documents.0.document.url`.
+    """
+    OUTPUT_DOCUMENTS = "output.documents"
+    """
+    A list of Document Objects (e.g. PDFs) produced by an operation, independent of span
+    kind. Flattened with indexed prefixes, e.g. `output.documents.0.document.url`.
+    """
 
     EMBEDDING_EMBEDDINGS = "embedding.embeddings"
     """
@@ -432,7 +442,7 @@ class MessageContentAttributes:
     MESSAGE_CONTENT_TYPE = "message_content.type"
     """
     The type of the content, such as "text", "image", "audio",
-    "video", "reasoning", or "tool_use".
+    "video", "document", "reasoning", or "tool_use".
     """
     MESSAGE_CONTENT_TEXT = "message_content.text"
     """
@@ -454,6 +464,12 @@ class MessageContentAttributes:
     """
     The video content of the message, if the type is "video".
     Nested leaves come from VideoAttributes.
+    """
+    MESSAGE_CONTENT_DOCUMENT = "message_content.document"
+    """
+    The document content of the message (e.g. a PDF, an uploaded file, or inline
+    text), if the type is "document".
+    Nested leaves come from DocumentAttributes.
     """
     MESSAGE_CONTENT_ID = "message_content.id"
     """
@@ -526,7 +542,9 @@ class DocumentAttributes:
 
     DOCUMENT_ID = "document.id"
     """
-    The id of the document.
+    The id of the document: a retrieved document or chunk's id in a retrieval system, or,
+    for a document passed to a model, the provider's file id (e.g. an OpenAI or
+    Anthropic Files API id).
     """
     DOCUMENT_SCORE = "document.score"
     """
@@ -534,12 +552,26 @@ class DocumentAttributes:
     """
     DOCUMENT_CONTENT = "document.content"
     """
-    The content of the document.
+    The text content of the document: a retrieved passage, or an inline text document
+    passed to a model.
     """
     DOCUMENT_METADATA = "document.metadata"
     """
     The metadata of the document represented as a dictionary
     JSON string, e.g. `"{ 'title': 'foo' }"`
+    """
+    DOCUMENT_URL = "document.url"
+    """
+    The URL, object-store URI, or base64 data URI of a file document such as a PDF.
+    """
+    DOCUMENT_MIME_TYPE = "document.mime_type"
+    """
+    The MIME type of a document, e.g. `application/pdf`.
+    """
+    DOCUMENT_NAME = "document.name"
+    """
+    The name supplied with a document, such as a file name or a title, e.g. `invoice.pdf`.
+    Not a unique identifier.
     """
 
 

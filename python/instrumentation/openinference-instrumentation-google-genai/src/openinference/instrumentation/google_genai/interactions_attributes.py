@@ -1,6 +1,8 @@
 import logging
 from typing import Any, Iterable, Mapping, Optional, Sequence, cast
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import (
     REDACTED_VALUE,
     Image,
@@ -27,7 +29,6 @@ from openinference.instrumentation import (
 from openinference.instrumentation.google_genai._image_utils import (
     redact_images_from_request_parameters,
 )
-from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import (
     _stop_on_exception_for_dict,
     _stop_on_exception_for_iter,
