@@ -2008,6 +2008,147 @@ async def test_suppressed_receive_finishes_interaction_that_already_started(
         assert (spans[1].attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 5
 
 
+async def test_suppressed_receive_starts_no_new_spans_in_an_open_interaction(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_text("Checking."), _tool_call())
+        await session._receive()
+        with suppress_tracing():
+            await session._receive()
+        # answering the untraced call still works, and what follows is traced
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-1", name="get_weather", response={"result": "sunny"}
+            )
+        )
+        websocket.push(_text("It is sunny."), _turn_complete())
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM", "LLM"]
+    chain, first, second = spans
+    assert _is_child(first, chain)
+    assert _is_child(second, chain)
+    assert chain.status.status_code is trace_api.StatusCode.OK
+
+
+async def test_audio_turn_first_received_under_suppression_is_not_traced(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_realtime_input(
+            audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+        )
+        websocket.push(_audio(), _audio(), _turn_complete(totalTokenCount=5))
+        with suppress_tracing():
+            await session._receive()
+        await _drain(session)
+
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
+async def test_audio_input_keeps_the_context_attributes_it_was_sent_with(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with using_attributes(session_id="connect-session", tags=["connect-tag"]):
+        async with client.aio.live.connect(model=MODEL) as session:
+            with using_attributes(
+                session_id="input-session",
+                user_id="input-user",
+                metadata={"key": "value"},
+                prompt_template="Weather in {city}?",
+            ):
+                await session.send_realtime_input(
+                    audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+                )
+            # later chunks, in another context, do not replace them
+            with using_session("later-session"):
+                await session.send_realtime_input(
+                    audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+                )
+            websocket.push(_audio(), _turn_complete())
+            await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM"]
+    for span in spans:
+        attributes = span.attributes or {}
+        assert attributes[SpanAttributes.SESSION_ID] == "input-session"
+        assert attributes[SpanAttributes.USER_ID] == "input-user"
+        assert json.loads(str(attributes[SpanAttributes.METADATA])) == {"key": "value"}
+        assert attributes[SpanAttributes.LLM_PROMPT_TEMPLATE] == "Weather in {city}?"
+        assert list(attributes[SpanAttributes.TAG_TAGS]) == ["connect-tag"]  # type: ignore[arg-type]
+
+
+async def test_activity_start_keeps_the_context_attributes_it_was_sent_with(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        with using_session("earlier-session"):
+            await session.send_realtime_input(
+                audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+            )
+        with using_session("activity-session"):
+            await session.send_realtime_input(activity_start=types.ActivityStart())
+        await session.send_realtime_input(activity_end=types.ActivityEnd())
+        websocket.push(_audio(), _turn_complete())
+        await _drain(session)
+
+    for span in _spans(in_memory_span_exporter):
+        assert (span.attributes or {})[SpanAttributes.SESSION_ID] == "activity-session"
+
+
+async def test_failed_audio_send_keeps_its_context_attributes(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        websocket.send_error = RuntimeError("send failed")
+        with using_session("input-session"), pytest.raises(RuntimeError, match="send failed"):
+            await session.send_realtime_input(
+                audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+            )
+        websocket.send_error = None
+
+    (chain,) = _spans(in_memory_span_exporter)
+    assert (chain.attributes or {})[SpanAttributes.SESSION_ID] == "input-session"
+
+
+async def test_text_interaction_ignores_context_of_earlier_audio_input(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        with using_session("audio-session"):
+            await session.send_realtime_input(
+                audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+            )
+        await session.send_client_content(turns=_user("hello"))
+        websocket.push(_text("Hi."), _turn_complete())
+        await _drain(session)
+
+    for span in _spans(in_memory_span_exporter):
+        assert SpanAttributes.SESSION_ID not in (span.attributes or {})
+
+
 async def test_turn_first_received_under_suppression_is_not_traced(
     instrument: GoogleGenAIInstrumentor,
     websocket: FakeWebSocket,

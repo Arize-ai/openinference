@@ -386,6 +386,8 @@ class _LiveSessionTracer:
         # When audio or video input began. A span is only started once the input leads to
         # something (a server message or a failure), since a microphone may stream silence.
         self._input_started_at: Optional[int] = None
+        # context attributes active when that input began; only valid together with it
+        self._input_attributes: dict[str, AttributeValue] = {}
         # set while the current turn was started under suppress_tracing(), so that what
         # follows it is not traced whichever context it is sent or received in
         self.suppressed_turn = False
@@ -506,6 +508,11 @@ class _LiveSessionTracer:
     ) -> _WithSpan:
         # The interaction's context is attached so that the span's parent and context
         # attributes such as session.id do not depend on which task sends or receives.
+        # Suppression is the exception: it applies to wherever this message is handled.
+        if _is_suppressed():
+            context = context_api.set_value(
+                context_api._SUPPRESS_INSTRUMENTATION_KEY, True, context
+            )
         token = context_api.attach(context)
         span: trace_api.Span
         try:
@@ -546,7 +553,10 @@ class _LiveSessionTracer:
         # Context attributes active when the interaction starts apply on top of those from
         # connect(), so using_session() and the like can be used per interaction.
         context = self._parent_context
-        for key, value in get_attributes_from_context():
+        attributes = dict(get_attributes_from_context())
+        if self._input_started_at is not None:
+            attributes.update(self._input_attributes)
+        for key, value in attributes.items():
             context = context_api.set_value(key, value, context)
         if (
             self._provider_session_id
@@ -747,7 +757,7 @@ class _LiveSessionTracer:
         # the user speaks.
         if kwargs.get("activity_start") is not None:
             self.suppressed_turn = False
-            self._input_started_at = time.time_ns()
+            self._mark_input_started()
             return self._fail_input_if_send_fails
         if any(kwargs.get(key) is not None for key in ("media", "audio", "video")):
             return self._on_media_input()
@@ -767,8 +777,12 @@ class _LiveSessionTracer:
     def _on_media_input(self) -> _AfterSend:
         self.suppressed_turn = False
         if self._interaction is None and self._input_started_at is None:
-            self._input_started_at = time.time_ns()
+            self._mark_input_started()
         return self._fail_input_if_send_fails
+
+    def _mark_input_started(self) -> None:
+        self._input_started_at = time.time_ns()
+        self._input_attributes = dict(get_attributes_from_context())
 
     def _fail_input_if_send_fails(self, exception: Optional[BaseException]) -> None:
         # A failure while an interaction is open is handled by the send wrapper.
@@ -937,13 +951,13 @@ class _LiveSessionTracer:
         cancellation = getattr(message, "tool_call_cancellation", None)
         usage = getattr(message, "usage_metadata", None)
         # Only a new turn is suppressed here; one that already started needs its messages
-        # to finish its spans.
+        # to finish its spans. Audio input that no span exists for yet counts as new.
         if (
             suppressed
             and self._interaction is None
-            and self._input_started_at is None
             and (server_content is not None or tool_call is not None)
         ):
+            self._input_started_at = None
             self.suppressed_turn = True
         if self.suppressed_turn:
             if server_content is not None and _is_interaction_complete(server_content):
