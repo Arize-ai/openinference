@@ -1,225 +1,315 @@
-from types import SimpleNamespace
-from typing import Any, Iterator, cast
+import asyncio
+import contextvars
+import os
+from typing import Any, Generator, Iterator, List, Sequence, Tuple, cast
 
 import pytest
+import vcr  # type: ignore
 from agno.agent import Agent
+from agno.models.openai.chat import OpenAIChat
+from agno.models.openai.responses import OpenAIResponses
+from agno.tools.function import Function
+from agno.workflow.parallel import Parallel
+from agno.workflow.step import Step
+from agno.workflow.types import StepOutput
+from agno.workflow.workflow import Workflow
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context.contextvars_context import ContextVarsRuntimeContext
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.instrumentation import TraceConfig
+from openinference.instrumentation import suppress_tracing
 from openinference.instrumentation.agno import AgnoInstrumentor
-from openinference.instrumentation.agno._context import (
-    ActivationTracer,
-    SpanActivation,
-    get_activation,
-    set_activation,
-)
-from openinference.instrumentation.agno._runs_wrapper import _RunWrapper
-from openinference.instrumentation.agno._workflow_wrapper import _StepWrapper, _WorkflowWrapper
+from openinference.instrumentation.agno.utils import _AGNO_ARUN_SPANNED_CONTEXT_KEY
 from openinference.semconv.trace import SpanAttributes
+
+test_vcr = vcr.VCR(
+    serializer="yaml",
+    cassette_library_dir="tests/openinference/instrumentation/agno/fixtures/",
+    record_mode="none",
+    match_on=["uri", "method"],
+)
+
+
+_Isolated = Tuple[TracerProvider, InMemorySpanExporter, ContextVarsRuntimeContext]
 
 
 @pytest.fixture()
-def isolated_runtime_context() -> Iterator[ContextVarsRuntimeContext]:
-    runtime_context = ContextVarsRuntimeContext()
-    set_activation(SpanActivation(runtime_context))
-    try:
-        yield runtime_context
-    finally:
-        set_activation(SpanActivation())
-
-
-def _tracer(exporter: InMemorySpanExporter) -> Any:
-    tracer_provider = TracerProvider()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
-    return ActivationTracer(
-        trace_api.get_tracer("test-runtime-context-isolation", tracer_provider=tracer_provider),
-        config=TraceConfig(),
-    )
-
-
-def test_instrument_routes_activation_and_uninstrument_restores_default() -> None:
+def isolated_instrumentation() -> Iterator[_Isolated]:
+    os.environ["OPENAI_API_KEY"] = "fake_key"
     exporter = InMemorySpanExporter()
     tracer_provider = TracerProvider()
     tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
     runtime_context = ContextVarsRuntimeContext()
-    instrumentor = AgnoInstrumentor()
-
-    base_span = trace_api.get_current_span()
-
-    instrumentor.instrument(tracer_provider=tracer_provider, runtime_context=runtime_context)
+    AgnoInstrumentor().instrument(tracer_provider=tracer_provider, runtime_context=runtime_context)
     try:
-        span = trace_api.NonRecordingSpan(trace_api.SpanContext(1, 1, is_remote=False))
-        token = get_activation().attach_span(span)
-        try:
-            assert trace_api.get_current_span(runtime_context.get_current()) is span
-            assert trace_api.get_current_span() is base_span
-        finally:
-            get_activation().detach(token)
+        yield tracer_provider, exporter, runtime_context
     finally:
-        instrumentor.uninstrument()
-
-    span = trace_api.NonRecordingSpan(trace_api.SpanContext(2, 2, is_remote=False))
-    token = get_activation().attach_span(span)
-    try:
-        assert trace_api.get_current_span() is span
-    finally:
-        get_activation().detach(token)
+        AgnoInstrumentor().uninstrument()
 
 
-def test_run_wrapper_activates_only_in_isolated_context(
-    isolated_runtime_context: ContextVarsRuntimeContext,
-) -> None:
-    exporter = InMemorySpanExporter()
-    wrapper = _RunWrapper(tracer=_tracer(exporter))
-
-    agent = Agent(name="test-agent")
-    base_span = trace_api.get_current_span()
-    observed = {}
-
-    def fake_run(*_args: Any, **_kwargs: Any) -> Any:
-        observed["isolated_has_span"] = trace_api.get_current_span(
-            isolated_runtime_context.get_current()
-        ).is_recording()
-        observed["global_untouched"] = trace_api.get_current_span() is base_span
-        return SimpleNamespace(run_id="run-1", content="done")
-
-    wrapper.run(fake_run, None, (agent,), {})
-
-    assert observed == {"isolated_has_span": True, "global_untouched": True}
-    assert trace_api.get_current_span() is base_span
-    assert len(exporter.get_finished_spans()) == 1
+_Observed = List[Tuple[trace_api.Span, trace_api.Span]]
 
 
-def test_run_stream_wrapper_activates_only_in_isolated_context(
-    isolated_runtime_context: ContextVarsRuntimeContext,
-) -> None:
-    exporter = InMemorySpanExporter()
-    wrapper = _RunWrapper(tracer=_tracer(exporter))
-
-    agent = Agent(name="test-agent")
-    base_span = trace_api.get_current_span()
-
-    def fake_run_stream(*_args: Any, **_kwargs: Any) -> Iterator[Any]:
-        yield SimpleNamespace(run_id="run-1")
-
-    stream = wrapper.run_stream(fake_run_stream, None, (agent,), {})
-    next(stream)  # enters the generator body: activation is now attached
-
-    assert trace_api.get_current_span(isolated_runtime_context.get_current()).is_recording()
-    assert trace_api.get_current_span() is base_span
-
-    with pytest.raises(StopIteration):
-        next(stream)  # drains the generator: activation is detached, span ends
-
-    assert trace_api.get_current_span() is base_span
-    assert len(exporter.get_finished_spans()) == 1
-
-
-class _StepInstance:
-    name = "test-step"
-    agent = None
-    team = None
-
-
-class _WorkflowInstance:
-    name = "test-workflow"
-    description = None
-    steps = [_StepInstance()]
-    id = "workflow-1"
-    user_id = None
-
-
-def test_workflow_and_step_activate_only_in_isolated_context_and_keep_hierarchy(
-    isolated_runtime_context: ContextVarsRuntimeContext,
-) -> None:
-    exporter = InMemorySpanExporter()
-    tracer = _tracer(exporter)
-    workflow_wrapper = _WorkflowWrapper(tracer=tracer)
-    step_wrapper = _StepWrapper(tracer=tracer)
-    base_span = trace_api.get_current_span()
-
-    def fake_step_execute(*_args: Any, **_kwargs: Any) -> str:
-        assert trace_api.get_current_span(isolated_runtime_context.get_current()).is_recording()
-        assert trace_api.get_current_span() is base_span
-        return "step output"
-
-    def run(*_args: Any, **_kwargs: Any) -> str:
-        return cast(str, step_wrapper.run(fake_step_execute, _StepInstance(), (), {}))
-
-    workflow_wrapper.run(run, _WorkflowInstance(), ("hello",), {})
-
-    assert trace_api.get_current_span() is base_span
-
-    by_node_name = {
-        (span.attributes or {}).get(SpanAttributes.GRAPH_NODE_NAME): span
-        for span in exporter.get_finished_spans()
-    }
-    workflow_span, step_span = by_node_name["test-workflow"], by_node_name["test-step"]
-    assert (step_span.attributes or {})[SpanAttributes.GRAPH_NODE_PARENT_ID] == (
-        workflow_span.attributes or {}
-    )[SpanAttributes.GRAPH_NODE_ID], "step parent needs to be the workflow"
-
-
-def test_suppress_instrumentation_key_is_unaffected_by_isolated_activation(
-    isolated_runtime_context: ContextVarsRuntimeContext,
-) -> None:
-    """_SUPPRESS_INSTRUMENTATION_KEY must block span creation whatever the activation."""
-    exporter = InMemorySpanExporter()
-    wrapper = _RunWrapper(tracer=_tracer(exporter))
-    agent = Agent(name="test-agent")
-    calls = []
-
-    def fake_run(*_args: Any, **_kwargs: Any) -> str:
-        calls.append(True)
-        return "unrecorded"
-
-    suppress_token = context_api.attach(
-        context_api.set_value(context_api._SUPPRESS_INSTRUMENTATION_KEY, True)
+def _observe(observed: _Observed, runtime_context: ContextVarsRuntimeContext) -> None:
+    observed.append(
+        (
+            trace_api.get_current_span(),
+            trace_api.get_current_span(runtime_context.get_current()),
+        )
     )
-    try:
-        result = wrapper.run(fake_run, None, (agent,), {})
-    finally:
-        context_api.detach(suppress_token)
-
-    assert result == "unrecorded"
-    assert calls == [True]
-    assert len(exporter.get_finished_spans()) == 0
 
 
-def test_isolated_spans_do_not_join_the_host_trace(
-    isolated_runtime_context: ContextVarsRuntimeContext,
+def _assert_isolated_tree(
+    spans: Sequence[ReadableSpan], host_span: trace_api.Span, root_name: str
 ) -> None:
-    """The host keeps a span current in the GLOBAL context: agno must not graft onto it."""
-    exporter = InMemorySpanExporter()
-    tracer_provider = TracerProvider()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
-    tracer = _tracer(exporter)
-    workflow_wrapper = _WorkflowWrapper(tracer=tracer)
-    step_wrapper = _StepWrapper(tracer=tracer)
+    host = host_span.get_span_context()
+    agno_spans = [span for span in spans if span.context.span_id != host.span_id]
+    (root,) = [span for span in agno_spans if span.parent is None]
+    assert root.name == root_name
+    assert root.context.trace_id != host.trace_id, "agno spans must not join the host trace"
+    agno_span_ids = {span.context.span_id for span in agno_spans}
+    for span in agno_spans:
+        assert span.context.trace_id == root.context.trace_id
+        if span is not root:
+            assert span.parent is not None and span.parent.span_id in agno_span_ids, (
+                f"{span.name} must be parented inside the agno tree"
+            )
 
-    host_tracer = tracer_provider.get_tracer("host")
-    with host_tracer.start_as_current_span("host") as host_span:
-        host_context = host_span.get_span_context()
 
-        def run(*_args: Any, **_kwargs: Any) -> str:
-            return cast(str, step_wrapper.run(lambda *a, **k: "out", _StepInstance(), (), {}))
+def test_isolated_agent_run_with_failing_tool_keeps_tree_out_of_host_context(
+    isolated_instrumentation: _Isolated,
+) -> None:
+    tracer_provider, exporter, runtime_context = isolated_instrumentation
+    observed: _Observed = []
 
-        workflow_wrapper.run(run, _WorkflowInstance(), ("hello",), {})
+    def unreliable_search(query: str) -> str:
+        """A search tool that fails."""
+        _observe(observed, runtime_context)
+        raise RuntimeError(f"Search service unavailable for: {query}")
 
-    by_name = {span.name: span for span in exporter.get_finished_spans()}
-    workflow_span = next(s for n, s in by_name.items() if "test_workflow" in n)
-    step_span = next(s for n, s in by_name.items() if "test_step" in n)
-
-    assert workflow_span.parent is None, "workflow must be a root span, not a child of the host"
-    assert workflow_span.context.trace_id != host_context.trace_id, (
-        "isolated spans must not land in the host trace"
+    agent = Agent(
+        name="Search Agent",
+        model=OpenAIChat(id="gpt-4o-mini"),
+        tools=[Function.from_callable(unreliable_search, name="unreliable_search")],
     )
-    assert step_span.parent is not None
-    assert step_span.parent.span_id == workflow_span.context.span_id, (
-        "step must be a child of the workflow"
+    with tracer_provider.get_tracer("host").start_as_current_span("host") as host_span:
+        with test_vcr.use_cassette(
+            "agent_with_failing_tool.yaml", filter_headers=["authorization", "X-API-KEY"]
+        ):
+            agent.run("Search for Python tutorials", session_id="test_session")
+        assert trace_api.get_current_span() is host_span
+
+    spans = exporter.get_finished_spans()
+    by_name = {span.name: span for span in spans}
+    tool_span = by_name["unreliable_search"]
+    assert tool_span.status.status_code == trace_api.StatusCode.ERROR
+    assert "OpenAIChat.invoke" in by_name
+    ((global_span, isolated_span),) = observed
+    assert global_span is host_span, "the run must not replace the host's current span"
+    assert isolated_span.get_span_context().span_id == tool_span.context.span_id
+    _assert_isolated_tree(spans, host_span, root_name="Search_Agent.run")
+
+
+def test_isolated_agent_stream_keeps_tree_out_of_host_context(
+    isolated_instrumentation: _Isolated,
+) -> None:
+    tracer_provider, exporter, runtime_context = isolated_instrumentation
+    agent = Agent(
+        name="Reasoning Agent Stream",
+        model=OpenAIResponses(id="o4-mini", reasoning={"effort": "high", "summary": "detailed"}),
+        instructions="Use internal reasoning before answering.",
     )
+    with tracer_provider.get_tracer("host").start_as_current_span("host") as host_span:
+        with test_vcr.use_cassette(
+            "agent_run_reasoning_stream.yaml", filter_headers=["authorization", "X-API-KEY"]
+        ):
+            isolated_span_names = set()
+            for _ in agent.run(
+                "Count the number of letter 'r' in the word 'strawberry'. Use internal reasoning.",
+                session_id="test_session",
+                stream=True,
+            ):
+                assert trace_api.get_current_span() is host_span
+                isolated_span = trace_api.get_current_span(runtime_context.get_current())
+                isolated_span_names.add(getattr(isolated_span, "name", None))
+        assert trace_api.get_current_span() is host_span
+
+    assert "OpenAIResponses.invoke_stream" in isolated_span_names
+    spans = exporter.get_finished_spans()
+    assert "OpenAIResponses.invoke_stream" in {span.name for span in spans}
+    _assert_isolated_tree(spans, host_span, root_name="Reasoning_Agent_Stream.run")
+
+
+def test_isolated_stream_closed_from_another_context_still_ends_spans(
+    isolated_instrumentation: _Isolated,
+) -> None:
+    """A stream abandoned mid-LLM-call and finalized elsewhere must not raise or drop spans."""
+    _, exporter, runtime_context = isolated_instrumentation
+    agent = Agent(
+        name="Reasoning Agent Stream",
+        model=OpenAIResponses(id="o4-mini", reasoning={"effort": "high", "summary": "detailed"}),
+        instructions="Use internal reasoning before answering.",
+    )
+    with test_vcr.use_cassette(
+        "agent_run_reasoning_stream.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        stream = agent.run(
+            "Count the number of letter 'r' in the word 'strawberry'. Use internal reasoning.",
+            session_id="test_session",
+            stream=True,
+        )
+        for _ in stream:
+            isolated_span = trace_api.get_current_span(runtime_context.get_current())
+            if getattr(isolated_span, "name", None) == "OpenAIResponses.invoke_stream":
+                break
+        else:
+            pytest.fail("the stream never entered the LLM span")
+        contextvars.copy_context().run(cast(Generator[Any, None, None], stream).close)
+
+    finished = {span.name for span in exporter.get_finished_spans()}
+    assert {"OpenAIResponses.invoke_stream", "Reasoning_Agent_Stream.run"} <= finished
+
+
+async def test_isolated_workflow_arun_keeps_its_marker_out_of_the_global_context(
+    isolated_instrumentation: _Isolated,
+) -> None:
+    _, exporter, runtime_context = isolated_instrumentation
+    observed = []
+
+    async def step(step_input: Any) -> StepOutput:
+        observed.append(
+            (
+                context_api.get_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY),
+                runtime_context.get_current().get(_AGNO_ARUN_SPANNED_CONTEXT_KEY),
+            )
+        )
+        return StepOutput(step_name="fn_step", content="ok", success=True)
+
+    workflow = Workflow(name="IsolatedWorkflow", steps=[Step(name="fn_step", executor=step)])
+    await workflow.arun(input="hello")
+
+    ((global_marker, isolated_marker),) = observed
+    assert global_marker is None, "agno-private keys must not leak into the host context"
+    assert isolated_marker is not None
+    assert sorted(span.name for span in exporter.get_finished_spans()) == [
+        "IsolatedWorkflow.arun",
+        "fn_step.aexecute",
+    ], "the arun marker must still prevent a duplicate _aexecute span"
+
+
+def test_isolated_workflow_with_parallel_steps_keeps_tree_out_of_host_context(
+    isolated_instrumentation: _Isolated,
+) -> None:
+    tracer_provider, exporter, runtime_context = isolated_instrumentation
+    observed: _Observed = []
+
+    def make_step(name: str) -> Step:
+        def executor(step_input: Any) -> StepOutput:
+            _observe(observed, runtime_context)
+            return StepOutput(step_name=name, content="ok", success=True)
+
+        return Step(name=name, executor=executor)
+
+    parallel_steps: Any = [make_step("left"), make_step("right")]
+    workflow = Workflow(
+        name="IsolatedParallelWorkflow",
+        steps=[make_step("first"), Parallel(*parallel_steps, name="fan_out")],
+    )
+    with tracer_provider.get_tracer("host").start_as_current_span("host") as host_span:
+        workflow.run(input="hello")
+        assert trace_api.get_current_span() is host_span
+
+    spans = exporter.get_finished_spans()
+    span_ids = {span.context.span_id for span in spans}
+    assert len(observed) == 3
+    for global_span, isolated_span in observed:
+        # Parallel steps run in worker threads, whose global context starts empty.
+        assert global_span in (host_span, trace_api.INVALID_SPAN), (
+            "agno spans must never become current in the global context"
+        )
+        assert isolated_span.get_span_context().span_id in span_ids
+    _assert_isolated_tree(spans, host_span, root_name="IsolatedParallelWorkflow.run")
+    by_name = {span.name: span for span in spans}
+    assert (by_name["first.execute"].attributes or {})[SpanAttributes.GRAPH_NODE_PARENT_ID] == (
+        by_name["IsolatedParallelWorkflow.run"].attributes or {}
+    )[SpanAttributes.GRAPH_NODE_ID], "parent node ids must flow through the injected context"
+
+
+async def test_isolated_background_workflow_keeps_tree_out_of_host_context(
+    isolated_instrumentation: _Isolated,
+) -> None:
+    tracer_provider, exporter, runtime_context = isolated_instrumentation
+    observed: _Observed = []
+
+    async def step(step_input: Any) -> StepOutput:
+        _observe(observed, runtime_context)
+        return StepOutput(step_name="bg_step", content="ok", success=True)
+
+    workflow = Workflow(
+        name="IsolatedBackgroundWorkflow", steps=[Step(name="bg_step", executor=step)]
+    )
+    with tracer_provider.get_tracer("host").start_as_current_span("host") as host_span:
+        placeholder = await workflow.arun(input="hello", run_id="RUN-ISOLATED-BG", background=True)
+        (task,) = [
+            task
+            for task in asyncio.all_tasks()
+            if task.get_name() == f"workflow-background-{placeholder.run_id}"
+        ]
+        await asyncio.wait_for(task, timeout=5)
+
+    ((global_span, isolated_span),) = observed
+    spans = exporter.get_finished_spans()
+    assert global_span is host_span
+    assert isolated_span.get_span_context().span_id in {span.context.span_id for span in spans}
+    _assert_isolated_tree(spans, host_span, root_name="IsolatedBackgroundWorkflow._aexecute")
+
+
+def test_suppress_tracing_still_applies_in_isolated_mode(
+    isolated_instrumentation: _Isolated,
+) -> None:
+    _, exporter, _ = isolated_instrumentation
+
+    def step(step_input: Any) -> StepOutput:
+        return StepOutput(step_name="fn_step", content="ok", success=True)
+
+    workflow = Workflow(name="SuppressedWorkflow", steps=[Step(name="fn_step", executor=step)])
+    with suppress_tracing():
+        workflow.run(input="hello")
+
+    assert exporter.get_finished_spans() == ()
+
+
+def test_uninstrument_during_an_isolated_stream_leaves_no_stale_span(
+    isolated_instrumentation: _Isolated,
+) -> None:
+    """In-flight wrappers must detach from the context they attached to."""
+    _, exporter, runtime_context = isolated_instrumentation
+    agent = Agent(
+        name="Reasoning Agent Stream",
+        model=OpenAIResponses(id="o4-mini", reasoning={"effort": "high", "summary": "detailed"}),
+        instructions="Use internal reasoning before answering.",
+    )
+    with test_vcr.use_cassette(
+        "agent_run_reasoning_stream.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        stream = agent.run(
+            "Count the number of letter 'r' in the word 'strawberry'. Use internal reasoning.",
+            session_id="test_session",
+            stream=True,
+        )
+        for _ in stream:
+            isolated_span = trace_api.get_current_span(runtime_context.get_current())
+            if getattr(isolated_span, "name", None) == "OpenAIResponses.invoke_stream":
+                break
+        else:
+            pytest.fail("the stream never entered the LLM span")
+        AgnoInstrumentor().uninstrument()
+        for _ in stream:
+            pass
+
+    assert trace_api.get_current_span(runtime_context.get_current()) is trace_api.INVALID_SPAN
+    finished = {span.name for span in exporter.get_finished_spans()}
+    assert {"OpenAIResponses.invoke_stream", "Reasoning_Agent_Stream.run"} <= finished

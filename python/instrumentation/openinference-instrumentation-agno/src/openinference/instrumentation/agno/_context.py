@@ -1,16 +1,15 @@
+import logging
 from contextlib import contextmanager
 from contextvars import Token
-from typing import Iterator, Optional, Protocol, Sequence
+from typing import Iterator, Optional, Protocol
 
 from opentelemetry import context as _global_context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import Context, set_value
-from opentelemetry.trace import Link, Span, SpanKind, Status, StatusCode
-from opentelemetry.util.types import Attributes
+from opentelemetry.trace import Span, Status, StatusCode
 
-from openinference.instrumentation import OITracer
-from openinference.instrumentation._spans import OpenInferenceSpan
-from openinference.instrumentation._types import OpenInferenceSpanKind
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class RuntimeContext(Protocol):
@@ -30,7 +29,10 @@ class SpanActivation:
         return self._ctx.get_current()
 
     def detach(self, token: Token[Context]) -> None:
-        self._ctx.detach(token)
+        try:
+            self._ctx.detach(token)
+        except Exception:
+            logger.exception("Failed to detach context")
 
     def get_value(self, key: str) -> object:
         return self.get_current().get(key)
@@ -61,40 +63,4 @@ class SpanActivation:
                 span.end()
 
 
-class ActivationTracer(OITracer):
-    def start_span(
-        self,
-        name: str,
-        context: Optional[Context] = None,
-        kind: SpanKind = SpanKind.INTERNAL,
-        attributes: Attributes = None,
-        links: Optional[Sequence[Link]] = (),
-        start_time: Optional[int] = None,
-        record_exception: bool = True,
-        set_status_on_exception: bool = True,
-        *,
-        openinference_span_kind: Optional[OpenInferenceSpanKind] = None,
-    ) -> OpenInferenceSpan:
-        return super().start_span(
-            name,
-            get_activation().get_current() if context is None else context,
-            kind,
-            attributes,
-            links,
-            start_time,
-            record_exception,
-            set_status_on_exception,
-            openinference_span_kind=openinference_span_kind,
-        )
-
-
-_ACTIVATION = SpanActivation()
-
-
-def get_activation() -> SpanActivation:
-    return _ACTIVATION
-
-
-def set_activation(activation: SpanActivation) -> None:
-    global _ACTIVATION
-    _ACTIVATION = activation
+DEFAULT_ACTIVATION = SpanActivation()
