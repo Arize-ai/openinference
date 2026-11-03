@@ -1155,6 +1155,262 @@ async def test_streamed_function_call_frames_make_one_tool_span(
     assert [_kind(span) for span in spans] == ["CHAIN", "LLM", "TOOL", "LLM"]
     assert (spans[2].attributes or {})[SpanAttributes.INPUT_VALUE] == '{"city": "Paris"}'
     assert spans[2].status.status_code is trace_api.StatusCode.OK
+    assert _llm_tool_call_arguments(spans[1]) == {"city": "Paris"}
+
+
+def _llm_tool_call_arguments(llm: ReadableSpan, index: int = 0) -> Any:
+    key = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    return json.loads(str((llm.attributes or {})[key]))
+
+
+def _streamed_call(
+    call_id: Optional[str] = "call-1",
+    name: Optional[str] = "get_weather",
+    will_continue: bool = True,
+    **partial: Any,
+) -> dict[str, Any]:
+    call: dict[str, Any] = {"willContinue": will_continue}
+    if call_id:
+        call["id"] = call_id
+    if name:
+        call["name"] = name
+    if partial:
+        call["partialArgs"] = [partial]
+    return {"toolCall": {"functionCalls": [call]}}
+
+
+async def test_generation_stays_open_while_a_call_is_streamed(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_streamed_call(jsonPath="$.city", stringValue="Par", willContinue=True))
+        await session._receive()
+        websocket.push(
+            _streamed_call(jsonPath="$.city", stringValue="is"),
+            _streamed_call(jsonPath="$.days[1].hot", boolValue=True),
+            _streamed_call(jsonPath="$.count", numberValue=2.0),
+            _streamed_call(jsonPath="$['note']", nullValue="NULL_VALUE"),
+            _streamed_call(will_continue=False),
+        )
+        for _ in range(5):
+            await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-1", name="get_weather", response={"result": "sunny"}
+            )
+        )
+        websocket.push(_text("Sunny."), _turn_complete())
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM", "TOOL", "LLM"]
+    expected = {"city": "Paris", "days": [None, {"hot": True}], "count": 2.0, "note": None}
+    assert _llm_tool_call_arguments(spans[1]) == expected
+    assert json.loads(str((spans[2].attributes or {})[SpanAttributes.INPUT_VALUE])) == expected
+    assert "partial_args" not in str((spans[1].attributes or {})[SpanAttributes.OUTPUT_VALUE])
+
+
+async def test_streamed_call_without_id_makes_one_tool_span(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    client = genai.Client(vertexai=True, api_key="test-key")
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(
+            _streamed_call(call_id=None, jsonPath="$.city", stringValue="Ro"),
+            _streamed_call(call_id=None, name=None, jsonPath="$.city", stringValue="me"),
+            _streamed_call(call_id=None, name=None, will_continue=False),
+        )
+        for _ in range(3):
+            await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                name="get_weather", response={"result": "warm"}
+            )
+        )
+        websocket.push(_text("Warm."), _turn_complete())
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM", "TOOL", "LLM"]
+    assert _llm_tool_call_arguments(spans[1]) == {"city": "Rome"}
+    assert (spans[2].attributes or {})[SpanAttributes.OUTPUT_VALUE] == '{"result": "warm"}'
+
+
+async def test_generation_waits_for_every_streamed_call(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(
+            {
+                "toolCall": {
+                    "functionCalls": [
+                        {"id": "call-1", "name": "get_weather", "args": {"city": "Paris"}},
+                        {"id": "call-2", "name": "get_weather", "willContinue": True},
+                    ]
+                }
+            },
+            {
+                "toolCall": {
+                    "functionCalls": [
+                        {"id": "call-2", "name": "get_weather", "args": {"city": "Rome"}}
+                    ]
+                }
+            },
+        )
+        await session._receive()
+        await session._receive()
+
+    spans = _spans(in_memory_span_exporter)
+    llm = next(span for span in spans if _kind(span) == "LLM")
+    assert _llm_tool_call_arguments(llm, 0) == {"city": "Paris"}
+    assert _llm_tool_call_arguments(llm, 1) == {"city": "Rome"}
+    assert [_kind(span) for span in spans].count("TOOL") == 2
+
+
+async def test_tool_error_response_is_an_error_span(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_tool_call())
+        await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-1", name="get_weather", response={"error": "service down"}
+            )
+        )
+        websocket.push(_text("I could not check."), _turn_complete())
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    (tool,) = [span for span in spans if _kind(span) == "TOOL"]
+    assert tool.status.status_code is trace_api.StatusCode.ERROR
+    assert tool.status.description == "service down"
+    assert (tool.attributes or {})[SpanAttributes.OUTPUT_VALUE] == '{"error": "service down"}'
+    # the model carried on, so the interaction itself succeeded
+    assert spans[0].status.status_code is trace_api.StatusCode.OK
+
+
+async def test_structured_tool_error_is_an_error_span(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_tool_call())
+        await session._receive()
+        await session.send_tool_response(
+            function_responses={
+                "id": "call-1",
+                "name": "get_weather",
+                "response": {"error": {"code": 503}},
+            }
+        )
+
+    (tool,) = [span for span in _spans(in_memory_span_exporter) if _kind(span) == "TOOL"]
+    assert tool.status.status_code is trace_api.StatusCode.ERROR
+    assert tool.status.description == '{"code": 503}'
+
+
+async def test_tool_error_when_interaction_ends_during_the_send(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_tool_call())
+        await session._receive()
+        release = asyncio.Event()
+        original_send = websocket.send
+
+        async def slow_send(data: str) -> None:
+            await original_send(data)
+            websocket.push(_turn_complete())
+            await release.wait()
+
+        websocket.send = slow_send  # type: ignore[method-assign]
+        sender = asyncio.create_task(
+            session.send_tool_response(
+                function_responses=types.FunctionResponse(
+                    id="call-1", name="get_weather", response={"error": "service down"}
+                )
+            )
+        )
+        await asyncio.sleep(0)
+        await session._receive()
+        release.set()
+        await sender
+
+    (tool,) = [span for span in _spans(in_memory_span_exporter) if _kind(span) == "TOOL"]
+    assert tool.status.status_code is trace_api.StatusCode.ERROR
+
+
+async def test_tool_output_without_error_is_ok(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("weather?"))
+        websocket.push(_tool_call())
+        await session._receive()
+        await session.send_tool_response(
+            function_responses=types.FunctionResponse(
+                id="call-1", name="get_weather", response={"output": "sunny", "error": None}
+            )
+        )
+
+    (tool,) = [span for span in _spans(in_memory_span_exporter) if _kind(span) == "TOOL"]
+    assert tool.status.status_code is trace_api.StatusCode.OK
+
+
+async def test_hide_outputs_hides_tool_error(
+    tracer_provider: TracerProvider,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    instrumentor = GoogleGenAIInstrumentor()
+    instrumentor.instrument(tracer_provider=tracer_provider, config=TraceConfig(hide_outputs=True))
+    try:
+        async with client.aio.live.connect(model=MODEL) as session:
+            await session.send_client_content(turns=_user("weather?"))
+            websocket.push(_tool_call())
+            await session._receive()
+            await session.send_tool_response(
+                function_responses=types.FunctionResponse(
+                    id="call-1", name="get_weather", response={"error": "secret failure"}
+                )
+            )
+    finally:
+        instrumentor.uninstrument()
+
+    (tool,) = [span for span in _spans(in_memory_span_exporter) if _kind(span) == "TOOL"]
+    assert tool.status.status_code is trace_api.StatusCode.ERROR
+    assert not tool.status.description
+    assert "secret failure" not in str(dict(tool.attributes or {}))
 
 
 def get_time(city: str) -> str:
@@ -1981,6 +2237,42 @@ async def test_failed_context_update_keeps_the_previous_context(
     assert (llm.attributes or {})[system] == "old"
 
 
+@_needs_context_update
+async def test_suppressed_context_update_is_not_recorded_on_later_spans(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    config = types.LiveConnectConfig(system_instruction="old", tools=TOOLS)
+    secret_tools: types.ToolListUnion = [
+        types.Tool(
+            function_declarations=[
+                types.FunctionDeclaration(name="secret_tool", description="Secret tool")
+            ]
+        )
+    ]
+    async with client.aio.live.connect(model=MODEL, config=config) as session:
+        with suppress_tracing():
+            await _send_context_update(
+                session, system_instruction="secret instruction", tools=secret_tools
+            )
+        await session.send_client_content(turns=_user("one"))
+        websocket.push(_text("1"), _turn_complete())
+        await _drain(session)
+
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM"]
+    for span in spans:
+        assert "secret" not in str(dict(span.attributes or {}))
+    attributes = spans[1].attributes or {}
+    assert (
+        attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "old"
+    )
+    assert "get_weather" in str(attributes[f"{SpanAttributes.LLM_TOOLS}.0.tool.json_schema"])
+
+
 async def test_generation_ends_at_generation_complete(
     instrument: GoogleGenAIInstrumentor,
     websocket: FakeWebSocket,
@@ -2001,6 +2293,51 @@ async def test_generation_ends_at_generation_complete(
     assert (llm.end_time or 0) <= before_turn_complete
     assert (llm.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 5
     assert (chain.end_time or 0) >= before_turn_complete
+
+
+async def test_spoken_turn_interrupted_before_any_output_keeps_its_usage(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        before_input = time.time_ns()
+        await session.send_realtime_input(
+            audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+        )
+        websocket.push(
+            {
+                "serverContent": {"interrupted": True, "turnComplete": True},
+                "usageMetadata": {"totalTokenCount": 416},
+            }
+        )
+        await _drain(session)
+
+    chain, llm = _spans(in_memory_span_exporter)
+    assert (_kind(chain), _kind(llm)) == ("CHAIN", "LLM")
+    assert (llm.attributes or {})[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 416
+    assert (chain.start_time or 0) >= before_input
+
+
+async def test_usage_arriving_after_the_turn_does_not_start_a_span_while_audio_streams(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    client: genai.Client,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async with client.aio.live.connect(model=MODEL) as session:
+        await session.send_client_content(turns=_user("hello"))
+        websocket.push(_text("Hi."), _turn_complete())
+        await _drain(session)
+        # the microphone keeps streaming when a late usage frame arrives
+        await session.send_realtime_input(
+            audio=types.Blob(data=b"\x00\x01", mime_type="audio/pcm;rate=16000")
+        )
+        websocket.push({"usageMetadata": {"totalTokenCount": 9}})
+        await session._receive()
+
+    assert [_kind(span) for span in _spans(in_memory_span_exporter)] == ["CHAIN", "LLM"]
 
 
 def _with_usage(frame: dict[str, Any], **usage: Any) -> dict[str, Any]:

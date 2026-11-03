@@ -11,7 +11,9 @@ kept as references.
 """
 
 import asyncio
+import copy
 import logging
+import re
 import time
 import weakref
 from contextvars import ContextVar
@@ -138,6 +140,68 @@ def _without_media(content: Any) -> Any:
     return content.model_copy(update={"parts": parts}) if content.parts else content
 
 
+# Keys and indexes of a JSON path such as $.days[0].city or $['city']
+_JSON_PATH_TOKEN = re.compile(r"\[(\d+)\]|\[['\"]([^'\"]+)['\"]\]|([^.\[\]$]+)")
+
+
+def _set_partial_arg(container: Any, keys: Sequence[Any], value: Any) -> None:
+    key, *rest = keys
+    if isinstance(container, list) and isinstance(key, int):
+        container.extend([None] * (key + 1 - len(container)))
+        current = container[key]
+    elif isinstance(container, dict) and isinstance(key, str):
+        current = container.get(key)
+    else:
+        return  # the path does not fit what was streamed so far
+    if rest:
+        if not isinstance(current, (dict, list)):
+            current = [] if isinstance(rest[0], int) else {}
+            container[key] = current
+        _set_partial_arg(current, rest, value)
+    elif isinstance(value, str) and isinstance(current, str):
+        container[key] = current + value  # strings arrive in pieces
+    else:
+        container[key] = value
+
+
+def _merge_function_call(stored: Any, frame: Any) -> Any:
+    # Streamed arguments arrive as several frames for the same call, either as partial
+    # values or as complete arguments on a later frame.
+    args = frame.args if frame.args is not None else getattr(stored, "args", None)
+    if partial_args := getattr(frame, "partial_args", None):
+        args = copy.deepcopy(args) if args else {}
+        for partial in partial_args:
+            keys = [
+                int(index) if index else (quoted or name)
+                for index, quoted, name in _JSON_PATH_TOKEN.findall(partial.json_path or "")
+            ]
+            value: Any = None
+            if partial.string_value is not None:
+                value = partial.string_value
+            elif partial.number_value is not None:
+                value = partial.number_value
+            elif partial.bool_value is not None:
+                value = partial.bool_value
+            elif partial.null_value is None:
+                continue  # no value, only the end of this path
+            if keys:
+                _set_partial_arg(args, keys, value)
+    return frame.model_copy(
+        update={
+            "id": frame.id or getattr(stored, "id", None),
+            "name": frame.name or getattr(stored, "name", None),
+            "args": args,
+            "partial_args": None,
+        }
+    )
+
+
+def _tool_error(response: Any) -> Any:
+    # FunctionResponse reports a failed function with an "error" key in its response.
+    value = response.response
+    return value.get("error") if isinstance(value, Mapping) else None
+
+
 def _usage_attributes(usage_metadata: Any) -> Iterator[tuple[str, AttributeValue]]:
     # Live reports usage once per model turn as ``UsageMetadata``, which names the
     # output counts ``response_*`` instead of ``candidates_*``.
@@ -215,7 +279,7 @@ class _EndedGeneration:
 
 
 class _ToolCall:
-    __slots__ = ("id", "name", "span", "answered")
+    __slots__ = ("id", "name", "span", "answered", "error")
 
     def __init__(self, id_: Optional[str], name: Optional[str], span: _WithSpan) -> None:
         self.id = id_
@@ -223,6 +287,8 @@ class _ToolCall:
         self.span = span
         # the final response is being sent; the span ends once the send finishes
         self.answered = False
+        # what the function reported as its failure, if it did
+        self.error: Any = None
 
 
 def _find_tool(
@@ -635,7 +701,7 @@ class _LiveSessionTracer:
             elif tool.answered and status is not None:
                 # the server finished the interaction, so the response got through even
                 # though its send() has not returned yet
-                tool.span.finish_tracing(status=_OK)
+                tool.span.finish_tracing(status=self._answered_status(tool))
             else:
                 # no response yet (cancelled, or the session closed)
                 tool.span.finish_tracing()
@@ -779,6 +845,7 @@ class _LiveSessionTracer:
                 # a response with will_continue is partial; the call stays open
                 if not getattr(response, "will_continue", None):
                     tool.answered = True
+                    tool.error = _tool_error(response)
                     answered.append(tool)
         if detached:
             self.detached_send = True
@@ -803,7 +870,7 @@ class _LiveSessionTracer:
                 # the interaction may have ended (and ended the span) in the meantime
                 self._remove_tool(tool)
                 if exception is None:
-                    tool.span.finish_tracing(status=_OK)
+                    tool.span.finish_tracing(status=self._answered_status(tool))
                 elif isinstance(exception, asyncio.CancelledError):
                     tool.span.finish_tracing()
                 else:
@@ -811,6 +878,22 @@ class _LiveSessionTracer:
                     tool.span.finish_tracing(status=_error_status(exception))
 
         return end_tool_spans
+
+    def _answered_status(self, tool: _ToolCall) -> trace_api.Status:
+        if tool.error is None:
+            return _OK
+        # the error is part of the tool's output, so it is hidden along with it
+        hidden = self._trace_config is not None and self._trace_config.hide_outputs
+        return trace_api.Status(
+            status_code=trace_api.StatusCode.ERROR,
+            description=(
+                None
+                if hidden
+                else tool.error
+                if isinstance(tool.error, str)
+                else safe_json_dumps(tool.error)
+            ),
+        )
 
     def _tool_output_value(self, response: Any) -> Optional[str]:
         if not response.parts:
@@ -868,6 +951,14 @@ class _LiveSessionTracer:
             server_content = tool_call = usage = None
         if server_content is None and tool_call is None and cancellation is None and not usage:
             return  # setup, resumption, go-away and voice-activity messages
+        if (
+            usage
+            and self._interaction is None
+            and self._input_started_at is not None
+            and getattr(server_content, "turn_complete", None)
+        ):
+            # the model spent tokens on the input without any output, e.g. it was interrupted
+            self._ensure_generation()
         if server_content is not None:
             self._on_server_content(server_content)
         if tool_call is not None and tool_call.function_calls:
@@ -919,29 +1010,57 @@ class _LiveSessionTracer:
             if self._interaction is not None and (open_generation := self._interaction.generation):
                 open_generation.completed_at = open_generation.completed_at or time.time_ns()
 
+    @staticmethod
+    def _streamed_call_index(calls: Sequence[Any], frame: Any) -> Optional[int]:
+        # IDs are optional; without one, a frame continues the call being streamed.
+        for index in range(len(calls) - 1, -1, -1):
+            call = calls[index]
+            if frame.id:
+                if call.id == frame.id:
+                    return index
+            elif call.will_continue and (not frame.name or call.name == frame.name):
+                return index
+        return None
+
     def _on_tool_call(self, function_calls: Sequence[Any]) -> None:
         new_calls = []
-        for call in function_calls:
-            # streamed arguments arrive as several frames for the same call
-            if call.id and (tool := self._find_tool(call.id, None)):
-                if call.args is not None:
-                    tool.span.set_attributes(
-                        {
-                            SpanAttributes.INPUT_VALUE: safe_json_dumps(call.args),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-                        }
-                    )
-            else:
+        continued_calls = []
+        open_generation = self._interaction.generation if self._interaction is not None else None
+        calls = open_generation.function_calls if open_generation is not None else []
+        for frame in function_calls:
+            index = self._streamed_call_index(calls, frame)
+            stored = calls[index] if index is not None else None
+            call = _merge_function_call(stored, frame)
+            tool = (
+                self._find_tool(call.id, None if call.id else call.name)
+                if frame.id or stored is not None
+                else None
+            )
+            if tool is None:
                 new_calls.append(call)
-        if not new_calls:
+                continue
+            if index is not None:
+                calls[index] = call
+                continued_calls.append(call)
+            if call.args is not None:
+                tool.span.set_attributes(
+                    {
+                        SpanAttributes.INPUT_VALUE: safe_json_dumps(call.args),
+                        SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                    }
+                )
+        if not new_calls and not continued_calls:
             return
         generation = self._ensure_generation()
-        self._finish_ended_generation(self._ensure_interaction())
-        generation.function_calls.extend(new_calls)
+        if new_calls:
+            self._finish_ended_generation(self._ensure_interaction())
+            generation.function_calls.extend(new_calls)
         # A blocking call ends the generation; the model continues in a new one once
         # the client sends the tool response. With only NON_BLOCKING calls the model
-        # keeps generating.
-        if any(call.name not in self._non_blocking for call in new_calls):
+        # keeps generating. A call still being streamed keeps the generation open too.
+        if not any(call.will_continue for call in generation.function_calls) and any(
+            call.name not in self._non_blocking for call in (*new_calls, *continued_calls)
+        ):
             self._end_generation(_OK, await_usage=True)
         interaction = self._ensure_interaction()
         for call in new_calls:
@@ -1187,7 +1306,12 @@ class _AsyncSessionContextUpdateWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         result = await wrapped(*args, **kwargs)
-        if (state := _sessions.get(instance)) is not None and not state.closed:
+        # A suppressed update must not show up on later spans, so they keep the previous one.
+        if (
+            (state := _sessions.get(instance)) is not None
+            and not state.closed
+            and not _is_suppressed()
+        ):
             try:
                 state.on_context_update(kwargs)
             except Exception:
