@@ -1166,25 +1166,44 @@ def test_group_id_mapped_to_session_id() -> None:
     """group_id present → root span carries session.id."""
     processor, exporter = _make_processor()
     _run(processor, _FakeTraceWithGroupId("conv-abc"), [])
-    assert _root_span(exporter).attributes["session.id"] == "conv-abc"
+    assert _attrs(_root_span(exporter))["session.id"] == "conv-abc"
 
 
 def test_none_group_id_omits_session_id() -> None:
     """group_id=None → session.id must not be set on the root span."""
     processor, exporter = _make_processor()
     _run(processor, _FakeTraceWithGroupId(None), [])
-    assert "session.id" not in (_root_span(exporter).attributes or {})
+    assert "session.id" not in _attrs(_root_span(exporter))
 
 
-def test_empty_group_id_mapped_to_session_id() -> None:
-    """group_id='' is a present value → mapped verbatim, not dropped."""
+def test_empty_group_id_omits_session_id() -> None:
+    """group_id='' → session.id absent, consistent with using_session() and sibling instrumentors."""
     processor, exporter = _make_processor()
     _run(processor, _FakeTraceWithGroupId(""), [])
-    assert _root_span(exporter).attributes["session.id"] == ""
+    assert "session.id" not in _attrs(_root_span(exporter))
 
 
 def test_missing_group_id_attr_no_crash() -> None:
-    """Trace without a group_id attribute (older SDK) → no crash, session.id omitted."""
+    """Trace whose type lacks group_id (abstract Trace) → no crash, session.id omitted."""
     processor, exporter = _make_processor()
     _run(processor, _FakeTrace(), [])  # _FakeTrace has no group_id attr
-    assert "session.id" not in (_root_span(exporter).attributes or {})
+    assert "session.id" not in _attrs(_root_span(exporter))
+
+
+def test_group_id_sdk_integration() -> None:
+    """Real agents.trace(group_id=...) → session.id on root span, no extra attributes."""
+    import agents
+    from agents import set_trace_processors
+
+    processor, exporter = _make_processor()
+    set_trace_processors([processor])  # type: ignore[arg-type]
+    try:
+        with agents.trace("wf", group_id="conv-1"):
+            pass
+    finally:
+        set_trace_processors([])  # type: ignore[arg-type]
+
+    attrs = _attrs(_root_span(exporter))
+    assert attrs.pop("openinference.span.kind") == "AGENT"
+    assert attrs.pop("session.id") == "conv-1"
+    assert not attrs, f"unexpected attributes: {attrs}"

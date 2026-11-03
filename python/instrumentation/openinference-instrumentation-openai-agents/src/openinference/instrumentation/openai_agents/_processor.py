@@ -136,8 +136,8 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         # (e.g. set via trace(group_id=...)). Map it to session.id so multiple
         # traces in one conversation correlate.
         group_id = getattr(trace, "group_id", None)
-        if group_id is not None:
-            attributes[SESSION_ID] = group_id
+        if group_id:
+            attributes[SESSION_ID] = str(group_id)
         otel_span = self._tracer.start_span(
             name=trace.name,
             attributes=attributes,
