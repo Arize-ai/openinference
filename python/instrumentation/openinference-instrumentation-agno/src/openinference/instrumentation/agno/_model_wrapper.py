@@ -14,16 +14,6 @@ from typing import (
     Tuple,
 )
 
-from openinference.semconv.trace import (
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -35,6 +25,16 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 from openinference.instrumentation.agno._context import get_activation
+from openinference.semconv.trace import (
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 
 
 def _get_gemini_vertexai_mode(model: Model) -> Optional[bool]:

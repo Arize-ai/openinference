@@ -3,7 +3,6 @@ from typing import Any, Iterator, cast
 
 import pytest
 from agno.agent import Agent
-from openinference.semconv.trace import SpanAttributes
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context.contextvars_context import ContextVarsRuntimeContext
@@ -21,6 +20,7 @@ from openinference.instrumentation.agno._context import (
 )
 from openinference.instrumentation.agno._runs_wrapper import _RunWrapper
 from openinference.instrumentation.agno._workflow_wrapper import _StepWrapper, _WorkflowWrapper
+from openinference.semconv.trace import SpanAttributes
 
 
 @pytest.fixture()
@@ -81,7 +81,7 @@ def test_run_wrapper_activates_only_in_isolated_context(
     base_span = trace_api.get_current_span()
     observed = {}
 
-    def fake_run(*_args, **_kwargs) -> Any:
+    def fake_run(*_args: Any, **_kwargs: Any) -> Any:
         observed["isolated_has_span"] = trace_api.get_current_span(
             isolated_runtime_context.get_current()
         ).is_recording()
@@ -104,7 +104,7 @@ def test_run_stream_wrapper_activates_only_in_isolated_context(
     agent = Agent(name="test-agent")
     base_span = trace_api.get_current_span()
 
-    def fake_run_stream(*_args, **_kwargs) -> Iterator[Any]:
+    def fake_run_stream(*_args: Any, **_kwargs: Any) -> Iterator[Any]:
         yield SimpleNamespace(run_id="run-1")
 
     stream = wrapper.run_stream(fake_run_stream, None, (agent,), {})
@@ -143,12 +143,12 @@ def test_workflow_and_step_activate_only_in_isolated_context_and_keep_hierarchy(
     step_wrapper = _StepWrapper(tracer=tracer)
     base_span = trace_api.get_current_span()
 
-    def fake_step_execute(*_args, **_kwargs) -> str:
+    def fake_step_execute(*_args: Any, **_kwargs: Any) -> str:
         assert trace_api.get_current_span(isolated_runtime_context.get_current()).is_recording()
         assert trace_api.get_current_span() is base_span
         return "step output"
 
-    def run(*_args, **_kwargs) -> str:
+    def run(*_args: Any, **_kwargs: Any) -> str:
         return cast(str, step_wrapper.run(fake_step_execute, _StepInstance(), (), {}))
 
     workflow_wrapper.run(run, _WorkflowInstance(), ("hello",), {})
@@ -174,7 +174,7 @@ def test_suppress_instrumentation_key_is_unaffected_by_isolated_activation(
     agent = Agent(name="test-agent")
     calls = []
 
-    def fake_run(*_args, **_kwargs) -> str:
+    def fake_run(*_args: Any, **_kwargs: Any) -> str:
         calls.append(True)
         return "unrecorded"
 

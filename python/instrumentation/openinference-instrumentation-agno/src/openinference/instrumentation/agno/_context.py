@@ -2,8 +2,6 @@ from contextlib import contextmanager
 from contextvars import Token
 from typing import Iterator, Optional, Protocol, Sequence
 
-from openinference.instrumentation._spans import OpenInferenceSpan
-from openinference.instrumentation._types import OpenInferenceSpanKind
 from opentelemetry import context as _global_context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import Context, set_value
@@ -11,6 +9,8 @@ from opentelemetry.trace import Link, Span, SpanKind, Status, StatusCode
 from opentelemetry.util.types import Attributes
 
 from openinference.instrumentation import OITracer
+from openinference.instrumentation._spans import OpenInferenceSpan
+from openinference.instrumentation._types import OpenInferenceSpanKind
 
 
 class RuntimeContext(Protocol):

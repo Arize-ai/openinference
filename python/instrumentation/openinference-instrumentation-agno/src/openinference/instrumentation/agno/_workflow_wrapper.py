@@ -9,11 +9,6 @@ from typing import (
     Tuple,
 )
 
-from openinference.semconv.trace import (
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -26,6 +21,11 @@ from openinference.instrumentation.agno.utils import (
     _bind_arguments,
     _flatten,
     _generate_node_id,
+)
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
 
 
