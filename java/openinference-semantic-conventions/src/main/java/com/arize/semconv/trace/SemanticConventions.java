@@ -33,6 +33,7 @@ public class SemanticConventions {
         public static final String PROMPT = "prompt";
         public static final String AGENT = "agent";
         public static final String GRAPH = "graph";
+        public static final String DECISION = "decision";
     }
 
     @UtilityClass
@@ -53,6 +54,16 @@ public class SemanticConventions {
         public static final String COST = "cost";
         public static final String CHOICES = "choices";
         public static final String FINISH_REASON = "finish_reason";
+    }
+
+    @UtilityClass
+    public static class DecisionAttributePostfixes {
+        public static final String PROVIDER = "provider";
+        public static final String SYSTEM = "system";
+        public static final String MODEL_NAME = "model_name";
+        public static final String REQUEST = "request";
+        public static final String RESPONSE = "response";
+        public static final String TOKEN_COUNT = "token_count";
     }
 
     @UtilityClass
@@ -341,6 +352,72 @@ public class SemanticConventions {
      * The AI product as identified by the client or server
      */
     public static final String LLM_SYSTEM = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.SYSTEM;
+
+    /**
+     * The name of the decision model. Mirrors LLM_MODEL_NAME for DECISION spans. A decision model takes
+     * state plus typed questions and returns a typed, probabilistic answer per question instead of
+     * generated text.
+     *
+     * @see <a href="https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md">Decision
+     *     Spans</a>
+     */
+    public static final String DECISION_MODEL_NAME =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The decision model requested by the caller, as sent in the request. May differ from
+     * DECISION_RESPONSE_MODEL_NAME when the provider resolves an alias (e.g. jev-latest) or routes the
+     * request to a different model.
+     */
+    public static final String DECISION_REQUEST_MODEL_NAME = SemanticAttributePrefixes.DECISION
+            + "."
+            + DecisionAttributePostfixes.REQUEST
+            + "."
+            + DecisionAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The decision model that actually produced the response, as reported by the provider. May differ
+     * from DECISION_REQUEST_MODEL_NAME.
+     */
+    public static final String DECISION_RESPONSE_MODEL_NAME = SemanticAttributePrefixes.DECISION
+            + "."
+            + DecisionAttributePostfixes.RESPONSE
+            + "."
+            + DecisionAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The hosting provider of the decision model: who runs the hardware that answered (e.g. "typesafe" when
+     * calling TypeSafe directly, or the cloud or self-hosting provider for a model served elsewhere). Distinct
+     * from DECISION_SYSTEM, which names the API shape. Well-known values are {@link DecisionProvider}, which
+     * alias the matching {@link LLMProvider} values.
+     */
+    public static final String DECISION_PROVIDER =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.PROVIDER;
+
+    /**
+     * The decision API ecosystem the call conforms to, i.e. which request and response shape the client
+     * speaks, as identified by the client or server: "typesafe" for the TypeSafe System One / Jev API,
+     * "openai" for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible
+     * /v1/systemone shape is still "typesafe". Distinct from DECISION_PROVIDER, which says who hosts the model.
+     * Well-known values are {@link DecisionSystem}, which alias the matching {@link LLMSystem} values.
+     */
+    public static final String DECISION_SYSTEM =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.SYSTEM;
+
+    /**
+     * The number of input tokens consumed by a decision model call: the state, questions, and candidate
+     * options. Maps to usage.input_tokens in TypeSafe System One responses.
+     */
+    public static final String DECISION_TOKEN_COUNT_INPUT =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.TOKEN_COUNT + ".input";
+
+    /**
+     * The number of output tokens produced by a decision model call. Decision models emit typed answers
+     * rather than text, so this is typically small. Maps to usage.output_tokens in TypeSafe System One
+     * responses.
+     */
+    public static final String DECISION_TOKEN_COUNT_OUTPUT =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.TOKEN_COUNT + ".output";
 
     /** Token count for the completion by the llm (in tokens) */
     public static final String LLM_TOKEN_COUNT_COMPLETION =
@@ -896,7 +973,8 @@ public class SemanticConventions {
         DEEPSEEK("deepseek"),
         AMAZON("amazon"),
         META("meta"),
-        AI21("ai21");
+        AI21("ai21"),
+        TYPESAFE("typesafe");
 
         private final String value;
 
@@ -935,7 +1013,8 @@ public class SemanticConventions {
         META("meta"),
         ZAI("zai"),
         MINIMAX("minimax"),
-        ORACLE("oracle");
+        ORACLE("oracle"),
+        TYPESAFE("typesafe");
 
         private final String value;
 
@@ -950,6 +1029,68 @@ public class SemanticConventions {
         @Override
         public String toString() {
             return value;
+        }
+    }
+
+    /**
+     * Well-known values for {@code decision.system}: the decision API ecosystem a DECISION span conforms to.
+     * Each constant aliases the {@link LLMSystem} constant for the same vendor, so the same string names the
+     * same vendor on LLM and DECISION spans. The list is the subset of vendors currently known to offer a
+     * decision API.
+     */
+    public enum DecisionSystem {
+        /** TypeSafe AI System One / Jev API, including Jev-compatible servers. */
+        TYPESAFE(LLMSystem.TYPESAFE),
+        /** OpenAI Decisions API. */
+        OPENAI(LLMSystem.OPENAI);
+
+        private final LLMSystem llmSystem;
+
+        DecisionSystem(LLMSystem llmSystem) {
+            this.llmSystem = llmSystem;
+        }
+
+        /** The {@link LLMSystem} constant this value aliases. */
+        public LLMSystem getLLMSystem() {
+            return llmSystem;
+        }
+
+        public String getValue() {
+            return llmSystem.getValue();
+        }
+
+        @Override
+        public String toString() {
+            return llmSystem.getValue();
+        }
+    }
+
+    /**
+     * Well-known values for {@code decision.provider}: who hosts the decision model that answered. Each
+     * constant aliases the {@link LLMProvider} constant for the same vendor.
+     */
+    public enum DecisionProvider {
+        TYPESAFE(LLMProvider.TYPESAFE),
+        OPENAI(LLMProvider.OPENAI);
+
+        private final LLMProvider llmProvider;
+
+        DecisionProvider(LLMProvider llmProvider) {
+            this.llmProvider = llmProvider;
+        }
+
+        /** The {@link LLMProvider} constant this value aliases. */
+        public LLMProvider getLLMProvider() {
+            return llmProvider;
+        }
+
+        public String getValue() {
+            return llmProvider.getValue();
+        }
+
+        @Override
+        public String toString() {
+            return llmProvider.getValue();
         }
     }
 }

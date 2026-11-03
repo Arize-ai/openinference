@@ -13,6 +13,7 @@ import { safelyJSONStringify } from "../utils";
 import type {
   Annotation,
   AnnotationScope,
+  DecisionTokenCount,
   Document,
   Embedding,
   InputToAttributesFn,
@@ -594,29 +595,56 @@ export function getToolAttributes(options: {
 }
 
 /**
- * Generates the model name attributes for LLM operations. llm.model_name is
- * the key consumers display as the primary model, so it mirrors
- * responseModelName ?? requestModelName when not set explicitly, matching how
- * instrumentors populate all three keys.
+ * The attribute keys a model identification helper writes to. LLM and
+ * DECISION spans share the same model name semantics under different
+ * namespaces (`llm.*` vs `decision.*`).
  */
-function getModelNameAttributes(options: {
-  modelName?: string;
-  requestModelName?: string;
-  responseModelName?: string;
-}): Attributes {
+interface ModelNameAttributeKeys {
+  modelName: string;
+  requestModelName: string;
+  responseModelName: string;
+}
+
+const LLM_MODEL_NAME_KEYS: ModelNameAttributeKeys = {
+  modelName: SemanticConventions.LLM_MODEL_NAME,
+  requestModelName: SemanticConventions.LLM_REQUEST_MODEL_NAME,
+  responseModelName: SemanticConventions.LLM_RESPONSE_MODEL_NAME,
+};
+
+const DECISION_MODEL_NAME_KEYS: ModelNameAttributeKeys = {
+  modelName: SemanticConventions.DECISION_MODEL_NAME,
+  requestModelName: SemanticConventions.DECISION_REQUEST_MODEL_NAME,
+  responseModelName: SemanticConventions.DECISION_RESPONSE_MODEL_NAME,
+};
+
+/**
+ * Generates the model name attributes for a model call. The `model_name` key
+ * is the one consumers display as the primary model, so it mirrors
+ * responseModelName ?? requestModelName when not set explicitly, matching how
+ * instrumentors populate all three keys. The keys default to the `llm.*`
+ * namespace; DECISION spans pass the `decision.*` keys.
+ */
+function getModelNameAttributes(
+  options: {
+    modelName?: string;
+    requestModelName?: string;
+    responseModelName?: string;
+  },
+  keys: ModelNameAttributeKeys = LLM_MODEL_NAME_KEYS,
+): Attributes {
   const attributes: Attributes = {};
 
   const modelName = options.modelName ?? options.responseModelName ?? options.requestModelName;
   if (modelName != null) {
-    attributes[SemanticConventions.LLM_MODEL_NAME] = modelName;
+    attributes[keys.modelName] = modelName;
   }
 
   if (options.requestModelName != null) {
-    attributes[SemanticConventions.LLM_REQUEST_MODEL_NAME] = options.requestModelName;
+    attributes[keys.requestModelName] = options.requestModelName;
   }
 
   if (options.responseModelName != null) {
-    attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = options.responseModelName;
+    attributes[keys.responseModelName] = options.responseModelName;
   }
 
   return attributes;
@@ -905,6 +933,83 @@ export function getLLMAttributes(options: {
         ] = schemaJson;
       }
     });
+  }
+
+  return attributes;
+}
+
+/**
+ * Generates attributes for DECISION operations.
+ *
+ * Creates OpenTelemetry attributes for a call to a decision model: a model
+ * that scores or selects among candidate options supplied in the request
+ * rather than generating free-form text. Decision spans identify the model
+ * under the `decision.*` namespace instead of `llm.*`, with the same
+ * semantics as {@link getLLMAttributes}: `system` names the decision API
+ * ecosystem the call conforms to, `provider` names who hosts the model, and
+ * the model name keys follow the same request/response mirroring rules.
+ *
+ * Record the raw request and response with `getInputAttributes` and
+ * `getOutputAttributes` (or the default processors); decision spans have no
+ * input or output messages.
+ *
+ * @param options - Configuration object for DECISION attributes
+ * @param options.provider - Who hosts the decision model (e.g., "typesafe", "openai").
+ * See `DecisionProvider` in the semantic conventions for well-known values
+ * @param options.system - The decision API ecosystem the call conforms to (e.g., "typesafe"
+ * for the System One / Jev API, "openai" for the OpenAI Decisions API). See `DecisionSystem`
+ * in the semantic conventions for well-known values
+ * @param options.modelName - The name of the decision model (e.g., "jev-1.13.0")
+ * @param options.requestModelName - The model requested by the caller, as sent in the request
+ * (e.g., the alias "jev-latest"). When modelName is omitted, decision.model_name is mirrored
+ * from responseModelName ?? requestModelName
+ * @param options.responseModelName - The model that actually produced the decision, as
+ * reported by the provider
+ * @param options.tokenCount - Token usage: the tokens sent (`input`) and the tokens that make
+ * up the typed answers (`output`)
+ * @returns OpenTelemetry attributes for DECISION operations
+ *
+ * @example
+ * ```typescript
+ * const attrs = getDecisionAttributes({
+ *   system: "typesafe",
+ *   provider: "typesafe",
+ *   requestModelName: "jev-latest",
+ *   responseModelName: "jev-1.13.0",
+ *   tokenCount: { input: 412, output: 2 },
+ * });
+ * ```
+ */
+export function getDecisionAttributes(options: {
+  provider?: string;
+  system?: string;
+  modelName?: string;
+  requestModelName?: string;
+  responseModelName?: string;
+  tokenCount?: DecisionTokenCount;
+}): Attributes {
+  const attributes: Attributes = {};
+
+  // Provider attributes
+  if (options.provider != null) {
+    attributes[SemanticConventions.DECISION_PROVIDER] = options.provider.toLowerCase();
+  }
+
+  // System attributes
+  if (options.system != null) {
+    attributes[SemanticConventions.DECISION_SYSTEM] = options.system.toLowerCase();
+  }
+
+  Object.assign(attributes, getModelNameAttributes(options, DECISION_MODEL_NAME_KEYS));
+
+  // Token count
+  if (options.tokenCount != null) {
+    if (options.tokenCount.input != null) {
+      attributes[SemanticConventions.DECISION_TOKEN_COUNT_INPUT] = options.tokenCount.input;
+    }
+    if (options.tokenCount.output != null) {
+      attributes[SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT] = options.tokenCount.output;
+    }
   }
 
   return attributes;

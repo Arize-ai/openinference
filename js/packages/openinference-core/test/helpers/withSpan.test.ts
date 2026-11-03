@@ -15,6 +15,7 @@ import {
   getLLMAttributes,
   traceAgent,
   traceChain,
+  traceDecision,
   traceEmbedding,
   traceEvaluator,
   traceGuardrail,
@@ -523,6 +524,11 @@ describe.each([
     name: "tracePrompt",
     wrapper: tracePrompt,
     kind: OpenInferenceSpanKind.PROMPT,
+  },
+  {
+    name: "traceDecision",
+    wrapper: traceDecision,
+    kind: OpenInferenceSpanKind.DECISION,
   },
 ])("$name", ({ name, wrapper, kind }) => {
   beforeEach(() => {

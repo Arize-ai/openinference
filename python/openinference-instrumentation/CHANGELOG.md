@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.70](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.69...python-openinference-instrumentation-v0.1.70) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.41 ([#3907](https://github.com/Arize-ai/openinference/issues/3907)) ([04fe33f](https://github.com/Arize-ai/openinference/commit/04fe33f2b10147ec4481983f725d89a9ca42fc5f))
+
+## [0.1.69](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.68...python-openinference-instrumentation-v0.1.69) (2026-10-01)
+
+
+### Features
+
+* add decision span decorators and attribute helpers (JS + Python) ([#3897](https://github.com/Arize-ai/openinference/issues/3897)) ([0d26a59](https://github.com/Arize-ai/openinference/commit/0d26a5983cd8ba3f9c0afcadd102b15887887795))
+
+## [0.1.68](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.67...python-openinference-instrumentation-v0.1.68) (2026-10-01)
+
+
+### Features
+
+* **semconv:** add decision model attributes ([#3900](https://github.com/Arize-ai/openinference/issues/3900)) ([53b7a0e](https://github.com/Arize-ai/openinference/commit/53b7a0e2c7b0dd2622a9390a124e737ea7d50759))
+
 ## [0.1.67](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.66...python-openinference-instrumentation-v0.1.67) (2026-10-01)
 
 
