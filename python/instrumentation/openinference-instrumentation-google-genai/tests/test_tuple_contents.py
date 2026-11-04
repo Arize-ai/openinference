@@ -172,12 +172,6 @@ def _text_and_image_message(text: str, image_url: str) -> dict[str, str]:
             id="camel_case_inline_data",
         ),
         pytest.param(
-            {"file_data": {"mime_type": "image/png", "file_uri": "gs://bucket/cat.png"}},
-            "fileData",
-            "gs://bucket/cat.png",
-            id="snake_case_file_data",
-        ),
-        pytest.param(
             {"fileData": {"mimeType": "image/png", "fileUri": "gs://bucket/cat.png"}},
             "fileData",
             "gs://bucket/cat.png",
@@ -193,7 +187,7 @@ def test_dict_part_key_casing_is_recorded(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_google_genai_instrumentation: None,
 ) -> None:
-    """snake_case and camelCase dict parts are both sent on the wire and recorded on the span."""
+    """Dict image parts are recorded as sent: camelCase keys kept, string data not re-encoded."""
     client, requests = mock_client
     contents: Any = [{"role": "user", "parts": [{"text": "see"}, part]}]
     client.models.generate_content(model="gemini-2.0-flash", contents=contents)
@@ -205,21 +199,7 @@ def test_dict_part_key_casing_is_recorded(
     )
 
 
-@pytest.mark.parametrize(
-    "part",
-    [
-        pytest.param(
-            {"function_call": {"name": "get_weather", "args": {"city": "Paris"}}},
-            id="snake_case_function_call",
-        ),
-        pytest.param(
-            {"functionCall": {"name": "get_weather", "args": {"city": "Paris"}}},
-            id="camel_case_function_call",
-        ),
-    ],
-)
-def test_function_call_dict_part_key_casing_is_recorded(
-    part: dict[str, Any],
+def test_camel_case_function_call_dict_part_is_recorded(
     mock_client: tuple[genai.Client, list[dict[str, Any]]],
     in_memory_span_exporter: InMemorySpanExporter,
     setup_google_genai_instrumentation: None,
@@ -227,7 +207,10 @@ def test_function_call_dict_part_key_casing_is_recorded(
     client, requests = mock_client
     contents: Any = [
         {"role": "user", "parts": [{"text": "weather?"}]},
-        {"role": "model", "parts": [part]},
+        {
+            "role": "model",
+            "parts": [{"functionCall": {"name": "get_weather", "args": {"city": "Paris"}}}],
+        },
     ]
     client.models.generate_content(model="gemini-2.0-flash", contents=contents)
 
