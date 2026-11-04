@@ -812,8 +812,55 @@ class _Span(BaseSpan):
                     else getattr(raw, "usage_metadata", None)
                 )
             if usage_metadata:
-                for k, v in _get_token_counts(usage_metadata):
+                fallback_total = self._attributes.get(LLM_TOKEN_COUNT_TOTAL)
+                counts = dict(_get_token_counts(usage_metadata))
+                get_metadata_value = (
+                    usage_metadata.get
+                    if isinstance(usage_metadata, Mapping)
+                    else lambda key: getattr(usage_metadata, key, None)
+                )
+                # The convenience counts can supply a missing base count when the
+                # provider reports only tool-use or thinking tokens.
+                for key, base_key in (
+                    (LLM_TOKEN_COUNT_PROMPT, "prompt_token_count"),
+                    (LLM_TOKEN_COUNT_COMPLETION, "candidates_token_count"),
+                ):
+                    base_count = get_metadata_value(base_key)
+                    if base_count is not None:
+                        try:
+                            int(base_count)
+                        except (TypeError, ValueError, OverflowError):
+                            base_count = None
+                    if (
+                        key in counts
+                        and base_count is None
+                        and isinstance(self._attributes.get(key), int)
+                    ):
+                        counts[key] += self._attributes[key]
+                for k, v in counts.items():
                     self[k] = v
+                if any(
+                    key in self._attributes
+                    for key in (
+                        LLM_TOKEN_COUNT_PROMPT,
+                        LLM_TOKEN_COUNT_COMPLETION,
+                        LLM_TOKEN_COUNT_TOTAL,
+                    )
+                ):
+                    prompt_count = self._attributes.get(LLM_TOKEN_COUNT_PROMPT)
+                    completion_count = self._attributes.get(LLM_TOKEN_COUNT_COMPLETION)
+                    total_count = self._attributes.get(LLM_TOKEN_COUNT_TOTAL)
+                    self[LLM_TOKEN_COUNT_TOTAL] = max(
+                        total_count if isinstance(total_count, int) else 0,
+                        (prompt_count if isinstance(prompt_count, int) else 0)
+                        + (completion_count if isinstance(completion_count, int) else 0),
+                        (
+                            fallback_total
+                            if get_metadata_value("total_token_count") is None
+                            and isinstance(fallback_total, int)
+                            else 0
+                        ),
+                    )
 
     def _process_nodes(self, prefix: str, *nodes: NodeWithScore) -> None:
         for i, node in enumerate(nodes):

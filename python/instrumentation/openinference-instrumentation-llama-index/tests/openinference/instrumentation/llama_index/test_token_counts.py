@@ -1,11 +1,14 @@
 from types import SimpleNamespace
 from typing import Any, Iterator
+from unittest.mock import patch
 
 import pytest
+from google.genai import chats, models, types
 from llama_index.core.base.llms.types import ChatMessage
 from llama_index.core.instrumentation.events.llm import LLMChatEndEvent, LLMCompletionEndEvent
 from llama_index.core.llms import ChatResponse, CompletionResponse
 from llama_index.llms.anthropic import Anthropic
+from llama_index.llms.google_genai import GoogleGenAI
 from llama_index.llms.groq import Groq  # type: ignore[import-untyped]
 from llama_index.llms.openai import OpenAI
 from llama_index.llms.vertex import Vertex
@@ -13,9 +16,8 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import TracerProvider
 
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
-from openinference.instrumentation.llama_index._handler import _Span, _get_token_counts
+from openinference.instrumentation.llama_index._handler import _get_token_counts, _Span
 from openinference.semconv.trace import SpanAttributes
-
 
 LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
@@ -227,7 +229,11 @@ def test_gemini_token_counts_on_exported_span(
         ),
         (
             {"prompt_token_count": "1200", "candidates_token_count": "80"},
-            {LLM_TOKEN_COUNT_PROMPT: 1200, LLM_TOKEN_COUNT_COMPLETION: 80, LLM_TOKEN_COUNT_TOTAL: 1280},
+            {
+                LLM_TOKEN_COUNT_PROMPT: 1200,
+                LLM_TOKEN_COUNT_COMPLETION: 80,
+                LLM_TOKEN_COUNT_TOTAL: 1280,
+            },
         ),
         (
             {"prompt_token_count": "invalid", "candidates_token_count": 80},
@@ -275,6 +281,97 @@ def test_additional_kwargs_token_counts_are_a_fallback(
     attributes = in_memory_span_exporter.get_finished_spans()[0].attributes or {}
     assert attributes[LLM_TOKEN_COUNT_PROMPT] == 1200
     assert attributes[LLM_TOKEN_COUNT_COMPLETION] == expected_completion
+
+
+def test_google_genai_real_response_token_counts(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    usage = types.GenerateContentResponseUsageMetadata(
+        prompt_token_count=1200,
+        candidates_token_count=80,
+        thoughts_token_count=900,
+        cached_content_token_count=1024,
+        tool_use_prompt_token_count=30,
+        total_token_count=2210,
+    )
+    response = types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(role="model", parts=[types.Part(text="Paris.")]),
+                finish_reason=types.FinishReason.STOP,
+            )
+        ],
+        usage_metadata=usage,
+        model_version="gemini-2.5-flash",
+    )
+    with (
+        patch.object(
+            models.Models,
+            "get",
+            return_value=types.Model(
+                name="models/gemini-2.5-flash",
+                output_token_limit=65536,
+                input_token_limit=1048576,
+            ),
+        ),
+        patch.object(chats.Chat, "send_message", return_value=response),
+    ):
+        llm = GoogleGenAI(model="gemini-2.5-flash", api_key="fake-key-not-used")
+        result = llm.chat([ChatMessage(role="user", content="Capital of France?")])
+
+    assert result.raw["usage_metadata"]["thoughts_token_count"] == 900
+    assert result.additional_kwargs["completion_tokens"] == 80
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = spans[0].attributes or {}
+    assert attributes[LLM_TOKEN_COUNT_PROMPT] == 1230
+    assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 980
+    assert attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] == 900
+    assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 1024
+    assert attributes[LLM_TOKEN_COUNT_TOTAL] == 2210
+
+
+@pytest.mark.parametrize(
+    "usage, kwargs_total, expected_prompt, expected_completion, expected_total",
+    [
+        ({"tool_use_prompt_token_count": 30}, 1000, 1230, 80, 1310),
+        ({"thoughts_token_count": 900}, 1000, 1200, 980, 2180),
+        ({"thoughts_token_count": 900}, 3000, 1200, 980, 3000),
+        ({"candidates_token_count": "invalid", "thoughts_token_count": 900}, 1000, 1200, 980, 2180),
+        ({"tool_use_prompt_token_count": 30, "thoughts_token_count": 900}, 1000, 1230, 980, 2210),
+        ({"cached_content_token_count": 1024}, 1000, 1200, 80, 1280),
+    ],
+)
+def test_partial_gemini_metadata_keeps_convenience_base_counts(
+    usage: dict[str, Any],
+    kwargs_total: int,
+    expected_prompt: int,
+    expected_completion: int,
+    expected_total: int,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    span = _Span(otel_span=tracer_provider.get_tracer(__name__).start_span("llm"), span_kind="LLM")
+    span.process_event(
+        LLMChatEndEvent(
+            messages=[],
+            response=ChatResponse(
+                message=ChatMessage(content="Paris."),
+                raw={"usage_metadata": usage},
+                additional_kwargs={
+                    "prompt_tokens": 1200,
+                    "completion_tokens": 80,
+                    "total_tokens": kwargs_total,
+                },
+            ),
+        )
+    )
+    span.end()
+    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes or {}
+    assert attributes[LLM_TOKEN_COUNT_PROMPT] == expected_prompt
+    assert attributes[LLM_TOKEN_COUNT_COMPLETION] == expected_completion
+    assert attributes[LLM_TOKEN_COUNT_TOTAL] == expected_total
 
 
 @pytest.fixture(autouse=True)
