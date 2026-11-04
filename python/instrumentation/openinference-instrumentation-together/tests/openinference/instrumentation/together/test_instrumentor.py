@@ -19,10 +19,6 @@ from openinference.instrumentation.together import TogetherInstrumentor
 from openinference.instrumentation.together._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
-from openinference.instrumentation.together._wrappers import (
-    _AsyncCompletionsWrapper,
-    _CompletionsWrapper,
-)
 from openinference.semconv.trace import (
     AudioAttributes,
     ImageAttributes,
@@ -793,45 +789,63 @@ async def test_chat_with_raising_generator(
 
 def test_non_stream_keyboard_interrupt_ends_span_error(
     in_memory_span_exporter: InMemorySpanExporter,
-    tracer_provider: TracerProvider,
 ) -> None:
     """Ctrl-C during a non-stream call must not leak the span."""
+    error = KeyboardInterrupt("interrupted")
 
-    def failing(*_args: Any, **_kwargs: Any) -> Any:
-        raise KeyboardInterrupt()
+    def handler(_request: Any) -> Any:
+        raise error
 
-    wrapper = _CompletionsWrapper(tracer_provider.get_tracer(__name__))
-    with pytest.raises(KeyboardInterrupt):
-        wrapper(
-            failing,
-            None,
-            (),
-            {"model": _MODEL, "messages": [{"role": "user", "content": "hi"}]},
-        )
+    with respx.mock(assert_all_called=False) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(side_effect=handler)
+        with Together(max_retries=0) as client:
+            with pytest.raises(KeyboardInterrupt) as exc_info:
+                client.chat.completions.create(
+                    model=_MODEL, messages=[{"role": "user", "content": "hi"}]
+                )
+        assert exc_info.value is error
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code == StatusCode.ERROR
+    span = spans[0]
+    assert span.name == "Completions"
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description == "KeyboardInterrupt: interrupted"
+    assert len(span.events) == 1
+    event = span.events[0]
+    assert event.name == "exception"
+    event_attrs = dict(event.attributes or {})
+    assert event_attrs["exception.type"] == "KeyboardInterrupt"
+    assert event_attrs["exception.message"] == "interrupted"
 
 
 async def test_async_non_stream_cancellation_ends_span_error(
     in_memory_span_exporter: InMemorySpanExporter,
-    tracer_provider: TracerProvider,
 ) -> None:
     """CancelledError during a non-stream call must not leak the span."""
+    error = asyncio.CancelledError("cancelled")
 
-    async def failing(*_args: Any, **_kwargs: Any) -> Any:
-        raise asyncio.CancelledError()
+    async def handler(_request: Any) -> Any:
+        raise error
 
-    wrapper = _AsyncCompletionsWrapper(tracer_provider.get_tracer(__name__))
-    with pytest.raises(asyncio.CancelledError):
-        await wrapper(
-            failing,
-            None,
-            (),
-            {"model": _MODEL, "messages": [{"role": "user", "content": "hi"}]},
-        )
+    with respx.mock(assert_all_called=False) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(side_effect=handler)
+        async with AsyncTogether(max_retries=0) as client:
+            with pytest.raises(asyncio.CancelledError) as exc_info:
+                await client.chat.completions.create(
+                    model=_MODEL, messages=[{"role": "user", "content": "hi"}]
+                )
+        assert exc_info.value is error
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code == StatusCode.ERROR
+    span = spans[0]
+    assert span.name == "AsyncCompletions"
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description == "CancelledError: cancelled"
+    assert len(span.events) == 1
+    event = span.events[0]
+    assert event.name == "exception"
+    event_attrs = dict(event.attributes or {})
+    assert event_attrs["exception.type"] == "asyncio.exceptions.CancelledError"
+    assert event_attrs["exception.message"] == "cancelled"
