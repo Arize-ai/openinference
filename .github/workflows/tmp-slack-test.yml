@@ -18,7 +18,7 @@ jobs:
           payload: |
             {
               "channel": "${{ vars.SLACK_CHANNEL_ID }}",
-              "text": ${{ toJSON(format('Test 1/2 (slack-github-action): OpenInference CI Slack bot setup check, please ignore. {0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id)) }}
+              "text": ${{ toJSON(format('Test 1/2 (slack-github-action): OpenInference CI Slack bot setup check (Arize OSS bot invited), please ignore. {0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id)) }}
             }
       - name: Post via curl
         env:
@@ -26,7 +26,7 @@ jobs:
           SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          MSG="Test 2/2 (curl chat.postMessage): OpenInference CI Slack bot setup check, please ignore. ${RUN_URL}"
+          MSG="Test 2/2 (curl chat.postMessage): OpenInference CI Slack bot setup check (Arize OSS bot invited), please ignore. ${RUN_URL}"
           curl -sf -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H 'Content-type: application/json; charset=utf-8' \
