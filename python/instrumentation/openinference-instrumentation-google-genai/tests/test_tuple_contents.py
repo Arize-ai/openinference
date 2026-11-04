@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 from typing import Any
 
 import httpx
@@ -7,7 +9,13 @@ from google import genai
 from google.genai import types
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.semconv.trace import MessageAttributes, MessageContentAttributes, SpanAttributes
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 _RESPONSE = {
     "candidates": [
@@ -131,3 +139,138 @@ async def test_tuple_contents_across_call_paths(
     assert requests[0]["contents"] == expected_wire_contents
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert _input_messages(dict(span.attributes or {})) == expected_messages
+
+
+def _text_and_image_message(text: str, image_url: str) -> dict[str, str]:
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+    text_prefix = f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.0."
+    image_prefix = f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.1."
+    image_key = f"{image_prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}"
+    image_url_key = f"{image_key}.{ImageAttributes.IMAGE_URL}"
+    return {
+        f"{prefix}{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{text_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+        f"{text_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": text,
+        f"{image_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "image",
+        image_url_key: image_url,
+    }
+
+
+@pytest.mark.parametrize(
+    "part, expected_wire_key, expected_image_url",
+    [
+        pytest.param(
+            {"inline_data": {"mime_type": "image/png", "data": "aGk="}},
+            "inlineData",
+            "data:image/png;base64,aGk=",
+            id="snake_case_inline_data",
+        ),
+        pytest.param(
+            {"inlineData": {"mimeType": "image/png", "data": "aGk="}},
+            "inlineData",
+            "data:image/png;base64,aGk=",
+            id="camel_case_inline_data",
+        ),
+        pytest.param(
+            {"file_data": {"mime_type": "image/png", "file_uri": "gs://bucket/cat.png"}},
+            "fileData",
+            "gs://bucket/cat.png",
+            id="snake_case_file_data",
+        ),
+        pytest.param(
+            {"fileData": {"mimeType": "image/png", "fileUri": "gs://bucket/cat.png"}},
+            "fileData",
+            "gs://bucket/cat.png",
+            id="camel_case_file_data",
+        ),
+    ],
+)
+def test_dict_part_key_casing_is_recorded(
+    part: dict[str, Any],
+    expected_wire_key: str,
+    expected_image_url: str,
+    mock_client: tuple[genai.Client, list[dict[str, Any]]],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    """snake_case and camelCase dict parts are both sent on the wire and recorded on the span."""
+    client, requests = mock_client
+    contents: Any = [{"role": "user", "parts": [{"text": "see"}, part]}]
+    client.models.generate_content(model="gemini-2.0-flash", contents=contents)
+
+    assert list(requests[0]["contents"][0]["parts"][1]) == [expected_wire_key]
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert _input_messages(dict(span.attributes or {})) == _text_and_image_message(
+        "see", expected_image_url
+    )
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        pytest.param(
+            {"function_call": {"name": "get_weather", "args": {"city": "Paris"}}},
+            id="snake_case_function_call",
+        ),
+        pytest.param(
+            {"functionCall": {"name": "get_weather", "args": {"city": "Paris"}}},
+            id="camel_case_function_call",
+        ),
+    ],
+)
+def test_function_call_dict_part_key_casing_is_recorded(
+    part: dict[str, Any],
+    mock_client: tuple[genai.Client, list[dict[str, Any]]],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client, requests = mock_client
+    contents: Any = [
+        {"role": "user", "parts": [{"text": "weather?"}]},
+        {"role": "model", "parts": [part]},
+    ]
+    client.models.generate_content(model="gemini-2.0-flash", contents=contents)
+
+    assert requests[0]["contents"][1]["parts"][0] == {
+        "functionCall": {"name": "get_weather", "args": {"city": "Paris"}}
+    }
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    tool_call_prefix = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+    )
+    assert _input_messages(dict(span.attributes or {})) == {
+        **_message(0, "user", "weather?"),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{tool_call_prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
+        f"{tool_call_prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}": json.dumps(
+            {"city": "Paris"}
+        ),
+    }
+
+
+def test_pil_image_in_tuple_contents_is_recorded(
+    mock_client: tuple[genai.Client, list[dict[str, Any]]],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    pil_image = pytest.importorskip("PIL.Image")
+    client, requests = mock_client
+    contents: Any = ("describe", pil_image.new("RGB", (1, 1)))
+    client.models.generate_content(model="gemini-2.0-flash", contents=contents)
+
+    wire_image = requests[0]["contents"][0]["parts"][1]["inlineData"]
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert _input_messages(dict(span.attributes or {})) == _text_and_image_message(
+        "describe", f"data:image/png;base64,{wire_image['data']}"
+    )
+
+
+def test_instrumentor_instruments_when_pillow_is_installed() -> None:
+    """A fresh interpreter can import and instrument even when Pillow is importable."""
+    pytest.importorskip("PIL.Image")
+    script = (
+        "from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor\n"
+        "GoogleGenAIInstrumentor().instrument()\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
