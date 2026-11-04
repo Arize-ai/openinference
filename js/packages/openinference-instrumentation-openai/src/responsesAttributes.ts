@@ -254,10 +254,13 @@ function getImageGenerationOutputFormat(body: ResponseCreateParamsBase): string 
   return imageGenerationTool?.output_format;
 }
 
-export function getResponsesOutputImageAttributes(
-  response: ResponseType,
-  body: ResponseCreateParamsBase,
-): Attributes {
+export function getResponsesOutputImageAttributes({
+  response,
+  body,
+}: {
+  response: ResponseType;
+  body: ResponseCreateParamsBase;
+}): Attributes {
   const attributes: Attributes = {};
   const imageFormat = getImageGenerationOutputFormat(body);
   let imageIndex = 0;
@@ -265,7 +268,10 @@ export function getResponsesOutputImageAttributes(
     if (item.type !== "image_generation_call" || !item.result) continue;
     attributes[
       `${SemanticConventions.OUTPUT_IMAGES}.${imageIndex}.${SemanticConventions.IMAGE_URL}`
-    ] = imageBase64ToDataURL(item.result, item.output_format ?? imageFormat);
+    ] = imageBase64ToDataURL({
+      base64: item.result,
+      imageFormat: item.output_format ?? imageFormat,
+    });
     imageIndex++;
   }
   return attributes;

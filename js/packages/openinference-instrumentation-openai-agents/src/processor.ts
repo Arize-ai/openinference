@@ -674,10 +674,13 @@ function getHandoffAttributes(data: HandoffSpanData): Attributes {
 
 // ─── Response span (Responses API) ───────────────────────────────────────────
 
-/**
- * Extracts output messages and tool calls from a Responses API output array.
- */
-function imageBase64ToDataURL(base64: string, imageFormat: unknown): string {
+function imageBase64ToDataURL({
+  base64,
+  imageFormat,
+}: {
+  base64: string;
+  imageFormat: unknown;
+}): string {
   if (base64.startsWith("data:image/")) return base64;
   const normalizedFormat = imageFormat === "jpg" ? "jpeg" : imageFormat;
   const mediaType =
@@ -698,7 +701,16 @@ function getImageGenerationOutputFormat(tools: ReadonlyArray<unknown>): string |
   return undefined;
 }
 
-function extractResponseOutput(output: ReadonlyArray<unknown>, imageFormat?: string): Attributes {
+/**
+ * Extracts output messages and tool calls from a Responses API output array.
+ */
+function extractResponseOutput({
+  output,
+  imageFormat,
+}: {
+  output: ReadonlyArray<unknown>;
+  imageFormat?: string;
+}): Attributes {
   const attributes: Attributes = {};
   let messageIndex = 0;
   let imageIndex = 0;
@@ -741,10 +753,10 @@ function extractResponseOutput(output: ReadonlyArray<unknown>, imageFormat?: str
       }
       messageIndex++;
     } else if (item.type === "image_generation_call" && isString(item.result)) {
-      attributes[`${OUTPUT_IMAGES}.${imageIndex}.${IMAGE_URL}`] = imageBase64ToDataURL(
-        item.result,
-        isString(item.output_format) ? item.output_format : imageFormat,
-      );
+      attributes[`${OUTPUT_IMAGES}.${imageIndex}.${IMAGE_URL}`] = imageBase64ToDataURL({
+        base64: item.result,
+        imageFormat: isString(item.output_format) ? item.output_format : imageFormat,
+      });
       imageIndex++;
     }
     // Other item types (file_search_call, web_search_call, computer_call, ...)
@@ -965,7 +977,7 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
     const imageFormat = Array.isArray(response.tools)
       ? getImageGenerationOutputFormat(response.tools)
       : undefined;
-    Object.assign(attributes, extractResponseOutput(response.output, imageFormat));
+    Object.assign(attributes, extractResponseOutput({ output: response.output, imageFormat }));
   }
 
   // System instructions become the first input message (matching the Python

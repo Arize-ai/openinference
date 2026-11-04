@@ -1,4 +1,4 @@
-import type { Attributes } from "@opentelemetry/api";
+import { type Attributes, diag } from "@opentelemetry/api";
 import type {
   ImageEditCompletedEvent,
   ImageGenCompletedEvent,
@@ -12,7 +12,7 @@ import {
 } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-function imageAttributeKey(namespace: string, index: number): string {
+function getImageAttributeKey({ namespace, index }: { namespace: string; index: number }): string {
   return `${namespace}.${index}.${SemanticConventions.IMAGE_URL}`;
 }
 
@@ -72,22 +72,33 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-export function imageBase64ToDataURL(base64: string, imageFormat?: unknown): string {
+export function imageBase64ToDataURL({
+  base64,
+  imageFormat,
+}: {
+  base64: string;
+  imageFormat?: unknown;
+}): string {
   if (base64.startsWith("data:image/")) return base64;
   return `data:${mediaTypeFromFormat(imageFormat) ?? "image/png"};base64,${base64}`;
 }
 
-export function getImagesResponseAttributes(
-  response: ImagesResponse,
-  requestFormat?: unknown,
-): Attributes {
+export function getImagesResponseAttributes({
+  response,
+  requestFormat,
+}: {
+  response: ImagesResponse;
+  requestFormat?: unknown;
+}): Attributes {
   const attributes: Attributes = {};
   const imageFormat = response.output_format ?? requestFormat;
   response.data?.forEach((image, index) => {
     const imageUrl =
-      image.url ?? (image.b64_json ? imageBase64ToDataURL(image.b64_json, imageFormat) : undefined);
+      image.url ??
+      (image.b64_json ? imageBase64ToDataURL({ base64: image.b64_json, imageFormat }) : undefined);
     if (imageUrl) {
-      attributes[imageAttributeKey(SemanticConventions.OUTPUT_IMAGES, index)] = imageUrl;
+      attributes[getImageAttributeKey({ namespace: SemanticConventions.OUTPUT_IMAGES, index })] =
+        imageUrl;
     }
   });
   return attributes;
@@ -97,75 +108,159 @@ export function getCompletedImageEventAttributes(
   event: ImageEditCompletedEvent | ImageGenCompletedEvent,
 ): Attributes {
   return {
-    [imageAttributeKey(SemanticConventions.OUTPUT_IMAGES, 0)]: imageBase64ToDataURL(
-      event.b64_json,
-      event.output_format,
-    ),
+    [getImageAttributeKey({ namespace: SemanticConventions.OUTPUT_IMAGES, index: 0 })]:
+      imageBase64ToDataURL({ base64: event.b64_json, imageFormat: event.output_format }),
   };
 }
 
-async function uploadToDataURL(
-  upload: unknown,
-  base64ImageMaxLength: number,
-): Promise<string | undefined> {
+/**
+ * Serializes an Images response for output.value without its base64 images. They are
+ * recorded on output.images.*, where base64ImageMaxLength applies to them.
+ */
+export function stringifyImagesResponse(response: ImagesResponse): string {
+  return JSON.stringify({
+    ...response,
+    data: response.data?.map(({ b64_json: _b64Json, ...image }) => image),
+  });
+}
+
+/**
+ * Serializes a completed stream event for output.value without its base64 image.
+ */
+export function stringifyCompletedImageEvent({
+  b64_json: _b64Json,
+  ...event
+}: ImageEditCompletedEvent | ImageGenCompletedEvent): string {
+  return JSON.stringify(event);
+}
+
+function getBase64Length(byteLength: number): number {
+  return Math.ceil(byteLength / 3) * 4;
+}
+
+type UploadContents = {
+  bytes: Uint8Array;
+  declaredMediaType?: string;
+  filename?: string;
+};
+type ReadUploadParams = {
+  /** Whether the bytes would be redacted once encoded, so there is no need to read them. */
+  isTooLong: (byteLength: number) => boolean;
+};
+type UploadReadResult = UploadContents | typeof REDACTED_VALUE | undefined;
+
+async function readResponseUpload({
+  upload,
+  isTooLong,
+}: ReadUploadParams & { upload: Response }): Promise<UploadReadResult> {
+  if (isTooLong(Number(upload.headers.get("content-length")))) return REDACTED_VALUE;
+  const clone = upload.clone();
+  return {
+    bytes: new Uint8Array(await clone.arrayBuffer()),
+    declaredMediaType: clone.headers.get("content-type") ?? undefined,
+    filename: clone.url,
+  };
+}
+
+async function readBlobUpload({
+  upload,
+  isTooLong,
+}: ReadUploadParams & { upload: Blob }): Promise<UploadReadResult> {
+  if (isTooLong(upload.size)) return REDACTED_VALUE;
+  return {
+    bytes: new Uint8Array(await upload.arrayBuffer()),
+    declaredMediaType: upload.type || undefined,
+    filename: "name" in upload && typeof upload.name === "string" ? upload.name : undefined,
+  };
+}
+
+async function readFileStreamUpload({
+  upload,
+  isTooLong,
+}: ReadUploadParams & { upload: object }): Promise<UploadReadResult> {
+  const { promises: fileSystem, ReadStream } = await import("node:fs");
+  if (!(upload instanceof ReadStream) || typeof upload.path !== "string") return undefined;
+  // A ranged stream sends only part of the file, so the file would not match the request.
+  const isRangedStream =
+    Reflect.get(upload, "start") !== undefined || Reflect.get(upload, "end") !== Infinity;
+  if (isRangedStream) return undefined;
+  const fileStats = await fileSystem.stat(upload.path);
+  if (!fileStats.isFile()) return undefined;
+  if (isTooLong(fileStats.size)) return REDACTED_VALUE;
+  // Read from the path separately so the SDK still owns the one-shot stream.
+  return { bytes: await fileSystem.readFile(upload.path), filename: upload.path };
+}
+
+function readUpload({
+  upload,
+  isTooLong,
+}: ReadUploadParams & { upload: unknown }): Promise<UploadReadResult> {
+  if (typeof Response !== "undefined" && upload instanceof Response) {
+    return readResponseUpload({ upload, isTooLong });
+  }
+  if (typeof Blob !== "undefined" && upload instanceof Blob) {
+    return readBlobUpload({ upload, isTooLong });
+  }
+  if (upload != null && typeof upload === "object" && "path" in upload) {
+    return readFileStreamUpload({ upload, isTooLong });
+  }
+  // Unknown one-shot async iterables cannot be inspected without consuming
+  // the user's upload before the OpenAI SDK can build the request.
+  return Promise.resolve(undefined);
+}
+
+async function uploadToDataURL({
+  upload,
+  base64ImageMaxLength,
+}: {
+  upload: unknown;
+  base64ImageMaxLength: number;
+}): Promise<string | undefined> {
   try {
-    let bytes: Uint8Array;
-    let declaredMediaType: string | undefined;
-    let filename: string | undefined;
-
-    if (typeof Response !== "undefined" && upload instanceof Response) {
-      const clone = upload.clone();
-      bytes = new Uint8Array(await clone.arrayBuffer());
-      declaredMediaType = clone.headers.get("content-type") ?? undefined;
-      filename = clone.url;
-    } else if (typeof Blob !== "undefined" && upload instanceof Blob) {
-      bytes = new Uint8Array(await upload.arrayBuffer());
-      declaredMediaType = upload.type || undefined;
-      if ("name" in upload && typeof upload.name === "string") filename = upload.name;
-    } else if (upload != null && typeof upload === "object" && "path" in upload) {
-      const path = Reflect.get(upload, "path");
-      if (typeof path !== "string") return undefined;
-      // Read from the path separately so the SDK still owns the one-shot stream.
-      const { readFile } = await import("node:fs/promises");
-      bytes = await readFile(path);
-      filename = path;
-    } else {
-      // Unknown one-shot async iterables cannot be inspected without consuming
-      // the user's upload before the OpenAI SDK can build the request.
-      return undefined;
-    }
-
+    const contents = await readUpload({
+      upload,
+      isTooLong: (byteLength) => getBase64Length(byteLength) > base64ImageMaxLength,
+    });
+    if (contents === undefined || contents === REDACTED_VALUE) return contents;
+    const { bytes, declaredMediaType, filename } = contents;
     const mediaType =
       (declaredMediaType?.startsWith("image/") ? declaredMediaType : undefined) ??
       sniffImageMediaType(bytes) ??
       mediaTypeFromFilename(filename) ??
       "image/png";
     const prefix = `data:${mediaType};base64,`;
-    // Masking would redact the data URL anyway, so skip encoding oversized uploads.
-    if (prefix.length + Math.ceil(bytes.length / 3) * 4 > base64ImageMaxLength) {
+    if (prefix.length + getBase64Length(bytes.length) > base64ImageMaxLength) {
       return REDACTED_VALUE;
     }
     return `${prefix}${bytesToBase64(bytes)}`;
-  } catch {
+  } catch (error) {
+    diag.debug("Failed to capture OpenAI image upload", error);
     return undefined;
   }
 }
 
-export async function getInputImageAttributes(
-  uploads: ReadonlyArray<unknown>,
-  traceConfigOptions: TraceConfigOptions = {},
-): Promise<Attributes> {
+export async function getInputImageAttributes({
+  uploads,
+  traceConfigOptions = {},
+}: {
+  uploads: ReadonlyArray<unknown>;
+  traceConfigOptions?: TraceConfigOptions;
+}): Promise<Attributes> {
   const traceConfig = generateTraceConfig(traceConfigOptions);
   if (traceConfig.hideInputs || traceConfig.hideInputImages) return {};
   const flattenedUploads = uploads.flatMap((upload) => (Array.isArray(upload) ? upload : [upload]));
   const dataURLs = await Promise.all(
-    flattenedUploads.map((upload) => uploadToDataURL(upload, traceConfig.base64ImageMaxLength)),
+    flattenedUploads.map((upload) =>
+      uploadToDataURL({ upload, base64ImageMaxLength: traceConfig.base64ImageMaxLength }),
+    ),
   );
   const attributes: Attributes = {};
   let imageIndex = 0;
   for (const dataURL of dataURLs) {
     if (!dataURL) continue;
-    attributes[imageAttributeKey(SemanticConventions.INPUT_IMAGES, imageIndex)] = dataURL;
+    attributes[
+      getImageAttributeKey({ namespace: SemanticConventions.INPUT_IMAGES, index: imageIndex })
+    ] = dataURL;
     imageIndex++;
   }
   return attributes;
