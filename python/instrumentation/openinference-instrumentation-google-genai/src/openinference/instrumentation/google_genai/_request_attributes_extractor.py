@@ -11,11 +11,13 @@ from typing import (
 from google.genai._transformers import t_contents
 from google.genai.types import (
     Content,
+    ContentListUnionDict,
     FunctionResponse,
     GenerateContentConfig,
     Part,
 )
 from opentelemetry.util.types import AttributeValue
+from pydantic import TypeAdapter
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
@@ -35,6 +37,14 @@ __all__ = ("_RequestAttributesExtractor",)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+_CONTENTS_ADAPTER: TypeAdapter[ContentListUnionDict] = TypeAdapter(ContentListUnionDict)
+
+
+def _validate_contents(contents: Any) -> ContentListUnionDict:
+    """Coerce tuples at every level the way the SDK's request model does."""
+    return _CONTENTS_ADAPTER.validate_python(contents)
 
 
 class _RequestAttributesExtractor:
@@ -84,7 +94,7 @@ class _RequestAttributesExtractor:
 
         if input_contents := request_parameters.get("contents"):
             try:
-                for content in t_contents(input_contents):
+                for content in t_contents(_validate_contents(input_contents)):
                     for message_attributes in self._iter_messages_from_content(content):
                         for attr, value in message_attributes:
                             yield (
