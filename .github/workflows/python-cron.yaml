@@ -169,7 +169,7 @@ jobs:
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             {
-              "channel": "${{ vars.SLACK_CHANNEL_ID }}",
+              "channel": ${{ toJSON(vars.SLACK_CHANNEL_ID) }},
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
 
@@ -458,8 +458,6 @@ jobs:
           MSG="Auto-fix did not open a PR for ${PACKAGE} (${STATUS}): ${MESSAGE}
           ${RUN_URL}"
           echo "$MSG"
-          # A failed notification must not fail the job: that would fire the
-          # catch-all "no PR opened" notice below even when a PR was opened.
           if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL_ID:-}" ]; then
             echo "::warning::SLACK_BOT_TOKEN or SLACK_CHANNEL_ID not set; skipping Slack notification."
             exit 0
@@ -487,8 +485,6 @@ jobs:
         run: |
           MSG="Canary auto-fix job failed for ${PACKAGE} (no PR opened); see logs: ${RUN_URL}"
           echo "$MSG"
-          # A failed notification must not fail the job: that would fire the
-          # catch-all "no PR opened" notice below even when a PR was opened.
           if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL_ID:-}" ]; then
             echo "::warning::SLACK_BOT_TOKEN or SLACK_CHANNEL_ID not set; skipping Slack notification."
             exit 0

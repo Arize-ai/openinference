@@ -242,6 +242,6 @@ jobs:
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             {
-              "channel": "${{ vars.SLACK_CHANNEL_ID }}",
+              "channel": ${{ toJSON(vars.SLACK_CHANNEL_ID) }},
               "text": ${{ toJSON(steps.notify.outputs.text) }}
             }
