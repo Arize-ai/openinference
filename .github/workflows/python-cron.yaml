@@ -429,12 +429,21 @@ jobs:
           MSG="Auto-fix PR opened for ${PACKAGE} canary failures (verify its CI): ${PR_URL}
           ${RUN_URL}"
           echo "$MSG"
+          # A failed notification must not fail the job: that would fire the
+          # catch-all "no PR opened" notice below even when a PR was opened.
+          if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL_ID:-}" ]; then
+            echo "::warning::SLACK_BOT_TOKEN or SLACK_CHANNEL_ID not set; skipping Slack notification."
+            exit 0
+          fi
           # chat.postMessage answers 200 even on failure; the error is in the body.
-          curl -sf -X POST https://slack.com/api/chat.postMessage \
+          resp=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H 'Content-type: application/json; charset=utf-8' \
             --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
-            | jq -e '.ok' > /dev/null
+            || true)
+          if ! jq -e '.ok' <<<"$resp" > /dev/null 2>&1; then
+            echo "::warning::Slack chat.postMessage failed: $(jq -r '.error // empty' <<<"$resp" 2>/dev/null || true)"
+          fi
 
       - name: Notify Slack of no auto-fix PR
         if: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.pr_url == '' && steps.publish.outputs.status != '' }}
@@ -449,12 +458,21 @@ jobs:
           MSG="Auto-fix did not open a PR for ${PACKAGE} (${STATUS}): ${MESSAGE}
           ${RUN_URL}"
           echo "$MSG"
+          # A failed notification must not fail the job: that would fire the
+          # catch-all "no PR opened" notice below even when a PR was opened.
+          if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL_ID:-}" ]; then
+            echo "::warning::SLACK_BOT_TOKEN or SLACK_CHANNEL_ID not set; skipping Slack notification."
+            exit 0
+          fi
           # chat.postMessage answers 200 even on failure; the error is in the body.
-          curl -sf -X POST https://slack.com/api/chat.postMessage \
+          resp=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H 'Content-type: application/json; charset=utf-8' \
             --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
-            | jq -e '.ok' > /dev/null
+            || true)
+          if ! jq -e '.ok' <<<"$resp" > /dev/null 2>&1; then
+            echo "::warning::Slack chat.postMessage failed: $(jq -r '.error // empty' <<<"$resp" 2>/dev/null || true)"
+          fi
 
       - name: Notify Slack of auto-fix job failure
         # Catch-all so a crash in the Claude step or the publish step (which
@@ -469,9 +487,18 @@ jobs:
         run: |
           MSG="Canary auto-fix job failed for ${PACKAGE} (no PR opened); see logs: ${RUN_URL}"
           echo "$MSG"
+          # A failed notification must not fail the job: that would fire the
+          # catch-all "no PR opened" notice below even when a PR was opened.
+          if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL_ID:-}" ]; then
+            echo "::warning::SLACK_BOT_TOKEN or SLACK_CHANNEL_ID not set; skipping Slack notification."
+            exit 0
+          fi
           # chat.postMessage answers 200 even on failure; the error is in the body.
-          curl -sf -X POST https://slack.com/api/chat.postMessage \
+          resp=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H 'Content-type: application/json; charset=utf-8' \
             --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
-            | jq -e '.ok' > /dev/null
+            || true)
+          if ! jq -e '.ok' <<<"$resp" > /dev/null 2>&1; then
+            echo "::warning::Slack chat.postMessage failed: $(jq -r '.error // empty' <<<"$resp" 2>/dev/null || true)"
+          fi

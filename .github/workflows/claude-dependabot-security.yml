@@ -776,12 +776,13 @@ jobs:
             "$RUN_URL")
           echo "$MSG"
           # chat.postMessage answers 200 even on failure; the error is in the body.
-          if ! curl -sf -X POST https://slack.com/api/chat.postMessage \
+          resp=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H 'Content-type: application/json; charset=utf-8' \
             --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
-            | jq -e '.ok' > /dev/null; then
-            echo "::warning::Slack notification failed; PR was still opened."
+            || true)
+          if ! jq -e '.ok' <<<"$resp" > /dev/null 2>&1; then
+            echo "::warning::Slack notification failed ($(jq -r '.error // empty' <<<"$resp" 2>/dev/null || true)); PR was still opened."
           fi
 
       - name: Upload proposed diff (dry run)
