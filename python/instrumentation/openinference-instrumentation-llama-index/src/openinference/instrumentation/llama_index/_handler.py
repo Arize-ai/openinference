@@ -777,6 +777,11 @@ class _Span(BaseSpan):
         self._process_response_text_type(event.response)
 
     def _extract_token_counts(self, response: Union[ChatResponse, CompletionResponse]) -> None:
+        # Convenience counts are a fallback: provider metadata may include additional
+        # tokens (e.g. Gemini thinking/tool-use tokens) omitted by LlamaIndex.
+        if additional_kwargs := getattr(response, "additional_kwargs", None):
+            for k, v in _get_token_counts(additional_kwargs):
+                self[k] = v
         if raw := getattr(response, "raw", None):
             usage = raw.get("usage") if isinstance(raw, Mapping) else getattr(raw, "usage", None)
             if usage:
@@ -792,8 +797,8 @@ class _Span(BaseSpan):
                 for k, v in _get_token_counts(usage):
                     self[k] = v
 
-            # Check for VertexAI usage_metadata
-            # VertexAI stores usage_metadata inside _raw_response
+            # VertexAI nests usage_metadata in _raw_response; GoogleGenAI puts it
+            # directly in the raw response dictionary.
             if isinstance(raw, Mapping) and (raw_response := raw.get("_raw_response")):
                 usage_metadata = (
                     raw_response.get("usage_metadata")
@@ -801,15 +806,14 @@ class _Span(BaseSpan):
                     else getattr(raw_response, "usage_metadata", None)
                 )
             else:
-                usage_metadata = getattr(raw, "usage_metadata", None)
+                usage_metadata = (
+                    raw.get("usage_metadata")
+                    if isinstance(raw, Mapping)
+                    else getattr(raw, "usage_metadata", None)
+                )
             if usage_metadata:
                 for k, v in _get_token_counts(usage_metadata):
                     self[k] = v
-        # Look for token counts in additional_kwargs of the completion payload
-        # This is needed for non-OpenAI models
-        if additional_kwargs := getattr(response, "additional_kwargs", None):
-            for k, v in _get_token_counts(additional_kwargs):
-                self[k] = v
 
     def _process_nodes(self, prefix: str, *nodes: NodeWithScore) -> None:
         for i, node in enumerate(nodes):
@@ -1321,22 +1325,41 @@ def _get_token_counts_impl(
         except BaseException:
             pass
 
-    # VertexAI
-    if (prompt_token_count := get_value(usage, "prompt_token_count")) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_PROMPT, int(prompt_token_count)
-        except BaseException:
-            pass
-    if (candidates_token_count := get_value(usage, "candidates_token_count")) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_COMPLETION, int(candidates_token_count)
-        except BaseException:
-            pass
-    if (total_token_count := get_value(usage, "total_token_count")) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_TOTAL, int(total_token_count)
-        except BaseException:
-            pass
+    # GoogleGenAI / VertexAI
+    google_counts = {}
+    for key in (
+        "prompt_token_count",
+        "tool_use_prompt_token_count",
+        "candidates_token_count",
+        "thoughts_token_count",
+        "cached_content_token_count",
+        "total_token_count",
+    ):
+        if (value := get_value(usage, key)) is not None:
+            try:
+                google_counts[key] = int(value)
+            except (TypeError, ValueError, OverflowError):
+                pass
+    prompt_count = google_counts.get("prompt_token_count", 0) + google_counts.get(
+        "tool_use_prompt_token_count", 0
+    )
+    completion_count = google_counts.get("candidates_token_count", 0) + google_counts.get(
+        "thoughts_token_count", 0
+    )
+    if "prompt_token_count" in google_counts or "tool_use_prompt_token_count" in google_counts:
+        yield LLM_TOKEN_COUNT_PROMPT, prompt_count
+    if "candidates_token_count" in google_counts or "thoughts_token_count" in google_counts:
+        yield LLM_TOKEN_COUNT_COMPLETION, completion_count
+    if "thoughts_token_count" in google_counts:
+        yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, google_counts["thoughts_token_count"]
+    # Cached tokens are already included in prompt_token_count.
+    if "cached_content_token_count" in google_counts:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, google_counts["cached_content_token_count"]
+    if google_counts.keys() - {"cached_content_token_count"}:
+        yield (
+            LLM_TOKEN_COUNT_TOTAL,
+            max(prompt_count + completion_count, google_counts.get("total_token_count", 0)),
+        )
 
 
 if WorkflowStepOutputEvent is not None:
