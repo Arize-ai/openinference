@@ -38,7 +38,7 @@ logger.addHandler(logging.NullHandler())
 
 
 def _tuples_to_lists(contents: Any) -> Any:
-    """Turn tuples into lists at every level, as the SDK's request model does."""
+    """Turn tuples into lists at every level, since `t_contents` only walks lists."""
     if isinstance(contents, (list, tuple)):
         return [_tuples_to_lists(item) for item in contents]
     return contents
