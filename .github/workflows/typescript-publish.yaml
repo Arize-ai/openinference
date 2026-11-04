@@ -75,9 +75,10 @@ jobs:
       - name: Send message to Slack
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             {
+              "channel": ${{ toJSON(vars.SLACK_CHANNEL_ID) }},
               "text": ${{ toJSON(format('🚨 TypeScript publish failed on {0}: {1}/{2}/actions/runs/{3}', github.sha, github.server_url, github.repository, github.run_id)) }}
             }
