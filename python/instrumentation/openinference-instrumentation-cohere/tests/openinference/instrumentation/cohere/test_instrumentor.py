@@ -966,7 +966,15 @@ def test_chat_stream_keyboard_interrupt_ends_span_error(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code == StatusCode.ERROR
+    span = spans[0]
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description is not None
+    assert span.status.description.startswith("KeyboardInterrupt")
+    assert any(
+        event.name == "exception"
+        and (event.attributes or {}).get("exception.type") == "KeyboardInterrupt"
+        for event in span.events
+    )
 
 
 async def test_async_chat_stream_cancellation_ends_span_error(
@@ -994,7 +1002,15 @@ async def test_async_chat_stream_cancellation_ends_span_error(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code == StatusCode.ERROR
+    span = spans[0]
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description is not None
+    assert span.status.description.startswith("CancelledError")
+    assert any(
+        event.name == "exception"
+        and (event.attributes or {}).get("exception.type") == "asyncio.exceptions.CancelledError"
+        for event in span.events
+    )
 
 
 async def test_async_chat_stream(
