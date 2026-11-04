@@ -165,10 +165,11 @@ jobs:
       - name: Send message to Slack
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             {
+              "channel": "${{ vars.SLACK_CHANNEL_ID }}",
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
 
@@ -422,13 +423,18 @@ jobs:
           PACKAGE: ${{ matrix.package }}
           PR_URL: ${{ steps.publish.outputs.pr_url }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
         run: |
           MSG="Auto-fix PR opened for ${PACKAGE} canary failures (verify its CI): ${PR_URL}
           ${RUN_URL}"
           echo "$MSG"
-          curl -sf -X POST -H 'Content-type: application/json' \
-            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
-            "${{ secrets.SLACK_WEBHOOK_URL }}"
+          # chat.postMessage answers 200 even on failure; the error is in the body.
+          curl -sf -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
+            | jq -e '.ok' > /dev/null
 
       - name: Notify Slack of no auto-fix PR
         if: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.pr_url == '' && steps.publish.outputs.status != '' }}
@@ -437,13 +443,18 @@ jobs:
           STATUS: ${{ steps.publish.outputs.status }}
           MESSAGE: ${{ steps.publish.outputs.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
         run: |
           MSG="Auto-fix did not open a PR for ${PACKAGE} (${STATUS}): ${MESSAGE}
           ${RUN_URL}"
           echo "$MSG"
-          curl -sf -X POST -H 'Content-type: application/json' \
-            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
-            "${{ secrets.SLACK_WEBHOOK_URL }}"
+          # chat.postMessage answers 200 even on failure; the error is in the body.
+          curl -sf -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
+            | jq -e '.ok' > /dev/null
 
       - name: Notify Slack of auto-fix job failure
         # Catch-all so a crash in the Claude step or the publish step (which
@@ -453,9 +464,14 @@ jobs:
         env:
           PACKAGE: ${{ matrix.package }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
         run: |
           MSG="Canary auto-fix job failed for ${PACKAGE} (no PR opened); see logs: ${RUN_URL}"
           echo "$MSG"
-          curl -sf -X POST -H 'Content-type: application/json' \
-            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
-            "${{ secrets.SLACK_WEBHOOK_URL }}"
+          # chat.postMessage answers 200 even on failure; the error is in the body.
+          curl -sf -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
+            | jq -e '.ok' > /dev/null

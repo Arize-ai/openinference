@@ -761,11 +761,12 @@ jobs:
           MANIFEST: ${{ matrix.manifest }}
           PR_URL: ${{ steps.publish.outputs.pr_url }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
         run: |
           set -euo pipefail
-          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
-            echo "::warning::SLACK_WEBHOOK_URL not set; skipping Slack notification."
+          if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL_ID:-}" ]; then
+            echo "::warning::SLACK_BOT_TOKEN or SLACK_CHANNEL_ID not set; skipping Slack notification."
             exit 0
           fi
 
@@ -774,9 +775,12 @@ jobs:
             "$MANIFEST" \
             "$RUN_URL")
           echo "$MSG"
-          if ! curl -sf -X POST -H 'Content-type: application/json' \
-            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
-            "$SLACK_WEBHOOK_URL"; then
+          # chat.postMessage answers 200 even on failure; the error is in the body.
+          if ! curl -sf -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
+            | jq -e '.ok' > /dev/null; then
             echo "::warning::Slack notification failed; PR was still opened."
           fi
 
