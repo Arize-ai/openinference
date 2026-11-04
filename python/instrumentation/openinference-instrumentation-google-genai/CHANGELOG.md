@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.5.0...python-openinference-instrumentation-google-genai-v1.5.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+* **google-genai:** instrument with Pillow installed and record camelCase dict parts ([#4230](https://github.com/Arize-ai/openinference/issues/4230)) ([11ed6e2](https://github.com/Arize-ai/openinference/commit/11ed6e27fb66a8f948d4a2cfb72a32dd773410ef))
+* **google-genai:** record tuple-valued contents as input messages ([#3995](https://github.com/Arize-ai/openinference/issues/3995)) ([9f7c623](https://github.com/Arize-ai/openinference/commit/9f7c6232c120087d38d857f4e3dc3690d31d8090))
+
 ## [1.5.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.15...python-openinference-instrumentation-google-genai-v1.5.0) (2026-10-29)
 
 
