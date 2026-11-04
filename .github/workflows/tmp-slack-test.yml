@@ -13,6 +13,7 @@ jobs:
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
           method: chat.postMessage
+          errors: true
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             {
