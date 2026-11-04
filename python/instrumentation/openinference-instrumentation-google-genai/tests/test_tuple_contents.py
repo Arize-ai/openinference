@@ -95,10 +95,22 @@ def mock_client() -> tuple[genai.Client, list[dict[str, Any]]]:
             [{"role": "user", "parts": [{"text": "hello"}, {"text": "world"}]}],
             id="mixed_text_and_part_tuple",
         ),
+        pytest.param(
+            (("hello", "world"),),
+            _message(0, "user", "hello", "world"),
+            [{"role": "user", "parts": [{"text": "hello"}, {"text": "world"}]}],
+            id="nested_tuple",
+        ),
+        pytest.param(
+            [("hello", "world")],
+            _message(0, "user", "hello", "world"),
+            [{"role": "user", "parts": [{"text": "hello"}, {"text": "world"}]}],
+            id="list_of_tuple",
+        ),
     ],
 )
 async def test_tuple_contents_across_call_paths(
-    contents: tuple[Any, ...],
+    contents: Any,
     expected_messages: dict[str, str],
     expected_wire_contents: list[dict[str, Any]],
     asynchronous: bool,
@@ -113,7 +125,7 @@ async def test_tuple_contents_across_call_paths(
         await _call(client, asynchronous, streaming, model="gemini-2.0-flash", contents=contents)
     except ValueError as exc:
         # google-genai 2.0.1 sends the request but rejects tuples during stream assembly.
-        assert streaming and "Unsupported content part type" in str(exc)
+        assert streaming and "Unsupported content" in str(exc)
 
     assert len(requests) == 1
     assert requests[0]["contents"] == expected_wire_contents

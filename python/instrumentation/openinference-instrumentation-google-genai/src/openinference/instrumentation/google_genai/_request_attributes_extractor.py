@@ -11,11 +11,13 @@ from typing import (
 from google.genai._transformers import t_contents
 from google.genai.types import (
     Content,
+    ContentListUnionDict,
     FunctionResponse,
     GenerateContentConfig,
     Part,
 )
 from opentelemetry.util.types import AttributeValue
+from pydantic import TypeAdapter
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
@@ -37,9 +39,12 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def _normalize_tuple_contents(contents: Any) -> Any:
-    """Match the SDK's tuple-to-list request validation before calling t_contents."""
-    return list(contents) if isinstance(contents, tuple) else contents
+_CONTENTS_ADAPTER: TypeAdapter[ContentListUnionDict] = TypeAdapter(ContentListUnionDict)
+
+
+def _validate_contents(contents: Any) -> ContentListUnionDict:
+    """Coerce tuples at every level the way the SDK's request model does."""
+    return _CONTENTS_ADAPTER.validate_python(contents)
 
 
 class _RequestAttributesExtractor:
@@ -69,10 +74,7 @@ class _RequestAttributesExtractor:
                 logger.warning("Failed to normalize config")
                 config = None
 
-            # System instruction as the first message. `config` is a
-            # `GenerateContentConfig` by now, so `system_instruction` is already a list:
-            # the SDK's own validation converts a tuple on the way in, and normalizing it
-            # again here would be a no-op.
+            # System instruction as the first message
             if config and (system_instruction := config.system_instruction):
                 try:
                     for content in t_contents(system_instruction):
@@ -92,7 +94,7 @@ class _RequestAttributesExtractor:
 
         if input_contents := request_parameters.get("contents"):
             try:
-                for content in t_contents(_normalize_tuple_contents(input_contents)):
+                for content in t_contents(_validate_contents(input_contents)):
                     for message_attributes in self._iter_messages_from_content(content):
                         for attr, value in message_attributes:
                             yield (
