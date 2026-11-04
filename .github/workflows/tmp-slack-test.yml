@@ -1,0 +1,33 @@
+# TEMPORARY: verifies SLACK_BOT_TOKEN / SLACK_CHANNEL_ID. Remove before merge.
+name: Temporary Slack test
+permissions: {}
+on:
+  push:
+    branches:
+      - claude/funny-volta-q4y77o
+jobs:
+  slack-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post via slack-github-action
+        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            {
+              "channel": "${{ vars.SLACK_CHANNEL_ID }}",
+              "text": ${{ toJSON(format('Test 1/2 (slack-github-action): OpenInference CI Slack bot setup check, please ignore. {0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id)) }}
+            }
+      - name: Post via curl
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          MSG="Test 2/2 (curl chat.postMessage): OpenInference CI Slack bot setup check, please ignore. ${RUN_URL}"
+          curl -sf -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
+            | tee /dev/stderr | jq -e '.ok' > /dev/null
