@@ -1301,6 +1301,12 @@ def test_chat_completion_stream_tool_calls(
     assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "tool_calls"
     output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
     assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    tool_call = f"{output_message}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    assert attributes.pop(f"{tool_call}.{ToolCallAttributes.TOOL_CALL_ID}") == "call_1"
+    function_name = f"{tool_call}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    assert attributes.pop(function_name) == "get_weather"
+    function_arguments = f"{tool_call}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    assert attributes.pop(function_arguments) == '{"city":"Paris"}'
     assert not attributes
 
 
