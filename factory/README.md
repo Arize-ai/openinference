@@ -1,8 +1,8 @@
 # Factory
 
-Claude Managed Agents that triage a new OpenInference issue as soon as it is opened, take a triaged issue to a PR that is ready for human review, and review a pull request a maintainer points them at. Every agent, environment and vault is defined by a file here and synced with [`ant apply`](https://platform.claude.com/docs/en/cli-sdks-libraries/cli/apply). Git is the source of truth, and `claude-lock.json` on the `factory-state` branch records the IDs.
+Claude Managed Agents that triage a new OpenInference issue as soon as it is opened, take a triaged issue to a PR that is ready for human review, review a pull request a maintainer points them at, and finish one a maintainer hands them. Every agent, environment and vault is defined by a file here and synced with [`ant apply`](https://platform.claude.com/docs/en/cli-sdks-libraries/cli/apply). Git is the source of truth, and `claude-lock.json` on the `factory-state` branch records the IDs.
 
-It started as a copy of [Phoenix's factory](https://github.com/Arize-ai/phoenix/tree/main/factory) and runs three lanes so far: triage of new issues, Python and TypeScript bugs, and on-demand review of any pull request. See [Not yet](#not-yet) for what Phoenix has that this doesn't.
+It started as a copy of [Phoenix's factory](https://github.com/Arize-ai/phoenix/tree/main/factory) and runs four lanes so far: triage of new issues, Python and TypeScript bugs, on-demand review of any pull request, and on-demand finishing of a Python or TypeScript pull request. See [Not yet](#not-yet) for what Phoenix has that this doesn't.
 
 ## The issue lifecycle
 
@@ -38,7 +38,7 @@ stateDiagram-v2
 | Duplicate | Nobody | closed as a duplicate, with `duplicate` | The report links the older issue it duplicates; a maintainer reopens it if the reporter shows it is different |
 | Ready | Builder | type, language, package and size labels; `factory-candidate` when the factory can build it | `claude-issue-triage.yml` gates the ready issues that aren't factory candidates for people, such as `good first issue` |
 | Build | Factory | `factory` | `factory-dispatch.yml`: the bug lane reproduces, fixes, reviews and opens a draft PR, then follows it through CI and Claude Code Review |
-| Review | Maintainer | the PR leaves draft, with an assessment of its review depth; a requested factory review leaves `factory-approved`, `factory-request-changes` or `factory-close` | `factory-review.yml` reviews a PR labeled `factory-review`. See [Reviewing a PR](#reviewing-a-pr) |
+| Review | Maintainer | the PR leaves draft, with an assessment of its review depth; a requested factory review leaves `factory-approved`, `factory-request-changes` or `factory-close` | `factory-review.yml` reviews a PR labeled `factory-review`, and `factory-finish.yml` takes a PR labeled `factory-finish` to mergeable. See [Reviewing a PR](#reviewing-a-pr) and [Finishing a PR](#finishing-a-pr) |
 | Release | release-please | the merge | The release PR publishes to PyPI and npm |
 
 Triage turns a report into one of four verdicts. Three hand the issue to whoever moves next, and the fourth closes it:
@@ -70,6 +70,7 @@ flowchart TB
     triage["factory-triage.yml<br/>triage.py start, then watch"]
     dispatch["factory-dispatch.yml<br/>dispatch.py start, then watch"]
     prreview["factory-review.yml<br/>review.py start, then watch"]
+    prfinish["factory-finish.yml<br/>finish.py start, then watch"]
     sync["factory-sync.yml<br/>ant apply on merge"]
   end
 
@@ -80,6 +81,7 @@ flowchart TB
     end
     triager["issue-triager session, read-only token<br/>bug-reproducer, issue-analyst"]
     reviewer["pr-reviewer session<br/>checks out a community PR"]
+    finisher["pr-finisher session<br/>appends commits to the PR's branch"]
     grader["Outcome grader<br/>rubrics/bug.md"]
   end
 
@@ -93,6 +95,9 @@ flowchart TB
   prreview -->|"start session,<br/>report verdict"| reviewer
   reviewer -->|"one COMMENT review"| pr
   prreview -->|"verdict label"| pr
+  maintainer -->|"factory-finish label<br/>on any PR"| prfinish
+  prfinish -->|"copy a fork PR,<br/>start session, send feedback"| finisher
+  finisher -->|"fixes, author comment, assessment"| pr
   issue -->|"labeled"| dispatch
   dispatch -->|"start session,<br/>send CI and review feedback"| coordinator
   coordinator -->|"delegates"| subagents
@@ -163,7 +168,9 @@ Each part does one job, so it can be changed and tested on its own:
 | `dispatch.py watch` | Sends failing required checks, then Claude Code Review findings, back to the session for up to 3 rounds. Marks the PR ready once CI passes, and reports the run outcome on the issue |
 | `factory-review.yml` | Runs when a maintainer labels a PR `factory-review` or dispatches it by number. `review.py` checks that the PR is open and the requester has write access, starts a `pr-reviewer` session pinned to the head commit, then edits its status comment on the PR into the review's verdict and labels it `factory-approved`, `factory-request-changes` or `factory-close`, or says why there is no verdict. See [Reviewing a PR](#reviewing-a-pr) |
 | `pr-reviewer` | Checks out the pinned commit from `pull/N/head`, runs the tox environments and pnpm scripts CI runs for the touched packages, judges each added test, sends the diff to the language reviewers, verifies their findings, and submits one `COMMENT` review with inline findings and a summary that recommends approve, request changes or close |
-| `factory-guard.yml` | Fails factory PRs that touch `.github/`, `.claude/`, `.agents/`, `factory/`, `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md` or the release-please config |
+| `factory-finish.yml` | Runs when a maintainer labels a PR `factory-finish` or dispatches it by number. `finish.py` checks that the requester has write access, the PR is open and touches `python/` or `js/` and, for a fork PR, its CLA is signed, copies a fork PR to a `factory/pr-N` branch here and closes the original, starts a `pr-finisher` session on the PR's branch, then follows it the way `dispatch.py` does. See [Finishing a PR](#finishing-a-pr) |
+| `pr-finisher` | Links or files the PR's issue from the issue template, grades it by the `pr-reviewer` verdict rules with the language reviewers, closes it and labels a bug issue `factory` when the approach is not sound, otherwise checks the PR's tests fail without its change and pass with it, has the reproducer confirm a bug, fixes every finding in the project's style with appended commits, and posts one comment to the author on what changed and why |
+| `factory-guard.yml` | Fails factory PRs, including any labeled `factory-finished`, that touch `.github/`, `.claude/`, `.agents/`, `factory/`, `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md` or the release-please config |
 | `factory-sync.yml` | Plans resource changes on PRs, applies them on merge, and pushes `claude-lock.json` to the `factory-state` branch, which holds only the lock |
 
 ### Trust boundaries
@@ -171,10 +178,11 @@ Each part does one job, so it can be changed and tested on its own:
 - **Untrusted input.** Issue text, issue comments, CI logs, review comments and fetched web pages can come from anyone. Agents treat them as evidence, never as instructions. The kickoff message carries only the issue number, its labels and the commit identity. To classify an issue with no type label, `dispatch.py` sends its title and body to Claude with no tools and an answer held to the triage types, so injected text can at most send the issue to the bug lane.
 - **Triage starts for anyone.** Opening an issue from a template or replying to a `needs information` report starts a triage session, so its sandbox gets less than the others: an installation token with Contents, Issues and Pull requests read only, written to its own vault (`vaults/github-readonly.yaml`), so it can't push, label or comment. The triager's only way out is `submit_triage`. `triage.py` checks the call against the repo's labels and the grading rules, decides the labels, the nomination and any duplicate close in code, and posts with a separate Issues-write token that no session sees. The only issue it can close is the one being triaged, and only as a duplicate of an older open issue. In the report it neutralizes mentions, raw HTML and link markup outside code, so injected text can't notify anyone, hide part of the report, or disguise a link in a comment the factory signs. The caps per issue and per day bound what a stream of issues can spend. `claude-lock.json` comes from `factory-state`, a branch the app's token can push from another lane's sandbox, so `triage.py` checks that the triager's agent and vault IDs name `openinference-issue-triager` and `factory-github-readonly` before it mints a token. Only the workspace's API key can rename them. A ruleset that lets only GitHub Actions push `factory-state` would close the branch itself.
 - **The sandbox.** Code there can use the factory app's token for the whole session, so it can push any branch the token reaches. The token is an installation token of the `openinference-factory` GitHub App, limited to this repo with Contents, Issues and Pull requests write, and no ruleset limits its branches, because the app also authors the release and sync PRs (see [Bootstrap](#bootstrap)). A session can therefore push to a `release-please--*` or `changeset-release/*` branch, and merging that PR publishes packages, so read every commit on a release PR before merging it. The app's private key stays in GitHub Actions. Factory Guard recognizes factory PRs by their `factory/` branch or by the app as their author, except on the release-please, changesets and skills-update branches.
-- **Community code in the sandbox.** The review lane checks out a contributor's commit and runs the project's tox environments, pnpm scripts and tests on it, so that code runs with the sandbox's access: the factory app's installation token (injected by the vault into GitHub calls, never visible as a value) and the limited network. The agent runs nothing the PR adds except through those targets, and the token's three permissions bound what it can do. The Actions job itself only ever checks out the base branch.
-- **Human gates.** Only someone with write access can start a build or a review, by labeling or dispatching an issue or a PR, and only a human merges. Triage only nominates: `factory-candidate` starts nothing. The review agent recommends a verdict in the review body but is instructed to submit only `COMMENT` reviews, never to approve or request changes.
+- **Community code in the sandbox.** The review and finish lanes check out a contributor's commit and run the project's tox environments, pnpm scripts and tests on it, so that code runs with the sandbox's access: the factory app's installation token (injected by the vault into GitHub calls, never visible as a value) and the limited network. The agent runs nothing the PR adds except through those targets, and the token's three permissions bound what it can do. The Actions job itself only ever checks out the base branch.
+- **Finished PRs.** The finish lane labels a PR `factory-finished` before its session can push, and the label stays, so Factory Guard treats every later head as factory work. A fork PR's copy is a same-repo branch, so its `pull_request` workflows get a write-scoped `GITHUB_TOKEN` and the jobs that skip forks run on it: `claude-code-review.yml` and `typescript-packages-publish-experimental.yml`, which builds and publishes preview packages from the PR's code. Read the diff of a finished PR before those jobs matter. `finish.py` turns away a fork PR that changes a guarded path before copying it, since the copy could never pass the guard and fork-written `factory/` config must not reach the sync plan, which holds the workspace key.
+- **Human gates.** Only someone with write access can start a build, a review or a finish, by labeling or dispatching an issue or a PR, and only a human merges. Triage only nominates: `factory-candidate` starts nothing. The review agent recommends a verdict in the review body but is instructed to submit only `COMMENT` reviews, never to approve or request changes.
 
-A maintainer's part is to answer what triage hands them, label an issue `factory`, and review PRs once they leave draft, as deeply as the assessment's review depth says. Each build or review run leaves one factory comment. It says the session started, and the result replaces it when the session ends: as a new comment, which notifies, unless the factory posted a review that already did. To triage an issue again, run **Factory Triage** with its number, or remove and re-add `triage`. To run an issue again, re-add the `factory` label. To have the factory review a pull request, label it `factory-review`, then act on the verdict label it leaves.
+A maintainer's part is to answer what triage hands them, label an issue `factory`, and review PRs once they leave draft, as deeply as the assessment's review depth says. Each build or review run leaves one factory comment. It says the session started, and the result replaces it when the session ends: as a new comment, which notifies, unless the factory posted a review that already did. To triage an issue again, run **Factory Triage** with its number, or remove and re-add `triage`. To run an issue again, re-add the `factory` label. To have the factory review a pull request, label it `factory-review`, then act on the verdict label it leaves. To have it take a pull request the rest of the way, label it `factory-finish`.
 
 ## Triaging an issue
 
@@ -315,9 +323,49 @@ Every run ends with one factory comment. If no verdict label was added, the fact
 | The review's heading names no verdict | The agent did not follow the summary template | Read the review yourself. Fix `agents/pr-reviewer.md` if it happens again |
 | The factory lost track of the session | The watch step failed, for example the app token could not be minted | Read the workflow run and the session, then re-add `factory-review` |
 
+## Finishing a PR
+
+A review tells a maintainer what a pull request needs. The finish lane does it. A maintainer labels an open PR `factory-finish`, or runs **Factory Finish** from the Actions tab with its number, and the factory takes the PR the rest of the way: a linked issue, every review finding fixed in the project's style, CI green, with one comment to the author saying what changed and why. The PR may be a draft. The requester needs write access, the PR must touch `python/` or `js/`, and a fork PR's CLA must be signed per the CLA Assistant's check, falling back to its comment when the check is missing; otherwise the factory comments why it skipped and removes the label.
+
+```mermaid
+sequenceDiagram
+  actor maintainer as Maintainer
+  participant github as GitHub
+  participant finish as finish.py
+  participant session as pr-finisher session
+
+  maintainer->>github: add the factory-finish label
+  github->>finish: pull_request_target labeled
+  finish->>github: check the requester, the PR, its paths and its CLA
+  alt not admissible
+    finish->>github: comment why, remove factory-finish
+  else fork PR
+    finish->>github: push pull/N/head to factory/pr-N, open a PR from it, close the original with a pointer
+  end
+  finish->>github: label the PR factory-finished
+  finish->>session: create with pr-finisher, the repo mounted on the PR's branch
+  finish->>github: post the run's status comment with the session link
+  session->>session: bootstrap, link or file the issue, run checks, language review, grade the verdict
+  alt Close verdict
+    session->>github: comment the reason, close the PR, label a bug issue factory
+  else
+    session->>session: run the PR's tests without and with its change, reproduce a bug, fix every finding, append commits
+    session->>github: push, update the body, comment to the author, post the assessment
+    finish->>session: CI failures and review findings, up to 3 rounds
+    finish->>github: mark the PR ready, replace the status comment with the outcome, remove factory-finish
+  end
+  maintainer->>github: review at the assessment's depth, then merge
+```
+
+The factory cannot push to a fork, so a fork PR is first copied: the Actions job fetches `pull/N/head` and pushes it to `factory/pr-N` as objects, with the app token passed in a header rather than on the command line, opens a draft PR from that branch with the contributor's title and body plus a provenance line, and closes the original with a comment that links the copy. The runner never checks out or runs the fork's code. The commits keep the contributor's authorship, and the session only ever appends commits, so what they wrote stays theirs in the history. Re-adding the label to the closed original continues the open copy instead of making another. A same-repo PR is finished on its own branch.
+
+The session grades the PR by the same verdict rules as the review lane, in [`agents/pr-reviewer.md` § Verdict](agents/pr-reviewer.md#verdict). A **Close** verdict, or a Fit failure that only a rewrite would fix, ends the run: the session comments the reason and closes the PR. If the issue is a Python or TypeScript bug, it labels the issue `factory`, which starts the bug lane on a fresh branch; any other issue waits for a maintainer, since there is no feature lane yet. Otherwise it reverts the PR's non-test changes, runs the PR's own tests to show they fail for the reported reason, has `bug-reproducer` write an independent test for a bug, restores the change and runs both again to show they pass. Then it fixes every finding, blocking and non-blocking, and ships. The fixes follow the project's conventions rather than the PR's. On a same-repo PR that already changes a path Factory Guard protects, the guard fails once the lane labels it, and the assessment says so. Java, Go and `spec/` parts of a mixed PR get a reading only.
+
+The watch step reuses the dispatch loop: failing required checks and Claude Code Review findings go back to the session for up to 3 rounds, the PR leaves draft once CI passes, and the status comment becomes the outcome with the rubric result and cost, graded against `rubrics/finish.md`. Each session has a spend cap of $25 at list price, and the job waits up to 270 minutes. Re-adding the label runs the lane again on the PR's current head.
+
 ## Run outcomes
 
-Every report the bug lane posts on an issue names how the run ended. Only `success` asks for a human review; the other outcomes are the factory's own backlog:
+Every report the bug lane posts on an issue, and the finish lane on its PR, names how the run ended. Only `success` asks for a human review; the other outcomes are the factory's own backlog:
 
 | Outcome | Meaning | Fix |
 |---|---|---|
@@ -332,12 +380,13 @@ Every report the bug lane posts on an issue names how the run ended. Only `succe
 agents/          one file per agent: frontmatter = config, body = system prompt
 environments/    the sandbox (uv, tox, pnpm, limited networking)
 vaults/          the vault containers: GitHub, and GitHub read-only for triage; the scripts write their credentials
-rubrics/         outcome rubrics, inlined by dispatch.py and triage.py (not ant resources)
+rubrics/         outcome rubrics, inlined by dispatch.py, triage.py and finish.py (not ant resources)
 assessment.md    the fit-and-risk comment coordinators post on their PR
 bootstrap.sh     run by each coordinator first: `make install-js` for JS, a capability report
 triage.py        triages a new issue: starts its session, answers its submission, labels the issue and posts the report
 dispatch.py      admits an issue, starts its session, and follows it to a reviewable PR
 review.py        admits a pull request, starts its pr-reviewer session, and reports and labels the review's verdict
+finish.py        admits a pull request, copies it from a fork if needed, starts its pr-finisher session, and follows it to a mergeable PR
 github_app.py    mints the GitHub App's installation tokens and keeps sessions and the vault supplied
 ```
 
@@ -348,11 +397,11 @@ github_app.py    mints the GitHub App's installation tokens and keeps sessions a
 1. Create a dedicated Claude workspace for the factory, install `ant` (>= 1.40.0), and authenticate against it. Any API key in that workspace can start sessions that use the vault's GitHub credential, so keep the shared `ANTHROPIC_API_KEY` in a different workspace.
 2. Create the repo secret `FACTORY_ANTHROPIC_API_KEY` with a key from that workspace, then run `Factory Sync` from `main` with **Run workflow**. Its first apply creates every resource and the `factory-state` branch.
 3. Install the `openinference-factory` GitHub App on the `Arize-ai` org for this repo only. It needs the repository permissions Contents, Issues and Pull requests read/write, plus the mandatory Metadata read, and nothing else: no Workflows, Actions or Administration. Generate a private key for it. Use an app of its own rather than Phoenix's: a private key can mint tokens for every repo its app is installed on.
-4. Create the repo variable `FACTORY_APP_CLIENT_ID` with the app's Client ID and the repo secret `FACTORY_APP_PRIVATE_KEY` with the private key. For each session, `dispatch.py` and `review.py` mint an installation token limited to this repo and those three permissions, mounts it as the session's repo token, and writes it to the GitHub vault as a `static_bearer` credential for `https://api.githubcopilot.com/mcp/` and a header-only `GH_TOKEN` environment-variable credential for `api.github.com`, creating them on first use. Tokens last an hour, so they re-mint one while they follow a session. The sandbox sees only placeholders. `triage.py` does the same with a read-only token and the read-only vault, and mints a separate Issues-write token, which no vault holds, to post its reports. The app then authors factory PRs, so any maintainer can approve them. The release and sync workflows (`release.yml`, `typescript-publish.yaml`, `bump-openinference-instrumentation-version.yml`, `bump-openinference-semantic-conventions-version.yml` and `skills-update.yml`) mint their own installation token from the same variable and secret with `actions/create-github-app-token`, so the app authors those PRs too.
+4. Create the repo variable `FACTORY_APP_CLIENT_ID` with the app's Client ID and the repo secret `FACTORY_APP_PRIVATE_KEY` with the private key. For each session, `dispatch.py`, `review.py` and `finish.py` mint an installation token limited to this repo and those three permissions, mount it as the session's repo token, and write it to the GitHub vault as a `static_bearer` credential for `https://api.githubcopilot.com/mcp/` and a header-only `GH_TOKEN` environment-variable credential for `api.github.com`, creating them on first use. Tokens last an hour, so they re-mint one while they follow a session. The sandbox sees only placeholders. `triage.py` does the same with a read-only token and the read-only vault, and mints a separate Issues-write token, which no vault holds, to post its reports. The app then authors factory PRs, so any maintainer can approve them. The release and sync workflows (`release.yml`, `typescript-publish.yaml`, `bump-openinference-instrumentation-version.yml`, `bump-openinference-semantic-conventions-version.yml` and `skills-update.yml`) mint their own installation token from the same variable and secret with `actions/create-github-app-token`, so the app authors those PRs too.
 5. Create the repo variable `FACTORY_GITHUB_LOGIN` with the app's bot login, `openinference-factory[bot]`. CI uses it to recognize factory PRs, `review.py` finds the review it posts by it, and the factory commits as its noreply address. The login is in the `allowlist` in `.github/workflows/cla.yaml` and in `allowed_bots` in `.github/workflows/claude-code-review.yml`.
 6. Don't restrict the app's branches. It pushes the release-please, changesets, version-bump and sync branches as well as `factory/**`. If a ruleset from an earlier bootstrap keeps it on `factory/**`, delete the ruleset or add the app to its bypass list. Branch protection on `main` still applies to it, so its PRs need a maintainer's approval.
-7. Create the `factory`, `factory-review` and `factory-candidate` labels, and make `Factory Guard` a required check on `main`. `review.py` creates the verdict labels `factory-approved`, `factory-request-changes` and `factory-close` on first use; to create them up front, run `gh label create <name> --color <color> --description <description> --force` with the values in `VERDICT_LABELS` in `review.py`. `triage.py` refuses to start until `factory-candidate`, `needs information` and `duplicate` exist.
-8. Try it on one open issue with **Run workflow** on `Factory Triage`, on one small issue with **Run workflow** on `Factory Dispatch`, and on one open PR with **Run workflow** on `Factory Review`.
+7. Create the `factory`, `factory-review`, `factory-finish` and `factory-candidate` labels, and make `Factory Guard` a required check on `main`. `review.py` creates the verdict labels `factory-approved`, `factory-request-changes` and `factory-close` on first use; to create them up front, run `gh label create <name> --color <color> --description <description> --force` with the values in `VERDICT_LABELS` in `review.py`. `finish.py` creates `factory-finished` on first use. `triage.py` refuses to start until `factory-candidate`, `needs information` and `duplicate` exist.
+8. Try it on one open issue with **Run workflow** on `Factory Triage`, on one small issue with **Run workflow** on `Factory Dispatch`, on one open PR with **Run workflow** on `Factory Review`, and on one small same-repo PR with **Run workflow** on `Factory Finish`.
 
 ## Switching workspaces
 
