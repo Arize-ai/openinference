@@ -2108,7 +2108,9 @@ async def test_activity_start_keeps_the_context_attributes_it_was_sent_with(
         websocket.push(_audio(), _turn_complete())
         await _drain(session)
 
-    for span in _spans(in_memory_span_exporter):
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM"]
+    for span in spans:
         assert (span.attributes or {})[SpanAttributes.SESSION_ID] == "activity-session"
 
 
@@ -2145,7 +2147,9 @@ async def test_text_interaction_ignores_context_of_earlier_audio_input(
         websocket.push(_text("Hi."), _turn_complete())
         await _drain(session)
 
-    for span in _spans(in_memory_span_exporter):
+    spans = _spans(in_memory_span_exporter)
+    assert [_kind(span) for span in spans] == ["CHAIN", "LLM"]
+    for span in spans:
         assert SpanAttributes.SESSION_ID not in (span.attributes or {})
 
 
@@ -2702,3 +2706,33 @@ async def test_each_interaction_can_have_its_own_context_attributes(
     # anything the later context does not set still comes from connect()
     for span in spans:
         assert (span.attributes or {})[SpanAttributes.USER_ID] == "connect-user"
+
+
+async def test_voice_sample_in_config_is_not_recorded(
+    instrument: GoogleGenAIInstrumentor,
+    websocket: FakeWebSocket,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    voice_sample = b"RIFF" + b"\x11" * 64
+    config = types.LiveConnectConfig(
+        response_modalities=[types.Modality.AUDIO],
+        speech_config=types.SpeechConfig(
+            voice_config=types.VoiceConfig(
+                replicated_voice_config=types.ReplicatedVoiceConfig(
+                    mime_type="audio/wav", voice_sample_audio=voice_sample
+                )
+            )
+        ),
+    )
+    client = genai.Client(vertexai=True, api_key="test-key")
+    async with client.aio.live.connect(model=MODEL, config=config) as session:
+        await session.send_client_content(turns=_user("hi"))
+        websocket.push(_audio(), _turn_complete())
+        await _drain(session)
+
+    assert base64.b64encode(voice_sample).decode() in json.dumps(websocket.sent[0])
+    _, llm = _spans(in_memory_span_exporter)
+    assert json.loads(str((llm.attributes or {})[SpanAttributes.LLM_INVOCATION_PARAMETERS])) == {
+        "response_modalities": ["AUDIO"],
+        "speech_config": {"voice_config": {"replicated_voice_config": {"mime_type": "audio/wav"}}},
+    }

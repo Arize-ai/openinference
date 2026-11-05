@@ -121,6 +121,23 @@ def _is_dropped_media(part: Any) -> bool:
     return not (file_uri.startswith("data:image/") and mime_type.startswith("image/"))
 
 
+def _without_bytes(python_value: Any, json_value: Any) -> Any:
+    # Walks a model's python dump next to its JSON dump, dropping what is bytes in the first.
+    if isinstance(python_value, dict) and isinstance(json_value, dict):
+        return {
+            key: _without_bytes(python_value.get(key), value)
+            for key, value in json_value.items()
+            if not isinstance(python_value.get(key), bytes)
+        }
+    if isinstance(python_value, list) and isinstance(json_value, list):
+        return [
+            _without_bytes(item, value)
+            for item, value in zip(python_value, json_value)
+            if not isinstance(item, bytes)
+        ]
+    return json_value
+
+
 def _response_without_media(response: Any) -> Any:
     parts = response.parts or []
     kept = [part for part in parts if not _is_dropped_media(part)]
@@ -426,8 +443,13 @@ class _LiveSessionTracer:
             config = types.LiveConnectConfig.model_validate(config)
         if config.system_instruction:
             self._system_contents = list(t_contents(config.system_instruction))
-        parameters = config.model_dump(
-            mode="json", exclude_none=True, exclude=set(_NON_INVOCATION_CONFIG_FIELDS)
+        dump_options: dict[str, Any] = dict(
+            exclude_none=True, exclude=set(_NON_INVOCATION_CONFIG_FIELDS)
+        )
+        # Bytes in the config are media (a voice sample to replicate, its consent
+        # recording, an avatar image), not generation parameters.
+        parameters = _without_bytes(
+            config.model_dump(**dump_options), config.model_dump(mode="json", **dump_options)
         )
         if parameters:
             self._llm_attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS] = safe_json_dumps(
