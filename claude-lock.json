@@ -44,9 +44,9 @@
     "./agents/pr-reviewer.md": {
       "kind": "agent",
       "id": "agent_01HvwHmP5rQmhChSwRurQR9j",
-      "version": "1",
-      "hash": "9a82de0c64de236418b754ce52caf1b9",
-      "remote_hash": "731cf81b977ff13f3b3f0dacea78863d"
+      "version": "2",
+      "hash": "3b596e3f0c04befbe47473446cdbfbde",
+      "remote_hash": "6110de8894a1e170623c4e9197ad6580"
     },
     "./agents/python-reviewer.md": {
       "kind": "agent",
