@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.3.0...python-openinference-instrumentation-anthropic-v3.3.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **anthropic:** guard usage.input_tokens against None in _get_token_counts ([#3556](https://github.com/Arize-ai/openinference/issues/3556)) ([52cc39e](https://github.com/Arize-ai/openinference/commit/52cc39e4f2719c398909b45de909ada7b65a7fcc))
+
 ## [3.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.2.0...python-openinference-instrumentation-anthropic-v3.3.0) (2026-10-31)
 
 

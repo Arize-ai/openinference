@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.5.1...python-openinference-instrumentation-google-genai-v1.6.0) (2026-11-05)
+
+
+### Features
+
+* **google-genai:** trace Live API sessions ([#4216](https://github.com/Arize-ai/openinference/issues/4216)) ([208df08](https://github.com/Arize-ai/openinference/commit/208df08690786aebbcb4bc140d238d9c7dc250c5))
+
+
+### Bug Fixes
+
+* **google_genai:** publish AFC tool calls as output messages ([#3798](https://github.com/Arize-ai/openinference/issues/3798)) ([5878e0b](https://github.com/Arize-ai/openinference/commit/5878e0bd8f21dc6ae7f7e530e324ff8f9ac2c0e3))
+
 ## [1.5.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.5.0...python-openinference-instrumentation-google-genai-v1.5.1) (2026-11-04)
 
 
