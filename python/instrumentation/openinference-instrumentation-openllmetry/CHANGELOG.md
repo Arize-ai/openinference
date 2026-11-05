@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.26...python-openinference-instrumentation-openllmetry-v0.1.27) (2026-11-05)
+
+
+### Bug Fixes
+
+* **openllmetry:** Set OK Status For Successful Spans ([#4063](https://github.com/Arize-ai/openinference/issues/4063)) ([f40fdc4](https://github.com/Arize-ai/openinference/commit/f40fdc4f02eb2c724536a8c9f0e03c82e9be040c))
+
 ## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.25...python-openinference-instrumentation-openllmetry-v0.1.26) (2026-11-04)
 
 

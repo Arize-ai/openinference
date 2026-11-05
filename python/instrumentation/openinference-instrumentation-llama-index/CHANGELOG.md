@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.1...python-openinference-instrumentation-llama-index-v4.7.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **llama_index:** Preserve Complete Gemini Token Usage ([#4227](https://github.com/Arize-ai/openinference/issues/4227)) ([d2738f8](https://github.com/Arize-ai/openinference/commit/d2738f869fada28f7786e09ba36a473a4689caf6))
+
 ## [4.7.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.0...python-openinference-instrumentation-llama-index-v4.7.1) (2026-11-04)
 
 

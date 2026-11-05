@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.1...python-openinference-instrumentation-agno-v1.1.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **agno:** don't resolve an async tools factory in run attributes ([#3998](https://github.com/Arize-ai/openinference/issues/3998)) ([592b1ad](https://github.com/Arize-ai/openinference/commit/592b1ad29d871e40f564c0cf429d5a4160d74df7))
+
 ## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.0...python-openinference-instrumentation-agno-v1.1.1) (2026-11-04)
 
 
