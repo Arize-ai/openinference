@@ -30,7 +30,7 @@ MCPInstrumentor().instrument(tracer_provider=tracer_provider)
 async def discover_and_invoke(server_url: str) -> None:
     with tracer.start_as_current_span("discovery") as root:
         root.set_attribute("mcp.server.url", server_url)
-        async with streamable_http_client(server_url) as (reader, writer, _):
+        async with streamable_http_client(server_url) as (reader, writer, *_):
             async with ClientSession(reader, writer) as session:
                 await session.initialize()
 

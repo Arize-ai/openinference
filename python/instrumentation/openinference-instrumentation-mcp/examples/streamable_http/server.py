@@ -1,4 +1,3 @@
-from mcp.server.fastmcp import FastMCP
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -11,7 +10,17 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 tracer = tracer_provider.get_tracer("mcp-example-server")
 MCPInstrumentor().instrument(tracer_provider=tracer_provider)
 
-server = FastMCP(port=8765)
+try:
+    # mcp 2.x: FastMCP became MCPServer and the port moved to run()
+    from mcp.server import MCPServer
+
+    server = MCPServer()
+    run_kwargs = {"port": 8765}
+except ImportError:
+    from mcp.server.fastmcp import FastMCP
+
+    server = FastMCP(port=8765)
+    run_kwargs = {}
 
 
 @server.tool()
@@ -26,6 +35,6 @@ async def greet(name: str) -> str:
 if __name__ == "__main__":
     print(f"Serving MCP streamable-http on http://localhost:{8765}/mcp")
     try:
-        server.run(transport="streamable-http")
+        server.run(transport="streamable-http", **run_kwargs)
     finally:
         tracer_provider.shutdown()
