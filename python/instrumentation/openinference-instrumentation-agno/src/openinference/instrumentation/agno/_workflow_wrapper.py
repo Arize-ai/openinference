@@ -9,6 +9,11 @@ from typing import (
     Tuple,
 )
 
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -20,11 +25,7 @@ from openinference.instrumentation.agno.utils import (
     _bind_arguments,
     _flatten,
     _generate_node_id,
-)
-from openinference.semconv.trace import (
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
+    _normalize_id,
 )
 
 
@@ -164,17 +165,20 @@ def _step_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
 
 def _workflow_run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
     """Extract user_id and session_id from workflow run arguments."""
-    user_id = arguments.get("user_id")
-    session_id = arguments.get("session_id")
+    raw_user_id = arguments.get("user_id")
+    raw_session_id = arguments.get("session_id")
 
     # For agno v2: session_id might be in the session object
     session = arguments.get("session")
     if session and hasattr(session, "session_id"):
-        session_id = session.session_id
+        raw_session_id = session.session_id
 
-    if session_id:
+    session_id = _normalize_id(raw_session_id, "session_id")
+    user_id = _normalize_id(raw_user_id, "user_id")
+
+    if session_id is not None:
         yield SESSION_ID, session_id
-    if user_id:
+    if user_id is not None:
         yield USER_ID, user_id
 
 
@@ -263,8 +267,10 @@ class _WorkflowWrapper:
                 span.set_attribute("agno.run.id", run_id)
 
             # Check instance user_id
-            if hasattr(instance, "user_id") and instance.user_id:
-                span.set_attribute(USER_ID, instance.user_id)
+            if instance and hasattr(instance, "user_id"):
+                user_id = _normalize_id(instance.user_id, "user_id")
+                if user_id is not None:
+                    span.set_attribute(USER_ID, user_id)
 
             return result
 
@@ -335,8 +341,10 @@ class _WorkflowWrapper:
                 span.set_attribute("agno.run.id", run_id)
 
             # Capture user_id from instance if available
-            if instance and hasattr(instance, "user_id") and instance.user_id:
-                span.set_attribute(USER_ID, instance.user_id)
+            if instance and hasattr(instance, "user_id"):
+                user_id = _normalize_id(instance.user_id, "user_id")
+                if user_id is not None:
+                    span.set_attribute(USER_ID, user_id)
 
         except (StopIteration, StopAsyncIteration):
             raise
@@ -451,8 +459,10 @@ class _WorkflowWrapper:
                     span.set_attribute("agno.run.id", run_id)
 
                 # Capture user_id from instance if available
-                if hasattr(instance, "user_id") and instance.user_id:
-                    span.set_attribute(USER_ID, instance.user_id)
+                if instance and hasattr(instance, "user_id"):
+                    user_id = _normalize_id(instance.user_id, "user_id")
+                    if user_id is not None:
+                        span.set_attribute(USER_ID, user_id)
 
                 return response
 
@@ -523,8 +533,10 @@ class _WorkflowWrapper:
                 span.set_attribute("agno.run.id", run_id)
 
             # Capture user_id from instance if available
-            if instance and hasattr(instance, "user_id") and instance.user_id:
-                span.set_attribute(USER_ID, instance.user_id)
+            if instance and hasattr(instance, "user_id"):
+                user_id = _normalize_id(instance.user_id, "user_id")
+                if user_id is not None:
+                    span.set_attribute(USER_ID, user_id)
 
         except (StopIteration, StopAsyncIteration):
             raise
@@ -574,9 +586,13 @@ class _WorkflowExecuteWrapper:
         if run_id:
             span.set_attribute("agno.run.id", run_id)
 
-        user_id = getattr(run_output, "user_id", None)
-        if user_id:
+        user_id = _normalize_id(getattr(run_output, "user_id", None), "user_id")
+        if user_id is not None:
             span.set_attribute(USER_ID, user_id)
+
+        session_id = _normalize_id(getattr(run_output, "session_id", None), "session_id")
+        if session_id is not None:
+            span.set_attribute(SESSION_ID, session_id)
 
     async def aexecute(
         self,
