@@ -909,6 +909,52 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(respSpan!.attributes["output.images.2.image.url"]).toBeUndefined();
   });
 
+  it("falls back for image results with an unknown, jpg or data URL format", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _input: "Draw three lighthouses",
+      _response: {
+        model: "gpt-image-1",
+        output: [
+          { type: "image_generation_call", status: "completed", result: "Zmlyc3Q=" },
+          {
+            type: "image_generation_call",
+            status: "completed",
+            result: "c2Vjb25k",
+            output_format: "jpg",
+          },
+          {
+            type: "image_generation_call",
+            status: "completed",
+            result: "data:image/gif;base64,dGhpcmQ=",
+            output_format: "png",
+          },
+        ],
+      },
+    };
+
+    const span = makeSpan("span-resp-image-formats", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter
+      .getFinishedSpans()
+      .find((finishedSpan) => finishedSpan.name === "response");
+    expect(respSpan!.attributes["output.images.0.image.url"]).toBe(
+      "data:image/png;base64,Zmlyc3Q=",
+    );
+    expect(respSpan!.attributes["output.images.1.image.url"]).toBe(
+      "data:image/jpeg;base64,c2Vjb25k",
+    );
+    expect(respSpan!.attributes["output.images.2.image.url"]).toBe(
+      "data:image/gif;base64,dGhpcmQ=",
+    );
+  });
+
   it("extracts string ResponseSpanData input as a structured user message", async () => {
     const trace = makeTrace();
     await processor.onTraceStart(trace);

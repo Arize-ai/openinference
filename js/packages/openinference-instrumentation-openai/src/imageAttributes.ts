@@ -12,11 +12,15 @@ import {
 } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+/**
+ * @param params.namespace - Either input.images or output.images
+ * @param params.index - The image's position on the span
+ */
 function getImageAttributeKey({ namespace, index }: { namespace: string; index: number }): string {
   return `${namespace}.${index}.${SemanticConventions.IMAGE_URL}`;
 }
 
-function mediaTypeFromFormat(format: unknown): string | undefined {
+function getMediaTypeFromFormat(format: unknown): string | undefined {
   if (typeof format !== "string") return undefined;
   const normalized = format.toLowerCase();
   if (normalized === "jpg") return "image/jpeg";
@@ -26,10 +30,10 @@ function mediaTypeFromFormat(format: unknown): string | undefined {
   return undefined;
 }
 
-function mediaTypeFromFilename(filename: string | undefined): string | undefined {
+function getMediaTypeFromFilename(filename: string | undefined): string | undefined {
   if (!filename) return undefined;
   const extension = filename.toLowerCase().split(/[?#]/, 1)[0].split(".").pop();
-  return mediaTypeFromFormat(extension);
+  return getMediaTypeFromFormat(extension);
 }
 
 function sniffImageMediaType(bytes: Uint8Array): string | undefined {
@@ -63,7 +67,7 @@ function sniffImageMediaType(bytes: Uint8Array): string | undefined {
   return undefined;
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
+function encodeBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
   for (let offset = 0; offset < bytes.length; offset += chunkSize) {
@@ -72,7 +76,11 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-export function imageBase64ToDataURL({
+/**
+ * @param params.base64 - The image's base64, or a data URL, which is kept as is
+ * @param params.imageFormat - The image's format, such as png; PNG is used when it is unknown
+ */
+export function getImageDataURL({
   base64,
   imageFormat,
 }: {
@@ -80,9 +88,13 @@ export function imageBase64ToDataURL({
   imageFormat?: unknown;
 }): string {
   if (base64.startsWith("data:image/")) return base64;
-  return `data:${mediaTypeFromFormat(imageFormat) ?? "image/png"};base64,${base64}`;
+  return `data:${getMediaTypeFromFormat(imageFormat) ?? "image/png"};base64,${base64}`;
 }
 
+/**
+ * @param params.response - The Images API response
+ * @param params.requestFormat - The output format the request asked for
+ */
 export function getImagesResponseAttributes({
   response,
   requestFormat,
@@ -95,7 +107,7 @@ export function getImagesResponseAttributes({
   response.data?.forEach((image, index) => {
     const imageUrl =
       image.url ??
-      (image.b64_json ? imageBase64ToDataURL({ base64: image.b64_json, imageFormat }) : undefined);
+      (image.b64_json ? getImageDataURL({ base64: image.b64_json, imageFormat }) : undefined);
     if (imageUrl) {
       attributes[getImageAttributeKey({ namespace: SemanticConventions.OUTPUT_IMAGES, index })] =
         imageUrl;
@@ -109,7 +121,7 @@ export function getCompletedImageEventAttributes(
 ): Attributes {
   return {
     [getImageAttributeKey({ namespace: SemanticConventions.OUTPUT_IMAGES, index: 0 })]:
-      imageBase64ToDataURL({ base64: event.b64_json, imageFormat: event.output_format }),
+      getImageDataURL({ base64: event.b64_json, imageFormat: event.output_format }),
   };
 }
 
@@ -118,6 +130,9 @@ export function getCompletedImageEventAttributes(
  * recorded on output.images.*, where base64ImageMaxLength applies to them.
  */
 export function stringifyImagesResponse(response: ImagesResponse): string {
+  // A body that is not a JSON object, such as an HTML error page, is recorded as it is.
+  const isObject = typeof response === "object" && response !== null && !Array.isArray(response);
+  if (!isObject) return JSON.stringify(response);
   return JSON.stringify({
     ...response,
     data: response.data?.map(({ b64_json: _b64Json, ...image }) => image),
@@ -143,6 +158,9 @@ type UploadContents = {
   declaredMediaType?: string;
   filename?: string;
 };
+/**
+ * The params every upload reader takes, alongside the upload itself.
+ */
 type ReadUploadParams = {
   /** Whether the bytes would be redacted once encoded, so there is no need to read them. */
   isTooLong: (byteLength: number) => boolean;
@@ -188,6 +206,10 @@ async function readBodyWithinLimit({
   return bytes;
 }
 
+/**
+ * @param params.upload - A fetch Response
+ * @param params.isTooLong - Whether the bytes would be redacted once encoded
+ */
 async function readResponseUpload({
   upload,
   isTooLong,
@@ -206,6 +228,10 @@ async function readResponseUpload({
   };
 }
 
+/**
+ * @param params.upload - A Blob or File
+ * @param params.isTooLong - Whether the bytes would be redacted once encoded
+ */
 async function readBlobUpload({
   upload,
   isTooLong,
@@ -218,6 +244,10 @@ async function readBlobUpload({
   };
 }
 
+/**
+ * @param params.upload - A Node file stream, read again from its path
+ * @param params.isTooLong - Whether the bytes would be redacted once encoded
+ */
 async function readFileStreamUpload({
   upload,
   isTooLong,
@@ -235,6 +265,11 @@ async function readFileStreamUpload({
   return { bytes: await fileSystem.readFile(upload.path), filename: upload.path };
 }
 
+/**
+ * @param params.upload - Any upload the SDK accepts
+ * @param params.isTooLong - Whether the bytes would be redacted once encoded
+ * @returns The upload's contents, the redacted value, or undefined when it cannot be read
+ */
 function readUpload({
   upload,
   isTooLong,
@@ -253,7 +288,11 @@ function readUpload({
   return Promise.resolve(undefined);
 }
 
-async function uploadToDataURL({
+/**
+ * @param params.upload - Any upload the SDK accepts
+ * @param params.base64ImageMaxLength - The longest data URL to record
+ */
+async function getUploadDataURL({
   upload,
   base64ImageMaxLength,
 }: {
@@ -270,19 +309,23 @@ async function uploadToDataURL({
     const mediaType =
       (declaredMediaType?.startsWith("image/") ? declaredMediaType : undefined) ??
       sniffImageMediaType(bytes) ??
-      mediaTypeFromFilename(filename) ??
+      getMediaTypeFromFilename(filename) ??
       "image/png";
     const prefix = `data:${mediaType};base64,`;
     if (prefix.length + getBase64Length(bytes.length) > base64ImageMaxLength) {
       return REDACTED_VALUE;
     }
-    return `${prefix}${bytesToBase64(bytes)}`;
+    return `${prefix}${encodeBase64(bytes)}`;
   } catch (error) {
     diag.debug("Failed to capture OpenAI image upload", error);
     return undefined;
   }
 }
 
+/**
+ * @param params.uploads - The request's uploads; an array entry holds several images
+ * @param params.traceConfigOptions - The trace config, for masking and the size limit
+ */
 export async function getInputImageAttributes({
   uploads,
   traceConfigOptions = {},
@@ -295,7 +338,7 @@ export async function getInputImageAttributes({
   const flattenedUploads = uploads.flatMap((upload) => (Array.isArray(upload) ? upload : [upload]));
   const dataURLs = await Promise.all(
     flattenedUploads.map((upload) =>
-      uploadToDataURL({ upload, base64ImageMaxLength: traceConfig.base64ImageMaxLength }),
+      getUploadDataURL({ upload, base64ImageMaxLength: traceConfig.base64ImageMaxLength }),
     ),
   );
   const attributes: Attributes = {};

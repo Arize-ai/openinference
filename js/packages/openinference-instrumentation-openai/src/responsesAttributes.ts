@@ -11,7 +11,7 @@ import type { Stream } from "openai/streaming";
 import { safelyJSONStringify } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import { imageBase64ToDataURL } from "./imageAttributes";
+import { getImageDataURL } from "./imageAttributes";
 import { getNumberProperty } from "./typeUtils";
 
 /**
@@ -268,7 +268,7 @@ export function getResponsesOutputImageAttributes({
     if (item.type !== "image_generation_call" || !item.result) continue;
     attributes[
       `${SemanticConventions.OUTPUT_IMAGES}.${imageIndex}.${SemanticConventions.IMAGE_URL}`
-    ] = imageBase64ToDataURL({
+    ] = getImageDataURL({
       base64: item.result,
       imageFormat: item.output_format ?? imageFormat,
     });

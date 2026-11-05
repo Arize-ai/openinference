@@ -99,6 +99,10 @@ describe("OpenAIInstrumentation - Images", () => {
 
     const span = memoryExporter.getFinishedSpans()[0];
     expect(span.name).toBe("OpenAI Images");
+    expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+    expect(span.attributes["input.mime_type"]).toBe("application/json");
+    expect(span.attributes["output.mime_type"]).toBe("application/json");
+    expect(span.attributes["llm.system"]).toBe("openai");
     expect(span.attributes["llm.model_name"]).toBe("gpt-image-1");
     expect(span.attributes["llm.provider"]).toBe("openai");
     expect(span.attributes["output.images.0.image.url"]).toBe("https://example.com/generated.png");
@@ -199,6 +203,14 @@ describe("OpenAIInstrumentation - Images", () => {
       // Drop the own-property override so the prototype's post is used again.
       Reflect.deleteProperty(openai, "post");
     });
+    const requests: Array<[string, () => APIPromise<ImagesResponse>]> = [
+      ["generate", () => openai.images.generate({ prompt: "a lighthouse" })],
+      [
+        "edit",
+        () => openai.images.edit({ image: new File([], "a.png"), prompt: "remove the background" }),
+      ],
+      ["createVariation", () => openai.images.createVariation({ image: new File([], "a.png") })],
+    ];
 
     it("records outputs and keeps the prompt out of invocation parameters", async () => {
       mockPost(Promise.resolve(jsonResponse()));
@@ -213,20 +225,23 @@ describe("OpenAIInstrumentation - Images", () => {
       });
     });
 
-    it("does not consume the body for callers using asResponse()", async () => {
-      mockPost(Promise.resolve(jsonResponse()));
+    it.each(requests)(
+      "does not consume the body for %s callers using asResponse()",
+      async (_method, sendRequest) => {
+        mockPost(Promise.resolve(jsonResponse()));
 
-      const response = await openai.images.generate({ prompt: "a lighthouse" }).asResponse();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+        const response = await sendRequest().asResponse();
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
-      await expect(response.json()).resolves.toMatchObject({
-        data: [{ url: "https://example.com/a.png" }],
-      });
-      const spans = memoryExporter.getFinishedSpans();
-      expect(spans).toHaveLength(1);
-      expect(spans[0].status.code).toBe(1);
-      expect(spans[0].attributes["output.images.0.image.url"]).toBeUndefined();
-    });
+        await expect(response.json()).resolves.toMatchObject({
+          data: [{ url: "https://example.com/a.png" }],
+        });
+        const spans = memoryExporter.getFinishedSpans();
+        expect(spans).toHaveLength(1);
+        expect(spans[0].status.code).toBe(1);
+        expect(spans[0].attributes["output.images.0.image.url"]).toBeUndefined();
+      },
+    );
 
     it("records input images for callers using asResponse()", async () => {
       mockPost(
@@ -248,6 +263,22 @@ describe("OpenAIInstrumentation - Images", () => {
       );
     });
 
+    it("does not touch the ended span when a caller awaits after asResponse()", async () => {
+      mockPost(Promise.resolve(jsonResponse()));
+      const warnSpy = vi.spyOn(diag, "warn");
+      const errorSpy = vi.spyOn(diag, "error");
+
+      const request = openai.images.generate({ prompt: "a lighthouse" });
+      await request.asResponse();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const result = await request;
+
+      expect(result.data?.[0].url).toBe("https://example.com/a.png");
+      expect(memoryExporter.getFinishedSpans()).toHaveLength(1);
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
     it("records the result once for callers using withResponse()", async () => {
       mockPost(Promise.resolve(jsonResponse()));
 
@@ -263,20 +294,23 @@ describe("OpenAIInstrumentation - Images", () => {
       expect(spans[0].attributes["output.images.0.image.url"]).toBe("https://example.com/a.png");
     });
 
-    it("ends the span with an error when the response body fails to parse", async () => {
-      mockPost(
-        Promise.resolve(
-          new Response("{not json", { headers: { "content-type": "application/json" } }),
-        ),
-      );
+    it.each(requests)(
+      "ends the %s span with an error when the body fails to parse",
+      async (_method, sendRequest) => {
+        mockPost(
+          Promise.resolve(
+            new Response("{not json", { headers: { "content-type": "application/json" } }),
+          ),
+        );
 
-      await expect(openai.images.generate({ prompt: "a lighthouse" })).rejects.toThrow(SyntaxError);
+        await expect(sendRequest()).rejects.toThrow(SyntaxError);
 
-      const spans = memoryExporter.getFinishedSpans();
-      expect(spans).toHaveLength(1);
-      expect(spans[0].status.code).toBe(2);
-      expect(spans[0].events.map((event) => event.name)).toEqual(["exception"]);
-    });
+        const spans = memoryExporter.getFinishedSpans();
+        expect(spans).toHaveLength(1);
+        expect(spans[0].status.code).toBe(2);
+        expect(spans[0].events.map((event) => event.name)).toEqual(["exception"]);
+      },
+    );
 
     it("ends the span when the HTTP request rejects", async () => {
       mockPost(Promise.reject(new Error("request failed")));
@@ -314,6 +348,20 @@ describe("OpenAIInstrumentation - Images", () => {
       "Failed to record OpenAI images response",
       expect.any(TypeError),
     );
+  });
+
+  it("records a body that is not a JSON object as it is", async () => {
+    const client = new OpenAI({
+      apiKey: "fake-api-key",
+      fetch: async () =>
+        new Response("<html>gateway</html>", { headers: { "content-type": "text/html" } }),
+    });
+
+    await client.images.generate({ prompt: "a lighthouse" });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.status.code).toBe(1);
+    expect(span.attributes["output.value"]).toBe('"<html>gateway</html>"');
   });
 
   it.each<[string, () => Promise<unknown>]>([

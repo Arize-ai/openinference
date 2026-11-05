@@ -674,7 +674,11 @@ function getHandoffAttributes(data: HandoffSpanData): Attributes {
 
 // ─── Response span (Responses API) ───────────────────────────────────────────
 
-function imageBase64ToDataURL({
+/**
+ * @param params.base64 - The image's base64, or a data URL, which is kept as is
+ * @param params.imageFormat - The image's format, such as png; PNG is used when it is unknown
+ */
+function getImageDataURL({
   base64,
   imageFormat,
 }: {
@@ -753,7 +757,7 @@ function extractResponseOutput({
       }
       messageIndex++;
     } else if (item.type === "image_generation_call" && isString(item.result)) {
-      attributes[`${OUTPUT_IMAGES}.${imageIndex}.${IMAGE_URL}`] = imageBase64ToDataURL({
+      attributes[`${OUTPUT_IMAGES}.${imageIndex}.${IMAGE_URL}`] = getImageDataURL({
         base64: item.result,
         imageFormat: isString(item.output_format) ? item.output_format : imageFormat,
       });

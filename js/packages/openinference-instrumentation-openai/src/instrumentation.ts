@@ -655,6 +655,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
 
     // Patch the Images API when it is available in the installed SDK.
     if (module.OpenAI.Images) {
+      /**
+       * @param params.clientInstance - The Images resource the call was made on
+       * @param params.body - The request params
+       * @param params.requestBody - The params to record, without uploads
+       */
       const startImagesSpan = ({
         clientInstance,
         body,
@@ -680,9 +685,15 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           },
         });
       };
-      // Skips the read for spans that won't be recorded, including suppressed tracing. Uploads
-      // are read in the background: the result and the span's end never wait on them, so any
-      // read still running when the request finishes is left off the span.
+      /**
+       * Skips the read for spans that won't be recorded, including suppressed tracing. Uploads
+       * are read in the background: the result and the span's end never wait on them, so any
+       * read still running when the request finishes is left off the span.
+       *
+       * @param params.span - The Images span
+       * @param params.uploads - The request's uploads
+       * @returns A getter for whichever upload attributes have been read so far
+       */
       const captureUploadAttributes = ({
         span,
         uploads,
@@ -899,12 +910,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
 type ImagesStreamEvent = ImageEditStreamEvent | ImageGenStreamEvent;
 type ImagesResult = ImagesResponse | Stream<ImagesStreamEvent>;
 
-type ImagesStreamLike = {
-  tee: () => [AsyncIterable<ImagesStreamEvent>, AsyncIterable<ImagesStreamEvent>];
-  [Symbol.asyncIterator]: () => AsyncIterator<ImagesStreamEvent>;
-};
-
-function isImagesStream(result: unknown): result is ImagesStreamLike {
+function isImagesStream(result: unknown): result is Stream<ImagesStreamEvent> {
   return (
     typeof result === "object" &&
     result !== null &&
@@ -921,6 +927,11 @@ function isCompletedImageEvent(
   return event.type === "image_edit.completed" || event.type === "image_generation.completed";
 }
 
+/**
+ * @param params.stream - The instrumentor's copy of the stream
+ * @param params.span - The Images span, ended once the stream is
+ * @param params.getInputAttributes - Gets the upload attributes read so far
+ */
 async function consumeImagesStreamEvents({
   stream,
   span,
@@ -957,6 +968,13 @@ async function consumeImagesStreamEvents({
   }
 }
 
+/**
+ * @param params.result - The parsed response or stream
+ * @param params.span - The Images span
+ * @param params.getInputAttributes - Gets the upload attributes read so far
+ * @param params.requestFormat - The output format the request asked for
+ * @returns The result to give the caller
+ */
 function recordImagesResult<T extends ImagesResult>({
   result,
   span,
@@ -968,6 +986,8 @@ function recordImagesResult<T extends ImagesResult>({
   getInputAttributes: () => Attributes;
   requestFormat?: unknown;
 }): T {
+  // The span is already ended when the caller read the raw response before the parsed one.
+  if (!span.isRecording()) return result;
   if (isImagesStream(result)) {
     const [leftStream, rightStream] = result.tee();
     void consumeImagesStreamEvents({ stream: rightStream, span, getInputAttributes });
