@@ -580,7 +580,7 @@ class TestModels:
         )
         assert (
             attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
-            == "text"
+            == "reasoning"
         )
         assert not attributes
 
