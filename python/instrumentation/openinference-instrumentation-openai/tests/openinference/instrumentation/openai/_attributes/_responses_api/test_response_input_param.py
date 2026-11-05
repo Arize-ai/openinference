@@ -2,6 +2,7 @@ import json
 
 import pytest
 from openai.types.responses import (
+    ResponseCodeInterpreterToolCallParam,
     ResponseFunctionToolCallParam,
     ResponseOutputMessageParam,
     ResponseReasoningItemParam,
@@ -13,7 +14,10 @@ from openai.types.responses.response_custom_tool_call_output_param import (
 from openai.types.responses.response_input_image_param import ResponseInputImageParam
 from openai.types.responses.response_input_param import (
     FunctionCallOutput,
+    McpApprovalRequest,
+    McpCall,
     Message,
+    ResponseInputItemParam,
 )
 from openai.types.responses.response_input_text_param import ResponseInputTextParam
 from openai.types.responses.response_reasoning_item_param import Summary
@@ -435,6 +439,70 @@ class TestResponseInputItemParam:
     def test_ResponseCustomToolCallOutputParam(
         self,
         obj: ResponseCustomToolCallOutputParam,
+        expected: dict[str, AttributeValue],
+    ) -> None:
+        actual = dict(_ResponsesApiAttributes._get_attributes_from_response_input_item_param(obj))
+        assert actual == expected
+
+    @pytest.mark.parametrize(
+        "obj,expected",
+        [
+            pytest.param(
+                McpCall(
+                    type="mcp_call",
+                    id="mcp_123",
+                    server_label="docs",
+                    name="search_docs",
+                    arguments='{"query": "spans"}',
+                    output="3 results",
+                ),
+                {
+                    "message.role": "assistant",
+                    "message.tool_calls.0.tool_call.id": "mcp_123",
+                    "message.tool_calls.0.tool_call.function.name": "search_docs",
+                    "message.tool_calls.0.tool_call.function.arguments": '{"query": "spans"}',
+                },
+                id="mcp_call",
+            ),
+            pytest.param(
+                McpApprovalRequest(
+                    type="mcp_approval_request",
+                    id="mcpr_123",
+                    server_label="docs",
+                    name="delete_docs",
+                    arguments="{}",
+                ),
+                {
+                    "message.role": "assistant",
+                    "message.tool_calls.0.tool_call.id": "mcpr_123",
+                    "message.tool_calls.0.tool_call.function.name": "delete_docs",
+                },
+                id="mcp_approval_request",
+            ),
+            pytest.param(
+                ResponseCodeInterpreterToolCallParam(
+                    type="code_interpreter_call",
+                    id="ci_123",
+                    container_id="cntr_123",
+                    code="print(1 + 1)",
+                    outputs=[{"type": "logs", "logs": "2"}],
+                    status="completed",
+                ),
+                {
+                    "message.role": "assistant",
+                    "message.tool_calls.0.tool_call.id": "ci_123",
+                    "message.tool_calls.0.tool_call.function.name": "code_interpreter_call",
+                    "message.tool_calls.0.tool_call.function.arguments": json.dumps(
+                        {"code": "print(1 + 1)"}
+                    ),
+                },
+                id="code_interpreter_call",
+            ),
+        ],
+    )
+    def test_hosted_tool_call_params(
+        self,
+        obj: ResponseInputItemParam,
         expected: dict[str, AttributeValue],
     ) -> None:
         actual = dict(_ResponsesApiAttributes._get_attributes_from_response_input_item_param(obj))
