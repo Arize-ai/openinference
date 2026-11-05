@@ -244,6 +244,19 @@ def _get_content_block_attributes(
                 if isinstance(tool_result_content, str)
                 else _to_json(tool_result_content, hide_images),
             )
+    elif block_type == "mcp_tool_result":
+        # The result of a call that the API made on an MCP server for the model. It sits among the
+        # message's other blocks, after its call, so it is an ordered content item that names the
+        # call it answers. Its content is recorded as a tool_result block's is.
+        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_result"
+        yield f"{prefix}.{TOOL_CALL_ID}", _require(block, "tool_use_id")
+        if (tool_result_content := _get(block, "content")) is not None:
+            yield (
+                f"{prefix}.{MESSAGE_CONTENT_TEXT}",
+                tool_result_content
+                if isinstance(tool_result_content, str)
+                else _to_json(tool_result_content, hide_images),
+            )
     elif block_type == "image":
         if _get(_require(block, "source"), "type") == "file":
             # A file uploaded with the Files API has no URL, and message_content.id is the content
@@ -271,9 +284,8 @@ def _get_content_block_attributes(
     elif block_type == "fallback":
         yield from _get_fallback_attributes(prefix, block)
     else:
-        # e.g. server tool results, MCP tool results and listings, container uploads,
-        # search results, tool additions and removals, and types newer than this
-        # instrumentation
+        # e.g. server tool results, MCP tool listings, container uploads, search results,
+        # tool additions and removals, and types newer than this instrumentation
         yield from _get_generic_content_block_attributes(prefix, block, hide_images)
 
 
