@@ -1,10 +1,11 @@
+import asyncio
 import gc
 import json
-from typing import Any, Dict, Iterable, Iterator, List
+from typing import Any, AsyncGenerator, AsyncIterator, Dict, Generator, Iterable, Iterator, List
 
 import pytest
 import respx
-from httpx import Response
+from httpx import AsyncByteStream, Response
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
@@ -786,22 +787,114 @@ async def test_chat_with_raising_generator(
     assert event_attrs["exception.message"] == "generator failed"
 
 
-async def test_async_chat_stream_context_body_error_sets_error(
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+async def test_chat_stream_context_body_error_sets_error(
+    is_async: bool,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
+    error = RuntimeError("body failed")
     with respx.mock(assert_all_called=True) as respx_mock:
         respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
-        stream = await AsyncTogether().chat.completions.create(
-            model=_MODEL,
-            messages=[{"role": "user", "content": "Count from one to five."}],
-            stream=True,
-        )
-        with pytest.raises(RuntimeError, match="body failed"):
-            async with stream:
-                raise RuntimeError("body failed")
+        with pytest.raises(RuntimeError) as exc_info:
+            if is_async:
+                stream = await AsyncTogether().chat.completions.create(
+                    model=_MODEL, messages=[{"role": "user", "content": "Hello"}], stream=True
+                )
+                async with stream:
+                    raise error
+            else:
+                sync_stream = Together().chat.completions.create(
+                    model=_MODEL, messages=[{"role": "user", "content": "Hello"}], stream=True
+                )
+                with sync_stream:
+                    raise error
+        assert exc_info.value is error
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
     assert span.status.status_code == StatusCode.ERROR
-    assert any(event.name == "exception" for event in span.events)
+    assert span.status.description == "RuntimeError: body failed"
+    assert len(span.events) == 1
+    event = span.events[0]
+    assert event.name == "exception"
+    attrs = dict(event.attributes or {})
+    assert attrs["exception.type"] == "RuntimeError"
+    assert attrs["exception.message"] == "body failed"
+
+
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+async def test_chat_stream_generator_close_is_not_error(
+    is_async: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    def chunks() -> Generator[Any, None, None]:
+        with Together().chat.completions.create(
+            model=_MODEL, messages=[{"role": "user", "content": "Hello"}], stream=True
+        ) as stream:
+            for chunk in stream:
+                yield chunk
+
+    async def async_chunks() -> AsyncGenerator[Any, None]:
+        stream = await AsyncTogether().chat.completions.create(
+            model=_MODEL, messages=[{"role": "user", "content": "Hello"}], stream=True
+        )
+        async with stream:
+            async for chunk in stream:
+                yield chunk
+
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(return_value=_streaming_response())
+        if is_async:
+            async_generator = async_chunks()
+            await async_generator.__anext__()
+            await async_generator.aclose()
+        else:
+            generator = chunks()
+            next(generator)
+            generator.close()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.UNSET
+    assert not spans[0].events
+
+
+async def test_async_chat_stream_cancelled_iteration_sets_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    error = asyncio.CancelledError("stream cancelled")
+
+    class CancelledStream(AsyncByteStream):
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            yield f"data: {json.dumps(_chunk('Hello'))}\n\n".encode()
+            raise error
+
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.post(path="/v1/chat/completions").mock(
+            return_value=Response(
+                200, headers={"content-type": "text/event-stream"}, stream=CancelledStream()
+            )
+        )
+        stream = await AsyncTogether().chat.completions.create(
+            model=_MODEL, messages=[{"role": "user", "content": "Hello"}], stream=True
+        )
+        chunks = []
+        with pytest.raises(asyncio.CancelledError) as exc_info:
+            async for chunk in stream:
+                chunks.append(chunk)
+        assert exc_info.value is error
+        assert len(chunks) == 1
+        await stream.close()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description == "CancelledError: stream cancelled"
+    assert len(span.events) == 1
+    event = span.events[0]
+    assert event.name == "exception"
+    attrs = dict(event.attributes or {})
+    assert attrs["exception.type"] == "asyncio.exceptions.CancelledError"
+    assert attrs["exception.message"] == "stream cancelled"

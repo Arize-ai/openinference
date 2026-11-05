@@ -189,10 +189,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         try:
             return self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
         finally:
-            if exc_val is not None:
-                self._finish_error(exc_val)
-            else:
-                self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
+            self._finish_tracing_on_exit(exc_val)
 
     async def __aenter__(self) -> "_Stream":
         await self.__wrapped__.__aenter__()
@@ -202,10 +199,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         try:
             return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         finally:
-            if exc_val is not None:
-                self._finish_error(exc_val)
-            else:
-                self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
+            self._finish_tracing_on_exit(exc_val)
 
     def close(self) -> Any:
         # ``together.AsyncStream.close`` is a coroutine, so the wrapped close is
@@ -224,6 +218,14 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
             self._finish(None)
         except BaseException:
             pass
+
+    def _finish_tracing_on_exit(self, exception: Optional[BaseException]) -> None:
+        if exception is None:
+            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
+        elif isinstance(exception, GeneratorExit):
+            self._finish(None)
+        else:
+            self._finish_error(exception)
 
     def _finish_error(self, exception: BaseException) -> None:
         self._self_with_span.record_exception(exception)
