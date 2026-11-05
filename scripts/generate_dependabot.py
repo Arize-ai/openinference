@@ -14,6 +14,17 @@ IGNORE_UPDATE_TYPES = [
     "version-update:semver-patch",
 ]
 
+# Example projects are not part of the published packages. exclude-paths keeps
+# their manifests out of Dependabot version-update scans only; Dependabot alerts
+# and security updates come from the dependency graph and are unaffected.
+# Patterns are relative to each entry's `directory`: "examples/**" covers an
+# examples dir at the entry root (e.g. java/examples/*/build.gradle),
+# "**/examples/**" covers nested ones.
+EXCLUDE_PATHS = [
+    "examples/**",
+    "**/examples/**",
+]
+
 
 def _find_package_directories(root: Path, prefix: str, manifest: str) -> list[str]:
     return sorted(
@@ -29,6 +40,7 @@ def _build_update_config(package_ecosystem: str, directory: str) -> dict[str, ob
         "directory": directory,
         "cooldown": {"default-days": 7},
         "schedule": {"interval": "weekly"},
+        "exclude-paths": list(EXCLUDE_PATHS),
         "ignore": [
             {
                 "dependency-name": "*",

@@ -2,6 +2,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: /java
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -14,6 +17,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: /js
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -26,6 +32,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: /python
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -38,6 +47,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-agent-framework
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -50,6 +62,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-agentspec
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -62,6 +77,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-agno
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -74,6 +92,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-anthropic
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -86,6 +107,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-ag2
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -98,6 +122,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-autogen
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -110,6 +137,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-autogen-agentchat
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -122,6 +152,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-bedrock
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -134,6 +167,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-beeai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -146,6 +182,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-claude-agent-sdk
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -158,6 +197,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-crewai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -170,6 +212,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-dspy
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -182,6 +227,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-google-adk
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -194,6 +242,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-google-genai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -206,6 +257,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-groq
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -218,6 +272,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-guardrails
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -230,6 +287,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-haystack
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -242,6 +302,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-instructor
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -254,6 +317,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-langchain
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -266,6 +332,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-litellm
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -278,6 +347,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-llama-index
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -290,6 +362,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-mcp
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -302,6 +377,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-mistralai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -314,6 +392,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-openai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -326,6 +407,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-openai-agents
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -338,6 +422,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-openlit
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -350,6 +437,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-openllmetry
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -362,6 +452,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-pipecat
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -374,6 +467,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-portkey
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -386,6 +482,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-pydantic-ai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -398,6 +497,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-smolagents
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -410,6 +512,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-strands-agents
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -422,6 +527,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: python/instrumentation/openinference-instrumentation-vertexai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -434,6 +542,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-core
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -446,6 +557,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-genai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -458,6 +572,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-instrumentation-anthropic
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -470,6 +587,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-instrumentation-bedrock
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -482,6 +602,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-instrumentation-bedrock-agent-runtime
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -494,6 +617,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-instrumentation-beeai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -506,6 +632,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-instrumentation-claude-agent-sdk
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -518,6 +647,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-instrumentation-langchain
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -530,6 +662,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-instrumentation-langchain-v0
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -542,6 +677,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-instrumentation-mcp
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -554,6 +692,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-instrumentation-openai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -566,6 +707,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-semantic-conventions
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -578,6 +722,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-tanstack-ai
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
@@ -590,6 +737,9 @@ updates:
 - cooldown:
     default-days: 7
   directory: js/packages/openinference-vercel
+  exclude-paths:
+  - examples/**
+  - '**/examples/**'
   ignore:
   - dependency-name: '*'
     update-types:
