@@ -65,7 +65,7 @@ class _ChatCompletionAccumulator:
                 choices=_IndexedAccumulator(
                     lambda: _ValuesAccumulator(
                         message=_ValuesAccumulator(
-                            content=_StringAccumulator(),
+                            content=_ContentAccumulator(),
                             tool_calls=_IndexedAccumulator(
                                 lambda: _ValuesAccumulator(
                                     function=_ValuesAccumulator(arguments=_StringAccumulator()),
@@ -131,6 +131,9 @@ class _ValuesAccumulator:
             elif isinstance(value, _StringAccumulator):
                 if str_value := str(value):
                     yield key, str_value
+            elif isinstance(value, _ContentAccumulator):
+                if content_value := value.value():
+                    yield key, content_value
             else:
                 yield key, value
 
@@ -147,6 +150,8 @@ class _ValuesAccumulator:
             elif isinstance(self_value, _StringAccumulator):
                 if isinstance(value, str):
                     self_value += value
+            elif isinstance(self_value, _ContentAccumulator):
+                self_value += value
             elif isinstance(self_value, _IndexedAccumulator):
                 if isinstance(value, Iterable):
                     for index, v in enumerate(value):
@@ -183,6 +188,66 @@ class _StringAccumulator:
             return self
         self._fragments.append(value)
         return self
+
+
+class _ContentAccumulator:
+    """
+    Assistant content streamed either as text or, from reasoning models, as lists
+    of chunks (a thinking chunk, then the text). A delta that continues the
+    trailing chunk of the same type extends it, so the accumulated message has
+    the same chunks a non-streamed response would.
+    """
+
+    __slots__ = ("_text", "_chunks")
+
+    def __init__(self) -> None:
+        self._text: List[str] = []
+        self._chunks: List[Dict[str, Any]] = []
+
+    def value(self) -> Any:
+        if not self._chunks:
+            return "".join(self._text)
+        return self._chunks
+
+    def __iadd__(self, value: Any) -> "_ContentAccumulator":
+        if not value:
+            return self
+        if isinstance(value, str):
+            if self._chunks:
+                self._append({"type": "text", "text": value})
+            else:
+                self._text.append(value)
+            return self
+        if isinstance(value, Iterable):
+            if self._text and not self._chunks:
+                self._chunks.append({"type": "text", "text": "".join(self._text)})
+                self._text = []
+            for chunk in value:
+                if isinstance(chunk, Mapping):
+                    self._append(dict(chunk))
+        return self
+
+    def _append(self, chunk: Dict[str, Any]) -> None:
+        last = self._chunks[-1] if self._chunks else None
+        if last is not None and last.get("type") == chunk.get("type"):
+            if chunk.get("type") == "text":
+                last["text"] = last.get("text", "") + chunk.get("text", "")
+                return
+            if chunk.get("type") == "thinking":
+                thoughts = last.setdefault("thinking", [])
+                for thought in chunk.get("thinking") or []:
+                    if (
+                        thoughts
+                        and thoughts[-1].get("type") == "text"
+                        and thought.get("type") == "text"
+                    ):
+                        thoughts[-1]["text"] = thoughts[-1].get("text", "") + thought.get(
+                            "text", ""
+                        )
+                    else:
+                        thoughts.append(dict(thought))
+                return
+        self._chunks.append(chunk)
 
 
 class _IndexedAccumulator:
