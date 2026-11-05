@@ -4,8 +4,9 @@
 Managed Agents session with the pr-reviewer agent, kicked off with the PR number and the
 commit to review, and posts one status comment on the PR. `watch` waits for the session to
 end, finds the review it posted, and turns that comment into the review's verdict, which it
-also sets as one of the VERDICT_LABELS. It acts on GitHub as the factory's GitHub App, through tokens github_app.py mints. Agent, environment
-and vault IDs come from claude-lock.json, which `ant apply` writes.
+also sets as one of the VERDICT_LABELS. It acts on GitHub as the factory's GitHub App, through
+tokens github_app.py mints. Agent, environment and vault IDs come from claude-lock.json, which
+`ant apply` writes.
 """
 
 import argparse
