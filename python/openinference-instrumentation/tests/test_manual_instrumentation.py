@@ -3854,6 +3854,7 @@ class TestGetProviderFromHost:
                 OpenInferenceLLMProviderValues.ORACLE,
             ),
             ("api.typesafe.ai", OpenInferenceLLMProviderValues.TYPESAFE),
+            ("api.doubleword.ai", OpenInferenceLLMProviderValues.DOUBLEWORD),
         ],
     )
     def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:

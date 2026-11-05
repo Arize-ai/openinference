@@ -80,6 +80,7 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.MINIMAX: "minimax",
             OpenInferenceLLMProviderValues.ORACLE: "oracle",
             OpenInferenceLLMProviderValues.TYPESAFE: "typesafe",
+            OpenInferenceLLMProviderValues.DOUBLEWORD: "doubleword",
         }
 
 

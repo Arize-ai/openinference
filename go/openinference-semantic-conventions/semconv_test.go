@@ -224,6 +224,7 @@ func TestEnumValues(t *testing.T) {
 		{LLMProviderMiniMax, "minimax"},
 		{LLMProviderOracle, "oracle"},
 		{LLMProviderTypeSafe, "typesafe"},
+		{LLMProviderDoubleword, "doubleword"},
 
 		{DecisionSystemTypeSafe, "typesafe"},
 		{DecisionSystemOpenAI, "openai"},

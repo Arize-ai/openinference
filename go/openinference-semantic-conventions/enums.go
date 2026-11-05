@@ -72,6 +72,7 @@ const (
 	LLMProviderMiniMax    = "minimax"
 	LLMProviderOracle     = "oracle"
 	LLMProviderTypeSafe   = "typesafe"
+	LLMProviderDoubleword = "doubleword"
 )
 
 // Values for the DecisionSystem attribute: the decision API ecosystem a
