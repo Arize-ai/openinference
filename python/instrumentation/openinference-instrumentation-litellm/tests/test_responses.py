@@ -1,9 +1,11 @@
 import asyncio
 import os
+import threading
 from typing import Any, Dict, Iterator
 
 import litellm
 import pytest
+from litellm.integrations.custom_logger import CustomLogger
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
 
@@ -557,3 +559,84 @@ async def test_concurrent_acompletion_is_traced_during_aresponses(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert [span.name for span in spans] == ["acompletion", "aresponses"]
+
+
+class _JudgeLogger(CustomLogger):
+    """A success callback that makes its own completion call, as an LLM-as-judge would."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.done = threading.Event()
+        self._armed = True
+
+    def _take(self) -> bool:
+        armed, self._armed = self._armed, False
+        return armed
+
+    def _judge_kwargs(self) -> Dict[str, Any]:
+        return dict(
+            model="gemini/gemini-2.5-flash",
+            api_key="fake-key",
+            messages=[{"role": "user", "content": "judge"}],
+            mock_response="judged",
+        )
+
+    def log_success_event(
+        self, kwargs: Any, response_obj: Any, start_time: Any, end_time: Any
+    ) -> None:
+        if self._take():
+            litellm.completion(**self._judge_kwargs())
+            self.done.set()
+
+    async def async_log_success_event(
+        self, kwargs: Any, response_obj: Any, start_time: Any, end_time: Any
+    ) -> None:
+        if self._take():
+            await litellm.acompletion(**self._judge_kwargs())
+            self.done.set()
+
+
+def _install_judge(monkeypatch: pytest.MonkeyPatch) -> _JudgeLogger:
+    # litellm copies litellm.callbacks into these module lists on first use and never prunes
+    # them, so each test gets fresh lists to keep an earlier judge from answering.
+    judge = _JudgeLogger()
+    for name in ("success_callback", "_async_success_callback", "input_callback"):
+        monkeypatch.setattr(litellm, name, [])
+    monkeypatch.setattr(litellm, "callbacks", [judge])
+    return judge
+
+
+def test_completion_from_callback_during_responses_is_traced(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    judge = _install_judge(monkeypatch)
+    litellm.responses(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        input="hi",
+        mock_response=_bridged_completion_response(),
+    )
+    assert judge.done.wait(5)
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert sorted(span.name for span in spans) == ["completion", "responses"]
+
+
+async def test_acompletion_from_callback_during_aresponses_is_traced(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    judge = _install_judge(monkeypatch)
+    await litellm.aresponses(
+        model="gemini/gemini-2.5-flash",
+        api_key="fake-key",
+        input="hi",
+        mock_response=_bridged_completion_response(),
+    )
+    for _ in range(100):
+        if judge.done.is_set():
+            break
+        await asyncio.sleep(0.05)
+    assert judge.done.is_set()
+    names = sorted(span.name for span in in_memory_span_exporter.get_finished_spans())
+    assert names in (["aresponses", "completion"], ["acompletion", "aresponses"])
