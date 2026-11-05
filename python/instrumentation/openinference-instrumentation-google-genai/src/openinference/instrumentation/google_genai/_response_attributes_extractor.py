@@ -40,10 +40,7 @@ def _request_content_count(request_parameters: Mapping[str, Any]) -> int:
     this call's own function-call/response turns, so those entries belong to
     `llm.input_messages` rather than to this span's output.
     """
-    contents = (
-        request_parameters.get("contents") if isinstance(request_parameters, Mapping) else None
-    )
-
+    contents = request_parameters.get("contents")
     if contents is None:
         return 0
 
@@ -264,53 +261,20 @@ class _ResponseAttributesExtractor:
         request_content_count: int,
         published_contents: list[object],
     ) -> Iterator[tuple[str, AttributeValue]]:
-        """Extract function calls from automatic_function_calling_history.
+        """Publish the model turns this call's AFC loop added, after the candidates.
 
-        Only model turns produced by the current automatic function call are
-        published as output messages. Request-seeded history and candidate
-        content that was already published are skipped.
+        The SDK seeds the history with the request contents, and on a spent remote-call
+        budget its last function-call turn is also the candidate, so both are skipped.
         """
         message_index = first_message_index
-
-        for position, content_entry in enumerate(history):
-            if position < request_content_count:
+        for content in list(history)[request_content_count:]:
+            if getattr(content, "role", None) != "model":
                 continue
-
-            if not hasattr(content_entry, "parts") or not hasattr(content_entry, "role"):
+            if any(content is published for published in published_contents):
                 continue
-
-            if getattr(content_entry, "role") != "model":
+            parts = getattr(content, "parts", None) or ()
+            if not any(getattr(part, "function_call", None) for part in parts):
                 continue
-
-            if any(content_entry is content for content in published_contents):
-                continue
-
-            parts = getattr(content_entry, "parts", [])
-            if not parts:
-                continue
-
-            tool_call_index = 0
-
-            for part in parts:
-                if function_call := getattr(part, "function_call", None):
-                    thought_signature: Optional[bytes] = getattr(part, "thought_signature", None)
-
-                    for key, value in self._get_attributes_from_function_call(
-                        function_call,
-                        tool_call_index,
-                        thought_signature,
-                    ):
-                        yield (
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{key}",
-                            value,
-                        )
-
-                    tool_call_index += 1
-
-            if tool_call_index:
-                yield (
-                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}."
-                    f"{message_index}.{MessageAttributes.MESSAGE_ROLE}",
-                    "model",
-                )
-                message_index += 1
+            for key, value in self._get_attributes_from_generate_content_content(content):
+                yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{key}", value
+            message_index += 1

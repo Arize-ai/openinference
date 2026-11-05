@@ -394,3 +394,50 @@ def test_afc_tool_calls_follow_output_message_masking(
         assert not any("tool_calls" in key for key in attributes)
     else:
         assert attributes[tool_call_name] == "get_weather"
+
+
+def test_afc_model_turn_keeps_its_text_and_reasoning_parts() -> None:
+    afc_turn = types.Content(
+        role="model",
+        parts=[
+            types.Part(text="Need the weather tool.", thought=True),
+            types.Part(text="Let me check."),
+            types.Part(
+                function_call=types.FunctionCall(name="get_weather", args={"location": "SF"}),
+                thought_signature=b"sig",
+            ),
+        ],
+    )
+    response = types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                index=0,
+                content=types.Content(role="model", parts=[types.Part.from_text(text="65.")]),
+            )
+        ],
+        automatic_function_calling_history=[
+            types.Content(role="user", parts=[types.Part.from_text(text="weather?")]),
+            afc_turn,
+        ],
+    )
+
+    actual = {
+        key: value
+        for key, value in _ResponseAttributesExtractor().get_attributes(
+            response, {"contents": "weather?"}
+        )
+        if key.startswith("llm.output_messages.1.")
+    }
+
+    assert actual == {
+        "llm.output_messages.1.message.role": "model",
+        "llm.output_messages.1.message.contents.0.message_content.type": "reasoning",
+        "llm.output_messages.1.message.contents.0.message_content.text": "Need the weather tool.",
+        "llm.output_messages.1.message.contents.1.message_content.type": "text",
+        "llm.output_messages.1.message.contents.1.message_content.text": "Let me check.",
+        "llm.output_messages.1.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.1.message.tool_calls.0.tool_call.function.arguments": (
+            '{"location": "SF"}'
+        ),
+        "llm.output_messages.1.message.tool_calls.0.tool_call.reasoning_signature": "c2ln",
+    }
