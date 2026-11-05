@@ -265,12 +265,18 @@ def _assert_server_tool_blocks(attributes: Dict[str, Any], message_prefix: str) 
                 == arguments
             )
         assert attributes.pop(f"{contents}.{content_index}.{MESSAGE_CONTENT_TYPE}") == "tool_use"
+    # an MCP tool result is a tool result that names the call it answers
+    assert attributes.pop(f"{contents}.4.{MESSAGE_CONTENT_TYPE}") == "tool_result"
+    assert attributes.pop(f"{contents}.4.{TOOL_CALL_ID}") == "mcptoolu_1"
+    assert json.loads(attributes.pop(f"{contents}.4.{MESSAGE_CONTENT_TEXT}")) == [
+        {"type": "text", "text": "hi"}
+    ]
     # a compaction block's summary is text
     assert attributes.pop(f"{contents}.6.{MESSAGE_CONTENT_TYPE}") == "text"
     assert attributes.pop(f"{contents}.6.{MESSAGE_CONTENT_TEXT}") == "The user asked about Paris."
     assert attributes.pop(f"{contents}.6.{MESSAGE_CONTENT_SIGNATURE}") == "sig"
     # every other block is recorded generically, as its type and JSON
-    for content_index in [2, 4, 5, 7, 8]:
+    for content_index in [2, 5, 7, 8]:
         block = _SERVER_TOOL_BLOCKS[content_index]
         assert attributes.pop(f"{contents}.{content_index}.{MESSAGE_CONTENT_TYPE}") == block["type"]
         recorded = json.loads(attributes.pop(f"{contents}.{content_index}.{MESSAGE_CONTENT_TEXT}"))
@@ -300,6 +306,40 @@ def test_output_server_tool_blocks(
     assert output_message.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     _assert_server_tool_blocks(output_message, f"{LLM_OUTPUT_MESSAGES}.0")
     assert not output_message
+
+
+def test_output_mcp_tool_result_with_text_content(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    # content can be a string, which is the result's text, as it is for a tool_result block
+    blocks: List[Dict[str, Any]] = [
+        {
+            "type": "mcp_tool_use",
+            "id": "mcptoolu_1",
+            "name": "echo",
+            "server_name": "echo-server",
+            "input": {},
+        },
+        {
+            "type": "mcp_tool_result",
+            "tool_use_id": "mcptoolu_1",
+            "is_error": True,
+            "content": "echo-server is unavailable",
+        },
+    ]
+    client = _mock_anthropic_client(
+        lambda request: httpx2.Response(200, json=_message_json(blocks))
+    )
+    client.beta.messages.create(
+        model=MODEL, max_tokens=100, messages=[{"role": "user", "content": "echo hi"}]
+    )
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    contents = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}"
+    assert attributes[f"{contents}.1.{MESSAGE_CONTENT_TYPE}"] == "tool_result"
+    assert attributes[f"{contents}.1.{TOOL_CALL_ID}"] == "mcptoolu_1"
+    assert attributes[f"{contents}.1.{MESSAGE_CONTENT_TEXT}"] == "echo-server is unavailable"
 
 
 def _content_block_events(index: int, block: Dict[str, Any]) -> List[Dict[str, Any]]:
