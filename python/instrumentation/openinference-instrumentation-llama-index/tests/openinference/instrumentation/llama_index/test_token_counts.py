@@ -141,6 +141,10 @@ class TestTokenCounts:
         assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == usage_metadata.prompt_token_count
         assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == usage_metadata.candidates_token_count
         assert attr.pop(LLM_TOKEN_COUNT_TOTAL) == usage_metadata.total_token_count
+        assert usage_metadata.thoughts_token_count == 0
+        assert usage_metadata.cached_content_token_count == 0
+        assert LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING not in attr
+        assert LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ not in attr
 
 
 @pytest.mark.parametrize("response_type", ["chat", "completion"])

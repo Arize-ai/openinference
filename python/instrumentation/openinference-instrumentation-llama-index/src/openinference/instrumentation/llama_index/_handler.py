@@ -1350,10 +1350,11 @@ def _get_token_counts_impl(
         yield LLM_TOKEN_COUNT_PROMPT, prompt_count
     if "candidates_token_count" in google_counts or "thoughts_token_count" in google_counts:
         yield LLM_TOKEN_COUNT_COMPLETION, completion_count
-    if "thoughts_token_count" in google_counts:
+    # Vertex protos read unset fields as 0, so zero detail counts are omitted.
+    if google_counts.get("thoughts_token_count"):
         yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, google_counts["thoughts_token_count"]
     # Cached tokens are already included in prompt_token_count.
-    if "cached_content_token_count" in google_counts:
+    if google_counts.get("cached_content_token_count"):
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, google_counts["cached_content_token_count"]
     if google_counts.keys() - {"cached_content_token_count"}:
         yield (
