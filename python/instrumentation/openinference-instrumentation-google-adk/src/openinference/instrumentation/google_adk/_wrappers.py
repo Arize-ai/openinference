@@ -94,21 +94,23 @@ class _SpanAsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,
         super().__init__(wrapped)
         self._self_span_generator: Optional[AsyncGenerator[Event, None]] = None
 
-    async def _aiter(self) -> AsyncGenerator[Event, None]:
+    @staticmethod
+    async def _aiter(generator: AsyncGenerator[Event, None]) -> AsyncGenerator[Event, None]:
         raise NotImplementedError  # pragma: no cover
         yield  # makes this an async generator for type checkers
 
     def __aiter__(self) -> AsyncGenerator[Event, None]:
-        self._self_span_generator = self._aiter()
+        # A proxy reference in ``_aiter``'s frame would be a cycle that only gc can end.
+        self._self_span_generator = self._aiter(self.__wrapped__)
         return self._self_span_generator
 
     async def aclose(self) -> None:
         span_generator, self._self_span_generator = self._self_span_generator, None
         try:
+            await self.__wrapped__.aclose()
+        finally:
             if span_generator is not None:
                 await span_generator.aclose()
-        finally:
-            await self.__wrapped__.aclose()
 
 
 class _WithTracer(ABC):
@@ -171,7 +173,8 @@ class _RunnerRunAsync(_WithTracer):
             attributes[SpanAttributes.SESSION_ID] = session_id
 
         class _AsyncGenerator(_SpanAsyncGenerator):
-            async def _aiter(self) -> AsyncGenerator[Event, None]:
+            @staticmethod
+            async def _aiter(generator: AsyncGenerator[Event, None]) -> AsyncGenerator[Event, None]:
                 span = tracer.start_span(name=name, attributes=attributes)
                 context = trace_api.set_span_in_context(span)
                 if user_id is not None:
@@ -182,7 +185,7 @@ class _RunnerRunAsync(_WithTracer):
                 token = context_api.attach(context)
                 try:
                     has_output_with_content = False
-                    async for event in self.__wrapped__:
+                    async for event in generator:
                         if event.is_final_response():
                             event_has_content = _event_has_content(event)
                             if has_output_with_content and not event_has_content:
@@ -239,13 +242,14 @@ class _BaseAgentRunAsync(_WithTracer):
             attributes["gen_ai.agent.description"] = description
 
         class _AsyncGenerator(_SpanAsyncGenerator):
-            async def _aiter(self) -> AsyncGenerator[Event, None]:
+            @staticmethod
+            async def _aiter(generator: AsyncGenerator[Event, None]) -> AsyncGenerator[Event, None]:
                 span = tracer.start_span(name=name, attributes=attributes)
                 token = context_api.attach(trace_api.set_span_in_context(span))
                 try:
                     last_escalation_event: Optional[Event] = None
                     has_output_with_content = False
-                    async for event in self.__wrapped__:
+                    async for event in generator:
                         if event.actions.escalate:
                             last_escalation_event = event
                         if event.is_final_response():

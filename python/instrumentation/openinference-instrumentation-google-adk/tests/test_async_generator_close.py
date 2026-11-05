@@ -10,13 +10,16 @@ on every early exit. See https://github.com/Arize-ai/openinference/issues/1769.
 """
 
 import asyncio
+import gc
 import logging
+from contextlib import aclosing
 from types import SimpleNamespace
 from typing import Any, AsyncGenerator, Callable, cast
 
 import pytest
 from google.adk.events import Event, EventActions
 from google.genai import types
+from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
@@ -111,7 +114,7 @@ async def test_span_ends_quietly_when_generator_is_closed_in_another_task(
 
 
 @pytest.mark.parametrize("span_name", list(_INSTRUMENT))
-async def test_aclose_ends_span_in_the_calling_task_before_closing_adk_generator(
+async def test_aclose_ends_span_in_the_calling_task(
     span_name: str,
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -131,6 +134,66 @@ async def test_aclose_ends_span_in_the_calling_task_before_closing_adk_generator
     [span] = in_memory_span_exporter.get_finished_spans()
     assert span.name == span_name
     assert span.status.status_code is StatusCode.UNSET
+    assert trace_api.get_current_span() is trace_api.INVALID_SPAN, "context was restored"
+
+
+@pytest.mark.parametrize("span_name", list(_INSTRUMENT))
+async def test_dropped_generator_ends_span_without_waiting_for_gc(
+    span_name: str,
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    gc.disable()
+    try:
+        with caplog.at_level(logging.ERROR, logger=_OTEL_CONTEXT_LOGGER):
+            async for _ in _INSTRUMENT[span_name](tracer_provider.get_tracer(__name__), _Stream()):
+                break
+            for _ in range(5):
+                await asyncio.sleep(0)  # let the async-generator finalizer run ``aclose()``
+            [span] = in_memory_span_exporter.get_finished_spans()
+    finally:
+        gc.enable()
+
+    assert span.name == span_name
+    assert span.status.status_code is StatusCode.UNSET
+    assert _otel_context_errors(caplog) == []
+
+
+class _ContextAttachingStream(_Stream):
+    """Attaches a context across each ``yield``, like ADK's ``_with_caller_context``."""
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> AsyncGenerator[Event, None]:
+        try:
+            for index in range(self.count):
+                token = context_api.attach(context_api.get_current())
+                try:
+                    yield _event(f"event {index}")
+                finally:
+                    context_api.detach(token)
+        finally:
+            self.closed = True
+
+
+@pytest.mark.parametrize("span_name", list(_INSTRUMENT))
+async def test_aclosing_restores_caller_context_when_adk_attaches_across_yield(
+    span_name: str,
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stream = _ContextAttachingStream()
+    generator = _INSTRUMENT[span_name](tracer_provider.get_tracer(__name__), stream)
+
+    with caplog.at_level(logging.ERROR, logger=_OTEL_CONTEXT_LOGGER):
+        async with aclosing(generator) as events:
+            async for _ in events:
+                break
+
+    assert stream.closed
+    assert _otel_context_errors(caplog) == []
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.name == span_name
     assert trace_api.get_current_span() is trace_api.INVALID_SPAN, "context was restored"
 
 
