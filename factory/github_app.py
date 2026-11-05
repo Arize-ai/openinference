@@ -61,15 +61,22 @@ class GitHubAppToken:
         *,
         client: anthropic.Anthropic,
         repo: str,
-        vault_id: str,
+        vault_id: Optional[str],
         app_client_id: str,
         app_private_key: str,
+        permissions: Optional[dict[str, str]] = None,
     ) -> None:
+        """Mint tokens with `permissions`, TOKEN_PERMISSIONS by default, kept current in the vault.
+
+        With no vault, the tokens stay in this process: the triage lane writes to GitHub with
+        one that no session ever sees.
+        """
         self.client = client
         self.repo = repo
         self.vault_id = vault_id
         self.app_client_id = app_client_id
         self.app_private_key = app_private_key
+        self.permissions = permissions or TOKEN_PERMISSIONS
         self.token: Optional[str] = None
         self.expires_at = datetime.min.replace(tzinfo=timezone.utc)
         # Session ID to the ID of its github_repository resource.
@@ -86,7 +93,8 @@ class GitHubAppToken:
         if self.token is not None and datetime.now(timezone.utc) < self.expires_at - REFRESH_MARGIN:
             return self.token
         token, expires_at = self.mint()
-        self.write_vault_credentials(token=token)
+        if self.vault_id is not None:
+            self.write_vault_credentials(token=token)
         for session_id, resource_id in list(self.repo_resource_ids.items()):
             try:
                 self.client.beta.sessions.resources.update(
@@ -103,7 +111,7 @@ class GitHubAppToken:
         return token
 
     def mint(self) -> tuple[str, datetime]:
-        """Mint an installation token limited to this repo and TOKEN_PERMISSIONS."""
+        """Mint an installation token limited to this repo and this source's permissions."""
         now = int(time.time())
         app_jwt = jwt.encode(
             {"iat": now - 60, "exp": now + 540, "iss": self.app_client_id},
@@ -117,12 +125,13 @@ class GitHubAppToken:
             method="POST",
             path=f"/app/installations/{installation['id']}/access_tokens",
             bearer=app_jwt,
-            body={"repositories": [self.repo.split("/")[1]], "permissions": TOKEN_PERMISSIONS},
+            body={"repositories": [self.repo.split("/")[1]], "permissions": self.permissions},
         )
         return access["token"], datetime.fromisoformat(access["expires_at"].replace("Z", "+00:00"))
 
     def write_vault_credentials(self, *, token: str) -> None:
         """Write the token to the vault's GitHub MCP and GH_TOKEN credentials, or create them."""
+        assert self.vault_id is not None
         mcp_credential_id = None
         gh_token_credential_id = None
         for credential in self.client.beta.vaults.credentials.list(self.vault_id):

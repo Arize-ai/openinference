@@ -14,10 +14,14 @@ permissions:
 jobs:
   guard:
     # A factory PR is one on a `factory/` branch or one the factory's app opened, since the
-    # agent chooses the branch.
+    # agent chooses the branch. The app also opens the release and sync PRs; those whose
+    # branches change guarded paths (release-please, changesets, skills-update.yml) are exempt.
     if: >-
       startsWith(github.head_ref, 'factory/') ||
-      (vars.FACTORY_GITHUB_LOGIN != '' && github.event.pull_request.user.login == vars.FACTORY_GITHUB_LOGIN)
+      (vars.FACTORY_GITHUB_LOGIN != '' && github.event.pull_request.user.login == vars.FACTORY_GITHUB_LOGIN &&
+       !startsWith(github.head_ref, 'release-please--') &&
+       !startsWith(github.head_ref, 'changeset-release/') &&
+       !startsWith(github.head_ref, 'chore/weekly-skills-update-'))
     runs-on: ubuntu-latest
     steps:
       - name: Reject changes to protected paths

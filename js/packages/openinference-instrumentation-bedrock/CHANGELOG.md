@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.5.6
+
+### Patch Changes
+
+- 5c89717: Record the top-level `system` prompt of Anthropic `InvokeModel` requests as the first input message (a string or an array of text blocks), so the conversation's messages start at index 1 when a system prompt is set.
+
 ## 0.5.5
 
 ### Patch Changes

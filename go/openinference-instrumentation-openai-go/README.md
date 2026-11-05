@@ -84,7 +84,7 @@ resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
 | `llm.tools.{i}.tool.json_schema` | each request tool definition |
 | `input.value` / `input.mime_type` | the request body as JSON / `application/json`, with input image URLs redacted when images are hidden or are base64 data URIs over 32,000 characters |
 | `llm.output_messages.{i}` | one message per `output` item, mapped the same way as input items (`message`, `function_call`, `reasoning`, `custom_tool_call`, `computer_call`, `web_search_call`, `file_search_call`) |
-| `output.value` / `output.mime_type` | the response body (or, when streaming, the `response.completed` event's response) as JSON / `application/json` |
+| `output.value` / `output.mime_type` | the response body (or, when streaming, the response carried by the final `response.completed`, `response.incomplete` or `response.failed` event) as JSON / `application/json` |
 | `llm.token_count.prompt` / `.completion` / `.total` | `usage.input_tokens` / `output_tokens` / `total_tokens` |
 | `llm.token_count.prompt_details.cache_read` / `.cache_write` | `usage.input_tokens_details.cached_tokens` / `cache_write_tokens` |
 | `llm.token_count.completion_details.reasoning` | `usage.output_tokens_details.reasoning_tokens` |
@@ -138,7 +138,7 @@ Azure-hosted clients (created via [`openai-go/azure`](https://pkg.go.dev/github.
 
 Streaming responses (`text/event-stream`) pass through unchanged so the caller's stream consumer keeps working. The middleware wraps the response body in a small adapter so the span's `End()` fires when the caller closes (or fully reads) the body — the span's duration reflects the actual time-to-last-token, not just the HTTP handshake. This applies to both Chat Completions and Responses.
 
-For streamed Responses calls, the middleware also parses the SSE events as the caller reads them, without reading ahead of the caller or changing the bytes it receives. When the span ends, it records the response from the `response.completed` event: output messages, `output.value`, the response model, token counts, and status `OK`, as the Python and JS instrumentors do. A stream that is closed before `response.completed` ends the span with request attributes only. Malformed events are skipped, and a stream that hits a read error keeps its `Error` status.
+For streamed Responses calls, the middleware also parses the SSE events as the caller reads them, without reading ahead of the caller or changing the bytes it receives. When the span ends, it records the response from the event that ends the stream: output messages, `output.value`, the response model, token counts, and status `OK`, as the Python and JS instrumentors do for `response.completed`. A stream can also end with `response.incomplete` (for example when `max_output_tokens` is reached) or `response.failed`; both carry the partial output and usage, which are recorded the same way, and a failed response sets status `Error` with its error message. A stream that is closed before its final event ends the span with request attributes only. Malformed events are skipped, and a stream that hits a read error keeps its `Error` status.
 
 Streamed Chat Completions spans carry request attributes only. They are marked `OK` when the caller reads the stream to EOF without an error, as Python does when its stream wrapper finishes (JS leaves the status unset). Chat streams have no completed event, so a stream closed before EOF stays unset, and a stream that hits a read error keeps its `Error` status.
 

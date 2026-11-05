@@ -6,6 +6,7 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Iterable,
     Iterator,
     Mapping,
     Optional,
@@ -212,20 +213,35 @@ def _agent_run_attributes(
         if agent.knowledge:
             yield f"agno{key_suffix}.knowledge", agent.knowledge.__class__.__name__
 
-        if agent.tools:
-            tool_names = []
-            # Handle both list of tools and callable that returns tools
-            tools = agent.tools() if callable(agent.tools) else agent.tools
-            for tool in tools:
-                if isinstance(tool, Function):
-                    tool_names.append(tool.name)
-                elif isinstance(tool, Toolkit):
-                    tool_names.extend([f for f in tool.functions.keys()])
-                elif callable(tool):
-                    tool_names.append(tool.__name__)
-                else:
-                    tool_names.append(str(tool))
-            yield f"agno{key_suffix}.tools", tool_names
+        # A tools factory is left to agno, which resolves it inside the run with the
+        # arguments it injects; _set_factory_tools records the result when the run ends.
+        if agent.tools and not callable(agent.tools):
+            yield f"agno{key_suffix}.tools", _tool_names(agent.tools)
+
+
+def _tool_names(tools: Iterable[Any]) -> list[str]:
+    names: list[str] = []
+    for tool in tools:
+        if isinstance(tool, Function):
+            names.append(tool.name)
+        elif isinstance(tool, Toolkit):
+            names.extend(tool.functions.keys())
+        elif callable(tool):
+            names.append(getattr(tool, "__name__", str(tool)))
+        else:
+            names.append(str(tool))
+    return names
+
+
+def _set_factory_tools(
+    span: trace_api.Span, agent: Optional[Union[Agent, Team]], arguments: Mapping[str, Any]
+) -> None:
+    """Record the tools agno resolved from a tools factory for this run."""
+    if not isinstance(agent, Agent) or not callable(agent.tools):
+        return
+    tools = getattr(arguments.get("run_context"), "tools", None)
+    if tools is not None:
+        span.set_attribute("agno.tools", _tool_names(tools))
 
 
 def _setup_team_context(
@@ -365,11 +381,18 @@ class _RunWrapper:
             ),
         )
 
-        team_token = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
-                run_response: RunOutput = wrapped(*args, **kwargs)
+                try:
+                    run_response: RunOutput = wrapped(*args, **kwargs)
+                finally:
+                    # Detach while still in span context so tokens unwind in LIFO order
+                    if team_token:
+                        try:
+                            context_api.detach(team_token)
+                        except Exception:
+                            pass
             _set_run_status(span, run_response)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
@@ -385,11 +408,7 @@ class _RunWrapper:
             raise
 
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
+            _set_factory_tools(span, agent_or_team, arguments)
             span.end()
 
     def run_stream(
@@ -481,6 +500,7 @@ class _RunWrapper:
             raise
         finally:
             detach_context_tokens(threading.current_thread(), initial_thread, team_token, ctx_token)
+            _set_factory_tools(span, agent_or_team, arguments)
             span.end()
 
     async def arun(
@@ -535,11 +555,18 @@ class _RunWrapper:
             ),
         )
 
-        team_token = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
-                run_response = await wrapped(*args, **kwargs)
+                try:
+                    run_response = await wrapped(*args, **kwargs)
+                finally:
+                    # Detach while still in span context so tokens unwind in LIFO order
+                    if team_token:
+                        try:
+                            context_api.detach(team_token)
+                        except Exception:
+                            pass
             _set_run_status(span, run_response)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
@@ -554,11 +581,7 @@ class _RunWrapper:
             raise
 
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
+            _set_factory_tools(span, agent_or_team, arguments)
             span.end()
 
     async def arun_stream(
@@ -665,6 +688,7 @@ class _RunWrapper:
 
         finally:
             detach_context_tokens(asyncio.current_task(), initial_task, team_token, ctx_token)
+            _set_factory_tools(span, agent_or_team, arguments)
             span.end()
 
 

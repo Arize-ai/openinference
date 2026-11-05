@@ -74,6 +74,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_api_request_streamed",
         "_original_api_async_request",
         "_original_api_async_request_streamed",
+        "_original_live_methods",
         "_tracer",
     )
 
@@ -237,6 +238,52 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             _CapturedRequestWrapper(),
         )
 
+        self._original_live_methods: list[tuple[Any, str, Any]] = []
+        try:
+            self._instrument_live()
+        except Exception:
+            logger.exception("Failed to instrument Live sessions")
+
+    def _instrument_live(self) -> None:
+        from google.genai import live
+        from google.genai.live import AsyncLive, AsyncSession
+
+        from openinference.instrumentation.google_genai._live import (
+            SEND_WRAPPERS,
+            _AsyncLiveConnectWrapper,
+            _AsyncSessionCloseWrapper,
+            _AsyncSessionContextUpdateWrapper,
+            _AsyncSessionReceiveWrapper,
+            _AsyncSessionSendWrapper,
+            _ConnectConfigWrapper,
+        )
+
+        # (owner, attribute, path in google.genai.live, wrapper)
+        wrappers: list[tuple[Any, str, str, Any]] = [
+            (AsyncLive, "connect", "AsyncLive.connect", _AsyncLiveConnectWrapper(self._tracer)),
+            (live, "_t_live_connect_config", "_t_live_connect_config", _ConnectConfigWrapper()),
+            (AsyncSession, "_receive", "AsyncSession._receive", _AsyncSessionReceiveWrapper()),
+            (AsyncSession, "close", "AsyncSession.close", _AsyncSessionCloseWrapper()),
+            (
+                AsyncSession,
+                "send_context_update",
+                "AsyncSession.send_context_update",
+                _AsyncSessionContextUpdateWrapper(),
+            ),
+            *(
+                (AsyncSession, name, f"AsyncSession.{name}", _AsyncSessionSendWrapper(record))
+                for name, record in SEND_WRAPPERS.items()
+            ),
+        ]
+        for owner, name, path, wrapper in wrappers:
+            if not callable(original := vars(owner).get(name)):
+                # send_context_update does not exist in older versions of google-genai
+                if name != "send_context_update":
+                    logger.warning(f"Live session tracing skips missing google.genai.live.{path}")
+                continue
+            self._original_live_methods.append((owner, name, original))
+            wrap_function_wrapper("google.genai.live", path, wrapper)
+
     def _uninstrument(self, **kwargs: Any) -> None:
         from google.genai.caches import AsyncCaches, Caches
         from google.genai.models import AsyncModels, Models
@@ -304,3 +351,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             setattr(
                 BaseApiClient, "async_request_streamed", self._original_api_async_request_streamed
             )
+
+        for cls, name, original in getattr(self, "_original_live_methods", None) or ():
+            setattr(cls, name, original)
+        self._original_live_methods = []

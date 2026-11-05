@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.54](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.53...python-openinference-instrumentation-litellm-v0.1.54) (2026-11-05)
+
+
+### Bug Fixes
+
+* **litellm:** skip nested completion span for bridged responses calls ([#4112](https://github.com/Arize-ai/openinference/issues/4112)) ([0ad0efe](https://github.com/Arize-ai/openinference/commit/0ad0efe65fe6e3bbec7ffc0355f9380e3ece2aa8))
+
+## [0.1.53](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.52...python-openinference-instrumentation-litellm-v0.1.53) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
+## [0.1.52](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.51...python-openinference-instrumentation-litellm-v0.1.52) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [0.1.51](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.50...python-openinference-instrumentation-litellm-v0.1.51) (2026-10-23)
 
 

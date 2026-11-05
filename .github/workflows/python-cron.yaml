@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          version: 0.11.2
+          version: 0.13.5
           enable-cache: false
       - name: Extract testenv into JSON list
         run: >-
@@ -63,7 +63,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          version: 0.11.2
+          version: 0.13.5
           enable-cache: false
       - name: Run tox latest env
         env:
@@ -165,10 +165,11 @@ jobs:
       - name: Send message to Slack
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             {
+              "channel": ${{ toJSON(vars.SLACK_CHANNEL_ID) }},
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
 
@@ -254,7 +255,7 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         if: ${{ steps.preflight.outputs.skip != 'true' }}
         with:
-          version: 0.11.2
+          version: 0.13.5
           enable-cache: false
 
       - name: Install subprocess isolation deps
@@ -422,13 +423,27 @@ jobs:
           PACKAGE: ${{ matrix.package }}
           PR_URL: ${{ steps.publish.outputs.pr_url }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
         run: |
           MSG="Auto-fix PR opened for ${PACKAGE} canary failures (verify its CI): ${PR_URL}
           ${RUN_URL}"
           echo "$MSG"
-          curl -sf -X POST -H 'Content-type: application/json' \
-            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
-            "${{ secrets.SLACK_WEBHOOK_URL }}"
+          # A failed notification must not fail the job: that would fire the
+          # catch-all "no PR opened" notice below even when a PR was opened.
+          if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL_ID:-}" ]; then
+            echo "::warning::SLACK_BOT_TOKEN or SLACK_CHANNEL_ID not set; skipping Slack notification."
+            exit 0
+          fi
+          # chat.postMessage answers 200 even on failure; the error is in the body.
+          resp=$(curl -s -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
+            || true)
+          if ! jq -e '.ok' <<<"$resp" > /dev/null 2>&1; then
+            echo "::warning::Slack chat.postMessage failed: $(jq -r '.error // empty' <<<"$resp" 2>/dev/null || true)"
+          fi
 
       - name: Notify Slack of no auto-fix PR
         if: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.pr_url == '' && steps.publish.outputs.status != '' }}
@@ -437,13 +452,25 @@ jobs:
           STATUS: ${{ steps.publish.outputs.status }}
           MESSAGE: ${{ steps.publish.outputs.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
         run: |
           MSG="Auto-fix did not open a PR for ${PACKAGE} (${STATUS}): ${MESSAGE}
           ${RUN_URL}"
           echo "$MSG"
-          curl -sf -X POST -H 'Content-type: application/json' \
-            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
-            "${{ secrets.SLACK_WEBHOOK_URL }}"
+          if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL_ID:-}" ]; then
+            echo "::warning::SLACK_BOT_TOKEN or SLACK_CHANNEL_ID not set; skipping Slack notification."
+            exit 0
+          fi
+          # chat.postMessage answers 200 even on failure; the error is in the body.
+          resp=$(curl -s -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
+            || true)
+          if ! jq -e '.ok' <<<"$resp" > /dev/null 2>&1; then
+            echo "::warning::Slack chat.postMessage failed: $(jq -r '.error // empty' <<<"$resp" 2>/dev/null || true)"
+          fi
 
       - name: Notify Slack of auto-fix job failure
         # Catch-all so a crash in the Claude step or the publish step (which
@@ -453,9 +480,21 @@ jobs:
         env:
           PACKAGE: ${{ matrix.package }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
         run: |
           MSG="Canary auto-fix job failed for ${PACKAGE} (no PR opened); see logs: ${RUN_URL}"
           echo "$MSG"
-          curl -sf -X POST -H 'Content-type: application/json' \
-            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
-            "${{ secrets.SLACK_WEBHOOK_URL }}"
+          if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL_ID:-}" ]; then
+            echo "::warning::SLACK_BOT_TOKEN or SLACK_CHANNEL_ID not set; skipping Slack notification."
+            exit 0
+          fi
+          # chat.postMessage answers 200 even on failure; the error is in the body.
+          resp=$(curl -s -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$MSG" '{channel: $channel, text: $text}')" \
+            || true)
+          if ! jq -e '.ok' <<<"$resp" > /dev/null 2>&1; then
+            echo "::warning::Slack chat.postMessage failed: $(jq -r '.error // empty' <<<"$resp" 2>/dev/null || true)"
+          fi

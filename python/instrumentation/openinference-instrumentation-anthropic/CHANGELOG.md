@@ -1,5 +1,39 @@
 # Changelog
 
+## [3.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.3.0...python-openinference-instrumentation-anthropic-v3.3.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **anthropic:** guard usage.input_tokens against None in _get_token_counts ([#3556](https://github.com/Arize-ai/openinference/issues/3556)) ([52cc39e](https://github.com/Arize-ai/openinference/commit/52cc39e4f2719c398909b45de909ada7b65a7fcc))
+
+## [3.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.2.0...python-openinference-instrumentation-anthropic-v3.3.0) (2026-10-31)
+
+
+### Features
+
+* **anthropic:** record document blocks with document semantic conventions ([#4156](https://github.com/Arize-ai/openinference/issues/4156)) ([5d6dbbb](https://github.com/Arize-ai/openinference/commit/5d6dbbbd2e899d10fe4d1e5a620be0e2a83effbd))
+
+
+### Bug Fixes
+
+* **anthropic:** avoid false tool arguments and token totals on interrupted streams ([#3982](https://github.com/Arize-ai/openinference/issues/3982)) ([5ee0356](https://github.com/Arize-ai/openinference/commit/5ee0356952ecc2096924425c822dc78ff2e60c9b))
+
+## [3.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.1.1...python-openinference-instrumentation-anthropic-v3.2.0) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [3.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.1.0...python-openinference-instrumentation-anthropic-v3.1.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* **anthropic:** stop anthropic&gt;=1.14.0 from adding a second span to each traced call ([#4121](https://github.com/Arize-ai/openinference/issues/4121)) ([1832ad0](https://github.com/Arize-ai/openinference/commit/1832ad061b2395318ad961218ac7fe43be85b75a))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [3.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.0.3...python-openinference-instrumentation-anthropic-v3.1.0) (2026-10-23)
 
 

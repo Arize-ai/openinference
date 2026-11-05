@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-claude-agent-sdk
 
+## 0.3.6
+
+### Patch Changes
+
+- 5e88e99: Run the V2 session stream inside the ClaudeAgent.turn context so spans created while iterating it are parented on the turn span
+
 ## 0.3.5
 
 ### Patch Changes
