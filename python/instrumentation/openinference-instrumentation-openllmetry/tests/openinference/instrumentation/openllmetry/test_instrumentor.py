@@ -428,6 +428,42 @@ def test_langgraph_operation_without_kind_has_ok_status() -> None:
     assert span.status.status_code == StatusCode.OK
 
 
+def test_llm_span_without_content_has_ok_status() -> None:
+    in_memory_span_exporter = InMemorySpanExporter()
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+    tracer = tracer_provider.get_tracer(__name__)
+    with tracer.start_as_current_span("openai.chat") as recording_span:
+        recording_span.set_attribute("llm.request.type", "chat")
+        recording_span.set_attribute("gen_ai.system", "openai")
+        recording_span.set_attribute("gen_ai.request.model", "gpt-4.1")
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == StatusCode.OK
+
+
+def test_span_with_recorded_exception_stays_unset() -> None:
+    in_memory_span_exporter = InMemorySpanExporter()
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+    tracer = tracer_provider.get_tracer(__name__)
+    with tracer.start_as_current_span("openai.response") as recording_span:
+        recording_span.set_attribute("gen_ai.operation.name", "chat")
+        recording_span.set_attribute(
+            "gen_ai.input.messages",
+            json.dumps([{"role": "user", "parts": [{"type": "text", "content": "Hi"}]}]),
+        )
+        recording_span.record_exception(Exception("Response cancelled"))
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert is_openinference_span(span)
+    assert span.status.status_code == StatusCode.UNSET
+
+
 @pytest.mark.parametrize("kind", ["llm", "tool", "operation"])
 def test_span_processor_preserves_error_status(kind: str) -> None:
     in_memory_span_exporter = InMemorySpanExporter()

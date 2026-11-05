@@ -458,8 +458,11 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
     @staticmethod
     def _set_ok_status_if_unset(span: Any) -> None:
-        if span.status.status_code == StatusCode.UNSET:
-            span._status = Status(StatusCode.OK)
+        if span.status.status_code != StatusCode.UNSET:
+            return
+        if any(event.name == "exception" for event in span.events):
+            return
+        span._status = Status(StatusCode.OK)
 
     def on_end(self, span: Any) -> None:
         attrs: Dict[str, Any] = dict(getattr(span, "_attributes", None) or {})
@@ -479,7 +482,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
         # Skip if no LLM prompt data in either format
         if not has_json_messages and not has_legacy_attributes:
-            if "gen_ai.operation.name" in attrs:
+            if "gen_ai.operation.name" in attrs or SpanAttributes.LLM_REQUEST_TYPE in attrs:
                 self._set_ok_status_if_unset(span)
             return
 
