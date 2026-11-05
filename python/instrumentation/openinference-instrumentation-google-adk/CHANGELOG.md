@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.1.1...python-openinference-instrumentation-google-adk-v1.1.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **google-adk:** end agent_run and invocation spans safely when their generator is closed out of context ([#4215](https://github.com/Arize-ai/openinference/issues/4215)) ([eeee918](https://github.com/Arize-ai/openinference/commit/eeee918ab72bf1d01437527131fbd17359f4664c))
+
 ## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.1.0...python-openinference-instrumentation-google-adk-v1.1.1) (2026-11-04)
 
 
