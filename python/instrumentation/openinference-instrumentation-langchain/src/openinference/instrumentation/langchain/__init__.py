@@ -49,6 +49,7 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
         self._tracer: Optional[OpenInferenceTracer] = OpenInferenceTracer(
             tracer,  # type: ignore[arg-type]
             bool(kwargs.get("separate_trace_from_runtime_context")),
+            attach_run_span_to_context=bool(kwargs.get("attach_run_span_to_context")),
         )
         self._original_callback_manager_init = langchain_core.callbacks.BaseCallbackManager.__init__
         wrap_function_wrapper(

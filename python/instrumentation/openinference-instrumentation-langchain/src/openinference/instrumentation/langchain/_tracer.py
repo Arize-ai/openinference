@@ -22,6 +22,7 @@ from typing import (
     Iterator,
     List,
     Mapping,
+    NamedTuple,
     Optional,
     Sequence,
     Tuple,
@@ -132,11 +133,46 @@ class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore[misc,name-defin
             super().__delitem__(key)  # type: ignore[misc,no-untyped-call,unused-ignore]
 
 
+class _AttachedRunSpan(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """
+    The span of a run while it is current in an OpenTelemetry context.
+
+    A run doesn't always end in the context it started in: LangChain ends every async run from a
+    task of its own, and a stream can be finished by another thread. No callback ever returns to
+    the original context to restore it. So that such a context doesn't keep the ended span as the
+    parent of all future spans, the proxy turns into the span it replaced when the run ends.
+    """
+
+    def __init__(self, span: Span, replaced_span: Span) -> None:
+        super().__init__(span)
+        # Skip proxies that have already turned, so that a long-lived context that is never restored
+        # doesn't build up a chain of them.
+        while isinstance(replaced_span, _AttachedRunSpan) and replaced_span.has_ended:
+            replaced_span = replaced_span.__wrapped__
+        self._self_replaced_span: Optional[Span] = replaced_span
+
+    @property
+    def has_ended(self) -> bool:
+        return self._self_replaced_span is None
+
+    def on_run_end(self) -> None:
+        self.__wrapped__ = self._self_replaced_span
+        self._self_replaced_span = None
+
+
+class _RunAttachment(NamedTuple):
+    span: _AttachedRunSpan
+    context: context_api.Context
+    previous_context: context_api.Context
+
+
 class OpenInferenceTracer(BaseTracer):
     __slots__ = (
         "_tracer",
         "_separate_trace_from_runtime_context",
+        "_attach_run_span_to_context",
         "_spans_by_run",
+        "_attachments_by_run",
     )
 
     def __init__(
@@ -144,6 +180,7 @@ class OpenInferenceTracer(BaseTracer):
         tracer: trace_api.Tracer,
         separate_trace_from_runtime_context: bool,
         *args: Any,
+        attach_run_span_to_context: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialize the OpenInferenceTracer.
@@ -153,6 +190,9 @@ class OpenInferenceTracer(BaseTracer):
             separate_trace_from_runtime_context (bool): When True, always start a new trace for each
                 span without a parent, isolating it from any existing trace in the runtime context.
             *args (Any): Positional arguments for BaseTracer.
+            attach_run_span_to_context (bool): When True, make the span of a run the current span
+                in the OpenTelemetry context while the run executes, so that spans from other
+                instrumentors nest under it.
             **kwargs (Any): Keyword arguments for BaseTracer.
         """
         super().__init__(*args, **kwargs)
@@ -162,7 +202,15 @@ class OpenInferenceTracer(BaseTracer):
         self.run_map = _DictWithLock[str, Run](self.run_map)  # type: ignore[assignment]
         self._tracer = tracer
         self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
+        self._attach_run_span_to_context = attach_run_span_to_context
+        if attach_run_span_to_context:
+            # A handler that isn't inline runs on a copy of the context for async runs, so anything
+            # it attaches is discarded as soon as it returns.
+            self.run_inline = True
         self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()  # type: ignore[assignment]
+        self._attachments_by_run: Dict[UUID, _RunAttachment] = _DictWithLock[  # type: ignore[assignment]
+            UUID, _RunAttachment
+        ]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def get_span(self, run_id: UUID) -> Optional[Span]:
@@ -189,19 +237,36 @@ class OpenInferenceTracer(BaseTracer):
             start_time=start_time_utc_nano,
         )
 
-        # The following line of code is commented out to serve as a reminder that in a system
-        # of callbacks, attaching the context can be hazardous because there is no guarantee
-        # that the context will be detached. An error could happen between callbacks leaving
-        # the context attached forever, and all future spans will use it as parent. What's
-        # worse is that the error could have also prevented the span from being exported,
-        # leaving all future spans as orphans. That is a very bad scenario.
-        # token = context_api.attach(context)
         with self._lock:
             self._spans_by_run[run.id] = span
+
+        # Attaching is opt-in because, in a system of callbacks, it can be hazardous: there is no
+        # guarantee that the context will be detached. An error could happen between callbacks
+        # leaving the context attached forever, and all future spans will use it as parent. What's
+        # worse is that the error could have also prevented the span from being exported, leaving
+        # all future spans as orphans. That is a very bad scenario. `_AttachedRunSpan` covers the
+        # runs that do end, but a run that LangChain never ends stays current.
+        #
+        # Runs started together share a context, and no one of them owns the work that follows.
+        if self._attach_run_span_to_context and (run.extra or {}).get("batch_size", 1) == 1:
+            previous_context = context_api.get_current()
+            attached_span = _AttachedRunSpan(span, trace_api.get_current_span(previous_context))
+            context = trace_api.set_span_in_context(cast(Span, attached_span), previous_context)
+            context_api.attach(context)
+            self._attachments_by_run[run.id] = _RunAttachment(
+                attached_span, context, previous_context
+            )
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
         self.run_map.pop(str(run.id), None)
+        if attachment := self._attachments_by_run.pop(run.id, None):
+            attachment.span.on_run_end()
+            # A context token can only be reset in the context that created it, which this may not
+            # be, so the previous context is set instead. A context that has moved on since the
+            # attach isn't ours to replace.
+            if context_api.get_current() is attachment.context:
+                context_api.attach(attachment.previous_context)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
         span = self._spans_by_run.pop(run.id, None)
