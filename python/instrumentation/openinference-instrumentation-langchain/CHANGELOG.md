@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.82](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.81...python-openinference-instrumentation-langchain-v0.1.82) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
+## [0.1.81](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.80...python-openinference-instrumentation-langchain-v0.1.81) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
+## [0.1.80](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.79...python-openinference-instrumentation-langchain-v0.1.80) (2026-10-23)
+
+
+### Performance Improvements
+
+* **langchain:** encode run I/O in one pass and skip sampled-out spans ([#4110](https://github.com/Arize-ai/openinference/issues/4110)) ([f248e09](https://github.com/Arize-ai/openinference/commit/f248e091caf323e28b4e79baf74c17cc555567cc))
+
+## [0.1.79](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.78...python-openinference-instrumentation-langchain-v0.1.79) (2026-10-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.71 ([#3975](https://github.com/Arize-ai/openinference/issues/3975)) ([3fbad7d](https://github.com/Arize-ai/openinference/commit/3fbad7d4859ad663b4ded076fbb9e5b60d51f4bf))
+
 ## [0.1.78](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.77...python-openinference-instrumentation-langchain-v0.1.78) (2026-10-01)
 
 

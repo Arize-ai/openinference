@@ -15,9 +15,9 @@ from google.genai.types import (
     GenerateContentConfig,
     Part,
 )
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import (
     _get_attributes_from_file_data,
     _get_attributes_from_inline_data,
@@ -35,6 +35,13 @@ __all__ = ("_RequestAttributesExtractor",)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+def _tuples_to_lists(contents: Any) -> Any:
+    """Turn tuples into lists at every level, since `t_contents` only walks lists."""
+    if isinstance(contents, (list, tuple)):
+        return [_tuples_to_lists(item) for item in contents]
+    return contents
 
 
 class _RequestAttributesExtractor:
@@ -84,7 +91,7 @@ class _RequestAttributesExtractor:
 
         if input_contents := request_parameters.get("contents"):
             try:
-                for content in t_contents(input_contents):
+                for content in t_contents(_tuples_to_lists(input_contents)):
                     for message_attributes in self._iter_messages_from_content(content):
                         for attr, value in message_attributes:
                             yield (

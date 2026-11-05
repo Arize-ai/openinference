@@ -1,6 +1,8 @@
 # type: ignore
 # ruff: noqa: E501
+import asyncio
 import base64
+import gc
 import json
 import os
 from typing import Any, Dict
@@ -25,6 +27,7 @@ from httpx import Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from pydantic import BaseModel
 
 from openinference.semconv.trace import (
@@ -2534,3 +2537,106 @@ def test_cancelled_generate_content_ends_span(
 
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def _mock_stream_generate_content(mock_router: Any) -> None:
+    chunks = [
+        {"candidates": [{"content": {"role": "model", "parts": [{"text": text}]}}]}
+        for text in ("one ", "two ", "three")
+    ]
+    body = "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks)
+    mock_router.post(path__regex=r"/v1beta/models/gemini-2\.0-flash:streamGenerateContent.*").mock(
+        return_value=Response(200, text=body, headers={"content-type": "text/event-stream"})
+    )
+
+
+def _assert_stream_span_ended_with_partial_output(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == StatusCode.UNSET
+    attributes = dict(span.attributes or {})
+    assert (
+        attributes.get(
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+        )
+        == "one "
+    )
+
+
+@pytest.mark.parametrize("abandon", ["break", "close", "drop"])
+def test_stream_left_early_ends_span(
+    abandon: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="fake-key")
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        _mock_stream_generate_content(mock_router)
+        stream = client.models.generate_content_stream(model="gemini-2.0-flash", contents="hi")
+        if abandon == "break":
+            for _ in stream:
+                break
+        else:
+            iterator = iter(stream)
+            next(iterator)
+            if abandon == "close":
+                iterator.close()
+            else:
+                del iterator
+                gc.collect()
+
+    _assert_stream_span_ended_with_partial_output(in_memory_span_exporter)
+
+
+@pytest.mark.parametrize("abandon", ["break", "aclose"])
+async def test_async_stream_left_early_ends_span(
+    abandon: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="fake-key").aio
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        _mock_stream_generate_content(mock_router)
+        stream = await client.models.generate_content_stream(
+            model="gemini-2.0-flash", contents="hi"
+        )
+        if abandon == "break":
+            async for _ in stream:
+                break
+            gc.collect()
+            for _ in range(3):
+                await asyncio.sleep(0)
+        else:
+            iterator = stream.__aiter__()
+            await iterator.__anext__()
+            await iterator.aclose()
+
+    _assert_stream_span_ended_with_partial_output(in_memory_span_exporter)
+
+
+async def test_async_stream_cancelled_ends_span_with_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="fake-key").aio
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        _mock_stream_generate_content(mock_router)
+        stream = await client.models.generate_content_stream(
+            model="gemini-2.0-flash", contents="hi"
+        )
+        iterator = stream.__aiter__()
+        await iterator.__anext__()
+        with pytest.raises(asyncio.CancelledError):
+            await iterator.athrow(asyncio.CancelledError())
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == StatusCode.ERROR
+    assert [event.name for event in span.events] == ["exception"]

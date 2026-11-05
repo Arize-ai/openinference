@@ -18,6 +18,7 @@ from typing import (
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context.context import Context
+from opentelemetry.util.types import AttributeValue
 
 from agno.agent import Agent
 from agno.models.message import Message
@@ -33,7 +34,6 @@ from agno.tools.toolkit import Toolkit
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.agno.utils import (
     _AGNO_PARENT_NODE_CONTEXT_KEY,
-    AttributeValue,
     _bind_arguments,
     _flatten,
     _generate_node_id,
@@ -384,11 +384,18 @@ class _RunWrapper:
             ),
         )
 
-        team_token = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
-                run_response: RunOutput = wrapped(*args, **kwargs)
+                try:
+                    run_response: RunOutput = wrapped(*args, **kwargs)
+                finally:
+                    # Detach while still in span context so tokens unwind in LIFO order
+                    if team_token:
+                        try:
+                            context_api.detach(team_token)
+                        except Exception:
+                            pass
             _set_run_status(span, run_response)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
@@ -404,11 +411,6 @@ class _RunWrapper:
             raise
 
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
             span.end()
 
     def run_stream(
@@ -554,11 +556,18 @@ class _RunWrapper:
             ),
         )
 
-        team_token = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
-                run_response = await wrapped(*args, **kwargs)
+                try:
+                    run_response = await wrapped(*args, **kwargs)
+                finally:
+                    # Detach while still in span context so tokens unwind in LIFO order
+                    if team_token:
+                        try:
+                            context_api.detach(team_token)
+                        except Exception:
+                            pass
             _set_run_status(span, run_response)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
@@ -573,11 +582,6 @@ class _RunWrapper:
             raise
 
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
             span.end()
 
     async def arun_stream(

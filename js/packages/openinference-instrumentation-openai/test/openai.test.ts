@@ -293,7 +293,7 @@ describe("OpenAIInstrumentation", () => {
       object: "list",
       data: [{ object: "embedding", index: 0, embedding: [1, 2, 3] }],
       model: "text-embedding-ada-003-small",
-      usage: { prompt_tokens: 0, total_tokens: 0 },
+      usage: { prompt_tokens: 4, total_tokens: 4 },
     };
 
     // Mock out the embedding create endpoint
@@ -342,6 +342,8 @@ describe("OpenAIInstrumentation", () => {
     expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
     expect(span.attributes["llm.provider"]).toBe("openai");
     expect(span.attributes["llm.system"]).toBe("openai");
+    expect(span.attributes["llm.token_count.prompt"]).toBe(4);
+    expect(span.attributes["llm.token_count.total"]).toBe(4);
   });
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream
@@ -1432,7 +1434,7 @@ describe("AzureOpenAIInstrumentation", () => {
       object: "list",
       data: [{ object: "embedding", index: 0, embedding: [1, 2, 3] }],
       model: "text-embedding-ada-002",
-      usage: { prompt_tokens: 0, total_tokens: 0 },
+      usage: { prompt_tokens: 4, total_tokens: 4 },
     };
 
     // Mock out the embedding create endpoint
@@ -1481,6 +1483,8 @@ describe("AzureOpenAIInstrumentation", () => {
     expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
     expect(span.attributes["llm.provider"]).toBe("azure");
     expect(span.attributes["llm.system"]).toBe("openai");
+    expect(span.attributes["llm.token_count.prompt"]).toBe(4);
+    expect(span.attributes["llm.token_count.total"]).toBe(4);
   });
 
   it("can handle streaming responses", async () => {

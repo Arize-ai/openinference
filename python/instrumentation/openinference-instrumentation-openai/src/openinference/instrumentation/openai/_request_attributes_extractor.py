@@ -18,9 +18,10 @@ from typing import (
     cast,
 )
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
-from openinference.instrumentation.openai._types import AttributeValue
 from openinference.instrumentation.openai._utils import _get_decision_type, _get_openai_version
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -33,7 +34,7 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    from openai.types import Completion, CreateEmbeddingResponse
+    from openai.types import Completion, CreateEmbeddingResponse, ImagesResponse
     from openai.types.chat import ChatCompletion
     from openai.types.responses.response import Response
     from openai.types.responses.response_create_params import ResponseCreateParamsBase
@@ -51,6 +52,7 @@ class _RequestAttributesExtractor:
         "_completion_type",
         "_responses_type",
         "_create_embedding_response_type",
+        "_images_response_type",
         "_decision_type",
     )
 
@@ -59,6 +61,7 @@ class _RequestAttributesExtractor:
         self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
         self._completion_type: Type["Completion"] = openai.types.Completion
         self._responses_type: Type["Response"] = openai.types.responses.response.Response
+        self._images_response_type: Type["ImagesResponse"] = openai.types.ImagesResponse
         self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
             openai.types.CreateEmbeddingResponse
         )
@@ -84,6 +87,14 @@ class _RequestAttributesExtractor:
             yield from _get_attributes_from_completion_create_param(request_parameters)
         elif self._decision_type is not None and cast_to is self._decision_type:
             yield from _get_attributes_from_decision_create_param(request_parameters)
+        elif cast_to is self._images_response_type:
+            # Images responses carry no model, so the requested model is the only one available.
+            if isinstance(model := request_parameters.get("model"), str) and model:
+                yield SpanAttributes.LLM_MODEL_NAME, model
+            try:
+                yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_parameters)
+            except Exception:
+                logger.exception("Failed to serialize request options")
         else:
             try:
                 yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_parameters)

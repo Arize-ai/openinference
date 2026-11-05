@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import gc
 import json
 from contextlib import ExitStack, contextmanager, suppress
 from typing import (
@@ -41,10 +42,10 @@ from google.cloud.aiplatform_v1.services.prediction_service.transports import ( 
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan, Tracer
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_attributes
 from openinference.instrumentation.vertexai import VertexAIInstrumentor
-from openinference.instrumentation.vertexai._types import AttributeValue
 from openinference.instrumentation.vertexai._wrapper import _role, _update_span
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -179,6 +180,50 @@ async def test_instrumentor(
         spans_by_id[span.context.span_id] = span
     for span in spans[1:]:
         assert is_descendant(span, spans[0], spans_by_id)
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_instrumentor_stream_dropped_before_exhausted(
+    is_async: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_generate_content_request: GenerateContentRequest,
+    mock_generate_content_response: GenerateContentResponse,
+    tracer: Tracer,
+) -> None:
+    request = mock_generate_content_request
+    response_gen = mock_generate_content_response_gen(mock_generate_content_response)
+    first_chunk = GenerateContentResponse.to_dict(
+        next(mock_generate_content_response_gen(mock_generate_content_response))
+    )
+    with ExitStack() as stack:
+        if is_async:
+            patch: Any = MockAsyncStreamGenerateContent(
+                mock_async_generate_content_response_gen(response_gen), tracer
+            )
+            stack.enter_context(patch_grpc_asyncio_transport_stream_generate_content(patch))
+            async_client = PredictionServiceAsyncClient(credentials=CREDENTIALS)
+            async_stream = await async_client.stream_generate_content(request)
+            async for _ in async_stream:
+                break
+            del async_stream
+        else:
+            patch = MockStreamGenerateContent(response_gen)
+            stack.enter_context(patch_grpc_transport_stream_generate_content(patch))
+            client = PredictionServiceClient(credentials=CREDENTIALS)
+            stream = client.stream_generate_content(request)
+            for _ in stream:
+                break
+            del stream
+        gc.collect()
+        spans = [span for span in in_memory_span_exporter.get_finished_spans() if span.name != TEST]
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.is_unset
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    output_value = attributes.get(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    candidate = json.loads(output_value)["candidates"][0]
+    assert candidate["content"]["parts"] == first_chunk["candidates"][0]["content"]["parts"]
 
 
 def test_instrumentor_multiple_function_responses(
