@@ -33,18 +33,25 @@ def _get_token_counts(
 
     In a stream, message_start can supply an output-token placeholder. Completion and total
     counts are emitted only after a message_delta reports output usage.
+
+    The SDK does not validate responses, so a proxy can hand back a null input or output count.
+    A null count is unknown, not 0, so it and the total derived from it are left out.
     """
+    input_tokens: Optional[int] = usage.input_tokens
     prompt_tokens = (
-        (usage.input_tokens or 0)
+        None
+        if input_tokens is None
+        else input_tokens
         + (usage.cache_creation_input_tokens or 0)
         + (usage.cache_read_input_tokens or 0)
     )
-    completion_tokens = usage.output_tokens or 0
+    completion_tokens: Optional[int] = usage.output_tokens if completion_known else None
     # A reported count of 0 is recorded. The cache and reasoning counts, which Anthropic reports
     # as 0 when caching or thinking did not run, are left out when 0, rather than tagging every
     # span with them.
-    yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if completion_known:
+    if prompt_tokens is not None:
+        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    if completion_tokens is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
     if usage.cache_read_input_tokens:
         yield (
@@ -57,14 +64,14 @@ def _get_token_counts(
             usage.cache_creation_input_tokens,
         )
     # The thinking tokens are part of, not in addition to, the output tokens.
-    if completion_known and (
+    if completion_tokens is not None and (
         thinking_tokens := getattr(
             getattr(usage, "output_tokens_details", None), "thinking_tokens", None
         )
     ):
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thinking_tokens
     # Anthropic's Usage has no total field, so derive it from prompt + completion.
-    if completion_known:
+    if prompt_tokens is not None and completion_tokens is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, prompt_tokens + completion_tokens
 
 

@@ -1,18 +1,20 @@
+import json
 import logging
-from typing import Iterator, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Tuple
 
+import httpx2
 import pytest
-from anthropic.types import Usage
+from anthropic import Anthropic
 from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation.anthropic._utils import _finish_tracing, _get_token_counts
+from openinference.instrumentation.anthropic._utils import _finish_tracing
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import SpanAttributes
 
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
-LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
 
 
@@ -26,58 +28,107 @@ def _failing_params() -> Iterator[Tuple[str, AttributeValue]]:
     raise RuntimeError("span finalization blew up")
 
 
-def _make_usage(
-    input_tokens: Optional[int] = None,
-    output_tokens: Optional[int] = None,
-    cache_creation_input_tokens: Optional[int] = None,
-    cache_read_input_tokens: Optional[int] = None,
-) -> Usage:
-    """Build a Usage without validation, so any field can be None."""
-    return Usage.model_construct(
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        cache_creation_input_tokens=cache_creation_input_tokens,
-        cache_read_input_tokens=cache_read_input_tokens,
+def _message(usage: Dict[str, Any], *, streaming: bool) -> Dict[str, Any]:
+    return {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-6",
+        "content": [] if streaming else [{"type": "text", "text": "Paris"}],
+        "stop_reason": None if streaming else "end_turn",
+        "stop_sequence": None,
+        "usage": usage,
+    }
+
+
+def _sse(usage: Dict[str, Any]) -> bytes:
+    """A stream whose message_start carries `usage` and whose message_delta reports the output."""
+    start_usage = {**usage, "output_tokens": 1}
+    events: List[Dict[str, Any]] = [
+        {"type": "message_start", "message": _message(start_usage, streaming=True)},
+        {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "Paris"},
+        },
+        {"type": "content_block_stop", "index": 0},
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+            "usage": {"output_tokens": usage["output_tokens"]},
+        },
+        {"type": "message_stop"},
+    ]
+    return b"".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n".encode() for e in events)
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["create", "stream"])
+@pytest.mark.parametrize(
+    "usage,expected",
+    [
+        pytest.param(
+            {"input_tokens": None, "output_tokens": 5},
+            {LLM_TOKEN_COUNT_COMPLETION: 5},
+            id="input-null",
+        ),
+        pytest.param(
+            {"input_tokens": None, "output_tokens": 5, "cache_read_input_tokens": 100},
+            {LLM_TOKEN_COUNT_COMPLETION: 5, LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 100},
+            id="input-null-with-cache-read",
+        ),
+        pytest.param(
+            {"input_tokens": 12, "output_tokens": None},
+            {LLM_TOKEN_COUNT_PROMPT: 12},
+            id="output-null",
+        ),
+        pytest.param({"input_tokens": None, "output_tokens": None}, {}, id="all-null"),
+    ],
+)
+def test_null_usage_counts_are_left_out(
+    stream: bool,
+    usage: Dict[str, Any],
+    expected: Dict[str, int],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The SDK does not validate responses, so a proxy can return a null count. A null count is
+    unknown: it must not be recorded as 0, nor summed into a total, and the counts that were
+    reported must still be recorded."""
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if stream:
+            return httpx2.Response(
+                200, content=_sse(usage), headers={"content-type": "text/event-stream"}
+            )
+        return httpx2.Response(200, json=_message(usage, streaming=False))
+
+    client = Anthropic(
+        api_key="sk-ant-fake", http_client=httpx2.Client(transport=httpx2.MockTransport(handler))
     )
+    with caplog.at_level(logging.ERROR):
+        if stream:
+            for _ in client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=16,
+                messages=[{"role": "user", "content": "Capital of France?"}],
+                stream=True,
+            ):
+                pass
+        else:
+            client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=16,
+                messages=[{"role": "user", "content": "Capital of France?"}],
+            )
 
-
-def test_get_token_counts_with_null_input_tokens_does_not_raise() -> None:
-    """_get_token_counts must not raise TypeError when usage.input_tokens is None.
-
-    Anthropic streaming snapshots can have input_tokens=None before the
-    final message_delta event arrives.  Previously None + 0 raised TypeError,
-    which escaped into _finish_tracing, causing the entire streaming LLM span
-    to be exported with no attributes (model name, messages, token counts all
-    dropped).
-    """
-    usage = _make_usage(input_tokens=None, output_tokens=10)
-    attrs = dict(_get_token_counts(usage))  # must not raise
-    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 0
-    assert attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
-    assert attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 10
-    assert attrs == {}
-
-
-def test_get_token_counts_with_all_none_fields_does_not_raise() -> None:
-    """When all Usage fields are None, the counts are recorded as 0."""
-    usage = _make_usage()
-    attrs = dict(_get_token_counts(usage))
-    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 0
-    assert attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 0
-    assert attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 0
-    assert attrs == {}
-
-
-def test_get_token_counts_with_normal_usage() -> None:
-    """Sanity-check: normal integer usage fields produce the expected attributes."""
-    usage = _make_usage(input_tokens=100, output_tokens=50, cache_read_input_tokens=20)
-    attrs = dict(_get_token_counts(usage))
-    # prompt = 100 + 20 = 120
-    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 120
-    assert attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 50
-    assert attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 170
-    assert attrs.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 20
-    assert attrs == {}
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attributes = dict(span.attributes or {})
+    token_counts = {k: v for k, v in attributes.items() if k.startswith("llm.token_count.")}
+    assert token_counts == expected
+    assert attributes[SpanAttributes.LLM_MODEL_NAME] == "claude-sonnet-4-6"
+    assert "Failed to get" not in caplog.text
 
 
 def test_finish_tracing_logs_and_recovers_when_finalization_fails(
