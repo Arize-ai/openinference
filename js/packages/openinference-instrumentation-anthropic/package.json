@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-anthropic",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": false,
   "description": "OpenInference instrumentation for Anthropic",
   "keywords": [
