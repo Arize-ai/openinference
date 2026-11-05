@@ -706,11 +706,19 @@ def _llm_messages_attributes(
     for message_index, message in enumerate(messages):
         if not isinstance(message, dict):
             continue
-        if (role := message.get("role")) is not None:
+        if isinstance(role := message.get("role"), str):
             yield f"{base_key}.{message_index}.{MESSAGE_ROLE}", role
+        contents = message.get("contents")
         if (content := message.get("content")) is not None:
-            yield f"{base_key}.{message_index}.{MESSAGE_CONTENT}", content
-        if isinstance(contents := message.get("contents"), Sequence):
+            if isinstance(content, str):
+                yield f"{base_key}.{message_index}.{MESSAGE_CONTENT}", content
+            elif isinstance(content, Sequence) and not isinstance(content, (bytes, bytearray)):
+                # Some frameworks pass content blocks as a list under `content`.
+                # `contents` is the declared channel for typed blocks, so only
+                # fall back to `content` when `contents` is absent.
+                if not isinstance(contents, Sequence):
+                    contents = content
+        if isinstance(contents, Sequence):
             for content_block_index, content_block in enumerate(contents):
                 if not isinstance(content_block, dict):
                     continue

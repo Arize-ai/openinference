@@ -37,6 +37,7 @@ def test_create_cache(
         parts=[genai.types.Part(text=story_content)],
         role="user",
     )
+    contents: list[genai.types.ContentUnion] = [content]
     cache_response = client.caches.create(
         model=model,
         config=genai.types.CreateCachedContentConfig(
@@ -45,7 +46,7 @@ def test_create_cache(
                 "You are an expert Agent, and your job is to answer "
                 "the user query based on the Context you have access to."
             ),
-            contents=[content],
+            contents=contents,
             ttl="300s",
         ),
     )
@@ -95,6 +96,7 @@ async def test_create_cache_async(
         parts=[genai.types.Part(text=story_content)],
         role="user",
     )
+    contents: list[genai.types.ContentUnion] = [content]
     cache_response = await client.caches.create(
         model=model,
         config=genai.types.CreateCachedContentConfig(
@@ -103,7 +105,7 @@ async def test_create_cache_async(
                 "You are an expert Agent, and your job is to answer "
                 "the user query based on the Context you have access to."
             ),
-            contents=[content],
+            contents=contents,
             ttl="300s",
         ),
     )

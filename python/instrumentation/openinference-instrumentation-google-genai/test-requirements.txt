@@ -1,5 +1,6 @@
 google-genai==2.0.1
 opentelemetry-sdk
+pillow
 pytest-asyncio
 pytest-recording
 respx
