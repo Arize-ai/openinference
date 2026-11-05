@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.24...python-openinference-instrumentation-claude-agent-sdk-v0.1.25) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.23...python-openinference-instrumentation-claude-agent-sdk-v0.1.24) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.22...python-openinference-instrumentation-claude-agent-sdk-v0.1.23) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.21...python-openinference-instrumentation-claude-agent-sdk-v0.1.22) (2026-10-23)
+
+
+### Bug Fixes
+
+* **claude-agent-sdk:** report per-turn usage on resumed runs ([#3949](https://github.com/Arize-ai/openinference/issues/3949)) ([165f1b9](https://github.com/Arize-ai/openinference/commit/165f1b9440c0502593805ae99ea45338b22dac50))
+
 ## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.20...python-openinference-instrumentation-claude-agent-sdk-v0.1.21) (2026-10-09)
 
 

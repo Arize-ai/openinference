@@ -1,5 +1,21 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.4.3
+
+### Patch Changes
+
+- 07ce304: Record the output and token counts of OpenAI Responses streams that end with `response.incomplete` or `response.failed`. Previously only `response.completed` was kept, so the span ended with an error status and no output or usage. A failed response still sets an error status; an incomplete one (for example `max_output_tokens`) is recorded like a completed one.
+
+## 4.4.2
+
+### Patch Changes
+
+- 100ce01: Record token usage on `embeddings.create` spans: `llm.token_count.prompt` and `llm.token_count.total` from the response's `usage`, as the Python OpenAI instrumentor does. Previously embedding spans carried no token counts, so embedding usage was missing from traces.
+- Updated dependencies [dc63d01]
+- Updated dependencies [298ff79]
+  - @arizeai/openinference-semantic-conventions@2.15.0
+  - @arizeai/openinference-core@2.8.1
+
 ## 4.4.1
 
 ### Patch Changes

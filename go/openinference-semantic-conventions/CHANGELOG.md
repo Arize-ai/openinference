@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.11...go/openinference-semantic-conventions/v0.1.12) (2026-10-23)
+
+
+### Features
+
+* **semconv:** add document content semantic conventions ([#4099](https://github.com/Arize-ai/openinference/issues/4099)) ([dc63d01](https://github.com/Arize-ai/openinference/commit/dc63d01d474e0fa14eb379f0d32d9808990e9b23))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.10...go/openinference-semantic-conventions/v0.1.11) (2026-10-01)
 
 

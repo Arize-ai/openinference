@@ -11,6 +11,7 @@ from agno.models.openai.responses import OpenAIResponses
 from agno.models.openrouter import OpenRouter
 from agno.run.agent import RunOutput
 from agno.team import Team
+from agno.tools import tool
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
 from opentelemetry.sdk.resources import Resource
@@ -164,6 +165,112 @@ def test_agent_no_metadata() -> None:
     agent = Agent(name="Test Agent")
     attributes = dict(_agent_run_attributes(agent))
     assert "metadata" not in attributes
+
+
+def _tools_factory(shape: str, calls: list[str]) -> Any:
+    @tool
+    def ping() -> str:
+        """Return pong."""
+        return "pong"
+
+    def sync_noarg() -> Any:
+        calls.append(shape)
+        return [ping]
+
+    def sync_injected(run_context: Any, agent: Any) -> Any:
+        calls.append(shape)
+        return [ping]
+
+    async def async_fn(run_context: Any = None) -> Any:
+        calls.append(shape)
+        return [ping]
+
+    class AsyncCallObject:
+        async def __call__(self) -> Any:
+            calls.append(shape)
+            return [ping]
+
+    return {
+        "sync-noarg": sync_noarg,
+        "sync-injected": sync_injected,
+        "async-fn": async_fn,
+        "async-call-object": AsyncCallObject(),
+    }[shape]
+
+
+@pytest.mark.parametrize(
+    "shape,mode",
+    [
+        ("sync-noarg", "run"),
+        ("sync-noarg", "run_stream"),
+        ("sync-injected", "run"),
+        ("sync-noarg", "arun"),
+        ("sync-injected", "arun"),
+        ("async-fn", "arun"),
+        ("async-fn", "arun_stream"),
+        ("async-call-object", "arun"),
+    ],
+)
+async def test_tools_factory_is_resolved_by_agno_and_recorded(
+    shape: str,
+    mode: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """A tools factory runs once, inside agno, and the span records what it returned (#3997)."""
+    import warnings
+
+    import httpx
+
+    sent_tools: list[list[str]] = []
+
+    def reply(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        sent_tools.append([t["function"]["name"] for t in body.get("tools") or []])
+        if body.get("stream"):
+            chunk = {
+                "id": "c1",
+                "object": "chat.completion.chunk",
+                "created": 0,
+                "model": "gpt-4o-mini",
+                "choices": [{"index": 0, "delta": {"content": "done"}, "finish_reason": "stop"}],
+            }
+            sse = f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n"
+            return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
+        message = {"role": "assistant", "content": "done"}
+        choice = {"index": 0, "message": message, "finish_reason": "stop"}
+        completion = {"id": "c1", "object": "chat.completion", "created": 0, "choices": [choice]}
+        return httpx.Response(200, json={**completion, "model": "gpt-4o-mini"})
+
+    client_type = httpx.AsyncClient if mode.startswith("a") else httpx.Client
+    model = OpenAIChat(
+        id="gpt-4o-mini",
+        api_key="fake",
+        http_client=client_type(transport=httpx.MockTransport(reply)),
+    )
+    calls: list[str] = []
+    agent = Agent(name="Probe", model=model, tools=_tools_factory(shape, calls), telemetry=False)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        if mode == "run":
+            agent.run("hi")
+        elif mode == "run_stream":
+            list(agent.run("hi", stream=True))
+        elif mode == "arun":
+            await agent.arun("hi")
+        else:
+            [event async for event in agent.arun("hi", stream=True)]
+
+    assert calls == [shape]
+    assert sent_tools == [["ping"]]
+    (span,) = [
+        s
+        for s in in_memory_span_exporter.get_finished_spans()
+        if (s.attributes or {}).get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "AGENT"
+    ]
+    assert span.status.is_ok
+    assert list(cast(Any, span.attributes)["agno.tools"]) == ["ping"]
 
 
 def test_team_metadata_captured() -> None:
