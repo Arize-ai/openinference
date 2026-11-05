@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 import json
 import threading
 from typing import (
@@ -7,6 +6,7 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Iterable,
     Iterator,
     Mapping,
     Optional,
@@ -213,38 +213,35 @@ def _agent_run_attributes(
         if agent.knowledge:
             yield f"agno{key_suffix}.knowledge", agent.knowledge.__class__.__name__
 
-        if agent.tools:
-            tool_names = []
-            # `tools` is either a list or a factory that returns one. Agno awaits
-            # async factories and injects `agent`/`team`/`run_context`/`session_state`
-            # into them, none of which we can do here; skip any factory we cannot
-            # call bare instead of breaking the instrumented run.
-            tools = agent.tools
-            resolved_tools: Any = None
-            if not callable(tools):
-                resolved_tools = tools
-            elif not inspect.iscoroutinefunction(tools):
-                try:
-                    resolved_tools = tools()
-                except Exception:
-                    resolved_tools = None
-                if inspect.isawaitable(resolved_tools):
-                    # e.g. an object whose `__call__` is async
-                    if inspect.iscoroutine(resolved_tools):
-                        resolved_tools.close()
-                    resolved_tools = None
+        # A tools factory is left to agno, which resolves it inside the run with the
+        # arguments it injects; _set_factory_tools records the result when the run ends.
+        if agent.tools and not callable(agent.tools):
+            yield f"agno{key_suffix}.tools", _tool_names(agent.tools)
 
-            if resolved_tools is not None:
-                for tool in resolved_tools:
-                    if isinstance(tool, Function):
-                        tool_names.append(tool.name)
-                    elif isinstance(tool, Toolkit):
-                        tool_names.extend([f for f in tool.functions.keys()])
-                    elif callable(tool):
-                        tool_names.append(tool.__name__)
-                    else:
-                        tool_names.append(str(tool))
-                yield f"agno{key_suffix}.tools", tool_names
+
+def _tool_names(tools: Iterable[Any]) -> list[str]:
+    names: list[str] = []
+    for tool in tools:
+        if isinstance(tool, Function):
+            names.append(tool.name)
+        elif isinstance(tool, Toolkit):
+            names.extend(tool.functions.keys())
+        elif callable(tool):
+            names.append(getattr(tool, "__name__", str(tool)))
+        else:
+            names.append(str(tool))
+    return names
+
+
+def _set_factory_tools(
+    span: trace_api.Span, agent: Optional[Union[Agent, Team]], arguments: Mapping[str, Any]
+) -> None:
+    """Record the tools agno resolved from a tools factory for this run."""
+    if not isinstance(agent, Agent) or not callable(agent.tools):
+        return
+    tools = getattr(arguments.get("run_context"), "tools", None)
+    if tools is not None:
+        span.set_attribute("agno.tools", _tool_names(tools))
 
 
 def _setup_team_context(
@@ -411,6 +408,7 @@ class _RunWrapper:
             raise
 
         finally:
+            _set_factory_tools(span, agent_or_team, arguments)
             span.end()
 
     def run_stream(
@@ -502,6 +500,7 @@ class _RunWrapper:
             raise
         finally:
             detach_context_tokens(threading.current_thread(), initial_thread, team_token, ctx_token)
+            _set_factory_tools(span, agent_or_team, arguments)
             span.end()
 
     async def arun(
@@ -582,6 +581,7 @@ class _RunWrapper:
             raise
 
         finally:
+            _set_factory_tools(span, agent_or_team, arguments)
             span.end()
 
     async def arun_stream(
@@ -688,6 +688,7 @@ class _RunWrapper:
 
         finally:
             detach_context_tokens(asyncio.current_task(), initial_task, team_token, ctx_token)
+            _set_factory_tools(span, agent_or_team, arguments)
             span.end()
 
 
