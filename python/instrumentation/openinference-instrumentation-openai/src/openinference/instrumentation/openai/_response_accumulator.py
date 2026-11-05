@@ -17,6 +17,7 @@ from typing import (
     Type,
 )
 
+from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
@@ -26,6 +27,8 @@ from openinference.instrumentation.openai._response_attributes_extractor import 
 )
 from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
+    _get_error_status,
+    _get_failed_response_status,
     _io_value_and_type,
     _ValueAndType,
 )
@@ -65,6 +68,7 @@ class _ResponsesAccumulator:
         "_request_parameters",
         "_response_attributes_extractor",
         "_chat_completion_type",
+        "_error_status",
     )
 
     def __init__(
@@ -76,6 +80,7 @@ class _ResponsesAccumulator:
         self._chat_completion_type = chat_completion_type
         self._request_parameters = request_parameters
         self._response_attributes_extractor = response_attributes_extractor
+        self._error_status: Optional[trace_api.Status] = None
         self._is_null = True
         self._cached_result: Optional[Dict[str, Any]] = None
         self._values: Optional["ResponseCompletedEvent"] = None
@@ -85,6 +90,16 @@ class _ResponsesAccumulator:
             self._is_null = False
             self._cached_result = None
             self._values = chunk
+        # The stream reports a failure with an event, and then ends without an exception.
+        event_type = getattr(chunk, "type", None)
+        if event_type == "response.failed":
+            self._error_status = _get_failed_response_status(getattr(chunk, "response", None))
+        elif event_type == "error":
+            self._error_status = _get_error_status(chunk)
+
+    def get_error_status(self) -> Optional[trace_api.Status]:
+        """The error that the stream reported, if any."""
+        return self._error_status
 
     def _result(self) -> Any:
         if self._is_null:

@@ -17,6 +17,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy  # type: ignore[attr-defined]
 
+from openinference.instrumentation.openai._response_accumulator import _ResponsesAccumulator
 from openinference.instrumentation.openai._utils import _finish_tracing
 from openinference.instrumentation.openai._with_span import _WithSpan
 
@@ -72,7 +73,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         except BaseException as exception:
             if not self._self_is_finished:
                 if isinstance(exception, StopIteration):
-                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+                    status = self._get_status_at_end()
                 else:
                     status = trace_api.Status(
                         status_code=trace_api.StatusCode.ERROR,
@@ -99,7 +100,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         except BaseException as exception:
             if not self._self_is_finished:
                 if isinstance(exception, StopAsyncIteration):
-                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+                    status = self._get_status_at_end()
                 else:
                     status = trace_api.Status(
                         status_code=trace_api.StatusCode.ERROR,
@@ -221,6 +222,14 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
                 self._self_response_accumulator.process_chunk(chunk)
             except Exception:
                 logger.exception("Failed to accumulate response")
+
+    def _get_status_at_end(self) -> trace_api.Status:
+        # A Responses API stream can report that the response failed and still end normally.
+        if isinstance(self._self_response_accumulator, _ResponsesAccumulator) and (
+            (error_status := self._self_response_accumulator.get_error_status()) is not None
+        ):
+            return error_status
+        return trace_api.Status(status_code=trace_api.StatusCode.OK)
 
     def _finish_tracing(
         self,
