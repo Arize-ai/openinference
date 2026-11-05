@@ -655,13 +655,17 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
 
     // Patch the Images API when it is available in the installed SDK.
     if (module.OpenAI.Images) {
-      const startImagesSpan = (
-        clientInstance: unknown,
-        body: ImageGenerateParamsBase | ImageEditParamsBase | ImageCreateVariationParams,
-        requestBody: Record<string, unknown>,
-      ) => {
+      const startImagesSpan = ({
+        clientInstance,
+        body,
+        requestBody,
+      }: {
+        clientInstance: unknown;
+        body: ImageGenerateParamsBase | ImageEditParamsBase | ImageCreateVariationParams;
+        requestBody: Record<string, unknown>;
+      }) => {
         // The prompt is user input: keep it out of the invocation parameters so
-        // hideInputs / hideInputText masking of input.value is not bypassed.
+        // hideInputs masking of input.value is not bypassed.
         const { prompt: _prompt, ...invocationParameters } = requestBody;
         return instrumentation.oiTracer.startSpan(`OpenAI Images`, {
           kind: SpanKind.INTERNAL,
@@ -712,7 +716,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             const body = args[0];
             const requestBody = { ...body };
             const getInputAttributes = (): Attributes => ({});
-            const span = startImagesSpan(this, body, requestBody);
+            const span = startImagesSpan({ clientInstance: this, body, requestBody });
             const execContext = getExecContext(span);
             const recordError = (error: unknown) => {
               span.setAttributes(getInputAttributes());
@@ -736,6 +740,12 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 requestFormat: body.output_format,
               }),
             );
+            endImagesSpanWithoutResult({
+              promise: wrappedPromise,
+              span,
+              getInputAttributes,
+              recordError,
+            });
             return context.bind(execContext, wrappedPromise);
           };
         },
@@ -750,7 +760,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           return function patchedEdit(this: unknown, ...args: Parameters<ImagesEditType>) {
             const body = args[0];
             const { image, mask, ...requestBody } = body;
-            const span = startImagesSpan(this, body, requestBody);
+            const span = startImagesSpan({ clientInstance: this, body, requestBody });
             const getInputAttributes = captureUploadAttributes({
               span,
               uploads: mask === undefined ? [image] : [image, mask],
@@ -778,6 +788,12 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 requestFormat: body.output_format,
               }),
             );
+            endImagesSpanWithoutResult({
+              promise: wrappedPromise,
+              span,
+              getInputAttributes,
+              recordError,
+            });
             return context.bind(execContext, wrappedPromise);
           };
         },
@@ -795,7 +811,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           ) {
             const body = args[0];
             const { image, ...requestBody } = body;
-            const span = startImagesSpan(this, body, requestBody);
+            const span = startImagesSpan({ clientInstance: this, body, requestBody });
             const getInputAttributes = captureUploadAttributes({ span, uploads: [image] });
             const execContext = getExecContext(span);
             const recordError = (error: unknown) => {
@@ -820,6 +836,12 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 requestFormat: "png",
               }),
             );
+            endImagesSpanWithoutResult({
+              promise: wrappedPromise,
+              span,
+              getInputAttributes,
+              recordError,
+            });
             return context.bind(execContext, wrappedPromise);
           };
         },
@@ -953,15 +975,73 @@ function recordImagesResult<T extends ImagesResult>({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     return leftStream as T;
   }
-  span.setAttributes({
-    ...getInputAttributes(),
-    [SemanticConventions.OUTPUT_VALUE]: stringifyImagesResponse(result),
-    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-    ...getImagesResponseAttributes({ response: result, requestFormat }),
-  });
+  span.setAttributes(getInputAttributes());
+  try {
+    span.setAttributes({
+      [SemanticConventions.OUTPUT_VALUE]: stringifyImagesResponse(result),
+      [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+      ...getImagesResponseAttributes({ response: result, requestFormat }),
+    });
+  } catch (error) {
+    diag.debug("Failed to record OpenAI images response", error);
+  }
   span.setStatus({ code: SpanStatusCode.OK });
   span.end();
   return result;
+}
+
+/**
+ * Ends an Images span when its APIPromise finishes without a result to record, which happens when
+ * the caller only asks for the raw response, or when the response body fails to parse.
+ *
+ * This watches the promise's own methods because parsing the body from here would consume it
+ * before the caller reads it.
+ *
+ * @param params.promise - The promise returned to the caller
+ * @param params.span - The span to end
+ * @param params.getInputAttributes - Gets the input attributes read so far
+ * @param params.recordError - Records an error on the span and ends it
+ */
+function endImagesSpanWithoutResult({
+  promise,
+  span,
+  getInputAttributes,
+  recordError,
+}: {
+  promise: unknown;
+  span: Span;
+  getInputAttributes: () => Attributes;
+  recordError: (error: unknown) => void;
+}): void {
+  if (!isAPIPromise<unknown>(promise)) return;
+  // parse is private in the SDK's types, but then() and withResponse() both go through it.
+  const parse: unknown = Reflect.get(promise, "parse");
+  if (typeof parse !== "function") return;
+  const asResponse = promise.asResponse.bind(promise);
+  let isParsing = false;
+  Reflect.set(promise, "parse", () => {
+    isParsing = true;
+    const parsedResult: unknown = Reflect.apply(parse, promise, []);
+    void Promise.resolve(parsedResult).then(undefined, (error: unknown) => {
+      if (span.isRecording()) recordError(error);
+    });
+    return parsedResult;
+  });
+  promise.asResponse = () => {
+    const response = asResponse();
+    void response.then(
+      () => {
+        // withResponse() also parses, which records the result and ends the span.
+        if (isParsing || !span.isRecording()) return;
+        span.setAttributes(getInputAttributes());
+        span.setStatus({ code: SpanStatusCode.OK });
+        span.end();
+      },
+      // A failed request is already recorded through observeRejection.
+      () => undefined,
+    );
+    return response;
+  };
 }
 
 function isResponseCreateResponse(

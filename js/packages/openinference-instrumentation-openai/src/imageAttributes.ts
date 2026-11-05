@@ -149,14 +149,58 @@ type ReadUploadParams = {
 };
 type UploadReadResult = UploadContents | typeof REDACTED_VALUE | undefined;
 
+/**
+ * Reads a cloned response body, stopping as soon as it is too long.
+ *
+ * @param params.body - The body of the cloned response
+ * @param params.isTooLong - Whether the bytes read so far would be redacted once encoded
+ * @returns The body's bytes, or the redacted value if it is too long
+ */
+async function readBodyWithinLimit({
+  body,
+  isTooLong,
+}: ReadUploadParams & { body: NonNullable<Response["body"]> }): Promise<
+  Uint8Array | typeof REDACTED_VALUE
+> {
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+  let readResult = await reader.read();
+  while (!readResult.done) {
+    byteLength += readResult.value.length;
+    if (isTooLong(byteLength)) {
+      // Not awaited: cancelling a clone only settles once the SDK's copy of the body is
+      // cancelled too, which may never happen.
+      void reader.cancel().catch((error: unknown) => {
+        diag.debug("Failed to cancel OpenAI image upload read", error);
+      });
+      return REDACTED_VALUE;
+    }
+    chunks.push(readResult.value);
+    readResult = await reader.read();
+  }
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
 async function readResponseUpload({
   upload,
   isTooLong,
 }: ReadUploadParams & { upload: Response }): Promise<UploadReadResult> {
   if (isTooLong(Number(upload.headers.get("content-length")))) return REDACTED_VALUE;
   const clone = upload.clone();
+  // Content-Length can be missing, or smaller than the decompressed body.
+  const bytes = clone.body
+    ? await readBodyWithinLimit({ body: clone.body, isTooLong })
+    : new Uint8Array();
+  if (bytes === REDACTED_VALUE) return REDACTED_VALUE;
   return {
-    bytes: new Uint8Array(await clone.arrayBuffer()),
+    bytes,
     declaredMediaType: clone.headers.get("content-type") ?? undefined,
     filename: clone.url,
   };

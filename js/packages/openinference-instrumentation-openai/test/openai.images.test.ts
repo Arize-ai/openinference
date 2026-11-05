@@ -1,10 +1,18 @@
 import { once } from "node:events";
-import { createReadStream, mkdtempSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  createReadStream,
+  mkdtempSync,
+  promises as fileSystem,
+  rmdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { context, diag } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
+import { isWrapped } from "@opentelemetry/instrumentation";
 import {
   AlwaysOffSampler,
   InMemorySpanExporter,
@@ -26,9 +34,30 @@ import {
 
 import { OpenAIInstrumentation } from "../src";
 import { getInputImageAttributes } from "../src/imageAttributes";
+import type * as ImageAttributes from "../src/imageAttributes";
 
-// Uploads are read in the background, and a real request always takes longer than the read.
-const waitForUploadRead = () => new Promise((resolve) => setTimeout(resolve, 50));
+const uploadReads = vi.hoisted((): Promise<unknown>[] => []);
+
+// Records each upload read, so mocked requests can finish after the reads they started.
+vi.mock("../src/imageAttributes", async (importOriginal) => {
+  const original = await importOriginal<typeof ImageAttributes>();
+  return {
+    ...original,
+    getInputImageAttributes: (
+      params: Parameters<typeof original.getInputImageAttributes>[0],
+    ): ReturnType<typeof original.getInputImageAttributes> => {
+      const uploadRead = original.getInputImageAttributes(params);
+      uploadReads.push(uploadRead);
+      return uploadRead;
+    },
+  };
+});
+
+const waitForUploadRead = () => Promise.all(uploadReads);
+
+beforeEach(() => {
+  uploadReads.length = 0;
+});
 
 describe("OpenAIInstrumentation - Images", () => {
   const memoryExporter = new InMemorySpanExporter();
@@ -62,12 +91,30 @@ describe("OpenAIInstrumentation - Images", () => {
       async () => response,
     );
 
-    await openai.images.generate({ prompt: "a lighthouse", output_format: "jpeg" });
+    await openai.images.generate({
+      model: "gpt-image-1",
+      prompt: "a lighthouse",
+      output_format: "jpeg",
+    });
 
     const span = memoryExporter.getFinishedSpans()[0];
     expect(span.name).toBe("OpenAI Images");
+    expect(span.attributes["llm.model_name"]).toBe("gpt-image-1");
+    expect(span.attributes["llm.provider"]).toBe("openai");
     expect(span.attributes["output.images.0.image.url"]).toBe("https://example.com/generated.png");
     expect(span.attributes["output.images.1.image.url"]).toBe("data:image/webp;base64,aW1hZ2U=");
+  });
+
+  it("keeps a base64 image that is already a data URL", async () => {
+    vi.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error return only needs to model the parsed SDK response.
+      async () => ({ created: 1, data: [{ b64_json: "data:image/gif;base64,aW1hZ2U=" }] }),
+    );
+
+    await openai.images.generate({ prompt: "a lighthouse" });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.attributes["output.images.0.image.url"]).toBe("data:image/gif;base64,aW1hZ2U=");
   });
 
   it("ends the span when an image request is rejected", async () => {
@@ -85,7 +132,10 @@ describe("OpenAIInstrumentation - Images", () => {
     expect(span.status.message).toBe("request failed");
   });
 
-  it("records input images when an edit request is rejected", async () => {
+  it.each<[string, (image: File) => Promise<unknown>]>([
+    ["edit", (image) => openai.images.edit({ image, prompt: "remove the background" })],
+    ["createVariation", (image) => openai.images.createVariation({ image })],
+  ])("records input images of a rejected %s request", async (_method, sendRequest) => {
     // @ts-expect-error test rejection does not need to model APIPromise internals.
     vi.spyOn(openai, "post").mockImplementation(async () => {
       await waitForUploadRead();
@@ -95,15 +145,33 @@ describe("OpenAIInstrumentation - Images", () => {
       type: "image/png",
     });
 
-    await expect(openai.images.edit({ image, prompt: "remove the background" })).rejects.toThrow(
-      "request failed",
-    );
+    await expect(sendRequest(image)).rejects.toThrow("request failed");
 
     const span = memoryExporter.getFinishedSpans()[0];
     expect(span.status.code).toBe(2);
     expect(span.attributes["input.images.0.image.url"]).toBe(
       `data:image/png;base64,${Buffer.from(await image.arrayBuffer()).toString("base64")}`,
     );
+  });
+
+  it.each<[string, () => unknown]>([
+    ["generate", () => openai.images.generate({ prompt: "a lighthouse" })],
+    [
+      "edit",
+      () => openai.images.edit({ image: new File([], "a.png"), prompt: "remove the background" }),
+    ],
+    ["createVariation", () => openai.images.createVariation({ image: new File([], "a.png") })],
+  ])("ends the span when %s throws before sending the request", (_method, sendRequest) => {
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      throw new Error("invalid request");
+    });
+
+    expect(sendRequest).toThrow("invalid request");
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].status.code).toBe(2);
+    expect(spans[0].status.message).toBe("invalid request");
   });
 
   describe("over a real APIPromise", () => {
@@ -154,6 +222,60 @@ describe("OpenAIInstrumentation - Images", () => {
       await expect(response.json()).resolves.toMatchObject({
         data: [{ url: "https://example.com/a.png" }],
       });
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].status.code).toBe(1);
+      expect(spans[0].attributes["output.images.0.image.url"]).toBeUndefined();
+    });
+
+    it("records input images for callers using asResponse()", async () => {
+      mockPost(
+        Promise.resolve()
+          .then(waitForUploadRead)
+          .then(() => jsonResponse()),
+      );
+      const image = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "source.png", {
+        type: "image/png",
+      });
+
+      await openai.images.edit({ image, prompt: "remove the background" }).asResponse();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const span = memoryExporter.getFinishedSpans()[0];
+      expect(span.status.code).toBe(1);
+      expect(span.attributes["input.images.0.image.url"]).toBe(
+        `data:image/png;base64,${Buffer.from(await image.arrayBuffer()).toString("base64")}`,
+      );
+    });
+
+    it("records the result once for callers using withResponse()", async () => {
+      mockPost(Promise.resolve(jsonResponse()));
+
+      const { data, response } = await openai.images
+        .generate({ prompt: "a lighthouse" })
+        .withResponse();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(data.data?.[0].url).toBe("https://example.com/a.png");
+      expect(response.status).toBe(200);
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].attributes["output.images.0.image.url"]).toBe("https://example.com/a.png");
+    });
+
+    it("ends the span with an error when the response body fails to parse", async () => {
+      mockPost(
+        Promise.resolve(
+          new Response("{not json", { headers: { "content-type": "application/json" } }),
+        ),
+      );
+
+      await expect(openai.images.generate({ prompt: "a lighthouse" })).rejects.toThrow(SyntaxError);
+
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].status.code).toBe(2);
+      expect(spans[0].events.map((event) => event.name)).toEqual(["exception"]);
     });
 
     it("ends the span when the HTTP request rejects", async () => {
@@ -166,6 +288,97 @@ describe("OpenAIInstrumentation - Images", () => {
       const span = memoryExporter.getFinishedSpans()[0];
       expect(span.status.code).toBe(2);
       expect(span.status.message).toBe("request failed");
+      expect(span.events.map((event) => event.name)).toEqual(["exception"]);
+    });
+  });
+
+  it.each([
+    ["data that is not an array", '{"created":1,"data":{"url":"u"}}', 200],
+    ["a null image", '{"created":1,"data":[null]}', 200],
+    ["no body", null, 204],
+  ])("does not fail the request for a response with %s", async (_name, body, status) => {
+    const client = new OpenAI({
+      apiKey: "fake-api-key",
+      fetch: async () =>
+        new Response(body, { status, headers: { "content-type": "application/json" } }),
+    });
+    const debugSpy = vi.spyOn(diag, "debug");
+
+    await client.images.generate({ prompt: "a lighthouse" });
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].status.code).toBe(1);
+    expect(spans[0].attributes["input.value"]).toBeDefined();
+    expect(debugSpy).toHaveBeenCalledWith(
+      "Failed to record OpenAI images response",
+      expect.any(TypeError),
+    );
+  });
+
+  it.each<[string, () => Promise<unknown>]>([
+    ["generate", () => openai.images.generate({ prompt: "a lighthouse", output_format: "webp" })],
+    [
+      "edit",
+      () =>
+        openai.images.edit({
+          image: new File([], "a.png"),
+          prompt: "remove the background",
+          output_format: "webp",
+        }),
+    ],
+  ])("uses the format requested from %s when the response has none", async (_method, send) => {
+    vi.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error return only needs to model the parsed SDK response.
+      async () => ({ created: 1, data: [{ b64_json: "aW1hZ2U=" }] }),
+    );
+
+    await send();
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.attributes["output.images.0.image.url"]).toBe("data:image/webp;base64,aW1hZ2U=");
+  });
+
+  it("keeps variation uploads out of input.value", async () => {
+    vi.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error return only needs to model the parsed SDK response.
+      async () => ({ created: 1, data: [] }),
+    );
+    const image = new File([new Uint8Array(8)], "source.png", { type: "image/png" });
+
+    await openai.images.createVariation({ image, n: 2 });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(JSON.parse(span.attributes["input.value"] as string)).toEqual({ n: 2 });
+  });
+
+  it.each([
+    ["a declared image type", [1, 2, 3], "a.bin", "image/gif", "image/gif"],
+    [
+      "the bytes, over a declared non-image type",
+      [0xff, 0xd8, 0xff],
+      "a.txt",
+      "text/plain",
+      "image/jpeg",
+    ],
+    ["the bytes, with no declared type", [0xff, 0xd8, 0xff], "a.bin", "", "image/jpeg"],
+    [
+      "PNG bytes, over the filename",
+      [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+      "a.webp",
+      "",
+      "image/png",
+    ],
+    ["GIF bytes", [...Buffer.from("GIF89a")], "a.bin", "", "image/gif"],
+    ["WebP bytes", [...Buffer.from("RIFF\0\0\0\0WEBP")], "a.bin", "", "image/webp"],
+    ["the filename, when the bytes are unknown", [1, 2, 3], "a.webp", "", "image/webp"],
+    ["a .jpg filename", [1, 2, 3], "a.jpg", "", "image/jpeg"],
+    ["PNG, when nothing else is known", [1, 2, 3], "a.bin", "", "image/png"],
+  ])("detects an upload's media type from %s", async (_name, bytes, filename, type, expected) => {
+    const image = new File([new Uint8Array(bytes)], filename, { type });
+
+    await expect(getInputImageAttributes({ uploads: [image] })).resolves.toEqual({
+      "input.images.0.image.url": `data:${expected};base64,${Buffer.from(bytes).toString("base64")}`,
     });
   });
 
@@ -203,6 +416,34 @@ describe("OpenAIInstrumentation - Images", () => {
       prompt: "remove the background",
     });
     expect(span.attributes["output.images.0.image.url"]).toBe("data:image/png;base64,ZWRpdGVk");
+  });
+
+  it("captures every image of an edit given an array, in order", async () => {
+    vi.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error return only needs to model the parsed SDK response.
+      async () => {
+        await waitForUploadRead();
+        return { created: 1, data: [] };
+      },
+    );
+    const firstBytes = [0x89, 0x50, 0x4e, 0x47];
+    const secondBytes = [0xff, 0xd8, 0xff];
+
+    await openai.images.edit({
+      image: [
+        new File([new Uint8Array(firstBytes)], "first.png", { type: "image/png" }),
+        new File([new Uint8Array(secondBytes)], "second.jpg", { type: "image/jpeg" }),
+      ],
+      prompt: "combine these",
+    });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.attributes["input.images.0.image.url"]).toBe(
+      `data:image/png;base64,${Buffer.from(firstBytes).toString("base64")}`,
+    );
+    expect(span.attributes["input.images.1.image.url"]).toBe(
+      `data:image/jpeg;base64,${Buffer.from(secondBytes).toString("base64")}`,
+    );
   });
 
   it("does not wait for an upload read to finish", async () => {
@@ -253,14 +494,13 @@ describe("OpenAIInstrumentation - Images", () => {
       async () => response,
     );
     const image = new File([new Uint8Array(128)], "source.png", { type: "image/png" });
-    // The SDK reads the upload itself to build the multipart body, so check encoding instead.
-    const btoaSpy = vi.spyOn(globalThis, "btoa");
+    const arrayBufferSpy = vi.spyOn(image, "arrayBuffer");
 
     await context.with(suppressTracing(context.active()), () =>
       openai.images.createVariation({ image }),
     );
 
-    expect(btoaSpy).not.toHaveBeenCalled();
+    expect(arrayBufferSpy).not.toHaveBeenCalled();
     expect(memoryExporter.getFinishedSpans()).toHaveLength(0);
   });
 
@@ -283,6 +523,102 @@ describe("OpenAIInstrumentation - Images", () => {
     });
     expect(arrayBufferSpy).not.toHaveBeenCalled();
     expect(cloneSpy).not.toHaveBeenCalled();
+  });
+
+  describe("with a Response that has no Content-Length", () => {
+    const chunkLength = 16;
+    const totalChunks = 20;
+    /**
+     * Creates a response whose body counts how many chunks have been read from it.
+     */
+    const createChunkedResponse = () => {
+      let pulledChunks = 0;
+      const cancelSource = vi.fn();
+      const body = new ReadableStream<Uint8Array>({
+        cancel: cancelSource,
+        pull(controller) {
+          if (pulledChunks === totalChunks) {
+            controller.close();
+            return;
+          }
+          pulledChunks++;
+          controller.enqueue(new Uint8Array(chunkLength));
+        },
+      });
+      return {
+        upload: new Response(body, { headers: { "content-type": "image/png" } }),
+        getPulledChunks: () => pulledChunks,
+        cancelSource,
+      };
+    };
+
+    it("stops reading once the body is too long and leaves it readable", async () => {
+      const { upload, getPulledChunks } = createChunkedResponse();
+
+      await expect(
+        getInputImageAttributes({
+          uploads: [upload],
+          traceConfigOptions: generateTraceConfig({ base64ImageMaxLength: 64 }),
+        }),
+      ).resolves.toEqual({ "input.images.0.image.url": REDACTED_VALUE });
+
+      expect(getPulledChunks()).toBeLessThan(totalChunks);
+      const sentBytes = await upload.arrayBuffer();
+      expect(sentBytes.byteLength).toBe(chunkLength * totalChunks);
+    });
+
+    it("gives up its copy of a body that is too long", async () => {
+      const { upload, cancelSource } = createChunkedResponse();
+
+      await getInputImageAttributes({
+        uploads: [upload],
+        traceConfigOptions: generateTraceConfig({ base64ImageMaxLength: 64 }),
+      });
+      // The source is only cancelled once both copies of the body are.
+      await upload.body?.cancel();
+
+      expect(cancelSource).toHaveBeenCalledOnce();
+    });
+
+    it("redacts a long upload and still sends all of it", async () => {
+      const uploadLength = 5_000_000;
+      const sentBodies: Buffer[] = [];
+      const client = new OpenAI({
+        apiKey: "fake-api-key",
+        fetch: async (_url, init) => {
+          // The SDK first probes fetch with a request that has no body to check FormData support.
+          if (init?.body) {
+            sentBodies.push(Buffer.from(await new Response(init.body).arrayBuffer()));
+          }
+          await waitForUploadRead();
+          return new Response(JSON.stringify({ created: 1, data: [] }), {
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+      const upload = new Response(new Uint8Array(uploadLength), {
+        headers: { "content-type": "image/png" },
+      });
+
+      await client.images.createVariation({ image: upload });
+
+      expect(sentBodies).toHaveLength(1);
+      expect(sentBodies[0].length).toBeGreaterThan(uploadLength);
+      const span = memoryExporter.getFinishedSpans()[0];
+      expect(span.attributes["input.images.0.image.url"]).toBe(REDACTED_VALUE);
+    });
+
+    it("captures a body within the limit and leaves it readable", async () => {
+      const { upload } = createChunkedResponse();
+      const expectedBase64 = Buffer.alloc(chunkLength * totalChunks).toString("base64");
+
+      await expect(getInputImageAttributes({ uploads: [upload] })).resolves.toEqual({
+        "input.images.0.image.url": `data:image/png;base64,${expectedBase64}`,
+      });
+
+      const sentBytes = await upload.arrayBuffer();
+      expect(sentBytes.byteLength).toBe(chunkLength * totalChunks);
+    });
   });
 
   it("redacts data URLs that only exceed base64ImageMaxLength with their prefix", async () => {
@@ -316,7 +652,10 @@ describe("OpenAIInstrumentation - Images", () => {
       const client = new OpenAI({
         apiKey: "fake-api-key",
         fetch: async (_url, init) => {
-          sentBodies.push(Buffer.from(await new Response(init?.body).arrayBuffer()));
+          // Some SDK versions first probe fetch with a request that has no body.
+          if (init?.body) {
+            sentBodies.push(Buffer.from(await new Response(init.body).arrayBuffer()));
+          }
           await waitForUploadRead();
           return new Response(JSON.stringify({ created: 1, data: [] }), {
             headers: { "content-type": "application/json" },
@@ -334,9 +673,10 @@ describe("OpenAIInstrumentation - Images", () => {
       );
     });
 
-    it("redacts long files", async () => {
+    it("redacts long files without reading them", async () => {
       const stream = createReadStream(imagePath);
       await once(stream, "open");
+      const readFileSpy = vi.spyOn(fileSystem, "readFile");
 
       await expect(
         getInputImageAttributes({
@@ -344,6 +684,7 @@ describe("OpenAIInstrumentation - Images", () => {
           traceConfigOptions: generateTraceConfig({ base64ImageMaxLength: 4 }),
         }),
       ).resolves.toEqual({ "input.images.0.image.url": REDACTED_VALUE });
+      expect(readFileSpy).not.toHaveBeenCalled();
       stream.destroy();
     });
 
@@ -359,9 +700,11 @@ describe("OpenAIInstrumentation - Images", () => {
     });
 
     it("skips objects that only look like file streams", async () => {
-      await expect(getInputImageAttributes({ uploads: [{ path: imagePath }] })).resolves.toEqual(
-        {},
-      );
+      await expect(
+        getInputImageAttributes({
+          uploads: [{ path: imagePath, start: undefined, end: Infinity }],
+        }),
+      ).resolves.toEqual({});
     });
   });
 
@@ -439,6 +782,81 @@ describe("OpenAIInstrumentation - Images", () => {
     expect(outputValue.type).toBe("image_generation.completed");
     expect(outputValue.b64_json).toBeUndefined();
   });
+
+  describe("with a streamed response", () => {
+    /**
+     * Creates a client whose requests get the given server-sent events, once uploads are read.
+     */
+    const createStreamClient = (events: ReadonlyArray<{ event: string; data: unknown }>) =>
+      new OpenAI({
+        apiKey: "fake-api-key",
+        fetch: async () => {
+          await waitForUploadRead();
+          const body = events
+            .map(({ event, data }) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+            .join("");
+          return new Response(body, { headers: { "content-type": "text/event-stream" } });
+        },
+      });
+    const consumeStream = async (stream: AsyncIterable<unknown>) => {
+      for await (const _event of stream) {
+        // Consume the caller's half of the tee'd stream.
+      }
+    };
+    const getFinishedSpan = async () => {
+      await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+      return memoryExporter.getFinishedSpans()[0];
+    };
+
+    it("ends the span with an error when no image completes", async () => {
+      const client = createStreamClient([
+        {
+          event: "image_generation.partial_image",
+          data: { type: "image_generation.partial_image", b64_json: "cGFydGlhbA==" },
+        },
+      ]);
+
+      await consumeStream(await client.images.generate({ prompt: "a lighthouse", stream: true }));
+
+      const span = await getFinishedSpan();
+      expect(span.status.code).toBe(2);
+      expect(span.attributes["output.images.0.image.url"]).toBeUndefined();
+    });
+
+    it("records an error that arrives during the stream", async () => {
+      const client = createStreamClient([{ event: "error", data: { error: { message: "boom" } } }]);
+
+      const stream = await client.images.generate({ prompt: "a lighthouse", stream: true });
+      await expect(consumeStream(stream)).rejects.toThrow("boom");
+
+      const span = await getFinishedSpan();
+      expect(span.status.code).toBe(2);
+      expect(span.status.message).toContain("boom");
+      expect(span.events.map((event) => event.name)).toEqual(["exception"]);
+    });
+
+    it("captures the input and output images of a streamed edit", async () => {
+      const client = createStreamClient([
+        {
+          event: "image_edit.completed",
+          data: { type: "image_edit.completed", b64_json: "ZWRpdGVk", output_format: "png" },
+        },
+      ]);
+      const imageBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+      const image = new File([imageBytes], "source.png", { type: "image/png" });
+
+      await consumeStream(
+        await client.images.edit({ image, prompt: "remove the background", stream: true }),
+      );
+
+      const span = await getFinishedSpan();
+      expect(span.status.code).toBe(1);
+      expect(span.attributes["input.images.0.image.url"]).toBe(
+        `data:image/png;base64,${Buffer.from(imageBytes).toString("base64")}`,
+      );
+      expect(span.attributes["output.images.0.image.url"]).toBe("data:image/png;base64,ZWRpdGVk");
+    });
+  });
 });
 
 describe("OpenAIInstrumentation - Images configuration", () => {
@@ -495,6 +913,24 @@ describe("OpenAIInstrumentation - Images configuration", () => {
   }
 
   afterEach(() => vi.restoreAllMocks());
+
+  it.each(["generate", "edit", "createVariation"] as const)(
+    "restores images.%s when disabled",
+    (method) => {
+      const instrumentation = new OpenAIInstrumentation({
+        tracerProvider: new NodeTracerProvider(),
+      });
+      instrumentation.disable();
+      // @ts-expect-error moduleExports is private; tests set it for manual module mocking.
+      instrumentation._modules[0].moduleExports = OpenAI;
+      instrumentation.enable();
+      expect(isWrapped(OpenAI.Images.prototype[method])).toBe(true);
+
+      instrumentation.disable();
+
+      expect(isWrapped(OpenAI.Images.prototype[method])).toBe(false);
+    },
+  );
 
   it("does not record or read input images with hideInputImages", async () => {
     const { spans, arrayBufferSpy } = await getEditSpans({
