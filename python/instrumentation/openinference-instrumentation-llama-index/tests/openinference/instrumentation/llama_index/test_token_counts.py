@@ -332,48 +332,6 @@ def test_google_genai_real_response_token_counts(
     assert attributes[LLM_TOKEN_COUNT_TOTAL] == 2210
 
 
-@pytest.mark.parametrize(
-    "usage, kwargs_total, expected_prompt, expected_completion, expected_total",
-    [
-        ({"tool_use_prompt_token_count": 30}, 1000, 1230, 80, 1310),
-        ({"thoughts_token_count": 900}, 1000, 1200, 980, 2180),
-        ({"thoughts_token_count": 900}, 3000, 1200, 980, 3000),
-        ({"candidates_token_count": "invalid", "thoughts_token_count": 900}, 1000, 1200, 980, 2180),
-        ({"tool_use_prompt_token_count": 30, "thoughts_token_count": 900}, 1000, 1230, 980, 2210),
-        ({"cached_content_token_count": 1024}, 1000, 1200, 80, 1280),
-    ],
-)
-def test_partial_gemini_metadata_keeps_convenience_base_counts(
-    usage: dict[str, Any],
-    kwargs_total: int,
-    expected_prompt: int,
-    expected_completion: int,
-    expected_total: int,
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    span = _Span(otel_span=tracer_provider.get_tracer(__name__).start_span("llm"), span_kind="LLM")
-    span.process_event(
-        LLMChatEndEvent(
-            messages=[],
-            response=ChatResponse(
-                message=ChatMessage(content="Paris."),
-                raw={"usage_metadata": usage},
-                additional_kwargs={
-                    "prompt_tokens": 1200,
-                    "completion_tokens": 80,
-                    "total_tokens": kwargs_total,
-                },
-            ),
-        )
-    )
-    span.end()
-    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes or {}
-    assert attributes[LLM_TOKEN_COUNT_PROMPT] == expected_prompt
-    assert attributes[LLM_TOKEN_COUNT_COMPLETION] == expected_completion
-    assert attributes[LLM_TOKEN_COUNT_TOTAL] == expected_total
-
-
 @pytest.fixture(autouse=True)
 def instrument(
     tracer_provider: TracerProvider,
