@@ -1272,7 +1272,7 @@ def test_none_group_id_omits_session_id() -> None:
 
 
 def test_empty_group_id_omits_session_id() -> None:
-    """group_id='' → session.id absent, consistent with using_session() and sibling instrumentors."""
+    """group_id='' → session.id absent, consistent with using_session()."""
     processor, exporter = _make_processor()
     _run(processor, _FakeTraceWithGroupId(""), [])
     assert "session.id" not in _attrs(_root_span(exporter))
@@ -1291,12 +1291,12 @@ def test_group_id_sdk_integration() -> None:
     from agents import set_trace_processors
 
     processor, exporter = _make_processor()
-    set_trace_processors([processor])  # type: ignore[arg-type]
+    set_trace_processors([processor])
     try:
         with agents.trace("wf", group_id="conv-1"):
             pass
     finally:
-        set_trace_processors([])  # type: ignore[arg-type]
+        set_trace_processors([])
 
     attrs = _attrs(_root_span(exporter))
     assert attrs.pop("openinference.span.kind") == "AGENT"
