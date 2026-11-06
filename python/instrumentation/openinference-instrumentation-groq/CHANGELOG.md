@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.36...python-openinference-instrumentation-groq-v0.1.37) (2026-11-06)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+* **groq:** finish the span from the stream and record the streamed response ([#4093](https://github.com/Arize-ai/openinference/issues/4093)) ([11b283c](https://github.com/Arize-ai/openinference/commit/11b283cbf57b21a27ccb67f2d1d2c2b548f04b4f))
+
 ## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.35...python-openinference-instrumentation-groq-v0.1.36) (2026-11-04)
 
 
