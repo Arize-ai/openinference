@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.83](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.82...python-openinference-instrumentation-langchain-v0.1.83) (2026-11-06)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+* **langchain:** map langchain-aws ls_provider values to llm.provider aws ([#4224](https://github.com/Arize-ai/openinference/issues/4224)) ([c0cbcef](https://github.com/Arize-ai/openinference/commit/c0cbcef72d1619ebd537daf5652b50eaecf5363f))
+
 ## [0.1.82](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.81...python-openinference-instrumentation-langchain-v0.1.82) (2026-11-04)
 
 

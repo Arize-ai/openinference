@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.18...python-openinference-instrumentation-cohere-v0.1.19) (2026-11-06)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+* **cohere:** end the stream span on cancellation ([#4212](https://github.com/Arize-ai/openinference/issues/4212)) ([d0133f2](https://github.com/Arize-ai/openinference/commit/d0133f2d37d11463ed21bfd1e4951886289cb66d))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.17...python-openinference-instrumentation-cohere-v0.1.18) (2026-11-04)
 
 
