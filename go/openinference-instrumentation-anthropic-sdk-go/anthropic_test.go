@@ -97,6 +97,10 @@ func TestMiddleware_HappyPath(t *testing.T) {
 		}
 	}
 
+	if status := span.Status(); status.Code.String() != "Ok" {
+		t.Errorf("expected span status Ok, got %s", status.Code)
+	}
+
 	// Invocation params should include max_tokens.
 	invocation, _ := attrs[semconv.LLMInvocationParameters].(string)
 	if !strings.Contains(invocation, `"max_tokens":100`) {
