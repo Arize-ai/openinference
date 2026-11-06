@@ -170,7 +170,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             raise
         finally:
             if not is_awaitable:
-                self._finish_tracing(status=None)
+                self._finish_tracing(status=self._get_reported_status())
         # `Stream.close` is synchronous while `AsyncStream.close` is a coroutine, so an
         # awaited close finishes the span once the wrapped close has run.
         if is_awaitable:
@@ -191,7 +191,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             self._finish_tracing_with_error(exception)
             raise
         finally:
-            self._finish_tracing(status=None)
+            self._finish_tracing(status=self._get_reported_status())
 
     async def _close_and_finish(self, awaitable: Any) -> None:
         try:
@@ -200,13 +200,13 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             self._finish_tracing_with_error(exception)
             raise
         finally:
-            self._finish_tracing(status=None)
+            self._finish_tracing(status=self._get_reported_status())
 
     def __del__(self) -> None:
         # Abandoned without any explicit teardown, possibly never iterated: the span must
         # still be ended, otherwise the call is missing from the trace entirely.
         try:
-            self._finish_tracing(status=None)
+            self._finish_tracing(status=self._get_reported_status())
         except BaseException:
             pass
 
@@ -223,13 +223,19 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             except Exception:
                 logger.exception("Failed to accumulate response")
 
-    def _get_status_at_end(self) -> trace_api.Status:
-        # A Responses API stream can report that the response failed and still end normally.
-        if isinstance(self._self_response_accumulator, _ResponsesAccumulator) and (
-            (error_status := self._self_response_accumulator.get_error_status()) is not None
-        ):
-            return error_status
+    def _get_status_at_end(self) -> Optional[trace_api.Status]:
+        # A Responses API stream can report that the response failed and still end normally, and
+        # one that ends without saying how the response ended may have been cut short.
+        if isinstance(self._self_response_accumulator, _ResponsesAccumulator):
+            return self._self_response_accumulator.get_status()
         return trace_api.Status(status_code=trace_api.StatusCode.OK)
+
+    def _get_reported_status(self) -> Optional[trace_api.Status]:
+        # A stream left before its end has no status, unless a Responses API stream already said
+        # how the response ended: a failure it reported is still an error.
+        if isinstance(self._self_response_accumulator, _ResponsesAccumulator):
+            return self._self_response_accumulator.get_status()
+        return None
 
     def _finish_tracing(
         self,
@@ -246,11 +252,12 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         # Leaving the context manager without exhausting the stream ends the HTTP response
         # but never raises StopIteration, so finish the span here. The status stays UNSET to
         # distinguish a truncated stream from a completed one, the same way the ollama
-        # instrumentor reports an abandoned stream.
+        # instrumentor reports an abandoned stream, unless the stream already said how the
+        # response ended.
         # GeneratorExit: a generator holding the context was closed, which leaves the stream
         # early in the same way.
         if exception is None or isinstance(exception, GeneratorExit):
-            self._finish_tracing(status=None)
+            self._finish_tracing(status=self._get_reported_status())
         else:
             self._finish_tracing_with_error(exception)
 

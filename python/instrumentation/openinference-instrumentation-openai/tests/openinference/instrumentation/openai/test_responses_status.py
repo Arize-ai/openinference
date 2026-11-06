@@ -4,9 +4,14 @@ The server reports the failure in the response, `{"status": "failed", "error": {
 stream, with a `response.failed` or an `error` event, after which the stream still ends normally.
 Either way the span used to end with status OK. The response's status, or the reason it is
 incomplete, is also recorded as its finish reason.
+
+A stream keeps the outcome it reported when the caller closes it, leaves its context manager or
+drops it before its end. A stream that never says how the response ended has no status, so it is
+not mistaken for one that completed.
 """
 
 import asyncio
+import gc
 import importlib
 import json
 from typing import Any, AsyncIterator, Dict, Iterable, Iterator, List, Mapping, Optional, cast
@@ -84,20 +89,30 @@ def _sse(events: List[Dict[str, Any]]) -> List[bytes]:
     ]
 
 
-def _stream(last_event: Dict[str, Any]) -> List[bytes]:
-    return _sse(
-        [
-            {"type": "response.created", "response": {**_response("in_progress"), "output": []}},
-            {
-                "type": "response.output_text.delta",
-                "item_id": "msg_1",
-                "output_index": 0,
-                "content_index": 0,
-                "delta": _TEXT,
-            },
-            last_event,
-        ]
+def _events(last_event: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    events: List[Dict[str, Any]] = [
+        {"type": "response.created", "response": {**_response("in_progress"), "output": []}},
+        {
+            "type": "response.output_text.delta",
+            "item_id": "msg_1",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": _TEXT,
+        },
+    ]
+    return events if last_event is None else [*events, last_event]
+
+
+# The ways a caller ends a stream, after reading its last event: reading on to its end, closing it,
+# leaving its context manager or dropping it.
+_ENDINGS = [
+    pytest.param(is_async, ending, id=f"{'async' if is_async else 'sync'}-{ending}")
+    for is_async, endings in (
+        (False, ("end", "close", "exit", "drop")),
+        (True, ("end", "close", "aclose", "exit", "drop")),
     )
+    for ending in endings
+]
 
 
 def _call(respx_mock: MockRouter, is_async: bool, **mock: Any) -> None:
@@ -119,6 +134,57 @@ def _call(respx_mock: MockRouter, is_async: bool, **mock: Any) -> None:
     if is_stream:
         for _ in response:
             pass
+
+
+def _read_stream(
+    respx_mock: MockRouter, is_async: bool, events: List[Dict[str, Any]], ending: str
+) -> None:
+    """Read each of the stream's events, then end it the given way (see `_ENDINGS`)."""
+    respx_mock.post(f"{_BASE_URL}responses").mock(
+        return_value=Response(status_code=200, stream=_MockByteStream(_sse(events)))
+    )
+    openai = importlib.import_module("openai")
+    client = (openai.AsyncOpenAI if is_async else openai.OpenAI)(api_key="sk-", base_url=_BASE_URL)
+
+    async def read_async() -> None:
+        stream = await client.responses.create(model=_MODEL, input=_INPUT, stream=True)
+        if ending == "exit":
+            async with stream:
+                for _ in events:
+                    await stream.__anext__()
+            return
+        for _ in events:
+            await stream.__anext__()
+        if ending == "end":
+            async for _ in stream:
+                pass
+        elif ending == "close":
+            await stream.close()
+        elif ending == "aclose":
+            await stream.aclose()
+        else:
+            del stream
+            gc.collect()
+
+    if is_async:
+        asyncio.run(read_async())
+        return
+    stream = client.responses.create(model=_MODEL, input=_INPUT, stream=True)
+    if ending == "exit":
+        with stream:
+            for _ in events:
+                next(stream)
+        return
+    for _ in events:
+        next(stream)
+    if ending == "end":
+        for _ in stream:
+            pass
+    elif ending == "close":
+        stream.close()
+    else:
+        del stream
+        gc.collect()
 
 
 def _span(exporter: InMemorySpanExporter) -> ReadableSpan:
@@ -214,7 +280,7 @@ def test_a_response_records_its_status_and_finish_reason(
     assert attributes == {}
 
 
-@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("is_async, ending", _ENDINGS)
 @pytest.mark.parametrize(
     "last_event",
     [
@@ -228,14 +294,59 @@ def test_a_response_records_its_status_and_finish_reason(
 def test_a_stream_that_reports_a_failure_is_an_error(
     last_event: Dict[str, Any],
     is_async: bool,
+    ending: str,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    _call(respx_mock, is_async, stream=_MockByteStream(_stream(last_event)))
+    _read_stream(respx_mock, is_async, _events(last_event), ending)
 
     span = _span(in_memory_span_exporter)
     assert span.status.status_code == StatusCode.ERROR
     assert span.status.description == "The model failed"
+
+
+@pytest.mark.parametrize("is_async, ending", _ENDINGS)
+@pytest.mark.parametrize(
+    "last_event",
+    [
+        pytest.param(
+            {"type": "response.completed", "response": _response("completed")}, id="completed"
+        ),
+        pytest.param(
+            {
+                "type": "response.incomplete",
+                "response": _response(
+                    "incomplete", incomplete_details={"reason": "max_output_tokens"}
+                ),
+            },
+            id="incomplete",
+        ),
+    ],
+)
+def test_a_stream_that_says_the_response_ended_is_ok(
+    last_event: Dict[str, Any],
+    is_async: bool,
+    ending: str,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    _read_stream(respx_mock, is_async, _events(last_event), ending)
+
+    span = _span(in_memory_span_exporter)
+    assert span.status.status_code == StatusCode.OK
+
+
+@pytest.mark.parametrize("is_async, ending", _ENDINGS)
+def test_a_stream_that_never_says_how_the_response_ended_has_no_status(
+    is_async: bool,
+    ending: str,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    _read_stream(respx_mock, is_async, _events(), ending)
+
+    span = _span(in_memory_span_exporter)
+    assert span.status.status_code == StatusCode.UNSET
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -246,7 +357,7 @@ def test_a_stream_that_completes_is_ok_and_records_its_finish_reason(
 ) -> None:
     last_event = {"type": "response.completed", "response": _response("completed")}
 
-    _call(respx_mock, is_async, stream=_MockByteStream(_stream(last_event)))
+    _call(respx_mock, is_async, stream=_MockByteStream(_sse(_events(last_event))))
 
     span = _span(in_memory_span_exporter)
     assert span.status.status_code == StatusCode.OK
