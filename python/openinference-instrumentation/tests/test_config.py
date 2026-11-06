@@ -1,5 +1,5 @@
 import os
-from contextlib import suppress
+from contextlib import ExitStack, suppress
 from random import random
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
 
@@ -9,7 +9,7 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import SpanLimits
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.sdk.trace.sampling import Decision, Sampler, SamplingResult
+from opentelemetry.sdk.trace.sampling import ALWAYS_OFF, Decision, Sampler, SamplingResult
 from opentelemetry.trace import Link, SpanKind, TracerProvider, TraceState, use_span
 from opentelemetry.util.types import Attributes, AttributeValue
 
@@ -19,6 +19,7 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
     get_llm_attributes,
+    suppress_tracing,
 )
 from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:ignore[attr-defined]
 from openinference.instrumentation.config import (
@@ -929,6 +930,51 @@ def test_held_message_content_parts_are_written_when_the_span_exits_a_with_block
     assert _message_contents(attributes, SpanAttributes.LLM_OUTPUT_MESSAGES, 0) == [
         {_TYPE: content_type, _TEXT: "answer"}
     ]
+
+
+@pytest.mark.parametrize("suppressed", [False, True], ids=["sampled-out", "suppressed"])
+def test_with_block_on_non_recording_span_with_genai_semconv(
+    suppressed: bool,
+    tracer_provider: TracerProvider,
+) -> None:
+    if suppressed:
+        provider: TracerProvider = tracer_provider
+    else:
+        provider = trace_sdk.TracerProvider(sampler=ALWAYS_OFF)
+    tracer = OITracer(provider.get_tracer(__name__), TraceConfig(enable_genai_semconv=True))
+    with ExitStack() as stack:
+        if suppressed:
+            stack.enter_context(suppress_tracing())
+        with tracer.start_span("llm") as span:
+            assert not span.is_recording()
+        with pytest.raises(ValueError, match="user error"):
+            with tracer.start_span("llm"):
+                raise ValueError("user error")
+
+
+def test_with_block_masks_attributes_set_through_the_bound_span(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = OITracer(tracer_provider.get_tracer(__name__), TraceConfig(hide_inputs=True))
+    with tracer.start_span("llm") as span:
+        span.set_attribute(SpanAttributes.INPUT_VALUE, "SECRET")
+    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes or {}
+    assert attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+
+
+def test_hide_reasoning_drops_a_part_whose_type_is_set_lazily(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = OITracer(tracer_provider.get_tracer(__name__), TraceConfig(hide_reasoning=True))
+    span = tracer.start_span("llm")
+    # The proxy accepts lazy values at runtime; the public stub only types plain ones.
+    span.set_attribute(f"{_OUTPUT_PART}.{_TYPE}", lambda: "reasoning")  # type: ignore[arg-type]
+    span.set_attribute(f"{_OUTPUT_PART}.{_TEXT}", "thinking")
+    span.end()
+    attributes = in_memory_span_exporter.get_finished_spans()[0].attributes or {}
+    assert _message_contents(attributes, SpanAttributes.LLM_OUTPUT_MESSAGES, 0) == []
 
 
 def _message_document_key(messages_prefix: str, leaf: str) -> str:

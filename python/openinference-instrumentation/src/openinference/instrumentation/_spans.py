@@ -111,7 +111,7 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
-        if self._self_config.enable_genai_semconv:
+        if self._self_config.enable_genai_semconv and span.is_recording():
             source_attributes = span._attributes
             for key, value in get_genai_attributes(source_attributes).items():
                 if key not in source_attributes:
