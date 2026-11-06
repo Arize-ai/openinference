@@ -244,7 +244,8 @@ def run_git_as_app(*args: str, token: str) -> None:
 
 
 def copy_fork_pr(*, repo: str, pr: dict[str, Any], token: str) -> dict[str, Any]:
-    """Push the fork PR's head to a branch here, open a PR from it, close the original.
+    """Push the fork PR's admitted head to a branch here, open a PR from it, close the
+    original.
 
     The commits are pushed as they are, so their authorship is the contributor's, and the
     runner only moves objects: it never checks out or runs the fork's code.
@@ -253,7 +254,17 @@ def copy_fork_pr(*, repo: str, pr: dict[str, Any], token: str) -> dict[str, Any]
     branch = copy_branch_name(pr_number=pr_number)
     remote = f"https://github.com/{repo}.git"
     run_git_as_app("fetch", "--quiet", remote, f"pull/{pr_number}/head", token=token)
-    run_git_as_app("push", "--quiet", remote, f"FETCH_HEAD:refs/heads/{branch}", token=token)
+    # The author can push between admission and this fetch; copy only the commit whose
+    # paths were checked, so no unchecked head reaches a same-repo branch.
+    fetched_sha = subprocess.run(
+        ["git", "rev-parse", "FETCH_HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    if fetched_sha != pr["headRefOid"]:
+        raise RuntimeError(
+            f"pull/{pr_number}/head moved from {pr['headRefOid']} to {fetched_sha} after "
+            "admission; re-add the label to check the new head"
+        )
+    run_git_as_app("push", "--quiet", remote, f"{fetched_sha}:refs/heads/{branch}", token=token)
     body = (pr["body"] or "").rstrip() + (
         f"\n\n---\nContinued from #{pr_number} by the factory. The commits are "
         f"@{pr['author']['login']}'s; the factory adds its own on top."
@@ -355,13 +366,19 @@ def run_start(*, args: argparse.Namespace) -> None:
         "none" if requester_login == WORKFLOW_LOGIN else read_repo_permission(login=requester_login)
     )
     copy = find_copy(pr_number=args.pr) if pr["isCrossRepository"] else None
+    changed_paths = list_changed_paths(pr_number=args.pr)
     admission_problem = find_admission_problem(
         pr=pr,
         copy=copy,
-        changed_paths=list_changed_paths(pr_number=args.pr),
+        changed_paths=changed_paths,
         requester_login=requester_login,
         requester_permission=requester_permission,
     )
+    # The file list comes from a separate call, so make sure it describes the head read above.
+    if admission_problem is None and read_pr(pr_number=args.pr)["headRefOid"] != pr["headRefOid"]:
+        admission_problem = (
+            "its head changed while the factory checked it; re-add the label to check the new one"
+        )
     print(
         f"head_sha={pr['headRefOid']} fork={pr['isCrossRepository']} "
         f"copy={copy['number'] if copy else None} admission_problem={admission_problem}"
@@ -448,15 +465,24 @@ def run_watch(*, args: argparse.Namespace) -> None:
             report_token = app_token.refresh() if app_token is not None else None
         except Exception as error:
             print(f"::warning::Reporting with GITHUB_TOKEN; the app token failed: {error}")
-        report_on_status_comment(
-            number=args.pr,
-            comment_id=args.status_comment_id,
-            body=report,
-            token=report_token,
-            notify=True,
-        )
-        # A closed PR keeps its labels, and `gh pr edit` works on it either way.
-        remove_finish_label(pr_number=args.pr, token=report_token)
+        try:
+            # The session holds a token that can label PRs, so put back the label Factory
+            # Guard keys on in case the session removed it.
+            try:
+                add_finished_label(pr_number=args.pr, token=report_token)
+            except subprocess.CalledProcessError as error:
+                print(f"::warning::Re-adding {FINISHED_LABEL} failed: {error}")
+            report_on_status_comment(
+                number=args.pr,
+                comment_id=args.status_comment_id,
+                body=report,
+                token=report_token,
+                notify=True,
+            )
+        finally:
+            # Free the label even when the comment fails, so re-adding it runs the PR again.
+            # A closed PR keeps its labels, and `gh pr edit` works on it either way.
+            remove_finish_label(pr_number=args.pr, token=report_token)
 
 
 def main() -> None:

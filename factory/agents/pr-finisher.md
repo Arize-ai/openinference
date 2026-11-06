@@ -75,6 +75,7 @@ Make sure `<target>` is deep enough for `git diff origin/<target>...HEAD` to fin
 
 - Never modify `.github/`, `.claude/`, `.agents/`, `factory/`, `AGENTS.md`, `CLAUDE.md`, any `CHANGELOG.md`, `release-please-config.json` or `.release-please-manifest.json`. CI fails PRs that do. If the PR already changes them, that is a blocking finding you cannot fix: say so in the assessment and leave those files as they are.
 - Append commits only on the PR's branch; never rewrite history, and never push to any other branch.
+- Never remove a label from the PR; Factory Guard keys on `factory-finished`.
 - Never edit a package's version: release-please sets Python and Java versions from conventional-commit titles.
 - If you change a package under `js/packages/`, or the PR does and has no changeset, add one by hand (the `pnpm changeset` prompt is interactive): `js/.changeset/<short-slug>.md` containing `---`, `"@arizeai/<package>": patch`, `---`, a blank line and a one-line summary. Never change a package's public API: CONTRIBUTING allows no breaking changes on `main`.
 - Never re-record a cassette or add one that needs a live API key; the sandbox has none. Write the cassette by hand from the provider's documented response shape, or list the gap under Not verified.

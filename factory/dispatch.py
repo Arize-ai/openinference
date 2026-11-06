@@ -805,7 +805,14 @@ def run_start(*, args: argparse.Namespace) -> None:
         issue=issue,
         open_pr_urls=list_open_pr_urls(issue=issue),
         requester_login=requester_login,
-        requester_permission=read_repo_permission(login=requester_login),
+        # GitHub reports `none` for an app's bot account, but the factory's app has write
+        # access through its installation; the finish lane labels a closed PR's bug issue
+        # as it to hand the bug to this lane.
+        requester_permission=(
+            "write"
+            if requester_login == os.environ.get("FACTORY_GITHUB_LOGIN")
+            else read_repo_permission(login=requester_login)
+        ),
     )
     client = anthropic.Anthropic()
     needs_bug_label = False
