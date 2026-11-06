@@ -18,6 +18,7 @@ from uuid import uuid4
 import pytest
 from langchain_core.callbacks import (
     AsyncCallbackManagerForRetrieverRun,
+    BaseCallbackHandler,
     CallbackManagerForRetrieverRun,
 )
 from langchain_core.documents import Document
@@ -535,15 +536,26 @@ def test_outer_span_exiting_before_run_ends_does_not_raise(
     assert not trace_api.get_current_span().get_span_context().is_valid
 
 
-def test_long_lived_context_does_not_accumulate_ended_runs() -> None:
-    tracer = LangChainInstrumentor()._tracer
-    assert tracer is not None
+def test_long_lived_context_does_not_accumulate_ended_runs(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    runnable = RunnableLambda(_stream, name="run")
     with ThreadPoolExecutor(max_workers=1) as worker:
-        for _ in range(3):
-            run_id = uuid4()
-            worker.submit(tracer.on_chain_start, {}, {}, run_id=run_id, name="run").result()
-            tracer.on_chain_end({}, run_id=run_id)
+        # Each run starts in the worker thread and ends in this one, so the worker's context is
+        # never restored and each run starts on top of the one before it.
+        for i in range(3):
+            stream = runnable.stream(i)
+            assert worker.submit(next, stream).result() == i
+            assert list(stream) == []
+        worker.submit(_record_inner_span, "after").result()
         current = worker.submit(trace_api.get_current_span).result()
+
+    runs = _by_name(in_memory_span_exporter, "run")
+    assert len(runs) == 3
+    for span in runs + [_one(in_memory_span_exporter, "after")]:
+        assert span.parent is None, span.name
+    assert len({span.context.trace_id for span in runs if span.context}) == 3
+    # The ended runs are skipped rather than kept as a chain of proxies.
     assert isinstance(current, _AttachedRunSpan)
     assert not isinstance(current.__wrapped__, _AttachedRunSpan)
     assert not current.get_span_context().is_valid
@@ -651,3 +663,91 @@ def test_context_attributes_survive_attach_and_restore(
     run = _one(in_memory_span_exporter, "run")
     assert run.attributes is not None
     assert run.attributes["session.id"] == "session-1"
+
+
+class _EventRecorder(BaseCallbackHandler):
+    """A handler that isn't inline, like most third-party handlers."""
+
+    def __init__(self) -> None:
+        self.events: List[str] = []
+
+    # on_chat_model_start is left out so that LangChain falls back to on_llm_start for chat models.
+    def on_llm_start(self, *_: Any, **__: Any) -> None:
+        self.events.append("on_llm_start")
+
+    def on_llm_end(self, *_: Any, **__: Any) -> None:
+        self.events.append("on_llm_end")
+
+    def on_chain_start(self, *_: Any, **__: Any) -> None:
+        self.events.append("on_chain_start")
+
+    def on_chain_end(self, *_: Any, **__: Any) -> None:
+        self.events.append("on_chain_end")
+
+    def on_tool_start(self, *_: Any, **__: Any) -> None:
+        self.events.append("on_tool_start")
+
+    def on_tool_end(self, *_: Any, **__: Any) -> None:
+        self.events.append("on_tool_end")
+
+    def on_retriever_start(self, *_: Any, **__: Any) -> None:
+        self.events.append("on_retriever_start")
+
+    def on_retriever_end(self, *_: Any, **__: Any) -> None:
+        self.events.append("on_retriever_end")
+
+
+class _InlineHandler(BaseCallbackHandler):
+    run_inline = True
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+@pytest.mark.parametrize(
+    "runnable, payload, expected",
+    [
+        pytest.param(RunnableLambda(_lambda), 1, ["on_chain_start", "on_chain_end"], id="chain"),
+        pytest.param(_sync_tool, {"x": 1}, ["on_tool_start", "on_tool_end"], id="tool"),
+        pytest.param(_Retriever(), "1", ["on_retriever_start", "on_retriever_end"], id="retriever"),
+        pytest.param(_ChatModel(), "1", ["on_llm_start", "on_llm_end"], id="chat-model"),
+    ],
+)
+async def test_other_handlers_receive_every_event(
+    use_async: bool,
+    runnable: Any,
+    payload: Any,
+    expected: List[str],
+) -> None:
+    recorder = _EventRecorder()
+    config: Any = {"callbacks": [recorder]}
+    if use_async:
+        await runnable.ainvoke(payload, config=config)
+    else:
+        runnable.invoke(payload, config=config)
+    assert recorder.events == expected
+
+
+def test_other_handlers_receive_llm_start_from_sync_llm() -> None:
+    recorder = _EventRecorder()
+    FakeListLLM(responses=["a"]).invoke("hi", config={"callbacks": [recorder]})
+    assert recorder.events == ["on_llm_start", "on_llm_end"]
+
+
+async def test_other_handlers_miss_async_llm_start_as_with_any_inline_handler() -> None:
+    """
+    Once any handler is inline, LangChain's AsyncCallbackManager.on_llm_start only calls the
+    inline handlers, so the others don't receive on_llm_start from an async text-completion LLM.
+    LangChain's own LangSmith tracer is inline too. This checks that the tracer causes nothing
+    beyond that.
+    """
+    recorder = _EventRecorder()
+    await FakeListLLM(responses=["a"]).ainvoke("hi", config={"callbacks": [recorder]})
+
+    # Without the instrumentor, so that the inline handler is the only one that differs.
+    LangChainInstrumentor().uninstrument()
+    recorder_beside_inline_handler = _EventRecorder()
+    await FakeListLLM(responses=["a"]).ainvoke(
+        "hi", config={"callbacks": [recorder_beside_inline_handler, _InlineHandler()]}
+    )
+
+    assert recorder.events == recorder_beside_inline_handler.events
+    assert recorder.events[-1:] == ["on_llm_end"]

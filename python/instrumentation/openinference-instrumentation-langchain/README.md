@@ -125,6 +125,7 @@ LangChainInstrumentor().instrument(attach_run_span_to_context=True)
 This is off by default because LangChain reports the start and the end of a run through separate callbacks, with nothing to guarantee the second one arrives. Be aware that:
 
 - Tracer callbacks run on the event loop during async runs, instead of in a thread pool.
+- In an async call to a text-completion LLM (not a chat model), your other callback handlers don't receive `on_llm_start` unless they are inline too. When any handler is inline, LangChain sends `on_llm_start` for such a call only to the inline handlers. LangChain's own LangSmith tracer is inline, so enabling LangSmith tracing has the same effect.
 - While a streaming run is suspended between chunks, its span is also current in the code consuming the stream.
 - A run that LangChain never reports as ended keeps its span current in the context it started in, and that span is never exported, so spans started later in that context are orphaned. For example, LangChain doesn't report the end of a chat model or tool call cancelled by `asyncio.timeout`. Keep such a call in its own task so that the context ends with it: `await asyncio.wait_for(asyncio.create_task(model.ainvoke(messages)), timeout)`.
 - A chat model or LLM call with several prompts starts all of their runs at once, so none of them is made current, and spans created during the call nest under the enclosing span.

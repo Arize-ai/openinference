@@ -205,7 +205,10 @@ class OpenInferenceTracer(BaseTracer):
         self._attach_run_span_to_context = attach_run_span_to_context
         if attach_run_span_to_context:
             # A handler that isn't inline runs on a copy of the context for async runs, so anything
-            # it attaches is discarded as soon as it returns.
+            # it attaches is discarded as soon as it returns. Being inline has a cost: once any
+            # handler is inline, AsyncCallbackManager.on_llm_start only calls the inline handlers,
+            # so the others miss on_llm_start from async text-completion LLMs, as they already do
+            # beside LangChain's own (inline) LangSmith tracer.
             self.run_inline = True
         self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()  # type: ignore[assignment]
         self._attachments_by_run: Dict[UUID, _RunAttachment] = _DictWithLock[  # type: ignore[assignment]
