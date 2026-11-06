@@ -8,15 +8,6 @@ from collections.abc import Mapping as MappingABC
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Tuple
 
 import opentelemetry.context as context_api
-from opentelemetry import trace as trace_api
-
-from openinference.instrumentation import (
-    get_attributes_from_context,
-    get_input_attributes,
-    get_output_attributes,
-    get_tool_attributes,
-    safe_json_dumps,
-)
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -26,6 +17,15 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
+)
+from opentelemetry import trace as trace_api
+
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    get_input_attributes,
+    get_output_attributes,
+    get_tool_attributes,
+    safe_json_dumps,
 )
 
 if TYPE_CHECKING:
@@ -195,10 +195,12 @@ def _extract_model_name_from_usage(model_usage: Any) -> str | None:
     return None
 
 
-def _extract_model_name(msg: Any) -> str | None:
+def _extract_model_name(msg: Any, *, use_model_usage: bool = True) -> str | None:
     raw_name = _get_field(msg, "model") or _get_field(msg, "model_name")
     if raw_name:
         return str(raw_name)
+    if not use_model_usage:
+        return None
     model_usage = _get_field(msg, "modelUsage") or _get_field(msg, "model_usage")
     usage_name = _extract_model_name_from_usage(model_usage)
     if usage_name:
@@ -218,13 +220,15 @@ def _extract_model_name(msg: Any) -> str | None:
     return None
 
 
-def _maybe_set_model(span: trace_api.Span, msg: Any) -> None:
+def _maybe_set_model(span: trace_api.Span, msg: Any, *, use_model_usage: bool = True) -> None:
     if not span.is_recording():
         return
-    model = _extract_model_name(msg)
+    # `modelUsage` on a result message covers the whole session, so once an
+    # assistant message has named the model for this span it must not win.
+    model = _extract_model_name(msg, use_model_usage=use_model_usage)
     if not model:
         inner = _get_field(msg, "message")
-        model = _extract_model_name(inner)
+        model = _extract_model_name(inner, use_model_usage=use_model_usage)
     if model:
         span.set_attribute(LLM_MODEL_NAME, model)
 
@@ -277,9 +281,9 @@ def _is_result_error_message(msg: Any) -> bool:
     )
 
 
-def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
+def _extract_usage_and_cost_attributes(msg: Any, *, use_model_usage: bool = True) -> dict[str, Any]:
     attributes: dict[str, Any] = {}
-    if model := _extract_model_name(msg):
+    if model := _extract_model_name(msg, use_model_usage=use_model_usage):
         attributes[LLM_MODEL_NAME] = model
     usage = _coerce_usage(_get_field(msg, "usage"))
     input_tokens = _safe_int(usage.get("input_tokens"))
@@ -308,20 +312,20 @@ def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
     return attributes
 
 
-def _extract_result_success_attributes(msg: Any) -> dict[str, Any]:
+def _extract_result_success_attributes(msg: Any, *, use_model_usage: bool = True) -> dict[str, Any]:
     attributes: dict[str, Any] = {}
     if (result := _get_field(msg, "result")) is not None:
         attributes.update(get_output_attributes(result))
-    attributes.update(_extract_usage_and_cost_attributes(msg))
+    attributes.update(_extract_usage_and_cost_attributes(msg, use_model_usage=use_model_usage))
     return attributes
 
 
-def _extract_result_error_attributes(msg: Any) -> dict[str, Any]:
+def _extract_result_error_attributes(msg: Any, *, use_model_usage: bool = True) -> dict[str, Any]:
     attributes: dict[str, Any] = {}
     errors = _get_field(msg, "errors")
     if errors:
         attributes.update(get_output_attributes(safe_json_dumps(errors), mime_type=JSON))
-    attributes.update(_extract_usage_and_cost_attributes(msg))
+    attributes.update(_extract_usage_and_cost_attributes(msg, use_model_usage=use_model_usage))
     return attributes
 
 
@@ -339,8 +343,21 @@ class _TurnUsageAccumulator:
         self._usage_by_message_id: dict[str, Mapping[str, Any]] = {}
         self._cli_version: tuple[int, ...] | None = None
         self._parent_tool_use_id = parent_tool_use_id
+        self._has_assistant_model = False
 
     def add(self, message: Any) -> None:
+        if (
+            not _is_result_success_message(message)
+            and not _is_result_error_message(message)
+            and not _is_system_init_message(message)
+            and (
+                _extract_model_name(message, use_model_usage=False)
+                or _extract_model_name(_get_field(message, "message"), use_model_usage=False)
+            )
+        ):
+            # An assistant message named the model for this span; session-wide
+            # modelUsage on the result message must not override it.
+            self._has_assistant_model = True
         subtype = _get_field(message, "subtype")
         if subtype == "init":
             data = _get_field(message, "data", {})
@@ -367,6 +384,10 @@ class _TurnUsageAccumulator:
     @property
     def cli_version(self) -> tuple[int, ...] | None:
         return self._cli_version
+
+    @property
+    def has_assistant_model(self) -> bool:
+        return self._has_assistant_model
 
     def set_cli_version(self, version: tuple[int, ...] | None) -> None:
         if self._cli_version is None:
@@ -404,8 +425,9 @@ def _process_message(
     span: trace_api.Span,
     *,
     turn_usage: Mapping[str, int] | None = None,
+    use_model_usage: bool = True,
 ) -> bool:
-    _maybe_set_model(span, msg)
+    _maybe_set_model(span, msg, use_model_usage=use_model_usage)
     if stop_reason := _extract_stop_reason(msg):
         if span.is_recording():
             span.set_attribute(LLM_FINISH_REASON, stop_reason)
@@ -416,7 +438,7 @@ def _process_message(
         span.set_attributes(attrs)
         return False
     if _is_result_success_message(msg):
-        attrs = _extract_result_success_attributes(msg)
+        attrs = _extract_result_success_attributes(msg, use_model_usage=use_model_usage)
         if turn_usage is not None:
             for key in (
                 LLM_TOKEN_COUNT_PROMPT,
@@ -434,7 +456,7 @@ def _process_message(
         span.set_attributes(attrs)
         return False
     if _is_result_error_message(msg):
-        attrs = _extract_result_error_attributes(msg)
+        attrs = _extract_result_error_attributes(msg, use_model_usage=use_model_usage)
         if turn_usage is not None:
             for key in (
                 LLM_TOKEN_COUNT_PROMPT,
@@ -1114,7 +1136,13 @@ class _SubagentSpanTracker:
             state.turn_usage.attributes() if state.turn_usage.should_use_turn_usage() else None
         )
         state.has_error = (
-            _process_message(message, state.span, turn_usage=overrides) or state.has_error
+            _process_message(
+                message,
+                state.span,
+                turn_usage=overrides,
+                use_model_usage=not state.turn_usage.has_assistant_model,
+            )
+            or state.has_error
         )
         if _is_result_success_message(message) or _is_result_error_message(message):
             self.end(parent_tool_use_id)
@@ -1207,7 +1235,15 @@ class _QueryWrapper:
                 turn_usage.add(message)
                 subagent_tracker.set_cli_version(turn_usage.cli_version)
                 overrides = turn_usage.attributes() if turn_usage.should_use_turn_usage() else None
-                has_error = _process_message(message, span, turn_usage=overrides) or has_error
+                has_error = (
+                    _process_message(
+                        message,
+                        span,
+                        turn_usage=overrides,
+                        use_model_usage=not turn_usage.has_assistant_model,
+                    )
+                    or has_error
+                )
                 _update_tool_spans_from_messages(
                     message,
                     tool_tracker,
@@ -1348,7 +1384,15 @@ class _ClientReceiveResponseWrapper:
                 turn_usage.add(message)
                 subagent_tracker.set_cli_version(turn_usage.cli_version)
                 overrides = turn_usage.attributes() if turn_usage.should_use_turn_usage() else None
-                has_error = _process_message(message, span, turn_usage=overrides) or has_error
+                has_error = (
+                    _process_message(
+                        message,
+                        span,
+                        turn_usage=overrides,
+                        use_model_usage=not turn_usage.has_assistant_model,
+                    )
+                    or has_error
+                )
                 _update_tool_spans_from_messages(
                     message,
                     tool_tracker,
