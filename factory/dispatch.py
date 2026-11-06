@@ -18,7 +18,7 @@ import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import anthropic
 from github_app import GitHubAppToken
@@ -628,12 +628,13 @@ def watch_session(
     client: anthropic.Anthropic,
     session_id: str,
     lane: str,
-    issue_number: int,
+    find_pr: Callable[[], Optional[dict[str, Any]]],
     app_token: GitHubAppToken,
     watch_minutes: int,
 ) -> str:
-    """Drive the session's PR through CI and automated review; return the issue comment.
+    """Drive the session's PR through CI and automated review; return the report comment.
 
+    `find_pr` returns the session's open PR, or None once it is closed or was never opened.
     CI failures and review findings go back to the session, up to MAX_FEEDBACK_ROUNDS
     rounds, so a human is asked to review only once both are clean.
     """
@@ -653,7 +654,7 @@ def watch_session(
     latest_outcome = session.outcome_evaluations[-1] if session.outcome_evaluations else None
     outcome_result = latest_outcome.result if latest_outcome else "not graded"
     stop_reason = idle_event.stop_reason.type if idle_event else "terminated"
-    pr = find_factory_pr(issue_number=issue_number)
+    pr = find_pr()
 
     # How the run ended, so every failure turns into a fix: `success` ships, `flawed` means
     # the agent produced the wrong thing (fix a prompt, rubric or eval), `blocked` means the
@@ -742,7 +743,7 @@ def watch_session(
             if idle_event is None:
                 status_line = f"left {pr['url']}; the session ended during a feedback round"
                 break
-            pr = find_factory_pr(issue_number=issue_number)
+            pr = find_pr()
             if pr is None:
                 status_line = "stopped: its PR was closed"
                 run_outcome = "manual"
@@ -804,7 +805,14 @@ def run_start(*, args: argparse.Namespace) -> None:
         issue=issue,
         open_pr_urls=list_open_pr_urls(issue=issue),
         requester_login=requester_login,
-        requester_permission=read_repo_permission(login=requester_login),
+        # GitHub reports `none` for an app's bot account, but the factory's app has write
+        # access through its installation; the finish lane labels a closed PR's bug issue
+        # as it to hand the bug to this lane.
+        requester_permission=(
+            "write"
+            if requester_login == os.environ.get("FACTORY_GITHUB_LOGIN")
+            else read_repo_permission(login=requester_login)
+        ),
     )
     client = anthropic.Anthropic()
     needs_bug_label = False
@@ -878,7 +886,7 @@ def run_watch(*, args: argparse.Namespace) -> None:
             client=client,
             session_id=args.session_id,
             lane=args.lane,
-            issue_number=args.issue,
+            find_pr=lambda: find_factory_pr(issue_number=args.issue),
             app_token=app_token,
             watch_minutes=args.watch_minutes,
         )
