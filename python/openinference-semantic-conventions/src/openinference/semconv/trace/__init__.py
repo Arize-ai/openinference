@@ -737,6 +737,7 @@ class OpenInferenceLLMProviderValues(Enum):
     MINIMAX = "minimax"
     ORACLE = "oracle"
     TYPESAFE = "typesafe"
+    DOUBLEWORD = "doubleword"
 
 
 class OpenInferenceDecisionSystemValues(Enum):

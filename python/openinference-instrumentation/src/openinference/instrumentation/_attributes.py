@@ -121,6 +121,11 @@ if _oracle_provider := getattr(OpenInferenceLLMProviderValues, "ORACLE", None):
 if _typesafe_provider := getattr(OpenInferenceLLMProviderValues, "TYPESAFE", None):
     _HOST_SUFFIX_TO_PROVIDER["api.typesafe.ai"] = _typesafe_provider
 
+# DOUBLEWORD joined OpenInferenceLLMProviderValues after semconv 0.1.43; same guard.
+# Doubleword serves its OpenAI-compatible API from api.doubleword.ai.
+if _doubleword_provider := getattr(OpenInferenceLLMProviderValues, "DOUBLEWORD", None):
+    _HOST_SUFFIX_TO_PROVIDER["api.doubleword.ai"] = _doubleword_provider
+
 # Maps model name prefixes to their corresponding LLM system value.
 _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
     "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC,
