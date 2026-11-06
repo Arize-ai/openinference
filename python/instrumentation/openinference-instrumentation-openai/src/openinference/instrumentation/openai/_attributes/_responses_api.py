@@ -383,14 +383,11 @@ class _ResponsesApiAttributes:
     @stop_on_exception
     def _get_attributes_from_response_mcp_tool_call(
         cls,
-        obj: Union[
-            responses.response_output_item.McpCall,
-            responses.response_output_item.McpApprovalRequest,
-        ],
+        obj: responses.response_output_item.McpCall,
         prefix: str = "",
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        # A call that OpenAI makes on a remote MCP server, or one that waits for the caller's
-        # approval first. Its server is the `server_label` in the output value.
+        # A call that OpenAI makes on a remote MCP server. Its server is the `server_label` in the
+        # output value.
         yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", obj.id
         yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", obj.name
         if obj.arguments != "{}":
@@ -403,10 +400,7 @@ class _ResponsesApiAttributes:
     @stop_on_exception
     def _get_attributes_from_response_mcp_tool_call_param(
         cls,
-        obj: Union[
-            responses.response_input_param.McpCall,
-            responses.response_input_param.McpApprovalRequest,
-        ],
+        obj: responses.response_input_param.McpCall,
         prefix: str = "",
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if (id := obj.get("id")) is not None:
@@ -540,11 +534,8 @@ class _ResponsesApiAttributes:
             # TODO: Handle mcp list tools
             pass
         elif obj["type"] == "mcp_approval_request":
-            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
-            yield from cls._get_attributes_from_response_mcp_tool_call_param(
-                obj,
-                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
-            )
+            # TODO: Handle mcp approval request
+            pass
         elif obj["type"] == "mcp_approval_response":
             # TODO: Handle mcp approval response
             pass
@@ -726,11 +717,8 @@ class _ResponsesApiAttributes:
             # TODO: Handle mcp list tools
             pass
         elif obj.type == "mcp_approval_request":
-            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
-            yield from cls._get_attributes_from_response_mcp_tool_call(
-                obj,
-                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
-            )
+            # TODO: Handle mcp approval request
+            pass
         elif obj.type == "shell_call":
             # TODO: Handle shell call
             pass

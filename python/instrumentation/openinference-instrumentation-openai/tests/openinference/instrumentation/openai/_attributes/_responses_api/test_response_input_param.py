@@ -465,18 +465,30 @@ class TestResponseInputItemParam:
                 id="mcp_call",
             ),
             pytest.param(
+                McpCall(
+                    type="mcp_call",
+                    id="mcp_456",
+                    server_label="docs",
+                    name="list_docs",
+                    arguments="{}",
+                ),
+                {
+                    "message.role": "assistant",
+                    "message.tool_calls.0.tool_call.id": "mcp_456",
+                    "message.tool_calls.0.tool_call.function.name": "list_docs",
+                },
+                id="mcp_call_without_arguments",
+            ),
+            pytest.param(
+                # It only asks the caller to approve a call that has not run, so it is not a call.
                 McpApprovalRequest(
                     type="mcp_approval_request",
                     id="mcpr_123",
                     server_label="docs",
                     name="delete_docs",
-                    arguments="{}",
+                    arguments='{"path": "drafts/"}',
                 ),
-                {
-                    "message.role": "assistant",
-                    "message.tool_calls.0.tool_call.id": "mcpr_123",
-                    "message.tool_calls.0.tool_call.function.name": "delete_docs",
-                },
+                {},
                 id="mcp_approval_request",
             ),
             pytest.param(

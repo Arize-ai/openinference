@@ -1,8 +1,9 @@
 """Calls that OpenAI makes for the model on a remote MCP server or in a code interpreter.
 
-A Responses API reply returns them as `mcp_call`, `mcp_approval_request` and
-`code_interpreter_call` output items, which were left out of the output messages, so the span had
-no tool call for them.
+A Responses API reply returns them as `mcp_call` and `code_interpreter_call` output items, which
+were left out of the output messages, so the span had no tool call for them. An
+`mcp_approval_request` item only asks the caller to approve a call that has not run, so it is not
+recorded as a tool call.
 """
 
 import asyncio
@@ -52,11 +53,21 @@ _OUTPUT = [
         "status": "completed",
     },
     {
+        "id": "mcp_2",
+        "type": "mcp_call",
+        "server_label": "docs",
+        "name": "list_docs",
+        "arguments": "{}",
+        "output": "2 docs",
+        "error": None,
+        "status": "completed",
+    },
+    {
         "id": "mcpr_1",
         "type": "mcp_approval_request",
         "server_label": "docs",
         "name": "delete_docs",
-        "arguments": "{}",
+        "arguments": '{"path": "drafts/"}',
     },
     {
         "id": "ci_1",
@@ -131,12 +142,13 @@ def test_hosted_tool_calls_are_recorded_as_tool_calls(
     assert isinstance(attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
     assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
 
-    # The MCP server's tool list, at index 0, is not a tool call. An approval request with no
+    # The MCP server's tool list, at index 0, is not a tool call, and neither is the approval
+    # request, at index 3: the call it asks the caller to approve has not run. A call with no
     # arguments records none, as a function call with none does.
     for i, tool_call_id, name, arguments in [
         (1, "mcp_1", "search_docs", '{"query": "spans"}'),
-        (2, "mcpr_1", "delete_docs", None),
-        (3, "ci_1", "code_interpreter_call", '{"code": "print(1 + 1)"}'),
+        (2, "mcp_2", "list_docs", None),
+        (4, "ci_1", "code_interpreter_call", '{"code": "print(1 + 1)"}'),
     ]:
         message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{i}."
         tool_call = f"{message}{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
@@ -149,7 +161,7 @@ def test_hosted_tool_calls_are_recorded_as_tool_calls(
             )
             == arguments
         )
-    message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.4."
+    message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.5."
     content = f"{message}{MessageAttributes.MESSAGE_CONTENTS}.0."
     assert attributes.pop(f"{message}{MessageAttributes.MESSAGE_ROLE}") == "assistant"
     assert attributes.pop(f"{content}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
