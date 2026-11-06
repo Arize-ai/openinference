@@ -44,7 +44,14 @@ export const tracerProvider = new NodeTracerProvider({
 });
 
 registerInstrumentations({
-  instrumentations: [new OpenAIAgentsInstrumentation()],
+  instrumentations: [
+    new OpenAIAgentsInstrumentation({
+      // Generated images are recorded as base64 data URLs, which are redacted above the
+      // default 32,000 character limit. The image example asks for compressed WebP output
+      // so the raised limit keeps it well under 100KB.
+      traceConfig: { base64ImageMaxLength: 100_000 },
+    }),
+  ],
 });
 
 tracerProvider.register();

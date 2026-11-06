@@ -23,6 +23,16 @@ import type {
 import type { CompletionCreateParamsBase } from "openai/resources/completions";
 import type { Decision } from "openai/resources/decisions";
 import type {
+  ImageCreateVariationParams,
+  ImageEditCompletedEvent,
+  ImageEditParamsBase,
+  ImageEditStreamEvent,
+  ImageGenCompletedEvent,
+  ImageGenerateParamsBase,
+  ImageGenStreamEvent,
+  ImagesResponse,
+} from "openai/resources/images";
+import type {
   Response as ResponseType,
   ResponseCreateParamsBase,
   ResponseStreamEvent,
@@ -44,8 +54,16 @@ import {
   getDecisionsResponseAttributes,
 } from "./decisionsAttributes";
 import {
+  getCompletedImageEventAttributes,
+  getImagesResponseAttributes,
+  getInputImageAttributes,
+  stringifyCompletedImageEvent,
+  stringifyImagesResponse,
+} from "./imageAttributes";
+import {
   consumeResponseStreamEvents,
   getResponsesInputMessagesAttributes,
+  getResponsesOutputImageAttributes,
   getResponsesOutputMessagesAttributes,
   getResponsesUsageAttributes,
 } from "./responsesAttributes";
@@ -554,6 +572,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   // Override the model from the value sent by the server
                   [SemanticConventions.LLM_MODEL_NAME]: result.model,
                   ...getResponsesOutputMessagesAttributes(result),
+                  ...getResponsesOutputImageAttributes({ response: result, body }),
                   ...getResponsesUsageAttributes(result),
                 });
                 span.setStatus(
@@ -638,6 +657,212 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       );
     }
 
+    // Patch the Images API when it is available in the installed SDK.
+    if (module.OpenAI.Images) {
+      /**
+       * @param params.clientInstance - The Images resource the call was made on
+       * @param params.body - The request params
+       * @param params.requestBody - The params to record, without uploads
+       */
+      const startImagesSpan = ({
+        clientInstance,
+        body,
+        requestBody,
+      }: {
+        clientInstance: unknown;
+        body: ImageGenerateParamsBase | ImageEditParamsBase | ImageCreateVariationParams;
+        requestBody: Record<string, unknown>;
+      }) => {
+        // The prompt is user input: keep it out of the invocation parameters so
+        // hideInputs masking of input.value is not bypassed.
+        const { prompt: _prompt, ...invocationParameters } = requestBody;
+        return instrumentation.oiTracer.startSpan(`OpenAI Images`, {
+          kind: SpanKind.INTERNAL,
+          attributes: {
+            [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+            [SemanticConventions.LLM_MODEL_NAME]: body.model ?? undefined,
+            [SemanticConventions.INPUT_VALUE]: JSON.stringify(requestBody),
+            [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+            [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
+            [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
+            [SemanticConventions.LLM_PROVIDER]: getLLMProvider(clientInstance),
+          },
+        });
+      };
+      /**
+       * Skips the read for spans that won't be recorded, including suppressed tracing. Uploads
+       * are read in the background: the result and the span's end never wait on them, so any
+       * read still running when the request finishes is left off the span.
+       *
+       * @param params.span - The Images span
+       * @param params.uploads - The request's uploads
+       * @returns A getter for whichever upload attributes have been read so far
+       */
+      const captureUploadAttributes = ({
+        span,
+        uploads,
+      }: {
+        span: Span;
+        uploads: ReadonlyArray<unknown>;
+      }): (() => Attributes) => {
+        let uploadAttributes: Attributes = {};
+        if (span.isRecording()) {
+          void getInputImageAttributes({
+            uploads,
+            traceConfigOptions: instrumentation.traceConfig,
+          })
+            .then((attributes) => {
+              uploadAttributes = attributes;
+            })
+            .catch((error: unknown) => {
+              diag.debug("Failed to capture OpenAI image uploads", error);
+            });
+        }
+        return () => uploadAttributes;
+      };
+
+      type ImagesGenerateType = typeof module.OpenAI.Images.prototype.generate;
+      this._wrap(
+        module.OpenAI.Images.prototype,
+        "generate",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (original: ImagesGenerateType): any => {
+          return function patchedGenerate(this: unknown, ...args: Parameters<ImagesGenerateType>) {
+            const body = args[0];
+            const requestBody = { ...body };
+            const getInputAttributes = (): Attributes => ({});
+            const span = startImagesSpan({ clientInstance: this, body, requestBody });
+            const execContext = getExecContext(span);
+            const recordError = (error: unknown) => {
+              span.setAttributes(getInputAttributes());
+              endSpanWithError(span, error);
+            };
+            const execPromise = safeExecuteInTheMiddle(
+              () =>
+                context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
+              (error) => {
+                if (error) {
+                  recordError(error);
+                }
+              },
+            );
+            observeRejection(execPromise, recordError);
+            const wrappedPromise = invokeMaybeAPIPromise(execPromise, (result) =>
+              recordImagesResult({
+                result,
+                span,
+                getInputAttributes,
+                requestFormat: body.output_format,
+              }),
+            );
+            endImagesSpanWithoutResult({
+              promise: wrappedPromise,
+              span,
+              getInputAttributes,
+              recordError,
+            });
+            return context.bind(execContext, wrappedPromise);
+          };
+        },
+      );
+
+      type ImagesEditType = typeof module.OpenAI.Images.prototype.edit;
+      this._wrap(
+        module.OpenAI.Images.prototype,
+        "edit",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (original: ImagesEditType): any => {
+          return function patchedEdit(this: unknown, ...args: Parameters<ImagesEditType>) {
+            const body = args[0];
+            const { image, mask, ...requestBody } = body;
+            const span = startImagesSpan({ clientInstance: this, body, requestBody });
+            const getInputAttributes = captureUploadAttributes({
+              span,
+              uploads: mask === undefined ? [image] : [image, mask],
+            });
+            const execContext = getExecContext(span);
+            const recordError = (error: unknown) => {
+              span.setAttributes(getInputAttributes());
+              endSpanWithError(span, error);
+            };
+            const execPromise = safeExecuteInTheMiddle(
+              () =>
+                context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
+              (error) => {
+                if (error) {
+                  recordError(error);
+                }
+              },
+            );
+            observeRejection(execPromise, recordError);
+            const wrappedPromise = invokeMaybeAPIPromise(execPromise, (result) =>
+              recordImagesResult({
+                result,
+                span,
+                getInputAttributes,
+                requestFormat: body.output_format,
+              }),
+            );
+            endImagesSpanWithoutResult({
+              promise: wrappedPromise,
+              span,
+              getInputAttributes,
+              recordError,
+            });
+            return context.bind(execContext, wrappedPromise);
+          };
+        },
+      );
+
+      type ImagesCreateVariationType = typeof module.OpenAI.Images.prototype.createVariation;
+      this._wrap(
+        module.OpenAI.Images.prototype,
+        "createVariation",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (original: ImagesCreateVariationType): any => {
+          return function patchedCreateVariation(
+            this: unknown,
+            ...args: Parameters<ImagesCreateVariationType>
+          ) {
+            const body = args[0];
+            const { image, ...requestBody } = body;
+            const span = startImagesSpan({ clientInstance: this, body, requestBody });
+            const getInputAttributes = captureUploadAttributes({ span, uploads: [image] });
+            const execContext = getExecContext(span);
+            const recordError = (error: unknown) => {
+              span.setAttributes(getInputAttributes());
+              endSpanWithError(span, error);
+            };
+            const execPromise = safeExecuteInTheMiddle(
+              () =>
+                context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
+              (error) => {
+                if (error) {
+                  recordError(error);
+                }
+              },
+            );
+            observeRejection(execPromise, recordError);
+            const wrappedPromise = invokeMaybeAPIPromise(execPromise, (result) =>
+              recordImagesResult({
+                result,
+                span,
+                getInputAttributes,
+                requestFormat: "png",
+              }),
+            );
+            endImagesSpanWithoutResult({
+              promise: wrappedPromise,
+              span,
+              getInputAttributes,
+              recordError,
+            });
+            return context.bind(execContext, wrappedPromise);
+          };
+        },
+      );
+    }
+
     _isOpenInferencePatched = true;
     _patchedModules.add(module.OpenAI);
     this.patchedModuleExports.set(module.OpenAI, module);
@@ -667,6 +892,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     if (moduleExports.OpenAI.Decisions) {
       this._unwrap(moduleExports.OpenAI.Decisions.prototype, "create");
     }
+    if (moduleExports.OpenAI.Images) {
+      this._unwrap(moduleExports.OpenAI.Images.prototype, "generate");
+      this._unwrap(moduleExports.OpenAI.Images.prototype, "edit");
+      this._unwrap(moduleExports.OpenAI.Images.prototype, "createVariation");
+    }
 
     // Keyed the same way patch() keys it, so a re-patch is possible after.
     _patchedModules.delete(moduleExports.OpenAI);
@@ -679,6 +909,163 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
     }
   }
+}
+
+type ImagesStreamEvent = ImageEditStreamEvent | ImageGenStreamEvent;
+type ImagesResult = ImagesResponse | Stream<ImagesStreamEvent>;
+
+function isImagesStream(result: unknown): result is Stream<ImagesStreamEvent> {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "tee" in result &&
+    typeof result.tee === "function" &&
+    Symbol.asyncIterator in result &&
+    typeof result[Symbol.asyncIterator] === "function"
+  );
+}
+
+function isCompletedImageEvent(
+  event: ImagesStreamEvent,
+): event is ImageEditCompletedEvent | ImageGenCompletedEvent {
+  return event.type === "image_edit.completed" || event.type === "image_generation.completed";
+}
+
+/**
+ * @param params.stream - The instrumentor's copy of the stream
+ * @param params.span - The Images span, ended once the stream is
+ * @param params.getInputAttributes - Gets the upload attributes read so far
+ */
+async function consumeImagesStreamEvents({
+  stream,
+  span,
+  getInputAttributes,
+}: {
+  stream: AsyncIterable<ImagesStreamEvent>;
+  span: Span;
+  getInputAttributes: () => Attributes;
+}) {
+  let completedEvent: ImageEditCompletedEvent | ImageGenCompletedEvent | undefined;
+  try {
+    for await (const event of stream) {
+      if (isCompletedImageEvent(event)) completedEvent = event;
+    }
+    if (completedEvent) {
+      span.setAttributes({
+        [SemanticConventions.OUTPUT_VALUE]: stringifyCompletedImageEvent(completedEvent),
+        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+        ...getCompletedImageEventAttributes(completedEvent),
+      });
+      span.setStatus({ code: SpanStatusCode.OK });
+    } else {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+    }
+  } catch (error) {
+    if (error instanceof Error) span.recordException(error);
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: error instanceof Error ? error.message : undefined,
+    });
+  } finally {
+    span.setAttributes(getInputAttributes());
+    span.end();
+  }
+}
+
+/**
+ * @param params.result - The parsed response or stream
+ * @param params.span - The Images span
+ * @param params.getInputAttributes - Gets the upload attributes read so far
+ * @param params.requestFormat - The output format the request asked for
+ * @returns The result to give the caller
+ */
+function recordImagesResult<T extends ImagesResult>({
+  result,
+  span,
+  getInputAttributes,
+  requestFormat,
+}: {
+  result: T;
+  span: Span;
+  getInputAttributes: () => Attributes;
+  requestFormat?: unknown;
+}): T {
+  // The span is already ended when the caller read the raw response before the parsed one.
+  if (!span.isRecording()) return result;
+  if (isImagesStream(result)) {
+    const [leftStream, rightStream] = result.tee();
+    void consumeImagesStreamEvents({ stream: rightStream, span, getInputAttributes });
+    // The tee preserves the stream's event type, which instanceof cannot express for generic T.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    return leftStream as T;
+  }
+  span.setAttributes(getInputAttributes());
+  try {
+    span.setAttributes({
+      [SemanticConventions.OUTPUT_VALUE]: stringifyImagesResponse(result),
+      [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+      ...getImagesResponseAttributes({ response: result, requestFormat }),
+    });
+  } catch (error) {
+    diag.debug("Failed to record OpenAI images response", error);
+  }
+  span.setStatus({ code: SpanStatusCode.OK });
+  span.end();
+  return result;
+}
+
+/**
+ * Ends an Images span when its APIPromise finishes without a result to record, which happens when
+ * the caller only asks for the raw response, or when the response body fails to parse.
+ *
+ * This watches the promise's own methods because parsing the body from here would consume it
+ * before the caller reads it.
+ *
+ * @param params.promise - The promise returned to the caller
+ * @param params.span - The span to end
+ * @param params.getInputAttributes - Gets the input attributes read so far
+ * @param params.recordError - Records an error on the span and ends it
+ */
+function endImagesSpanWithoutResult({
+  promise,
+  span,
+  getInputAttributes,
+  recordError,
+}: {
+  promise: unknown;
+  span: Span;
+  getInputAttributes: () => Attributes;
+  recordError: (error: unknown) => void;
+}): void {
+  if (!isAPIPromise<unknown>(promise)) return;
+  // parse is private in the SDK's types, but then() and withResponse() both go through it.
+  const parse: unknown = Reflect.get(promise, "parse");
+  if (typeof parse !== "function") return;
+  const asResponse = promise.asResponse.bind(promise);
+  let isParsing = false;
+  Reflect.set(promise, "parse", () => {
+    isParsing = true;
+    const parsedResult: unknown = Reflect.apply(parse, promise, []);
+    void Promise.resolve(parsedResult).then(undefined, (error: unknown) => {
+      if (span.isRecording()) recordError(error);
+    });
+    return parsedResult;
+  });
+  promise.asResponse = () => {
+    const response = asResponse();
+    void response.then(
+      () => {
+        // withResponse() also parses, which records the result and ends the span.
+        if (isParsing || !span.isRecording()) return;
+        span.setAttributes(getInputAttributes());
+        span.setStatus({ code: SpanStatusCode.OK });
+        span.end();
+      },
+      // A failed request is already recorded through observeRejection.
+      () => undefined,
+    );
+    return response;
+  };
 }
 
 function isResponseCreateResponse(

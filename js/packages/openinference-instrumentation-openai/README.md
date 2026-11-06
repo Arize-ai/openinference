@@ -4,6 +4,10 @@
 
 This module provides automatic instrumentation for the [OpenAI Node.js SDK](https://github.com/openai/openai-node) which may be used in conjunction with [@opentelemetry/sdk-trace-node](https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-node).
 
+Image generation, editing, and variation calls record reusable image uploads under `input.images.*` and generated image URLs or data URLs under `output.images.*`. Responses API image-generation tool results are recorded under the same output namespace.
+
+Input image capture is best effort. Uploads are read in the background so requests are never delayed, and an upload that hasn't been read by the time the request finishes, such as on a fast failure, is left off the span.
+
 ## Installation
 
 ```shell
