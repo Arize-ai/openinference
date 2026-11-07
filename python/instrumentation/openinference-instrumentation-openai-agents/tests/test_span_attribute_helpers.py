@@ -1299,6 +1299,19 @@ def test_get_attributes_from_chat_completions_tool_call_dict(
             },
             id="none_details",
         ),
+        pytest.param(
+            {
+                "input_tokens": 5,
+                "output_tokens": 2,
+                "input_tokens_details": object(),
+                "output_tokens_details": object(),
+            },
+            {
+                "llm.token_count.prompt": 5,
+                "llm.token_count.completion": 2,
+            },
+            id="non_mapping_details_are_ignored",
+        ),
     ],
 )
 def test_get_attributes_from_chat_completions_usage(
