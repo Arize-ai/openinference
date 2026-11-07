@@ -266,7 +266,11 @@ class _WithOpenAI(ABC):
         not a stream.
         """
 
-        if hasattr(response, "parse") and callable(response.parse):
+        # `.with_streaming_response` on the async client returns an `AsyncAPIResponse`, whose
+        # `.parse()` is a coroutine. `_AsyncRequest` awaits it before calling this method, and the
+        # parsed result is cached in `._parsed_by_type`, so it must not be called again here.
+        is_async_response = isinstance(response, self._openai.AsyncAPIResponse)
+        if not is_async_response and hasattr(response, "parse") and callable(response.parse):
             # `.request()` may be called under `.with_raw_response` and it's necessary to call
             # `.parse()` to get back the usual response types.
             # E.g. see https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_base_client.py#L518  # noqa: E501
@@ -319,23 +323,33 @@ class _WithOpenAI(ABC):
                 # New in openai v1.8.0. Streaming with .with_raw_response now returns
                 # LegacyAPIResponse and caching is done differently.
                 # See https://github.com/openai/openai-python/blob/d231d1fa783967c1d3a1db3ba1b52647fff148ac/src/openai/_legacy_response.py#L112-L113  # noqa: E501
-                response._parsed_by_type[cast_to] = _Stream(
+                stream = _Stream(
                     stream=parsed,
                     with_span=with_span,
                     response_accumulator=response_accumulator,
                 )
+                response._parsed_by_type[cast_to] = stream
+                if is_async_response:
+                    _finish_tracing_on_close(response, stream)
                 return response
             return _Stream(
                 stream=response,
                 with_span=with_span,
                 response_accumulator=response_accumulator,
             )
+        parsed = response
+        if is_async_response:
+            parsed = response._parsed_by_type.get(cast_to)
+            if parsed is None:
+                # Not parsed (e.g. binary audio, which is left unread so it stays streamed).
+                with_span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
+                return response
         _finish_tracing(
             status=trace_api.Status(status_code=trace_api.StatusCode.OK),
             with_span=with_span,
             has_attributes=_ResponseAttributes(
                 request_parameters=request_parameters,
-                response=response,
+                response=parsed,
                 response_attributes_extractor=self._response_attributes_extractor,
             ),
         )
@@ -470,6 +484,25 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 )
                 with_span.finish_tracing(status=status)
                 raise
+            if isinstance(response, self._openai.AsyncAPIResponse) and (
+                cast_to is not self._openai.HttpxBinaryResponseContent
+            ):
+                # Under `.with_streaming_response`, `.parse()` is a coroutine. Awaiting it caches
+                # the parsed result (or the stream) on the response, and the caller's own
+                # `.parse()` gets it back, as with the sync `.parse()` in `_finalize_response`.
+                try:
+                    await response.parse()
+                except BaseException as exception:
+                    # E.g. a body read that fails or is cancelled. The body is consumed by now, so
+                    # the caller's own `.parse()` could not raise the original error; re-raise it.
+                    with_span.record_exception(exception)
+                    with_span.finish_tracing(
+                        status=trace_api.Status(
+                            status_code=trace_api.StatusCode.ERROR,
+                            description=f"{type(exception).__name__}: {exception}",
+                        )
+                    )
+                    raise
             try:
                 response = self._finalize_response(
                     response=response,
@@ -481,6 +514,21 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 logger.exception(f"Failed to finalize response of type {type(response)}")
                 with_span.finish_tracing()
         return response
+
+
+def _finish_tracing_on_close(response: Any, stream: _Stream) -> None:
+    # A caller may read the body with `.iter_lines()` and the like, or not at all, instead of
+    # iterating the stream returned by `.parse()`. Closing the response, which leaving
+    # `.with_streaming_response` does, then has to end the span.
+    close = response.close
+
+    async def close_and_finish() -> None:
+        try:
+            await close()
+        finally:
+            stream._finish_tracing(status=None)
+
+    response.close = close_and_finish
 
 
 def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any], Any]:
