@@ -1596,9 +1596,10 @@ def _check_llm_message(
         assert attributes.pop(message_function_call_name(prefix, i), None) == function_call.get(
             "name"
         )
-        assert attributes.pop(
-            message_function_call_arguments(prefix, i), None
-        ) == function_call.get("arguments")
+        expected_arguments = REDACTED_VALUE if hide_text else function_call.get("arguments")
+        assert (
+            attributes.pop(message_function_call_arguments(prefix, i), None) == expected_arguments
+        )
     if _openai_version() >= (1, 1, 0) and (tool_calls := message.get("tool_calls")):
         for j, tool_call in enumerate(tool_calls):
             assert attributes.pop(tool_call_id(prefix, i, j), None) == tool_call.get("id")
@@ -1606,9 +1607,11 @@ def _check_llm_message(
                 assert attributes.pop(tool_call_function_name(prefix, i, j), None) == function.get(
                     "name"
                 )
-                assert attributes.pop(
-                    tool_call_function_arguments(prefix, i, j), None
-                ) == function.get("arguments")
+                expected_arguments = REDACTED_VALUE if hide_text else function.get("arguments")
+                assert (
+                    attributes.pop(tool_call_function_arguments(prefix, i, j), None)
+                    == expected_arguments
+                )
 
 
 def _check_context_attributes(
