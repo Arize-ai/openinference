@@ -1,7 +1,7 @@
 """Attribute extraction from Pipecat frames."""
 
 import logging
-from typing import Any, Callable, Dict, List, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from openinference.instrumentation.helpers import safe_json_dumps
 from openinference.semconv.trace import (
@@ -541,12 +541,31 @@ class MetricsDataExtractor:
         return results
 
 
+def _gross_prompt_tokens(metrics_data: LLMTokenUsage) -> Optional[int]:
+    """Prompt token count including cache reads and writes.
+
+    Pipecat reports ``prompt_tokens`` net of the prompt cache for Anthropic and
+    Bedrock but gross for OpenAI-compatible services, while ``total_tokens`` is
+    gross for every service. ``total_tokens - completion_tokens`` is therefore the
+    gross prompt count regardless of provider.
+    """
+    prompt_tokens = getattr(metrics_data, "prompt_tokens", None)
+    total_tokens = getattr(metrics_data, "total_tokens", None)
+    completion_tokens = getattr(metrics_data, "completion_tokens", None)
+    if isinstance(total_tokens, int) and isinstance(completion_tokens, int):
+        gross = total_tokens - completion_tokens
+        if isinstance(prompt_tokens, int) and gross < prompt_tokens:
+            return prompt_tokens
+        return gross
+    return prompt_tokens
+
+
 class LLMTokenMetricsDataExtractor:
     """Extract attributes from LLM token metrics data."""
 
     attributes: Dict[str, Any] = {
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: lambda metrics_data: getattr(
-            metrics_data, "prompt_tokens", None
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: lambda metrics_data: _gross_prompt_tokens(
+            metrics_data
         ),
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: lambda metrics_data: getattr(
             metrics_data, "completion_tokens", None
@@ -557,14 +576,17 @@ class LLMTokenMetricsDataExtractor:
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: lambda metrics_data: getattr(
             metrics_data, "cache_read_input_tokens", None
         ),
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: lambda metrics_data: getattr(
+            metrics_data, "cache_creation_input_tokens", None
+        ),
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO: lambda metrics_data: getattr(
-            metrics_data, "audio_tokens", None
+            metrics_data, "input_audio_tokens", None
         ),
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: lambda metrics_data: getattr(
             metrics_data, "reasoning_tokens", None
         ),
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO: lambda metrics_data: getattr(
-            metrics_data, "audio_tokens", None
+            metrics_data, "output_audio_tokens", None
         ),
     }
 
