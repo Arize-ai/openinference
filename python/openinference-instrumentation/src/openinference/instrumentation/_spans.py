@@ -20,6 +20,7 @@ from .config import (
     TraceConfig,
     mask_without_externalization,
 )
+from .logging import logger
 
 _IMPORTANT_ATTRIBUTES = [
     SpanAttributes.OPENINFERENCE_SPAN_KIND,
@@ -72,11 +73,17 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
-        if self._self_config.enable_genai_semconv:
-            source_attributes = span._attributes
-            for key, value in get_genai_attributes(source_attributes).items():
-                if key not in source_attributes:
-                    span.set_attribute(key, value)
+        # Not the sampled flag: RECORD_ONLY spans still keep attributes for span processors, while
+        # sampled-out, suppressed and already-ended spans are non-recording and would discard them.
+        if self._self_config.enable_genai_semconv and span.is_recording():
+            source_attributes = getattr(span, "attributes", None)
+            if isinstance(source_attributes, Mapping):
+                try:
+                    for key, value in get_genai_attributes(source_attributes).items():
+                        if key not in source_attributes:
+                            span.set_attribute(key, value)
+                except Exception as exc:
+                    logger.exception(f"Failed to set GenAI semantic convention attributes: {exc!r}")
         span.end(end_time)
 
     def set_input(
