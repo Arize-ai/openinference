@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import inspect
 import logging
+import weakref
 from abc import ABC
 from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext
 from contextvars import ContextVar, Token
@@ -10,10 +12,12 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Iterable,
     Iterator,
     Mapping,
     Optional,
+    Sequence,
     Tuple,
     Type,
 )
@@ -44,7 +48,10 @@ from openinference.instrumentation.anthropic._content import (
     _to_json,
     _to_jsonable,
 )
-from openinference.instrumentation.anthropic._sdk_spans import _sending_request_of
+from openinference.instrumentation.anthropic._sdk_spans import (
+    _running_step_of,
+    _sending_request_of,
+)
 from openinference.instrumentation.anthropic._stream import (
     _MessagesStream,
     _RawStreamInterceptor,
@@ -1069,3 +1076,330 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROVIDER_ANTHROPIC = OpenInferenceLLMProviderValues.ANTHROPIC.value
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
+
+
+def _get_chain_span_kind() -> Iterator[Tuple[str, AttributeValue]]:
+    yield OPENINFERENCE_SPAN_KIND, CHAIN
+
+
+def _get_tool_definition(tool: Any) -> Any:
+    """The definition of a runnable tool as it is sent to the API, else the tool unchanged."""
+    if callable(to_dict := getattr(tool, "to_dict", None)):
+        try:
+            return to_dict()
+        except Exception:
+            logger.exception("Failed to get the definition of a tool.")
+    return tool
+
+
+def _set_tool_output(span: trace_api.Span, result: Any) -> None:
+    if result is None:
+        return
+    if isinstance(result, (dict, list)):
+        span.set_attribute(OUTPUT_VALUE, safe_json_dumps(result))
+        span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+    else:
+        span.set_attribute(OUTPUT_VALUE, str(result))
+        span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+
+
+def _set_tool_error(span: trace_api.Span, exception: Exception) -> None:
+    span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+    span.record_exception(exception)
+
+
+class _ToolWrapper(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """Traces each invocation of a runnable tool with a TOOL span."""
+
+    __slots__ = ("_self_owner",)
+
+    def __init__(self, tool: Any, owner: _WithTracer) -> None:
+        super().__init__(tool)
+        # the wrapper of the runner, which has the tracer and says if it is still instrumented
+        self._self_owner = owner
+
+    def _get_attributes(self, args: Tuple[Any, ...], kwargs: Mapping[str, Any]) -> Dict[str, Any]:
+        tool = self.__wrapped__
+        attributes: Dict[str, Any] = {
+            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL.value,
+            SpanAttributes.TOOL_NAME: getattr(tool, "name", "tool"),
+        }
+        try:
+            definition = _get_tool_definition(tool)
+            if isinstance(definition, Mapping):
+                if description := definition.get("description"):
+                    attributes[SpanAttributes.TOOL_DESCRIPTION] = description
+                # the definition of the parameters, not the arguments of the invocation, which
+                # are only recorded as the input and so are masked with it
+                if input_schema := definition.get("input_schema"):
+                    attributes[SpanAttributes.TOOL_PARAMETERS] = safe_json_dumps(input_schema)
+            if input_args := (args[0] if args else kwargs):
+                attributes[INPUT_VALUE] = safe_json_dumps(input_args)
+                attributes[INPUT_MIME_TYPE] = JSON
+        except Exception:
+            logger.exception("Failed to get the attributes of a tool span.")
+        return attributes
+
+    def _start_span(self, args: Tuple[Any, ...], kwargs: Mapping[str, Any]) -> Any:
+        # the exception is recorded by the caller, not by the tracer, to record it only once
+        return self._self_owner._tracer.start_as_current_span(
+            name=self.name,
+            attributes=self._get_attributes(args, kwargs),
+            record_exception=False,
+            set_status_on_exception=False,
+        )
+
+    def call(self, *args: Any, **kwargs: Any) -> Any:
+        owner = self._self_owner
+        if not owner._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return self.__wrapped__.call(*args, **kwargs)
+        if inspect.iscoroutinefunction(self.__wrapped__.call):
+            return self._acall(*args, **kwargs)
+        with self._start_span(args, kwargs) as span:
+            try:
+                result = self.__wrapped__.call(*args, **kwargs)
+            except Exception as exception:
+                _set_tool_error(span, exception)
+                raise
+            _set_tool_output(span, result)
+            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+            return result
+
+    async def _acall(self, *args: Any, **kwargs: Any) -> Any:
+        with self._start_span(args, kwargs) as span:
+            try:
+                result = await self.__wrapped__.call(*args, **kwargs)
+            except Exception as exception:
+                _set_tool_error(span, exception)
+                raise
+            _set_tool_output(span, result)
+            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+            return result
+
+
+@_stop_on_exception
+def _get_tool_runner_output(item: Any) -> Iterator[Tuple[str, Any]]:
+    """The output of a tool runner from the last item it yielded: a message or a stream of one."""
+    message = getattr(item, "current_message_snapshot", item)
+    if hasattr(message, "content"):
+        yield from _get_output_messages(message)
+    if hasattr(message, "model_dump_json"):
+        yield from _get_outputs(message)
+
+
+class _ToolRunnerSpan:
+    """
+    The span of a tool runner, started with the runner's first step, in the context that the
+    runner is consumed in, like the spans of the steps. It is held by the runner's proxy and by
+    a finalizer that ends the span if the proxy is collected before the runner is done, so it
+    must not refer to the proxy.
+    """
+
+    __slots__ = ("_start", "_span", "_with_span", "_last_item", "_done")
+
+    def __init__(self, start: Callable[[], Optional[trace_api.Span]]) -> None:
+        self._start = start
+        self._done = False
+        self._span: Optional[trace_api.Span] = None
+        self._with_span: Optional[_WithSpan] = None
+        self._last_item: Any = None
+
+    @property
+    def span(self) -> Optional[trace_api.Span]:
+        """The span to make current for a step, started if need be; None once it is ended."""
+        if self._done:
+            return None
+        if self._with_span is None:
+            try:
+                self._span = self._start()
+            except Exception:
+                logger.exception("Failed to start the span of a tool runner.")
+            self._with_span = _WithSpan(span=self._span or INVALID_SPAN)
+            if self._span is None:
+                self._done = True
+        return self._span
+
+    def yielded(self, item: Any) -> None:
+        self._last_item = item
+
+    def finish(self, result: Any = None, exception: Optional[BaseException] = None) -> None:
+        """Ends the span, once."""
+        self._done = True
+        if self._with_span is None or self._with_span.is_finished:
+            return
+        try:
+            if exception is not None:
+                self._with_span.set_status(
+                    trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+                )
+                if isinstance(exception, Exception):
+                    self._with_span.record_exception(exception)
+                self._with_span.finish_tracing()
+            else:
+                last = result if result is not None else self._last_item
+                self._with_span.finish_tracing(
+                    status=trace_api.Status(trace_api.StatusCode.OK),
+                    extra_attributes=dict(_get_tool_runner_output(last)) if last else None,
+                )
+        except Exception:
+            logger.exception("Failed to finish the span of a tool runner.")
+
+    def finish_abandoned(self) -> None:
+        """Ends the span of a runner that is closed or collected before it is done."""
+        self._done = True
+        if self._with_span is None or self._with_span.is_finished:
+            return
+        try:
+            self._with_span.finish_tracing()
+        except Exception:
+            logger.exception("Failed to end the span of an abandoned tool runner.")
+
+
+class _BetaToolRunnerProxy(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """
+    Proxies a tool runner. The span of the runner is current only while the runner runs a step,
+    when the model is called and the tools are run, so that nothing outside the runner is its
+    child, and it is ended when the runner is done, fails, is closed or is collected.
+    """
+
+    __slots__ = ("_self_state",)
+
+    def __init__(self, runner: Any, state: _ToolRunnerSpan) -> None:
+        super().__init__(runner)
+        self._self_state = state
+        weakref.finalize(self, state.finish_abandoned)
+
+    def _step(self) -> AbstractContextManager[Any]:
+        span = self._self_state.span
+        return nullcontext() if span is None else _running_step_of(span)
+
+    def generate_tool_call_response(self, *args: Any, **kwargs: Any) -> Any:
+        if inspect.iscoroutinefunction(self.__wrapped__.generate_tool_call_response):
+            return self._generate_tool_call_response_async(*args, **kwargs)
+        with self._step():
+            return self.__wrapped__.generate_tool_call_response(*args, **kwargs)
+
+    async def _generate_tool_call_response_async(self, *args: Any, **kwargs: Any) -> Any:
+        with self._step():
+            return await self.__wrapped__.generate_tool_call_response(*args, **kwargs)
+
+    def until_done(self, *args: Any, **kwargs: Any) -> Any:
+        if inspect.iscoroutinefunction(self.__wrapped__.until_done):
+            return self._until_done_async(*args, **kwargs)
+        try:
+            with self._step():
+                result = self.__wrapped__.until_done(*args, **kwargs)
+        except BaseException as exc:
+            self._self_state.finish(exception=exc)
+            raise
+        self._self_state.finish(result=result)
+        return result
+
+    async def _until_done_async(self, *args: Any, **kwargs: Any) -> Any:
+        try:
+            with self._step():
+                result = await self.__wrapped__.until_done(*args, **kwargs)
+        except BaseException as exc:
+            self._self_state.finish(exception=exc)
+            raise
+        self._self_state.finish(result=result)
+        return result
+
+    def close(self, *args: Any, **kwargs: Any) -> Any:
+        if inspect.iscoroutinefunction(self.__wrapped__.close):
+            return self._close_async(*args, **kwargs)
+        try:
+            return self.__wrapped__.close(*args, **kwargs)
+        finally:
+            self._self_state.finish_abandoned()
+
+    async def _close_async(self, *args: Any, **kwargs: Any) -> Any:
+        try:
+            return await self.__wrapped__.close(*args, **kwargs)
+        finally:
+            self._self_state.finish_abandoned()
+
+    def __iter__(self) -> Iterator[Any]:
+        return self
+
+    def __next__(self) -> Any:
+        try:
+            with self._step():
+                item = self.__wrapped__.__next__()
+        except StopIteration:
+            self._self_state.finish()
+            raise
+        except BaseException as exc:
+            self._self_state.finish(exception=exc)
+            raise
+        self._self_state.yielded(item)
+        return item
+
+    def __aiter__(self) -> Any:
+        return self
+
+    async def __anext__(self) -> Any:
+        try:
+            with self._step():
+                item = await self.__wrapped__.__anext__()
+        except StopAsyncIteration:
+            self._self_state.finish()
+            raise
+        except BaseException as exc:
+            self._self_state.finish(exception=exc)
+            raise
+        self._self_state.yielded(item)
+        return item
+
+
+class _BetaToolRunnerWrapper(_WithTracer):
+    """
+    Wrapper for beta.messages.tool_runner, sync and async, which returns the runner without
+    making a request. The runner calls the model and the tools as it is consumed, so its CHAIN
+    span has the LLM spans and the TOOL spans as children.
+    """
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        modified_kwargs = dict(kwargs)
+        inputs = dict(kwargs)
+        # Only a sequence is read here, since the SDK reads the tools more than once. A one-shot
+        # iterable or a toolset is passed on as it is, with no TOOL spans and no tools in the
+        # input, so that tracing does not change what the SDK does with it.
+        if isinstance(tools := kwargs.get("tools"), Sequence) and not isinstance(tools, str):
+            inputs["tools"] = [_get_tool_definition(tool) for tool in tools]
+            modified_kwargs["tools"] = [
+                _ToolWrapper(tool, self) if hasattr(tool, "call") else tool for tool in tools
+            ]
+        else:
+            inputs.pop("tools", None)
+        provider = dict(_get_llm_provider(instance))
+
+        def start() -> Optional[trace_api.Span]:
+            if not self._active:  # uninstrumented since the runner was made
+                return None
+            return self._tracer.start_span(
+                name=self._span_name,
+                record_exception=False,
+                set_status_on_exception=False,
+                attributes=dict(
+                    chain(
+                        get_attributes_from_context(),
+                        provider.items(),
+                        _get_llm_system(),
+                        _get_chain_span_kind(),
+                        _get_inputs(inputs),
+                    )
+                ),
+            )
+
+        # the span is not started here: the runner makes no request until it is consumed
+        return _BetaToolRunnerProxy(wrapped(*args, **modified_kwargs), _ToolRunnerSpan(start))
