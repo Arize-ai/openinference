@@ -1,4 +1,5 @@
-from typing import Any, Callable, Dict, Mapping, Optional, Union, cast
+from types import TracebackType
+from typing import Any, Callable, Dict, Mapping, Optional, Type, Union, cast
 
 import wrapt
 from opentelemetry.trace import Span
@@ -18,6 +19,9 @@ from ._genai_conversion import get_genai_attributes
 from ._types import OpenInferenceMimeType
 from .config import (
     TraceConfig,
+    _drop_reasoning_content_parts,
+    _is_message_content_part,
+    _LazyAttributeValue,
     mask_without_externalization,
 )
 
@@ -31,6 +35,9 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         super().__init__(wrapped)
         self._self_config = config
         self._self_important_attributes: Dict[str, AttributeValue] = {}
+        # With hide_reasoning, message content parts are held until end(): whether
+        # a part is reasoning depends on a sibling attribute that may arrive later.
+        self._self_message_content_parts: Dict[str, _LazyAttributeValue] = {}
         self._self_ended = False
 
     def set_attributes(self, attributes: "Mapping[str, AttributeValue]") -> None:
@@ -62,22 +69,53 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
                 if masked_value is not None:
                     cast(Span, self.__wrapped__).set_attribute(key, masked_value)
             return
+        if self._self_config.hide_reasoning and _is_message_content_part(key):
+            self._self_message_content_parts[key] = value
+            return
+        self._set_masked_attribute(key, value)
+
+    def _set_masked_attribute(
+        self,
+        key: str,
+        value: Union[AttributeValue, Callable[[], AttributeValue]],
+    ) -> None:
         masked_value = self._self_config.mask(key, value)
         if masked_value is not None:
             span = cast(Span, self.__wrapped__)
             span.set_attribute(key, masked_value)
 
+    def __enter__(self) -> "OpenInferenceSpan":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        # The wrapped span's __exit__ records the exception and ends that span
+        # directly, so write what this proxy holds back first.
+        self._write_pending_attributes()
+        cast(Span, self.__wrapped__).__exit__(exc_type, exc_val, exc_tb)
+
     def end(self, end_time: Optional[int] = None) -> None:
+        self._write_pending_attributes()
+        cast(Span, self.__wrapped__).end(end_time)
+
+    def _write_pending_attributes(self) -> None:
+        parts = _drop_reasoning_content_parts(self._self_message_content_parts)
+        self._self_message_content_parts.clear()
+        for k, v in parts.items():
+            self._set_masked_attribute(k, v)
         self._self_ended = True
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
-        if self._self_config.enable_genai_semconv:
+        if self._self_config.enable_genai_semconv and span.is_recording():
             source_attributes = span._attributes
             for key, value in get_genai_attributes(source_attributes).items():
                 if key not in source_attributes:
                     span.set_attribute(key, value)
-        span.end(end_time)
 
     def set_input(
         self,
