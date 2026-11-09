@@ -57,10 +57,6 @@ class MediaContentSupportTest {
         return Base64.getDecoder().decode(dataUrl.substring(dataUrl.indexOf(",") + 1));
     }
 
-    private static String oversized() {
-        return "data:image/jpeg;base64," + "A".repeat(100_000);
-    }
-
     @Test
     void imageMediaOf_keepsOnlyImageMediaInOrder() {
         assertThat(MediaContentSupport.imageMediaOf(null)).as("null message").isEmpty();
@@ -182,51 +178,6 @@ class MediaContentSupportTest {
     }
 
     @Test
-    void applyImagePolicy_redactsHiddenImagesInTheMatchingDirectionOnly() {
-        TraceConfig hideInput = TraceConfig.builder().hideInputImages(true).build();
-        assertThat(MediaContentSupport.applyImagePolicy(DATA_URL, hideInput, true))
-                .isEqualTo(REDACTED);
-        assertThat(MediaContentSupport.applyImagePolicy(DATA_URL, hideInput, false))
-                .isEqualTo(DATA_URL);
-
-        TraceConfig hideOutput = TraceConfig.builder().hideOutputImages(true).build();
-        assertThat(MediaContentSupport.applyImagePolicy(DATA_URL, hideOutput, false))
-                .isEqualTo(REDACTED);
-        assertThat(MediaContentSupport.applyImagePolicy(DATA_URL, hideOutput, true))
-                .isEqualTo(DATA_URL);
-
-        // Null in, null out: an unreadable payload stays distinguishable from a withheld one.
-        assertThat(MediaContentSupport.applyImagePolicy(null, hideInput, true)).isNull();
-        assertThat(MediaContentSupport.applyImagePolicy(DATA_URL, null, true)).isEqualTo(DATA_URL);
-    }
-
-    @Test
-    void applyImagePolicy_neverCapsImageSize() {
-        // No length limit is applied, whatever base64ImageMaxLength says.
-        for (TraceConfig config : List.of(
-                TraceConfig.getDefault(),
-                TraceConfig.builder().base64ImageMaxLength("10").build(),
-                TraceConfig.builder().base64ImageMaxLength("not-a-number").build())) {
-            assertThat(MediaContentSupport.applyImagePolicy(oversized(), config, true))
-                    .as("no cap under '" + config.getBase64ImageMaxLength() + "'")
-                    .isEqualTo(oversized());
-        }
-    }
-
-    @Test
-    void isBase64Url_recognisesOnlyBase64EncodedImageDataUrls() {
-        assertThat(MediaContentSupport.isBase64Url(DATA_URL)).isTrue();
-        assertThat(MediaContentSupport.isBase64Url(HTTP_URL)).as("remote url").isFalse();
-        assertThat(MediaContentSupport.isBase64Url("data:image/svg+xml,<svg/>"))
-                .as("data url that is not base64 encoded")
-                .isFalse();
-        assertThat(MediaContentSupport.isBase64Url("data:audio/mp3;base64,AAAA"))
-                .as("base64 data url that is not an image")
-                .isFalse();
-        assertThat(MediaContentSupport.isBase64Url(null)).isFalse();
-    }
-
-    @Test
     void applyTextPolicy_redactsInTheMatchingDirectionOnly() {
         TraceConfig hideInput = TraceConfig.builder().hideInputText(true).build();
         assertThat(MediaContentSupport.applyTextPolicy("hello", hideInput, true))
@@ -241,6 +192,9 @@ class MediaContentSupportTest {
                 .isEqualTo("hello");
 
         assertThat(MediaContentSupport.applyTextPolicy(null, hideInput, true)).isNull();
+        assertThat(MediaContentSupport.applyTextPolicy("", hideInput, true))
+                .as("empty text has nothing to hide")
+                .isEmpty();
         assertThat(MediaContentSupport.applyTextPolicy("hello", null, true)).isEqualTo("hello");
     }
 }

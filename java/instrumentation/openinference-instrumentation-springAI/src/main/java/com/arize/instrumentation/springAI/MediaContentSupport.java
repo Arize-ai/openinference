@@ -20,8 +20,6 @@ final class MediaContentSupport {
 
     private static final String BASE64_URL_PREFIX = "data:";
     private static final String BASE64_URL_MARKER = ";base64,";
-    private static final String BASE64_IMAGE_URL_PREFIX = "data:image/";
-    private static final String BASE64_MARKER = "base64";
     private static final String DEFAULT_MIME_TYPE = "application/octet-stream";
     private static final String IMAGE_TYPE = "image";
 
@@ -100,33 +98,13 @@ final class MediaContentSupport {
         return input ? config.isHideInputImages() : config.isHideOutputImages();
     }
 
-    /**
-     * Applies the image privacy policy to a rendered url. Hidden images collapse to
-     * {@link #REDACTED_VALUE}, per the {@code Hiding Images} section of the multimodal
-     * specification. Null in means null out, so an unreadable payload stays distinguishable from a
-     * redacted one.
-     */
-    static String applyImagePolicy(String url, TraceConfig config, boolean input) {
-        if (url == null || config == null) {
-            return url;
-        }
-        if (input ? config.isHideInputImages() : config.isHideOutputImages()) {
-            return REDACTED_VALUE;
-        }
-        return url;
-    }
-
     static String applyTextPolicy(String text, TraceConfig config, boolean input) {
-        if (text == null || config == null) {
+        if (text == null || text.isEmpty() || config == null) {
             return text;
         }
         if (input ? config.isHideInputText() : config.isHideOutputText()) {
             return REDACTED_VALUE;
         }
         return text;
-    }
-
-    static boolean isBase64Url(String url) {
-        return url != null && url.startsWith(BASE64_IMAGE_URL_PREFIX) && url.contains(BASE64_MARKER);
     }
 }

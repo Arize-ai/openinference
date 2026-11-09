@@ -436,7 +436,7 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
 
         boolean hidden = MediaContentSupport.isImageHidden(config(), input);
         for (Media image : images) {
-            String url = imageUrl(image, hidden, input);
+            String url = imageUrl(image, hidden);
             if (url == null) {
                 continue;
             }
@@ -455,11 +455,11 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
      * Resolves the url to record for an image. Hidden images redact without the payload ever being
      * read, so no base64 encoding happens for data that is about to be thrown away.
      */
-    private String imageUrl(Media image, boolean hidden, boolean input) {
+    private String imageUrl(Media image, boolean hidden) {
         if (hidden) {
             return MediaContentSupport.REDACTED_VALUE;
         }
-        return MediaContentSupport.applyImagePolicy(MediaContentSupport.toUrl(image), config(), input);
+        return MediaContentSupport.toUrl(image);
     }
 
     /**
@@ -483,7 +483,7 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
         }
         boolean hidden = MediaContentSupport.isImageHidden(config(), input);
         for (Media image : images) {
-            String url = imageUrl(image, hidden, input);
+            String url = imageUrl(image, hidden);
             if (url == null) {
                 // The serialized form has no way to express an image part without a url — emitting
                 // one would be malformed, so an unreadable payload is skipped entirely.

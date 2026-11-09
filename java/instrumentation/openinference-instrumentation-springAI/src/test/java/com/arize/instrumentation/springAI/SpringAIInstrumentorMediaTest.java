@@ -234,6 +234,26 @@ class SpringAIInstrumentorMediaTest {
         assertThat(attr(span, SemanticConventions.OUTPUT_VALUE))
                 .contains("\"type\":\"image_url\"")
                 .doesNotContain("\"type\":\"text\"");
+
+        spanExporter.reset();
+        SpanData hiddenText = run(
+                instrumentor(TraceConfig.builder().hideInputText(true).build()),
+                context(
+                        List.of(UserMessage.builder()
+                                .text("")
+                                .media(List.of(jpeg()))
+                                .build()),
+                        nullText));
+        assertThat(attr(hiddenText, "llm.input_messages.0.message.contents.0.message_content.type"))
+                .as("hidden empty text: no redacted text part is made up")
+                .isEqualTo("image");
+        assertThat(attr(hiddenText, "llm.input_messages.0.message.contents.0.message_content.image.image.url"))
+                .isEqualTo(JPEG_DATA_URL);
+        assertThat(attr(hiddenText, "llm.input_messages.0.message.contents.1.message_content.type"))
+                .isNull();
+        assertThat(attr(hiddenText, SemanticConventions.INPUT_VALUE))
+                .doesNotContain("\"type\":\"text\"")
+                .doesNotContain(MediaContentSupport.REDACTED_VALUE);
     }
 
     @Test
