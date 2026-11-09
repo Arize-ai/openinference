@@ -142,13 +142,15 @@ class _WithMistralAI(ABC):
 
         Based off of https://github.com/mistralai/client-python/blob/80c7951bad83338641d5e89684f841ce1cac938f/src/mistralai/client_base.py#L76
         """
+        from mistralai.client.types import UNSET
+
         bound_signature = signature.bind(*args, **kwargs)
         bound_signature.apply_defaults()
         bound_arguments = bound_signature.arguments
         request_data: Dict[str, Any] = {}
         for key, value in bound_arguments.items():
             try:
-                if value is not None:
+                if value is not None and value is not UNSET:
                     try:
                         # ensure the value is JSON-serializable
                         safe_json_dumps(value)
