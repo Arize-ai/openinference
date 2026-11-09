@@ -16,9 +16,15 @@ import respx
 from httpx import Response
 from mistralai.client import Mistral
 from mistralai.client.models import (
+    AssistantMessage,
     ChatCompletionChoice,
     ChatCompletionResponse,
     CompletionEvent,
+    FunctionCall,
+    SystemMessage,
+    ToolCall,
+    ToolMessage,
+    UserMessage,
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
@@ -1465,6 +1471,87 @@ def test_finish_reason_values(
     assert len(spans) == 1
     attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
     assert attributes.get(LLM_FINISH_REASON) == finish_reason
+
+
+def test_messages_passed_as_sdk_models_are_recorded(
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "test_id",
+                "object": "chat.completion",
+                "created": 1711044439,
+                "model": "mistral-large-latest",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "It is sunny in Paris."},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 5, "total_tokens": 10, "completion_tokens": 5},
+            },
+        )
+    )
+
+    mistral_sync_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[
+            SystemMessage(content="You are a weather assistant."),
+            UserMessage(content="What is the weather in Paris?"),
+            AssistantMessage(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        id="call_1",
+                        function=FunctionCall(name="get_weather", arguments='{"city": "Paris"}'),
+                    )
+                ],
+            ),
+            ToolMessage(content="sunny", tool_call_id="call_1", name="get_weather"),
+        ],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "You are a weather assistant."
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}")
+        == "What is the weather in Paris?"
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        )
+        == '{"city": "Paris"}'
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}") == "tool"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_NAME}") == "get_weather"
+    input_messages = json.loads(cast(str, attributes.pop(INPUT_VALUE)))["messages"]
+    assert input_messages[0] == {"content": "You are a weather assistant.", "role": "system"}
+    assert input_messages[3] == {
+        "content": "sunny",
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "name": "get_weather",
+    }
+    assert not any(key.startswith(LLM_INPUT_MESSAGES) for key in attributes)
 
 
 def _check_context_attributes(
