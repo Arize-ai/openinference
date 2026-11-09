@@ -18,6 +18,7 @@
     "python/instrumentation/openinference-instrumentation-ollama": "0.1.16",
     "python/instrumentation/openinference-instrumentation-together": "0.1.16",
     "python/instrumentation/openinference-instrumentation-typesafe": "0.1.8",
+    "python/instrumentation/openinference-instrumentation-mem0": "0.1.0",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.31",
     "python/instrumentation/openinference-instrumentation-anthropic": "3.3.1",
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.46",
