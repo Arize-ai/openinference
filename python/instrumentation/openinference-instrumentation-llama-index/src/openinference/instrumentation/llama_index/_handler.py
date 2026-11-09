@@ -409,6 +409,12 @@ class _Span(BaseSpan):
         self._otel_span.set_attributes(self._attributes)
         self._otel_span.end(end_time=self._end_time)
 
+    def end_stream(self, exception: Optional[BaseException] = None) -> None:
+        # The stamp taken when the call returned its generator only marks the span as
+        # waiting for the stream; the span ends when the stream does.
+        self._end_time = time_ns()
+        self.end(exception)
+
     @property
     def waiting_for_streaming(self) -> bool:
         return self._active and bool(self._end_time)
@@ -512,7 +518,7 @@ class _Span(BaseSpan):
         if not self.waiting_for_streaming:
             return
         if isinstance(event, STREAMING_FINISHED_EVENTS):
-            self.end()
+            self.end_stream()
             self.notify_parent(_StreamingStatus.FINISHED)
         elif isinstance(event, STREAMING_IN_PROGRESS_EVENTS):
             if self._first_token_timestamp is None:
@@ -522,7 +528,7 @@ class _Span(BaseSpan):
             self._last_updated_at = time()
             self.notify_parent(_StreamingStatus.IN_PROGRESS)
         elif isinstance(event, ExceptionEvent):
-            self.end(event.exception)
+            self.end_stream(event.exception)
             self.notify_parent(_StreamingStatus.FINISHED)
 
     def notify_parent(self, status: _StreamingStatus) -> None:
@@ -531,7 +537,7 @@ class _Span(BaseSpan):
         if status is _StreamingStatus.IN_PROGRESS:
             parent._last_updated_at = time()
         elif parent.waiting_for_streaming:
-            parent.end()
+            parent.end_stream()
         else:
             return
         parent.notify_parent(status)

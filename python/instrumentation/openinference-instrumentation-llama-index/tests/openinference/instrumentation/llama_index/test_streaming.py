@@ -1,10 +1,19 @@
 import asyncio
+import time
 from contextvars import ContextVar
 from typing import Any, AsyncGenerator, Generator, cast
 
 import pytest
+from llama_index.core.base.llms.types import (
+    CompletionResponse,
+    CompletionResponseAsyncGen,
+    CompletionResponseGen,
+    LLMMetadata,
+)
 from llama_index.core.base.response.schema import AsyncStreamingResponse, StreamingResponse
 from llama_index.core.instrumentation import get_dispatcher  # type: ignore[attr-defined]
+from llama_index.core.llms import CustomLLM
+from llama_index.core.llms.callbacks import llm_completion_callback
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -184,3 +193,70 @@ def test_sync_response_context(
         )
         assert child_span.parent is not None
         assert child_span.parent.span_id == query_span.context.span_id
+
+
+class _StreamingLLM(CustomLLM):
+    last_token_at: int = 0
+
+    @property
+    def metadata(self) -> LLMMetadata:
+        return LLMMetadata()
+
+    @llm_completion_callback()
+    def complete(self, prompt: str, formatted: bool = False, **kwargs: Any) -> CompletionResponse:
+        return CompletionResponse(text="ab")
+
+    @llm_completion_callback()
+    def stream_complete(
+        self, prompt: str, formatted: bool = False, **kwargs: Any
+    ) -> CompletionResponseGen:
+        def gen() -> CompletionResponseGen:
+            text = ""
+            for delta in "ab":
+                time.sleep(0.01)
+                text += delta
+                self.last_token_at = time.time_ns()
+                yield CompletionResponse(text=text, delta=delta)
+
+        return gen()
+
+    @llm_completion_callback()
+    async def astream_complete(
+        self, prompt: str, formatted: bool = False, **kwargs: Any
+    ) -> CompletionResponseAsyncGen:
+        async def gen() -> CompletionResponseAsyncGen:
+            text = ""
+            for delta in "ab":
+                await asyncio.sleep(0.01)
+                text += delta
+                self.last_token_at = time.time_ns()
+                yield CompletionResponse(text=text, delta=delta)
+
+        return gen()
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+def test_streamed_llm_span_ends_after_last_token(
+    is_async: bool,
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
+    llm = _StreamingLLM()
+
+    async def consume() -> None:
+        async for _ in await llm.astream_complete("hi"):
+            pass
+
+    if is_async:
+        asyncio.run(consume())
+    else:
+        for _ in llm.stream_complete("hi"):
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.end_time is not None
+    assert span.end_time >= llm.last_token_at
+    assert all(event.timestamp <= span.end_time for event in span.events)
