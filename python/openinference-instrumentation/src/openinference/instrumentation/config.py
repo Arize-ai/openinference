@@ -1,3 +1,4 @@
+import copy
 import inspect
 import os
 from dataclasses import dataclass, field, fields
@@ -9,13 +10,18 @@ from typing import (
     Optional,
     Type,
     Union,
+    cast,
     get_args,
 )
 
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
+    Context,
     attach,
+    create_key,
     detach,
+    get_current,
+    get_value,
     set_value,
 )
 from opentelemetry.util.types import AttributeValue
@@ -37,7 +43,7 @@ from ._blob_upload import (
     is_valid_reference_uri,
     load_blob_uploader,
 )
-from ._genai_attributes import GenAIAttributes
+from .context_attributes import _UsingAttributesContextManager
 from .logging import logger
 
 
@@ -362,23 +368,6 @@ class TraceConfig:
     ) -> Optional[AttributeValue]:
         if self.hide_llm_invocation_parameters and key == SpanAttributes.LLM_INVOCATION_PARAMETERS:
             return None
-        # Content-bearing gen_ai.* keys mirror the masking of their OpenInference sources.
-        elif (self.hide_inputs or self.hide_input_messages) and key in _GENAI_INPUT_MESSAGE_KEYS:
-            return None
-        elif (self.hide_outputs or self.hide_output_messages) and key in _GENAI_OUTPUT_MESSAGE_KEYS:
-            return None
-        elif (
-            self.hide_inputs or self.hide_llm_tools
-        ) and key == GenAIAttributes.GEN_AI_TOOL_DEFINITIONS:
-            return None
-        elif self.hide_inputs and key in _GENAI_INPUT_CONTENT_KEYS:
-            value = REDACTED_VALUE
-        elif self.hide_outputs and key == GenAIAttributes.GEN_AI_TOOL_CALL_RESULT:
-            value = REDACTED_VALUE
-        elif (
-            self.hide_outputs or self.hide_retrieval_documents
-        ) and key == GenAIAttributes.GEN_AI_RETRIEVAL_DOCUMENTS:
-            value = REDACTED_VALUE
         elif (self.hide_inputs or self.hide_llm_tools) and SpanAttributes.LLM_TOOLS in key:
             return None
         elif self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
@@ -556,14 +545,6 @@ class TraceConfig:
             return cast_to(value)
 
 
-_GENAI_INPUT_MESSAGE_KEYS = frozenset(
-    {GenAIAttributes.GEN_AI_INPUT_MESSAGES, GenAIAttributes.GEN_AI_SYSTEM_INSTRUCTIONS}
-)
-_GENAI_OUTPUT_MESSAGE_KEYS = frozenset({GenAIAttributes.GEN_AI_OUTPUT_MESSAGES})
-_GENAI_INPUT_CONTENT_KEYS = frozenset(
-    {GenAIAttributes.GEN_AI_TOOL_CALL_ARGUMENTS, GenAIAttributes.GEN_AI_RETRIEVAL_QUERY_TEXT}
-)
-
 _MASK_EXTERNALIZE_SUPPORT: Dict[type, bool] = {}
 
 
@@ -680,3 +661,80 @@ def is_base64_url(url: str) -> bool:
     if not isinstance(url, str):
         return False
     return url.startswith("data:image/") and "base64" in url
+
+
+_TRACE_CONFIG_OVERRIDES_KEY = create_key("openinference-trace-config-overrides")
+
+
+class using_trace_config(_UsingAttributesContextManager):
+    """
+    Context manager (or decorator) that overrides ``TraceConfig`` fields for spans
+    started within its scope. Only the fields passed here change; every other field
+    keeps the value of the instrumentor's config. Nested blocks merge on top of the
+    enclosing block.
+
+    The config is resolved when a span starts and kept for that span's lifetime, so
+    spans that end after the block exits (e.g. streamed responses) still use it.
+
+    The override lives in the OpenTelemetry context, which is not propagated to
+    threads started inside the block (e.g. ``ThreadPoolExecutor`` workers). Spans
+    created there use the instrumentor's config unless the context is propagated.
+
+    Examples:
+        with using_trace_config(hide_inputs=True, hide_outputs=True):
+            client.chat.completions.create(...)
+
+        @using_trace_config(hide_inputs=True)
+        def call_fn(*args, **kwargs):
+            ...
+    """
+
+    def __init__(self, **overrides: Any) -> None:
+        super().__init__()
+        _validate_overrides(overrides)
+        self._overrides = overrides
+
+    def _context_with_attributes(self) -> Context:
+        ctx = get_current()
+        outer = cast(Optional[Dict[str, Any]], get_value(_TRACE_CONFIG_OVERRIDES_KEY, ctx))
+        merged = {**outer, **self._overrides} if outer else dict(self._overrides)
+        return set_value(_TRACE_CONFIG_OVERRIDES_KEY, merged, ctx)
+
+
+def get_current_trace_config(default: TraceConfig) -> TraceConfig:
+    """
+    Return ``default`` with the fields set by the innermost active
+    ``using_trace_config`` applied, or ``default`` itself when no override is active.
+
+    Instrumentors call this when a span starts and use the result for everything
+    they record on that span.
+    """
+    overrides = cast(Optional[Dict[str, Any]], get_value(_TRACE_CONFIG_OVERRIDES_KEY))
+    if not overrides:
+        return default
+    # Copy instead of dataclasses.replace so __post_init__ does not re-read the
+    # environment or reload the blob uploader; overrides are validated up front.
+    merged = copy.copy(default)
+    for name, value in overrides.items():
+        object.__setattr__(merged, name, value)
+    return merged
+
+
+_TRACE_CONFIG_FIELDS = {f.name: f for f in fields(TraceConfig)}
+
+
+def _validate_overrides(overrides: Dict[str, Any]) -> None:
+    for name, value in overrides.items():
+        f = _TRACE_CONFIG_FIELDS.get(name)
+        if f is None:
+            raise TypeError(f"using_trace_config() got an unexpected field {name!r}")
+        if name == "blob_uploader":
+            if value is not None and not isinstance(value, BlobUploader):
+                raise TypeError("blob_uploader must satisfy the BlobUploader protocol or be None")
+            continue
+        expected_type = get_args(f.type)[0]
+        if not isinstance(value, expected_type):
+            raise TypeError(
+                f"The field {name} must be of type '{expected_type.__name__}' "
+                f"but '{type(value).__name__}' was found."
+            )

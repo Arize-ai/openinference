@@ -4,6 +4,7 @@ import logging
 from abc import ABC
 from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext
 from contextvars import ContextVar, Token
+from functools import partial
 from itertools import chain
 from types import TracebackType
 from typing import (
@@ -28,6 +29,7 @@ from wrapt import ObjectProxy
 from openinference.instrumentation import (
     TraceConfig,
     get_attributes_from_context,
+    get_current_trace_config,
     safe_json_dumps,
 )
 from openinference.instrumentation.anthropic._content import (
@@ -204,14 +206,21 @@ class _WithTracer(ABC):
         self._active = True
         _WithTracer._instances.add(self)
 
-    def _get_attributes_from_request(
-        self, kwargs: Mapping[str, Any]
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        return _get_attributes_from_messages_create(kwargs, config=self._config)
+    def _current_config(self) -> TraceConfig:
+        # resolved once per call, at span start, so that the whole span (including a stream
+        # that finishes later) uses any using_trace_config override active at that point
+        return get_current_trace_config(self._config)
+
+    @staticmethod
+    def _params(kwargs: Mapping[str, Any], config: TraceConfig) -> _Params:
+        return _Params(
+            kwargs, get_attributes=partial(_get_attributes_from_messages_create, config=config)
+        )
 
     @contextmanager
     def _start_as_current_span(
         self,
+        config: TraceConfig,
         attributes: Optional[Mapping[str, Any]] = None,
         params: AbstractContextManager[Iterable[Tuple[str, AttributeValue]]] = nullcontext(()),
     ) -> Iterator[_WithSpan]:
@@ -230,7 +239,7 @@ class _WithTracer(ABC):
                 span=span,
                 params=stack.enter_context(params),
                 context_metadata=(attributes or {}).get(METADATA),
-                config=self._config,
+                config=config,
             )
 
 
@@ -272,8 +281,10 @@ class _MessagesWrapper(_WithTracer):
         if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        config = self._current_config()
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
+            config,
+            params=self._params(kwargs, config),
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
@@ -319,8 +330,10 @@ class _AsyncMessagesWrapper(_WithTracer):
         if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
+        config = self._current_config()
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
+            config,
+            params=self._params(kwargs, config),
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
@@ -384,8 +397,10 @@ class _CountTokensWrapper(_WithTracer):
         if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        config = self._current_config()
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
+            config,
+            params=self._params(kwargs, config),
             attributes=dict(
                 chain(
                     _get_llm_provider(instance),
@@ -426,8 +441,10 @@ class _AsyncCountTokensWrapper(_WithTracer):
         if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
+        config = self._current_config()
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=self._get_attributes_from_request),
+            config,
+            params=self._params(kwargs, config),
             attributes=dict(
                 chain(
                     _get_llm_provider(instance),
@@ -567,8 +584,10 @@ class _MessagesStreamWrapper(_WithTracer):
         if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        params = _Params(kwargs, get_attributes=self._get_attributes_from_request)
+        config = self._current_config()
+        params = self._params(kwargs, config)
         with self._start_as_current_span(
+            config,
             params=params,
             attributes=dict(
                 chain(
@@ -611,8 +630,10 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
         if not self._active or context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        params = _Params(kwargs, get_attributes=self._get_attributes_from_request)
+        config = self._current_config()
+        params = self._params(kwargs, config)
         with self._start_as_current_span(
+            config,
             params=params,
             attributes=dict(
                 chain(

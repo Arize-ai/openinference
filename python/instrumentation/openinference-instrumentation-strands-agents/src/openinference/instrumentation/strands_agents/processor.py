@@ -13,13 +13,14 @@ The processor transforms:
 
 import json
 import logging
+import threading
 from typing import Any, Dict, List, Optional
 
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import Span, Status, StatusCode
 
-from openinference.instrumentation import TraceConfig
+from openinference.instrumentation import TraceConfig, get_current_trace_config
 from openinference.instrumentation.strands_agents.semantic_conventions import (
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OUTPUT_MESSAGES,
@@ -122,16 +123,27 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         super().__init__()
         self.debug = debug
         self._config = config or TraceConfig()
+        # Configs resolved from an active using_trace_config at span start, by span id.
+        # Only spans started under an override get an entry.
+        self._span_configs: Dict[int, TraceConfig] = {}
+        self._span_configs_lock = threading.Lock()
 
     def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
-        """Called when a span is started."""
-        pass
+        """Called when a span is started; captures any using_trace_config override."""
+        config = get_current_trace_config(self._config)
+        if config is not self._config:
+            with self._span_configs_lock:
+                self._span_configs[span.get_span_context().span_id] = config
 
     def on_end(self, span: ReadableSpan) -> None:
         """
         Called when a span ends. Transform the span attributes from Strands format
         to OpenInference format.
         """
+        config = self._config
+        if (span_context := span.get_span_context()) is not None:
+            with self._span_configs_lock:
+                config = self._span_configs.pop(span_context.span_id, config)
         if not self._is_strands_span(span):
             return
 
@@ -149,8 +161,8 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
 
             # Combine the original attributes with the OpenInference attributes.
             span._attributes = {
-                **self._without_hidden_content(original_attrs),
-                **self._mask_attributes(transformed_attrs),
+                **self._without_hidden_content(config, original_attrs),
+                **self._mask_attributes(config, transformed_attrs),
             }
             if not span.status.status_code == StatusCode.ERROR:
                 span._status = Status(status_code=StatusCode.OK)
@@ -171,32 +183,32 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
 
         except Exception as e:
             logger.error(f"Failed to transform span '{span.name}': {e}", exc_info=True)
-            span._attributes = self._without_hidden_content(original_attrs)
-            self._strip_hidden_events(span)
+            span._attributes = self._without_hidden_content(config, original_attrs)
+            self._strip_hidden_events(config, span)
 
-    def _mask_attributes(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+    def _mask_attributes(self, config: TraceConfig, attrs: Dict[str, Any]) -> Dict[str, Any]:
         """Apply the TraceConfig to OpenInference attributes; hidden ones are dropped."""
         masked: Dict[str, Any] = {}
         for key, value in attrs.items():
-            if key == SpanAttributes.TOOL_PARAMETERS and self._config.hide_inputs:
+            if key == SpanAttributes.TOOL_PARAMETERS and config.hide_inputs:
                 # This processor puts the call's argument values in tool.parameters.
                 continue
-            masked_value = self._config.mask(key, value)
+            masked_value = config.mask(key, value)
             if masked_value is not None:
                 masked[key] = masked_value
         return masked
 
-    def _hidden_sides(self) -> tuple[bool, bool]:
+    @staticmethod
+    def _hidden_sides(config: TraceConfig) -> tuple[bool, bool]:
         """Whether the TraceConfig hides any of the input content, and any of the output."""
-        config = self._config
         return (
             bool(config.hide_inputs or config.hide_input_messages or config.hide_input_text),
             bool(config.hide_outputs or config.hide_output_messages or config.hide_output_text),
         )
 
-    def _without_hidden_content(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+    def _without_hidden_content(self, config: TraceConfig, attrs: Dict[str, Any]) -> Dict[str, Any]:
         """Drop the raw Strands content attributes that the TraceConfig hides."""
-        hide_input, hide_output = self._hidden_sides()
+        hide_input, hide_output = self._hidden_sides(config)
         hidden: frozenset[str] = frozenset()
         if hide_input:
             hidden |= _RAW_INPUT_CONTENT
@@ -204,12 +216,12 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
             hidden |= _RAW_OUTPUT_CONTENT
         return {key: value for key, value in attrs.items() if key not in hidden}
 
-    def _strip_hidden_events(self, span: ReadableSpan) -> None:
+    def _strip_hidden_events(self, config: TraceConfig, span: ReadableSpan) -> None:
         """Drop the gen_ai.* events whose content the TraceConfig hides.
 
         Used when the conversion fails, because the events are then exported as they are.
         """
-        hide_input, hide_output = self._hidden_sides()
+        hide_input, hide_output = self._hidden_sides(config)
         if not (hide_input or hide_output) or not getattr(span, "_events", None):
             return
 

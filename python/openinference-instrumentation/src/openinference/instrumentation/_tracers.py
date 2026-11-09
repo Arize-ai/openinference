@@ -59,9 +59,10 @@ from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
 from .config import (
     TraceConfig,
+    get_current_trace_config,
     mask_without_externalization,
 )
-from .context_attributes import get_attributes_from_context, get_trace_config_from_context
+from .context_attributes import get_attributes_from_context
 
 if TYPE_CHECKING:
     from ._types import OpenInferenceSpanKind
@@ -155,7 +156,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
     ) -> OpenInferenceSpan:
         otel_span: Span
         # Resolve once at span start; the span keeps this config until it ends.
-        config = get_trace_config_from_context() or self._self_config
+        config = get_current_trace_config(self._self_config)
         # Apply masking to attributes before passing to sampler to ensure
         # samplers don't see sensitive data that should be masked
         user_attributes = dict(attributes) if attributes else {}

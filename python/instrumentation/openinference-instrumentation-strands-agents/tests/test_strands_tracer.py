@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from strands.telemetry.tracer import Tracer
 
-from openinference.instrumentation import TraceConfig
+from openinference.instrumentation import TraceConfig, using_trace_config
 from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.strands_agents import StrandsAgentsToOpenInferenceProcessor
 from openinference.semconv.trace import SpanAttributes
@@ -212,6 +212,50 @@ def test_hide_inputs_removes_the_system_prompt_everywhere(
     assert attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert SYSTEM_PROMPT not in json.dumps(attributes, default=str)
     assert "Hello" not in json.dumps(attributes, default=str)
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_using_trace_config_at_span_start_hides_content(
+    mode: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """An override active when a span starts masks it, even though the processor's own
+    config hides nothing and the span ends after the block exits."""
+    harness = make_harness(monkeypatch, tracer_provider, in_memory_span_exporter, mode)
+    with using_trace_config(hide_inputs=True, hide_outputs=True):
+        span = harness.tracer.start_model_invoke_span(
+            USER_MESSAGES, model_id="gpt-4", system_prompt=SYSTEM_PROMPT
+        )
+    harness.tracer.end_model_invoke_span(span, ASSISTANT_MESSAGE, USAGE, METRICS, "end_turn")
+
+    attributes = dict(harness.only_span().attributes or {})
+    assert not CONTENT_KEYS & set(attributes)
+    assert not [k for k in attributes if k.startswith(SpanAttributes.LLM_INPUT_MESSAGES)]
+    assert not [k for k in attributes if k.startswith(SpanAttributes.LLM_OUTPUT_MESSAGES)]
+    assert attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    serialized = json.dumps(attributes, default=str)
+    for secret in (SYSTEM_PROMPT, "Hello", "Hi there."):
+        assert secret not in serialized
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_span_started_outside_using_trace_config_is_not_masked(
+    mode: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    harness = make_harness(monkeypatch, tracer_provider, in_memory_span_exporter, mode)
+    span = harness.tracer.start_model_invoke_span(USER_MESSAGES, model_id="gpt-4")
+    with using_trace_config(hide_inputs=True, hide_outputs=True):
+        harness.tracer.end_model_invoke_span(span, ASSISTANT_MESSAGE, USAGE, METRICS, "end_turn")
+
+    attributes = dict(harness.only_span().attributes or {})
+    assert attributes[SpanAttributes.INPUT_VALUE] != REDACTED_VALUE
+    assert "Hello" in json.dumps(attributes, default=str)
 
 
 @pytest.mark.parametrize("mode", MODES)

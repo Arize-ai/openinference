@@ -28,6 +28,7 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
     get_attributes_from_context,
+    get_current_trace_config,
     safe_json_dumps,
 )
 from openinference.instrumentation.google_genai._image_utils import (
@@ -1186,9 +1187,14 @@ class _TracedConnect(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         finally:
             _resolved_connect_config.reset(token)
         try:
+            # Resolved in the same context as parent_context, which the session's spans
+            # are started under, so both masking layers see the same override.
+            trace_config = self._self_trace_config
+            if trace_config is not None:
+                trace_config = get_current_trace_config(trace_config)
             _sessions[session] = _LiveSessionTracer(
                 tracer=self._self_tracer,
-                trace_config=self._self_trace_config,
+                trace_config=trace_config,
                 model=self._self_model,
                 config=resolved[0] if resolved else self._self_config,
                 parent_context=context_api.get_current(),

@@ -7,7 +7,7 @@ import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
 
-from openinference.instrumentation import REDACTED_VALUE, TraceConfig
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_trace_config
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import SpanAttributes
 
@@ -213,3 +213,38 @@ class TestInputValueImageHiding:
         image_content = next((c for c in message_content if c.get("type") == "image_url"), None)
         assert image_content is not None
         assert image_content["image_url"]["url"] == REDACTED_VALUE
+
+
+@pytest.mark.vcr
+@pytest.mark.default_cassette("TestInputValueImageHiding.test_input_value_hides_base64_images.yaml")
+def test_using_trace_config_hides_base64_images_in_input_value(
+    custom_instrumentation: Callable[[TraceConfig], None],
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """A scoped override reaches the request redaction, not just the per-key masking."""
+    custom_instrumentation(TraceConfig())
+    base64_image = (
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+        "AAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    )
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", "sk-fake-test-key-for-unit-tests"))
+    with using_trace_config(hide_input_images=True):
+        client.chat.completions.create(
+            extra_headers={"Accept-Encoding": "gzip"},
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "What's in this image?"},
+                        {"type": "image_url", "image_url": {"url": base64_image}},
+                    ],
+                }
+            ],
+        )
+    attributes = dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+    assert "iVBORw0KGgo" not in json.dumps(attributes)
+    input_data = json.loads(str(attributes[SpanAttributes.INPUT_VALUE]))
+    content = input_data["messages"][0]["content"]
+    assert content[0]["text"] == "What's in this image?"
+    assert content[1]["image_url"]["url"] == REDACTED_VALUE

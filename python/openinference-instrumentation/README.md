@@ -169,28 +169,30 @@ tracer_provider = ...
 OpenAIInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
 ```
 
-When `enable_genai_semconv=True`, the `hide_*` settings also apply to the content-bearing `gen_ai.*` attributes (`gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.system_instructions`, `gen_ai.tool.definitions`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`, `gen_ai.retrieval.query.text`, `gen_ai.retrieval.documents`).
-
 ### Overriding the configuration for a scope
 
-`using_trace_config` overrides the instrumentor's `TraceConfig` for spans started within its scope. It works as a context manager or a decorator, for sync and async code. The override replaces the instrumentor's config entirely (fields are not merged), and it is resolved when a span starts, so spans that finish after the block exits (e.g. streamed responses) still use it.
+`using_trace_config` overrides `TraceConfig` fields for spans started within its scope, for example to hide content for some requests only. It works as a context manager or a decorator, for sync and async code. Only the fields you pass change; all other fields keep the instrumentor's value. Nested blocks merge on top of the enclosing block.
 
 ```python
-from openinference.instrumentation import TraceConfig, using_trace_config
+from openinference.instrumentation import using_trace_config
 
-with using_trace_config(TraceConfig(hide_inputs=True, hide_outputs=True)):
+with using_trace_config(hide_inputs=True, hide_outputs=True):
     client.chat.completions.create(...)
 
-@using_trace_config(TraceConfig(hide_inputs=True))
+@using_trace_config(hide_inputs=True)
 async def handle_sensitive_request(...):
     ...
 ```
 
-Each field of a span's config is resolved in this order, highest priority first:
+The config is resolved when a span starts and applies to everything recorded on that span, so streamed responses that finish after the block exits are still covered.
 
-1. `TraceConfig` passed to the innermost active `using_trace_config`, if any
-2. `TraceConfig` passed to the instrumentor (`instrument(config=...)`), if no override is active
-3. `OPENINFERENCE_*` environment variable
-4. Built-in default
+The override is stored in the OpenTelemetry context. Threads started inside the block, such as `ThreadPoolExecutor` workers, don't inherit it, and spans created there use the instrumentor's config. Propagate the context explicitly when you need the override there:
 
-Because the override replaces the instrumentor's config, a field not set in the override falls back to steps 3 and 4, not to the instrumentor's value. Environment variables are read when the `TraceConfig` is constructed.
+```python
+import contextvars
+
+with using_trace_config(hide_inputs=True):
+    executor.submit(contextvars.copy_context().run, call_llm, prompt)
+```
+
+Instrumentation authors: call `get_current_trace_config(config)` when a span starts and use the result for every content decision on that span, instead of the config passed to `instrument()`.

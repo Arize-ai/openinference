@@ -66,17 +66,17 @@ from ._types import (
 from .config import (
     REDACTED_VALUE,
     TraceConfig,
+    get_current_trace_config,
     suppress_tracing,
+    using_trace_config,
 )
 from .context_attributes import (
     get_attributes_from_context,
-    get_trace_config_from_context,
     using_attributes,
     using_metadata,
     using_prompt_template,
     using_session,
     using_tags,
-    using_trace_config,
     using_user,
 )
 from .helpers import safe_json_dumps
@@ -89,7 +89,7 @@ __path__ = __import__("pkgutil").extend_path(__path__, __name__)
 __all__ = [
     "capture_span_context",
     "get_attributes_from_context",
-    "get_trace_config_from_context",
+    "get_current_trace_config",
     "using_attributes",
     "using_metadata",
     "using_prompt_template",
