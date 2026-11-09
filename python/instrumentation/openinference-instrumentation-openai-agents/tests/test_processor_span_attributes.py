@@ -1285,6 +1285,14 @@ def test_missing_group_id_attr_no_crash() -> None:
     assert "session.id" not in _attrs(_root_span(exporter))
 
 
+def test_using_session_overrides_group_id() -> None:
+    """using_session() context takes precedence over group_id on root span."""
+    processor, exporter = _make_processor()
+    with using_session("ctx-sess"):
+        _run(processor, _FakeTraceWithGroupId("g1"), [])
+    assert _attrs(_root_span(exporter))["session.id"] == "ctx-sess"
+
+
 def test_group_id_sdk_integration() -> None:
     """Real agents.trace(group_id=...) → session.id on root span, no extra attributes."""
     import agents
