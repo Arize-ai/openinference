@@ -1297,14 +1297,17 @@ def test_group_id_sdk_integration() -> None:
     """Real agents.trace(group_id=...) → session.id on root span, no extra attributes."""
     import agents
     from agents import set_trace_processors
+    from agents.tracing import get_trace_provider
 
     processor, exporter = _make_processor()
+    # Restore whatever was registered before, rather than leaving the global list empty.
+    saved = list(get_trace_provider()._multi_processor._processors)  # type: ignore[attr-defined]
     set_trace_processors([processor])
     try:
         with agents.trace("wf", group_id="conv-1"):
             pass
     finally:
-        set_trace_processors([])
+        set_trace_processors(saved)
 
     attrs = _attrs(_root_span(exporter))
     assert attrs.pop("openinference.span.kind") == "AGENT"

@@ -84,7 +84,7 @@ python your_file.py
 
 ## Session tracking
 
-`trace(group_id=...)` and `RunConfig(group_id=...)` are recorded as `session.id` on the root span of that trace, so multiple runs in the same conversation correlate in Phoenix. The value is stamped on the root span only; child spans do not inherit it unless you also wrap the call in `using_session(...)`.
+`trace(group_id=...)` and `RunConfig(group_id=...)` are recorded as `session.id` on the root span of that trace, so multiple runs in the same conversation correlate in Phoenix. `RunConfig.group_id` only applies when the run starts its own trace; inside an enclosing `trace(...)`, the SDK ignores it and the enclosing trace's `group_id` is used. The value is stamped on the root span only; child spans do not inherit it unless you also wrap the call in `using_session(...)`.
 
 `using_session("…")` takes precedence over `group_id`: when both are set, the context value wins.
 

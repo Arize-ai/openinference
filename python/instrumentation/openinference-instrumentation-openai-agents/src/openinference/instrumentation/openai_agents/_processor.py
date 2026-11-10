@@ -53,7 +53,7 @@ from openai.types.responses.response_input_item_param import (
     Message,
 )
 from openai.types.responses.response_output_message_param import Content
-from opentelemetry.context import attach, detach
+from opentelemetry.context import attach, detach, get_value
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import (
     Status,
@@ -182,9 +182,10 @@ class OpenInferenceTracingProcessor(TracingProcessor):
             }
             # The SDK's Trace.group_id carries the conversation/thread grouping
             # (e.g. set via trace(group_id=...)). Map it to session.id so multiple
-            # traces in one conversation correlate.
+            # traces in one conversation correlate. A using_session() value wins; skip
+            # group_id then so the sampler sees the same session.id the span exports.
             group_id = getattr(trace, "group_id", None)
-            if group_id:
+            if group_id and get_value(SESSION_ID) is None:
                 attributes[SESSION_ID] = str(group_id)
             otel_span = self._tracer.start_span(
                 name=trace.name,
