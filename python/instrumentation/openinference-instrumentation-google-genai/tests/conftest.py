@@ -9,6 +9,14 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 
+# google-genai >= 3.0 defaults the Gemini Developer API to `v1` (cassettes and respx
+# routes were recorded against `v1beta`) and sends requests through `httpx2`, which
+# respx does not mock. Pin both back so tests replay on old and new SDK versions.
+# Both variables are read at `genai.Client` construction and ignored by older SDKs;
+# "beta" maps to `v1beta` (Gemini) or `v1beta1` (Vertex AI), the pre-3.0 defaults.
+os.environ.setdefault("GOOGLE_GENAI_API_VERSION", "beta")
+os.environ.setdefault("GOOGLE_GENAI_HTTP_CLIENT", "httpx")
+
 
 @pytest.fixture
 def in_memory_span_exporter() -> InMemorySpanExporter:
