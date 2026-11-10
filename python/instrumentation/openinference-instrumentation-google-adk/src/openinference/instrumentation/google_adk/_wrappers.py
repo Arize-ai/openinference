@@ -5,6 +5,7 @@ import logging
 import threading
 import weakref
 from abc import ABC
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import (
     Any,
@@ -19,6 +20,7 @@ from typing import (
     OrderedDict,
     TypedDict,
     TypeVar,
+    cast,
 )
 
 import wrapt
@@ -34,7 +36,7 @@ from google.genai.types import Blob
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, Context
-from opentelemetry.trace import StatusCode, get_current_span
+from opentelemetry.trace import Span, StatusCode, get_current_span
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import NotRequired, ParamSpec
 
@@ -350,6 +352,33 @@ def _get_node_io_value_and_mime_type(value: Any) -> tuple[str, OpenInferenceMime
     return json.dumps(value, default=_default, ensure_ascii=False), OpenInferenceMimeTypeValues.JSON
 
 
+class _CallLlmSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """`call_llm` span that `_TraceCallLlm` ends at the model's final response.
+
+    ADK ends it only after the caller has handled that response (e.g. run the requested
+    tools), so ADK's later `end()` must be a no-op.
+    """
+
+    def __init__(self, wrapped: trace_api.Span) -> None:
+        super().__init__(wrapped)
+        self._self_ended = False
+
+    def end(self, end_time: Optional[int] = None) -> None:
+        if not self._self_ended:
+            self._self_ended = True
+            self.__wrapped__.end(end_time)
+
+
+class _CallLlmTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """Opens the `call_llm` span of google-adk < 2.13 as a `_CallLlmSpan`."""
+
+    @contextmanager
+    def start_as_current_span(self, name: str, *args: Any, **kwargs: Any) -> Iterator[Span]:
+        span = cast(Span, _CallLlmSpan(self.__wrapped__.start_span(name, *args, **kwargs)))
+        with trace_api.use_span(span, end_on_exit=True) as current_span:
+            yield current_span
+
+
 class _TraceCallLlm(_WithTracer):
     """Traces ADK's ``trace_call_llm``, which runs once per streamed chunk.
 
@@ -454,6 +483,11 @@ class _TraceCallLlm(_WithTracer):
                 # This is the final chunk for this LLM turn, so no further
                 # trace_call_llm calls will land on this span.
                 span.set_status(StatusCode.OK)
+            if isinstance(span, _CallLlmSpan) and llm_response.finish_reason not in (
+                None,
+                types.FinishReason.FINISH_REASON_UNSPECIFIED,
+            ):
+                span.end()
         return ans
 
     @classmethod

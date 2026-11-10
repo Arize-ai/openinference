@@ -472,6 +472,66 @@ async def test_call_llm_span_ends_error_on_real_adk_stream_exception(
     assert call_llm_span.status.status_code == trace_api.StatusCode.ERROR
 
 
+class _ToolThenTextLlm(BaseLlm):
+    """A fake model that asks for `_noop_tool` once, then answers with text."""
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        if llm_request.contents[-1].parts[0].function_response:  # type: ignore[index]
+            part = types.Part(text="done")
+        else:
+            part = types.Part(function_call=types.FunctionCall(name="_noop_tool", args={}))
+        yield LlmResponse(
+            content=types.Content(role="model", parts=[part]),
+            finish_reason=types.FinishReason.STOP,
+        )
+
+
+def _noop_tool() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+async def test_call_llm_span_ends_before_the_tool_it_requested_runs(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Reproduces issue #4247: ADK only ends `call_llm` once the caller has handled
+    the response, so the tool the model asked for ran inside the LLM span's duration."""
+    agent = Agent(
+        name=f"agent{token_hex(4)}",
+        model=_ToolThenTextLlm(model="fake-model"),
+        tools=[_noop_tool],
+    )
+    runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id=user_id, session_id=session_id
+    )
+
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(role="user", parts=[types.Part(text="hi")]),
+    ):
+        ...
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    first_call_llm_span, second_call_llm_span = sorted(
+        (s for s in spans if s.name == "call_llm"), key=lambda s: s.start_time or 0
+    )
+    [tool_span] = [s for s in spans if s.name == "execute_tool _noop_tool"]
+    assert first_call_llm_span.end_time is not None
+    assert tool_span.start_time is not None
+    assert first_call_llm_span.end_time <= tool_span.start_time
+    for span in (first_call_llm_span, second_call_llm_span):
+        assert span.attributes
+        assert span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "LLM"
+        assert span.status.status_code == trace_api.StatusCode.OK
+    assert "ended span" not in caplog.text
+
+
 async def test_adk_native_spans_do_not_leak_when_adk_tracer_exports(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,

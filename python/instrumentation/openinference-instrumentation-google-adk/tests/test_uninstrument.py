@@ -22,6 +22,7 @@ from openinference.instrumentation.google_adk import (
     _SelectiveExecuteToolTracer,
     _workflow_span_modules,
 )
+from openinference.instrumentation.google_adk._wrappers import _CallLlmTracer
 from openinference.semconv.trace import SpanAttributes
 
 
@@ -89,7 +90,8 @@ def test_instrumentation_patching() -> None:
 
     assert isinstance(runners.tracer, _PassthroughTracer)
     if llm_span_attr == "tracer":
-        assert isinstance(_model_call.tracer, OITracer)
+        assert isinstance(_model_call.tracer, _CallLlmTracer)
+        assert isinstance(_model_call.tracer.__wrapped__, OITracer)
     assert isinstance(tracing.tracer, _SelectiveExecuteToolTracer)
     assert original_merged_tracers
     for merged_module, _ in original_merged_tracers:
