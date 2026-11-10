@@ -216,7 +216,6 @@ class _RunWrapper:
 
         # Handle non-streaming (normal) run
         else:
-            has_error = False
             try:
                 # Set output value from the agent output
                 span.set_attribute(OUTPUT_VALUE, str(agent_output))
@@ -232,15 +231,12 @@ class _RunWrapper:
                 return agent_output
 
             except Exception as e:
-                has_error = True
                 span.record_exception(e)
                 span.set_status(trace_api.StatusCode.ERROR)
                 raise
 
             finally:
-                # See wrapped_generator: an ERROR set by the handler above must survive.
-                if not has_error:
-                    span.set_status(trace_api.StatusCode.OK)
+                span.set_status(trace_api.StatusCode.OK)
                 span.end()
                 context_api.detach(token)
 

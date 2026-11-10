@@ -897,6 +897,7 @@ final_answer("Test result from CodeAgent")
         # finally block that finalizes the span.
         assert any(event.name == "exception" for event in agent_span.events)
         assert agent_span.status.status_code == trace_api.StatusCode.ERROR
+        assert not trace_api.get_current_span().get_span_context().is_valid
 
     def test_multiagents(self) -> None:
         class FakeModelMultiagentsManagerAgent:
