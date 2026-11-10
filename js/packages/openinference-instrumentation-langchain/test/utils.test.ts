@@ -563,6 +563,28 @@ describe("formatLLMParams", () => {
     expect(result).toEqual(expectedParams);
   });
 
+  it("should use the 'ls_model_name' metadata if the invocation params have no model", () => {
+    const runExtra = {
+      invocation_params: { temperature: 0 },
+      metadata: { ls_model_name: "gemini-2.5-flash" },
+    };
+    const expectedParams = {
+      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(runExtra.invocation_params),
+      [SemanticConventions.LLM_MODEL_NAME]: "gemini-2.5-flash",
+    };
+    const result = safelyFormatLLMParams(runExtra);
+    expect(result).toEqual(expectedParams);
+  });
+
+  it("should prefer the invocation params' model over the 'ls_model_name' metadata", () => {
+    const runExtra = {
+      invocation_params: { model: "test" },
+      metadata: { ls_model_name: "other" },
+    };
+    const result = safelyFormatLLMParams(runExtra);
+    expect(result?.[SemanticConventions.LLM_MODEL_NAME]).toBe("test");
+  });
+
   it("should return null if invocation_params is missing", () => {
     const runExtra = {};
     const result = safelyFormatLLMParams(runExtra);

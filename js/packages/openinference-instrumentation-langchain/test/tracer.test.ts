@@ -4,6 +4,7 @@ import { RecursiveCharacterTextSplitter } from "@langchain/classic/text_splitter
 import { MemoryVectorStore } from "@langchain/classic/vectorstores/memory";
 import * as CallbackManager from "@langchain/core/callbacks/manager";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { FakeListChatModel } from "@langchain/core/utils/testing";
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import "dotenv/config";
 import { trace } from "@opentelemetry/api";
@@ -187,6 +188,25 @@ describe("LangChainInstrumentation", () => {
       [OUTPUT_MIME_TYPE]: "application/json",
     });
   });
+  it("should use the ls_model_name of chat models that leave the model out of their invocation params", async () => {
+    // Like @langchain/google's chat models, the fake chat model's invocation
+    // params have no model, so the model is only reported as `ls_model_name`.
+    class FakeChatModelWithLsModelName extends FakeListChatModel {
+      getLsParams(options: this["ParsedCallOptions"]) {
+        return { ...super.getLsParams(options), ls_model_name: "gemini-2.5-flash" };
+      }
+    }
+    const chatModel = new FakeChatModelWithLsModelName({ responses: ["This is a test."] });
+    await chatModel.invoke("hello, this is a test");
+
+    const spans = memoryExporter.getFinishedSpans();
+    const llmSpan = spans.find(
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+    expect(llmSpan).toBeDefined();
+    expect(llmSpan?.attributes[LLM_MODEL_NAME]).toBe("gemini-2.5-flash");
+  });
+
   const testDocuments = ["dogs are cute", "rainbows are colorful", "water is wet"];
 
   it("should properly nest spans", async () => {

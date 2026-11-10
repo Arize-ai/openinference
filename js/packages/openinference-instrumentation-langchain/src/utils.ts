@@ -484,6 +484,11 @@ function formatLLMParams(runExtra: Run["extra"]): LLMParameterAttributes | null 
     openInferenceParams[SemanticConventions.LLM_MODEL_NAME] = runExtra.invocation_params.model_name;
   } else if (isString(runExtra.invocation_params.model)) {
     openInferenceParams[SemanticConventions.LLM_MODEL_NAME] = runExtra.invocation_params.model;
+  } else if (isObject(runExtra.metadata) && isString(runExtra.metadata.ls_model_name)) {
+    // Some chat models, i.e. @langchain/google's, leave the model out of their
+    // invocation params but report it to LangChain as `ls_model_name`, which the
+    // Python instrumentation also reads.
+    openInferenceParams[SemanticConventions.LLM_MODEL_NAME] = runExtra.metadata.ls_model_name;
   }
 
   // add tool json schema if present in the invocation params
