@@ -85,6 +85,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_workflow_methods",
         "_original_step_methods",
         "_original_parallel_methods",
+        "_original_external_methods",
         "_tracer",
     )
 
@@ -126,6 +127,28 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         run_wrapper = _RunWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+
+        # External adapters were introduced after the minimum supported Agno version.
+        self._original_external_methods: dict[str, Any] = {}
+        try:
+            from agno.agents.base import BaseExternalAgent
+        except ImportError:
+            pass
+        else:
+            from openinference.instrumentation.agno._external import _ExternalRunWrapper
+
+            external_wrapper = _ExternalRunWrapper(
+                tracer=self._tracer,
+                capture_tools=kwargs.get("capture_external_tool_spans", True),
+            )
+            for name, wrapper in (
+                ("_arun_non_stream", external_wrapper.arun),
+                ("_arun_stream", external_wrapper.arun_stream),
+                ("_run_stream", external_wrapper.run_stream),
+            ):
+                if callable(original := getattr(BaseExternalAgent, name, None)):
+                    self._original_external_methods[name] = original
+                    wrap_function_wrapper(BaseExternalAgent, name, wrapper)
 
         # Wrap Agent module-level run functions
         self._original_run_method = getattr(agent_run_module, "_run", None)
@@ -465,6 +488,13 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_parallel_methods = None  # type: ignore[assignment]
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        if self._original_external_methods:
+            from agno.agents.base import BaseExternalAgent
+
+            for name, original in self._original_external_methods.items():
+                setattr(BaseExternalAgent, name, original)
+            self._original_external_methods.clear()
+
         from agno.agent import _run as agent_run_module
         from agno.team import _run as team_run_module
         from agno.tools.function import FunctionCall
