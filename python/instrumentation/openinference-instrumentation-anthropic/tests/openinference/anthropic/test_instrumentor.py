@@ -3774,6 +3774,7 @@ def test_get_llm_tools_omits_missing_name_and_description() -> None:
         {"type": "web_search_20250305", "name": "web_search"},
         {"name": "", "description": ""},
         "not a mapping",
+        {"name": "get_weather", "description": "Get the current weather"},
     ]
 
     attributes = dict(_get_llm_tools(tools))
@@ -3783,3 +3784,6 @@ def test_get_llm_tools_omits_missing_name_and_description() -> None:
     assert f"{LLM_TOOLS}.1.{TOOL_NAME}" not in attributes
     assert f"{LLM_TOOLS}.1.{TOOL_DESCRIPTION}" not in attributes
     assert f"{LLM_TOOLS}.2.{TOOL_JSON_SCHEMA}" in attributes
+    assert json.loads(attributes.pop(f"{LLM_TOOLS}.3.{TOOL_JSON_SCHEMA}")) == tools[3]
+    assert attributes.pop(f"{LLM_TOOLS}.3.{TOOL_NAME}") == "get_weather"
+    assert attributes.pop(f"{LLM_TOOLS}.3.{TOOL_DESCRIPTION}") == "Get the current weather"
