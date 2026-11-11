@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.24...python-openinference-instrumentation-crewai-v1.1.25) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
 ## [1.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.23...python-openinference-instrumentation-crewai-v1.1.24) (2026-11-11)
 
 
