@@ -104,6 +104,8 @@ const {
   DOCUMENT_METADATA,
   OPENINFERENCE_SPAN_KIND,
   LLM_MODEL_NAME,
+  LLM_PROVIDER,
+  LLM_SYSTEM,
   LLM_INVOCATION_PARAMETERS,
   LLM_FINISH_REASON,
   LLM_TOKEN_COUNT_COMPLETION,
@@ -493,6 +495,8 @@ describe("LangChainInstrumentation", () => {
     expect(attributes).toStrictEqual({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
       [LLM_MODEL_NAME]: "gpt-3.5-turbo",
+      [LLM_PROVIDER]: "openai",
+      [LLM_SYSTEM]: "openai",
       [LLM_FINISH_REASON]: "function_call",
       [LLM_FUNCTION_CALL]:
         '{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}',
@@ -629,6 +633,8 @@ describe("LangChainInstrumentation", () => {
         "llm.model_name": "gpt-3.5-turbo",
         "llm.output_messages.0.message.content": "This is a test.",
         "llm.output_messages.0.message.role": "assistant",
+        "llm.provider": "openai",
+        "llm.system": "openai",
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
         "llm.token_count.total": 17,

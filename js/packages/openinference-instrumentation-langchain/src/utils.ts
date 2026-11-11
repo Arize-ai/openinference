@@ -12,12 +12,20 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
+import {
+  getLLMProvider,
+  getLLMSystem,
+  getNonBlankString,
+  parseLangSmithParams,
+} from "./langSmithParams";
 import type {
   LLMMessage,
   LLMMessageFunctionCall,
   LLMMessagesAttributes,
   LLMMessageToolCalls,
   LLMParameterAttributes,
+  LLMProviderAttributes,
+  ModelNameAttributes,
   PromptTemplateAttributes,
   RetrievalDocument,
   TokenCountAttributes,
@@ -467,9 +475,9 @@ function formatRetrievalDocuments(run: Run) {
 }
 
 /**
- * Gets the model name from the langchain run extra data.
+ * Formats the invocation params and tool schemas from the langchain run extra data.
  * @param runExtra - The extra data from a langchain run
- * @returns The OpenInference attributes for the model name
+ * @returns The OpenInference attributes for the invocation params and tools
  */
 function formatLLMParams(runExtra: Run["extra"]): LLMParameterAttributes | null {
   if (!isObject(runExtra) || !isObject(runExtra.invocation_params)) {
@@ -479,17 +487,6 @@ function formatLLMParams(runExtra: Run["extra"]): LLMParameterAttributes | null 
 
   openInferenceParams[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
     safelyJSONStringify(runExtra.invocation_params) ?? undefined;
-
-  if (isString(runExtra.invocation_params.model_name)) {
-    openInferenceParams[SemanticConventions.LLM_MODEL_NAME] = runExtra.invocation_params.model_name;
-  } else if (isString(runExtra.invocation_params.model)) {
-    openInferenceParams[SemanticConventions.LLM_MODEL_NAME] = runExtra.invocation_params.model;
-  } else if (isObject(runExtra.metadata) && isString(runExtra.metadata.ls_model_name)) {
-    // Some chat models, i.e. @langchain/google's, leave the model out of their
-    // invocation params but report it to LangChain as `ls_model_name`, which the
-    // Python instrumentation also reads.
-    openInferenceParams[SemanticConventions.LLM_MODEL_NAME] = runExtra.metadata.ls_model_name;
-  }
 
   // add tool json schema if present in the invocation params
   const tools = runExtra.invocation_params.tools;
@@ -504,6 +501,61 @@ function formatLLMParams(runExtra: Run["extra"]): LLMParameterAttributes | null 
     });
   }
   return openInferenceParams;
+}
+
+/**
+ * Gets the first non-blank string among an object's `model_name` and `model` fields.
+ */
+function getModelNameFromObject(value: unknown): string | undefined {
+  if (!isObject(value)) {
+    return undefined;
+  }
+  return getNonBlankString(value.model_name) ?? getNonBlankString(value.model);
+}
+
+/**
+ * Formats the model name of a langchain run into OpenInference attributes.
+ *
+ * Matches the Python instrumentation's precedence: the model the response
+ * reports in `llmOutput` (e.g. `@langchain/anthropic`'s resolved model
+ * version), then the model the chat model reports to LangChain as
+ * `ls_model_name` (the only place `@langchain/google`'s chat models report it),
+ * then the model in the invocation params.
+ * @param run - The langchain run to extract the model name from
+ * @returns The OpenInference attributes for the model name
+ */
+function formatModelName(run: Run): ModelNameAttributes | null {
+  const runExtra = isObject(run.extra) ? run.extra : undefined;
+  const modelName =
+    getModelNameFromObject(isObject(run.outputs) ? run.outputs.llmOutput : undefined) ??
+    parseLangSmithParams(runExtra?.metadata).ls_model_name ??
+    getModelNameFromObject(runExtra?.invocation_params);
+  if (modelName == null) {
+    return null;
+  }
+  return { [SemanticConventions.LLM_MODEL_NAME]: modelName };
+}
+
+/**
+ * Formats the provider and system of a langchain run into OpenInference
+ * attributes, from the `ls_provider` that LangChain integrations report in the
+ * run's metadata.
+ * @param runExtra - The extra data from a langchain run
+ * @returns The OpenInference attributes for the provider and system
+ */
+function formatLLMProvider(runExtra: Run["extra"]): LLMProviderAttributes | null {
+  if (!isObject(runExtra)) {
+    return null;
+  }
+  const lsProvider = parseLangSmithParams(runExtra.metadata).ls_provider;
+  if (lsProvider == null) {
+    return null;
+  }
+  const system = getLLMSystem(lsProvider);
+  return {
+    [SemanticConventions.LLM_PROVIDER]: getLLMProvider(lsProvider),
+    ...(system != null && { [SemanticConventions.LLM_SYSTEM]: system }),
+  };
 }
 
 function getTemplateFromSerialized(serialized: Run["serialized"]) {
@@ -826,6 +878,14 @@ export const safelyFormatRetrievalDocuments = withSafety({
 export const safelyFormatLLMParams = withSafety({
   fn: formatLLMParams,
   onError: onError("Error formatting LLM params"),
+});
+export const safelyFormatModelName = withSafety({
+  fn: formatModelName,
+  onError: onError("Error formatting model name"),
+});
+export const safelyFormatLLMProvider = withSafety({
+  fn: formatLLMProvider,
+  onError: onError("Error formatting LLM provider"),
 });
 export const safelyFormatPromptTemplate = withSafety({
   fn: formatPromptTemplate,

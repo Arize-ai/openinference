@@ -1,7 +1,10 @@
+import type { Run } from "@langchain/core/tracers/base";
 import { diag } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  LLMProvider,
+  LLMSystem,
   MimeType,
   OpenInferenceSpanKind,
   RetrievalAttributePostfixes,
@@ -17,7 +20,9 @@ import {
   safelyFormatInputMessages,
   safelyFormatIO,
   safelyFormatLLMParams,
+  safelyFormatLLMProvider,
   safelyFormatMetadata,
+  safelyFormatModelName,
   safelyFormatOutputMessages,
   safelyFormatPromptTemplate,
   safelyFormatRetrievalDocuments,
@@ -520,7 +525,7 @@ describe("formatLLMParams", () => {
     expect(safelyFormatLLMParams([])).toBeNull();
   });
 
-  it("should return swallow errors stringifying invocation params, but still add model_name if possible", () => {
+  it("should swallow errors stringifying invocation params", () => {
     const diagMock = vi.spyOn(diag, "warn");
     const runExtra = getLangchainRun({
       extra: { invocation_params: { badKey: BigInt(1), model_name: "gpt-4" } },
@@ -528,7 +533,6 @@ describe("formatLLMParams", () => {
     const result = safelyFormatLLMParams(runExtra);
     expect(result).toStrictEqual({
       [SemanticConventions.LLM_INVOCATION_PARAMETERS]: undefined,
-      [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
     });
     expect(diagMock).toHaveBeenCalledWith(
       "OpenInference-LangChain: error processing langchain run, falling back to null. Error stringifying JSON. TypeError: Do not know how to serialize a BigInt",
@@ -543,52 +547,104 @@ describe("formatLLMParams", () => {
     };
     const expectedParams = {
       [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(runExtra.invocation_params),
-      [SemanticConventions.LLM_MODEL_NAME]: "test",
     };
     const result = safelyFormatLLMParams(runExtra);
     expect(result).toEqual(expectedParams);
-  });
-
-  it("should use 'model' if 'model_name' is not a string", () => {
-    const runExtra = {
-      invocation_params: {
-        model: "test",
-      },
-    };
-    const expectedParams = {
-      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(runExtra.invocation_params),
-      [SemanticConventions.LLM_MODEL_NAME]: "test",
-    };
-    const result = safelyFormatLLMParams(runExtra);
-    expect(result).toEqual(expectedParams);
-  });
-
-  it("should use the 'ls_model_name' metadata if the invocation params have no model", () => {
-    const runExtra = {
-      invocation_params: { temperature: 0 },
-      metadata: { ls_model_name: "gemini-2.5-flash" },
-    };
-    const expectedParams = {
-      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(runExtra.invocation_params),
-      [SemanticConventions.LLM_MODEL_NAME]: "gemini-2.5-flash",
-    };
-    const result = safelyFormatLLMParams(runExtra);
-    expect(result).toEqual(expectedParams);
-  });
-
-  it("should prefer the invocation params' model over the 'ls_model_name' metadata", () => {
-    const runExtra = {
-      invocation_params: { model: "test" },
-      metadata: { ls_model_name: "other" },
-    };
-    const result = safelyFormatLLMParams(runExtra);
-    expect(result?.[SemanticConventions.LLM_MODEL_NAME]).toBe("test");
   });
 
   it("should return null if invocation_params is missing", () => {
     const runExtra = {};
     const result = safelyFormatLLMParams(runExtra);
     expect(result).toBeNull();
+  });
+});
+
+describe("formatModelName", () => {
+  const getModelName = (run: Partial<Run>) =>
+    safelyFormatModelName(getLangchainRun(run))?.[SemanticConventions.LLM_MODEL_NAME];
+
+  it("should return null if no model name is reported", () => {
+    expect(safelyFormatModelName(getLangchainRun({ extra: {} }))).toBeNull();
+    expect(safelyFormatModelName(getLangchainRun({ extra: undefined }))).toBeNull();
+  });
+
+  it("should use the invocation params' 'model_name', then 'model'", () => {
+    expect(getModelName({ extra: { invocation_params: { model_name: "a", model: "b" } } })).toBe(
+      "a",
+    );
+    expect(getModelName({ extra: { invocation_params: { model: "b" } } })).toBe("b");
+  });
+
+  it("should prefer the 'ls_model_name' metadata over the invocation params, like Python", () => {
+    expect(
+      getModelName({
+        extra: {
+          invocation_params: { model: "deployment" },
+          metadata: { ls_model_name: "gpt-4o" },
+        },
+      }),
+    ).toBe("gpt-4o");
+  });
+
+  it("should use the 'ls_model_name' metadata without invocation params", () => {
+    expect(getModelName({ extra: { metadata: { ls_model_name: "gemini-2.5-flash" } } })).toBe(
+      "gemini-2.5-flash",
+    );
+  });
+
+  it("should prefer the model reported in llmOutput over everything else, like Python", () => {
+    expect(
+      getModelName({
+        outputs: { generations: [], llmOutput: { model: "claude-sonnet-4-5-20250929" } },
+        extra: {
+          invocation_params: { model: "claude-sonnet-4-5" },
+          metadata: { ls_model_name: "claude-sonnet-4-5" },
+        },
+      }),
+    ).toBe("claude-sonnet-4-5-20250929");
+  });
+
+  it("should skip blank and non-string model names", () => {
+    expect(
+      getModelName({
+        outputs: { llmOutput: { model_name: " ", model: 1 } },
+        extra: { invocation_params: { model: "test" }, metadata: { ls_model_name: "" } },
+      }),
+    ).toBe("test");
+    expect(getModelName({ extra: { metadata: { ls_model_name: " " } } })).toBeUndefined();
+  });
+
+  it("should trim model names", () => {
+    expect(getModelName({ extra: { metadata: { ls_model_name: " gpt-4o " } } })).toBe("gpt-4o");
+  });
+});
+
+describe("formatLLMProvider", () => {
+  it("should return null without an 'ls_provider'", () => {
+    expect(safelyFormatLLMProvider(undefined)).toBeNull();
+    expect(safelyFormatLLMProvider({ metadata: {} })).toBeNull();
+    expect(safelyFormatLLMProvider({ metadata: { ls_provider: 1 } })).toBeNull();
+    expect(safelyFormatLLMProvider({ metadata: { ls_provider: " " } })).toBeNull();
+  });
+
+  it.each([
+    ["openai", LLMProvider.OPENAI, LLMSystem.OPENAI],
+    ["azure", LLMProvider.AZURE, LLMSystem.OPENAI],
+    ["anthropic", LLMProvider.ANTHROPIC, LLMSystem.ANTHROPIC],
+    ["google_genai", LLMProvider.GOOGLE, LLMSystem.VERTEXAI],
+    ["google_vertexai", LLMProvider.GOOGLE, LLMSystem.VERTEXAI],
+    ["mistral", LLMProvider.MISTRALAI, LLMSystem.MISTRALAI],
+    ["groq", LLMProvider.GROQ, LLMSystem.OPENAI],
+    ["amazon_bedrock", LLMProvider.AWS, undefined],
+    ["xai", LLMProvider.XAI, undefined],
+    ["watsonx", "ibm", undefined],
+    ["OpenAI", LLMProvider.OPENAI, LLMSystem.OPENAI],
+    ["SomeNewProvider", "somenewprovider", undefined],
+  ])("should map the 'ls_provider' %s", (lsProvider, provider, system) => {
+    expect(safelyFormatLLMProvider({ metadata: { ls_provider: lsProvider } })).toStrictEqual({
+      [SemanticConventions.LLM_PROVIDER]: provider,
+      ...(system != null && { [SemanticConventions.LLM_SYSTEM]: system }),
+    });
   });
 });
 
