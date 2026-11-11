@@ -79,6 +79,7 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.ZAI: "zai",
             OpenInferenceLLMProviderValues.MINIMAX: "minimax",
             OpenInferenceLLMProviderValues.ORACLE: "oracle",
+            OpenInferenceLLMProviderValues.IBM: "ibm",
             OpenInferenceLLMProviderValues.TYPESAFE: "typesafe",
         }
 
