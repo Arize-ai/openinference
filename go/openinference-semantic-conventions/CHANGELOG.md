@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.12...go/openinference-semantic-conventions/v0.1.13) (2026-11-11)
+
+
+### Features
+
+* **langchain:** read LangSmith params for model name, provider and system ([#4274](https://github.com/Arize-ai/openinference/issues/4274)) ([10bb8cc](https://github.com/Arize-ai/openinference/commit/10bb8ccd5a12af36484246ec9095c749926c1780))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.11...go/openinference-semantic-conventions/v0.1.12) (2026-10-23)
 
 

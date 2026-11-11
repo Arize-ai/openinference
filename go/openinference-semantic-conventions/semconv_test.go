@@ -223,6 +223,7 @@ func TestEnumValues(t *testing.T) {
 		{LLMProviderZAI, "zai"},
 		{LLMProviderMiniMax, "minimax"},
 		{LLMProviderOracle, "oracle"},
+		{LLMProviderIBM, "ibm"},
 		{LLMProviderTypeSafe, "typesafe"},
 
 		{DecisionSystemTypeSafe, "typesafe"},
