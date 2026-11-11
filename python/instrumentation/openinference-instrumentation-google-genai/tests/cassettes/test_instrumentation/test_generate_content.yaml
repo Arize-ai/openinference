@@ -2,28 +2,29 @@ interactions:
 - request:
     body: '{"contents": [{"parts": [{"text": "What''s the weather like?"}], "role":
       "user"}, {"parts": [{"functionCall": {"id": "call_abc123", "args": {"location":
-      "San Francisco"}, "name": "get_weather"}}], "role": "model"}, {"parts": [{"functionResponse":
-      {"id": "call_abc123", "name": "get_weather", "response": {"location": "San Francisco",
-      "temperature": 65, "unit": "fahrenheit", "condition": "foggy", "humidity": "85%"}}}],
-      "role": "user"}], "systemInstruction": {"parts": [{"text": "You are a helpful
-      assistant that can answer questions and help with tasks."}], "role": "user"},
-      "generationConfig": {}}'
+      "San Francisco"}, "name": "get_weather"}, "thoughtSignature": "c2tpcF90aG91Z2h0X3NpZ25hdHVyZV92YWxpZGF0b3I="}],
+      "role": "model"}, {"parts": [{"functionResponse": {"id": "call_abc123", "name":
+      "get_weather", "response": {"location": "San Francisco", "temperature": 65,
+      "unit": "fahrenheit", "condition": "foggy", "humidity": "85%"}}}], "role": "user"}],
+      "systemInstruction": {"parts": [{"text": "You are a helpful assistant that can
+      answer questions and help with tasks."}], "role": "user"}, "generationConfig":
+      {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
-        [\n          {\n            \"text\": \"The weather in San Francisco is foggy
-        with a temperature of 65 degrees Fahrenheit and 85% humidity.\"\n          }\n
-        \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
-        \"STOP\",\n      \"avgLogprobs\": -0.01104337365730949\n    }\n  ],\n  \"usageMetadata\":
-        {\n    \"promptTokenCount\": 45,\n    \"candidatesTokenCount\": 23,\n    \"totalTokenCount\":
-        68,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
-        \       \"tokenCount\": 45\n      }\n    ],\n    \"candidatesTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 23\n
-        \     }\n    ],\n    \"serviceTier\": \"standard\"\n  },\n  \"modelVersion\":
-        \"gemini-2.0-flash\",\n  \"responseId\": \"hNcEarPuMNa3qtsP7MHt4As\"\n}\n"
+        [\n          {\n            \"text\": \"The weather in San Francisco is currently
+        **foggy** with a temperature of **65\xB0F** (18\xB0C) and a humidity level
+        of **85%**. \\n\\nIf you were looking for the weather in a different location,
+        please let me know!\",\n            \"thoughtSignature\": \"Ep0DCpoDAWkUfRP+b8Ao8cTLqUDNwLY6zhOy+Kq8foeQmamjXzVOLFyBxu/NkP5u/rAH5RzutkLtc8rR+pY7gKC71irQkYcblDSguGQkAnHuKSg4BFwKIDKOBOrh2XjHZVEY7XnQwkHhx99P4X5n1TJmB+pbm/SNZGNiVP8m9GLjB+AQ8KTG4LiedQuHc1lDYQT69XjJgNFFYrleiGckQPz6NFP2WRhR8b0nHbcJ+b3JBgDvBWiR6b3mp2E3ht8Ukk2Ee7LQW+zldwLpYFy2ln4uf3ic6itjLcFpEc1iLcDzLBc5SZk4DV/zwg2/r/BGv/f3YJiGoc5YwJgEfyCdunHgzlFw5i7vXbrLdZnSPLY0+v1gWNxW6HjnIn/V/bmwZjK2N00NByyUZH4LkfTAwib+SA02dEHBmVdFlpPYWq/leRAcBvggAcMpvr8fWF+bi72PFW6YdghmWV7YQIsQMduYK3E0zCpdwXCYyToomlNLm2MKb/n1iX8XRIxGayUzWmRiHgBI/euht0VZlADEI7dvcfg1Y9flNvKU8d0n/8w=\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        82,\n    \"candidatesTokenCount\": 56,\n    \"totalTokenCount\": 200,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 82\n
+        \     }\n    ],\n    \"thoughtsTokenCount\": 62,\n    \"serviceTier\": \"standard\"\n
+        \ },\n  \"modelVersion\": \"gemini-3.6-flash\",\n  \"responseId\": \"yvr0atD7AcjJ-sAPxartmAI\"\n}\n"
     headers: {}
     status:
       code: 200

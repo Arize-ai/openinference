@@ -2,40 +2,50 @@ interactions:
 - request:
     body: '{"contents": [{"parts": [{"text": "Describe Image."}, {"inlineData": {"data":
       "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD-wSzIAAAABlBMVEX___-_v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII=",
-      "mimeType": "image/png"}}], "role": "user"}], "systemInstruction": {"parts":
+      "mime_type": "image/png"}}], "role": "user"}], "systemInstruction": {"parts":
       [{"text": "You are a helpful assistant that can answer questions and help with
       tasks."}], "role": "user"}, "generationConfig": {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:streamGenerateContent?alt=sse
   response:
     body:
-      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"The
-        image shows a simple, blurry checkerboard pattern made of two colors: white
-        and a medium gray.\\n\\nSpecifically, it's a 2x2 grid where:\\n*   \"}],\"role\":
-        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 277,\"candidatesTokenCount\":
-        37,\"totalTokenCount\": 884,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        19},{\"modality\": \"IMAGE\",\"tokenCount\": 258}],\"thoughtsTokenCount\":
-        570,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
-        \"StkEarfIJY6_qtsP9tjeuQs\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
-        {\"parts\": [{\"text\": \"The top-left square is gray.\\n*   The top-right
-        square is white.\\n*   The bottom-left square is white.\\n*   The bottom-right
-        square is gray.\\n\\nThe entire image is significantly out\"}],\"role\": \"model\"},\"index\":
-        0}],\"usageMetadata\": {\"promptTokenCount\": 277,\"candidatesTokenCount\":
-        85,\"totalTokenCount\": 932,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        19},{\"modality\": \"IMAGE\",\"tokenCount\": 258}],\"thoughtsTokenCount\":
-        570,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
-        \"StkEarfIJY6_qtsP9tjeuQs\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
-        {\"parts\": [{\"text\": \" of focus, causing the edges of the squares to be
-        soft and indistinct, rather than sharp lines. It's an abstract pattern, devoid
-        of specific objects or discernible details beyond the color blocks.\"}],\"role\":
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"This
+        image features a blurred 2x2 grid pattern,\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 1108,\"candidatesTokenCount\":
+        12,\"totalTokenCount\": 1360,\"promptTokensDetails\": [{\"modality\": \"IMAGE\",\"tokenCount\":
+        1089},{\"modality\": \"TEXT\",\"tokenCount\": 19}],\"thoughtsTokenCount\":
+        240,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\":
+        \"zvr0avDcCrmo9MoP-MCj8Aw\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" similar to a simplified checkerboard:\\n\\n* **Top-Left
+        & Bottom-Right Quadrants:** Muted, light grey squares\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 1108,\"candidatesTokenCount\":
+        38,\"totalTokenCount\": 1386,\"promptTokensDetails\": [{\"modality\": \"IMAGE\",\"tokenCount\":
+        1089},{\"modality\": \"TEXT\",\"tokenCount\": 19}],\"thoughtsTokenCount\":
+        240,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\":
+        \"zvr0avDcCrmo9MoP-MCj8Aw\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \".\\n* **Top-Right & Bottom-Left Quadrants:** Bright,
+        solid white squares.\\n\\nThe borders between the four\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 1108,\"candidatesTokenCount\":
+        64,\"totalTokenCount\": 1412,\"promptTokensDetails\": [{\"modality\": \"IMAGE\",\"tokenCount\":
+        1089},{\"modality\": \"TEXT\",\"tokenCount\": 19}],\"thoughtsTokenCount\":
+        240,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\":
+        \"zvr0avDcCrmo9MoP-MCj8Aw\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" sections are soft and out of focus, creating a
+        smooth gradient blur where the colors meet in the center.\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 1108,\"candidatesTokenCount\":
+        85,\"totalTokenCount\": 1433,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        19},{\"modality\": \"IMAGE\",\"tokenCount\": 1089}],\"thoughtsTokenCount\":
+        240,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\":
+        \"zvr0avDcCrmo9MoP-MCj8Aw\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"\",\"thoughtSignature\": \"EtMJCtAJAWkUfRM5KFZsINybgmK1+gv2aa+T7ivPJ3mZkZlpFDyWPrEjSOCcxUFje4tAIHIQh9d7/2dZbSFr+NHTpgcyOzvVxh5jB/Z9ybbpN0S3aCRtGVsQGmTD9hre7lDzpDRv/v99axV6n0YQn3xpROUk+LvwXNME8KaIOWJYf3FEtJ74vhzFEukRuZeYx5UVd7ihJc/SBMgU9LE0zp21a9d3pAO5rcbQCQz3UoEEpcLVFMFXyx5CnaEOgVyv3M3ZpofsgFz+09XfeIXClWjxcp4gerlL6gSon4mLvTipp1XVrF+29p0ahUSFeIcHO9Xy/LjWdHlKGem4HjebjsJUjmn0LVNgaUoLO3YtkrdKJDGFbB6AjWxKBjgDtHhL+ZC2SCwwjpz4DwIFftY/z3OME6AflR2iSWPRffDCBk50rqi0ksGK57pGXI2Hr2ypYNT2ckz0czXbIPshhEZNDuVaV0CfcqUspvgaCC93IuSX78DmGFhNSmIF7nuhkLEtJPp/92G+7+EkaDooWRqS292lrNgU6p29Xorqg8qB+UsOBfz7UW+uuORWUqWkr8vBYF01yzqot4aFVXZM3r8XTl/ZIr9j8QWnKWqI+fAE5ZQMRfwsXT33tFQ4zBVluIGetzoYMutLCgTwiAJFRQibCGzbbtniecdyeHv5/D7NRtbontE4wNdnFQlvPTFXd8nfnGJeqCUcllSMqIbD5TgJUUQLzEowT64marOdy28wzHzpEZcLnU4jTQp5wGLernZhuFVZ/Ez7ZqhguHO41i1ROVlJzMou103jpvFGEaeD3BS0AmdWsuAcQTQL+y6P/p5DK/xiKUVIIkcApGiz/b1RqQbulOdJgbpByziRIixYPLqXInWX/TmBBC4g/obi6COPXxOKyM/26nCFyjxKoPLc+gOY9b9s/NZAqm05Y+0WLLn49YoZ15CeFOx71Nvh3uqs0nZY1clLZAe1BIL0yys8KsYNfHNBvXI7/Y0P0D/Lk4ZGDiYGQMNuc3psBzJ9pTD9Q2rCSOLB2QvAjmixIWJtvDhytRP1127i9RmPWT0WPJ6bDanoG7M19hKFNg+1UxhSQipmHTBc0uRXSI7EioYNfxQrzl5522np5KRrKLc5GSVSXFdRI14BWtCk80eYq34mNFnWUnPQ/4P/pKQYghpFWHnuLEA7ARLyQ4+3J54/QcTZ0nesdwxTeCGXAlgg+tfLxPNWz7y92B9hRbXUpTwdSLpiK3s74qSAvqUuDXrcqgrU8efrxstJm67O3AaDR+W3lrSuOSbpjy7/zvcoBbpaMxmbNy9MOnDlF1hKs4rfa4qL3jBNv8Czmq5WCz1KW4lpVJxn8CUClpf0KxqMADt0tlXdvKOXnApmN73uFJ2OS9Tm2v74vSCQtQY7pNRiyZgA2fa9w+M4BbdJ6xRSyeTsUOqKvsTaRKlXpqJhC7fGwpNHcZmTkJzMqsbEPyOegWJ7LhS9brasy9p43OgnWyoFxw0oWXfz/o3qQwuzKx7hXOBCRkyQpH8h2dxTG5kban+AMKQKJjbzlpKJAhpCrbdWsr9+XsxpcgJsxqFaDcXhqiwiezxQWdLViUt0cdTU+3z4/oCg5+79xDZHtLESSOEUrc8jiuHhk0fkNJZzPAqkdGqSYb+T0YI=\"}],\"role\":
         \"model\"},\"finishReason\": \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
-        277,\"candidatesTokenCount\": 124,\"totalTokenCount\": 971,\"promptTokensDetails\":
+        1108,\"candidatesTokenCount\": 85,\"totalTokenCount\": 1433,\"promptTokensDetails\":
         [{\"modality\": \"TEXT\",\"tokenCount\": 19},{\"modality\": \"IMAGE\",\"tokenCount\":
-        258}],\"thoughtsTokenCount\": 570,\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.5-flash\",\"responseId\": \"StkEarfIJY6_qtsP9tjeuQs\"}\r\n\r\n"
+        1089}],\"thoughtsTokenCount\": 240,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"zvr0avDcCrmo9MoP-MCj8Aw\"}\r\n\r\n"
     headers:
-      Content-Type:
+      content-type:
       - text/event-stream
     status:
       code: 200

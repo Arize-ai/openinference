@@ -5,21 +5,21 @@ interactions:
       that can answer questions and help with tasks."}], "role": "user"}, "generationConfig":
       {}}'
     headers: {}
-    method: post
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
-        [\n          {\n            \"text\": \"To give you the most accurate weather
-        information, I need to know your location. Could you please tell me where
-        you are?\\n\"\n          }\n        ],\n        \"role\": \"model\"\n      },\n
-        \     \"finishReason\": \"STOP\",\n      \"avgLogprobs\": -0.011370319586533766\n
-        \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 21,\n    \"candidatesTokenCount\":
-        26,\n    \"totalTokenCount\": 47,\n    \"promptTokensDetails\": [\n      {\n
-        \       \"modality\": \"TEXT\",\n        \"tokenCount\": 21\n      }\n    ],\n
-        \   \"candidatesTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
-        \       \"tokenCount\": 26\n      }\n    ],\n    \"serviceTier\": \"standard\"\n
-        \ },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\": \"h9cEasnrMqCVmtkP9P7tiQU\"\n}\n"
+        [\n          {\n            \"text\": \"I can't check the weather without
+        knowing where you are! Please tell me your city or location, and I'll be happy
+        to look up the current weather for you.\",\n            \"thoughtSignature\":
+        \"EoIHCv8GAWkUfRNvEvOgKht1uFhwDa8nz2RjPlgHp07kQ3+JDqqnqW4XIZ3DFT4+56N10qhP1PIoSoepuAEOkAHGL+k2n3ICCsslzrcA7dOyNOHVlHV+NWpyhae8W6Dryg1JrAOopi3hMN3I+2w34mSc7teuJuJ+Mwv4nJHbeATSzkqbeFxjDRVtGt+pzNttCknzt/nA0x/9QNMjru+FSo+THUa1/4C2N2/dh496jL6G8GodajhAW8IaK78EjEHaCHtWbNkh25/ri0p45p0ToygOV6SyywW3rxQ0GO2PumSgvhPVKPZ/O4jecQ/MUQuB2JVXmO3zEbfb5A83BBi2Tjzu9LdK8Zg7b8CiqBIkeiv03NysSwf06z46PF1IjLGUw0Bza9goirp5enPNlViNjCPM4Ypb6e7yW2G+s0vbTv9yXRiT7y+HWqi6Z1xX5KOYb4TMkY8w2cjTRFTTJCTUdhOUdjQ1rC/d1e6VOafW5nOVW8Pfu2rmP5gvkTIbD+rO+bkB+E0UOr8I3lEutKMZ2ubVzwtDlSnPI3CCjINaSqol+aEJxYIgnfBuT/f2jJzBxNF8/LUSqi3XO8fsBDcVL/kXLygceZ8clmUOFXYA6Nfo8iZ0qSHSq3Fz1PpK2egO/zL/SanCPLMAe6057pOPrbfbeqwNRs6U9MmXfqfPtFC4OOPYLdG0KtO4sr+IDsrjcjzEClNBvjshKYi0cSblwdFeem/iORuUjO2suhFDC5ppBSOT2ztK8HnsyEtGRvwr+EffHqR8/2Yur63r1u6ig7V2NJCUJIayb4/YWRqx2f8pJIHEoaDaocsUgGbBD254+wHNP6DskZCWMXs1ZKG3KQd8ac+JKhvDW5QvkXyjQ1TfS8lnrRStvTgMuJXF9Mm8aFkjIvNuOHVP114qDa1wquRkW47fAiKvzXvdKr8TeiAyYYMx9vvCHi8Br3y+u37X+jpVOCpZEJ9FbGuehKNFpedbdhF9V16p5zPolRN/95Vss3w2vwkYsmkRZKfZhpb4IsnZ9+vtphtMTqfTs6cmZLl78ljIvrt6sG1lBdm2oz7ETu0RomUBGsDSlz7YUnAAbpo+C7WJiBeTSjIUQhG8bKD2ywe8OkIGTq3vMs2OG3L65k2pnNp5h6cYMDfESmMdbRYaVwhesUObp1+X2dx/sQHxyVVkQP4LyohTY5CWDaiC4qfdfw==\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        23,\n    \"candidatesTokenCount\": 36,\n    \"totalTokenCount\": 240,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 23\n
+        \     }\n    ],\n    \"thoughtsTokenCount\": 181,\n    \"serviceTier\": \"standard\"\n
+        \ },\n  \"modelVersion\": \"gemini-3.6-flash\",\n  \"responseId\": \"0fr0apqnErC9jrEP-9iosAM\"\n}\n"
     headers: {}
     status:
       code: 200
