@@ -71,17 +71,19 @@ The `query()` function is wrapped to produce:
 
 ### AGENT spans
 
-| Attribute                    | Description            |
-| ---------------------------- | ---------------------- |
-| `openinference.span.kind`    | `"AGENT"`              |
-| `input.value`                | Prompt text            |
-| `output.value`               | Result text            |
-| `session.id`                 | SDK session identifier |
-| `llm.model_name`             | Model used             |
-| `llm.token_count.prompt`     | Input token count      |
-| `llm.token_count.completion` | Output token count     |
-| `llm.token_count.total`      | Total token count      |
-| `llm.cost.total`             | Total cost in USD      |
+| Attribute                                    | Description                               |
+| -------------------------------------------- | ----------------------------------------- |
+| `openinference.span.kind`                    | `"AGENT"`                                 |
+| `input.value`                                | Prompt text                               |
+| `output.value`                               | Result text                               |
+| `session.id`                                 | SDK session identifier                    |
+| `llm.model_name`                             | Model used                                |
+| `llm.token_count.prompt`                     | Input token count, including prompt cache |
+| `llm.token_count.prompt_details.cache_read`  | Input tokens read from the prompt cache   |
+| `llm.token_count.prompt_details.cache_write` | Input tokens written to the prompt cache  |
+| `llm.token_count.completion`                 | Output token count                        |
+| `llm.token_count.total`                      | Total token count                         |
+| `llm.cost.total`                             | Total cost in USD                         |
 
 ### TOOL spans
 

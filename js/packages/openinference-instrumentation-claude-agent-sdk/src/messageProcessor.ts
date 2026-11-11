@@ -9,6 +9,7 @@ import type { Attributes } from "@opentelemetry/api";
 
 import {
   getInputAttributes,
+  getLLMAttributes,
   getOutputAttributes,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
@@ -116,15 +117,35 @@ export function extractAssistantStopReason(msg: SDKAssistantMessage): string | u
 }
 
 /**
+ * Extracts token-count attributes from a result message's usage.
+ *
+ * Anthropic's `input_tokens` excludes prompt-cache tokens, and the Claude
+ * Agent SDK serves most of Claude Code's system prompt from the cache, so
+ * cache reads and writes are folded back into the prompt and total counts
+ * (matching the Python instrumentor and the Anthropic instrumentor).
+ */
+function extractUsageAttributes(usage: SDKResultMessage["usage"]): Attributes {
+  const cacheRead = usage.cache_read_input_tokens ?? 0;
+  const cacheWrite = usage.cache_creation_input_tokens ?? 0;
+  const prompt = usage.input_tokens + cacheRead + cacheWrite;
+  return getLLMAttributes({
+    tokenCount: {
+      prompt,
+      completion: usage.output_tokens,
+      total: prompt + usage.output_tokens,
+      promptDetails: { cacheRead, cacheWrite },
+    },
+  });
+}
+
+/**
  * Extracts span attributes from a result success message.
  */
 export function extractResultSuccessAttributes(msg: SDKResultSuccess): Attributes {
   const stopReason = extractStopReason(msg);
   return {
     ...getOutputAttributes(msg.result),
-    [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: msg.usage.input_tokens,
-    [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: msg.usage.output_tokens,
-    [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: msg.usage.input_tokens + msg.usage.output_tokens,
+    ...extractUsageAttributes(msg.usage),
     [SemanticConventions.LLM_COST_TOTAL]: msg.total_cost_usd,
     [SemanticConventions.SESSION_ID]: msg.session_id,
     ...(stopReason != null ? { [SemanticConventions.LLM_FINISH_REASON]: stopReason } : {}),
@@ -146,9 +167,7 @@ export function extractResultErrorAttributes(msg: SDKResultError): Attributes {
   const stopReason = extractStopReason(msg);
   return {
     ...outputAttrs,
-    [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: msg.usage.input_tokens,
-    [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: msg.usage.output_tokens,
-    [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: msg.usage.input_tokens + msg.usage.output_tokens,
+    ...extractUsageAttributes(msg.usage),
     [SemanticConventions.LLM_COST_TOTAL]: msg.total_cost_usd,
     [SemanticConventions.SESSION_ID]: msg.session_id,
     ...(stopReason != null ? { [SemanticConventions.LLM_FINISH_REASON]: stopReason } : {}),
