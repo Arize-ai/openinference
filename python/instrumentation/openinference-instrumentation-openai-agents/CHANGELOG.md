@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.8.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.7.1...python-openinference-instrumentation-openai-agents-v2.8.0) (2026-11-11)
+
+
+### Features
+
+* **openai-agents:** map `Trace.group_id` to `session.id` on the root span ([#3901](https://github.com/Arize-ai/openinference/issues/3901)) ([af39cab](https://github.com/Arize-ai/openinference/commit/af39cab4e4baa0482db0cdda9c354fd133bf13e9))
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+
 ## [2.7.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.7.0...python-openinference-instrumentation-openai-agents-v2.7.1) (2026-11-04)
 
 
