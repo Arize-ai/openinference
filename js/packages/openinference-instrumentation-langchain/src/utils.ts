@@ -12,12 +12,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import {
-  getLLMProvider,
-  getLLMSystem,
-  getNonBlankString,
-  parseLangSmithParams,
-} from "./langSmithParams";
+import { getLLMProvider, getLLMSystem, parseLangSmithParams } from "./langSmithParams";
 import type {
   LLMMessage,
   LLMMessageFunctionCall,
@@ -32,7 +27,14 @@ import type {
   ToolAttributes,
   LLMMessageContent,
 } from "./types";
-import { assertUnreachable, isNonEmptyArray, isNumber, isObject, isString } from "./typeUtils";
+import {
+  assertUnreachable,
+  getNonBlankString,
+  isNonEmptyArray,
+  isNumber,
+  isObject,
+  isString,
+} from "./typeUtils";
 
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;

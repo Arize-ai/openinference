@@ -2,7 +2,7 @@ import type { LangSmithParams } from "@langchain/core/language_models/chat_model
 
 import { LLMProvider, LLMSystem } from "@arizeai/openinference-semantic-conventions";
 
-import { isObject, isString } from "./typeUtils";
+import { getNonBlankString, isObject } from "./typeUtils";
 
 /**
  * The LangSmith params that LangChain chat models merge into their run's
@@ -79,17 +79,6 @@ const LANGCHAIN_PROVIDER_TO_LLM_SYSTEM: Partial<Record<string, LLMSystem>> = {
   vertex: LLMSystem.VERTEXAI,
   vertexai: LLMSystem.VERTEXAI,
 };
-
-/**
- * Returns the value trimmed if it is a string that isn't blank, otherwise undefined.
- */
-export function getNonBlankString(value: unknown): string | undefined {
-  if (!isString(value)) {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  return trimmed === "" ? undefined : trimmed;
-}
 
 /**
  * Parses the LangSmith params out of a run's metadata, dropping any that are
