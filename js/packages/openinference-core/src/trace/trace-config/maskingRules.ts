@@ -14,6 +14,7 @@ import type { MaskingRule, MaskingRuleArgs } from "./types";
  *      config: {hideInputText: true},
  *      key: "llm.input_messages.[i].message.content"
  *  }) // returns true so the rule applies and the value will be redacted
+ * ```
  */
 const maskInputTextRule: MaskingRule = {
   condition: ({ config, key }) =>
@@ -49,10 +50,11 @@ const maskOutputTextRule: MaskingRule = {
  * Will mask information stored under the key `llm.input_messages.[i].message.contents.[j].message_content.text`.
  * @example
  * ```typescript
- *  maskOutputTextRule.condition({
+ *  maskInputTextContentRule.condition({
  *      config: {hideInputText: true},
  *      key: "llm.input_messages.[i].message.contents.[j].message_content.text"
  *  }) // returns true so the rule applies and the value will be redacted
+ * ```
  */
 const maskInputTextContentRule: MaskingRule = {
   condition: ({ config, key }) =>
@@ -66,10 +68,11 @@ const maskInputTextContentRule: MaskingRule = {
  * Masks (redacts) output text content in LLM output messages.
  * @example
  * ```typescript
- *  maskOutputTextRule.condition({
+ *  maskOutputTextContentRule.condition({
  *      config: {hideOutputText: true},
  *      key: "llm.output_messages.[i].message.contents.[j].message_content.text"
  *  }) // returns true so the rule applies and the value will be redacted
+ * ```
  */
 const maskOutputTextContentRule: MaskingRule = {
   condition: ({ config, key }) =>
@@ -83,10 +86,11 @@ const maskOutputTextContentRule: MaskingRule = {
  * Masks (removes) input images in LLM input messages.
  * @example
  * ```typescript
- *  maskOutputTextRule.condition({
+ *  maskInputImagesRule.condition({
  *      config: {hideInputImages: true},
  *      key: "llm.input_messages.[i].message.contents.[j].message_content.image"
  *  }) // returns true so the rule applies and the value will be removed
+ * ```
  */
 const maskInputImagesRule: MaskingRule = {
   condition: ({ config, key }) =>
@@ -113,6 +117,7 @@ function isWithinImagesNamespace(key: string, namespace: string): boolean {
  *      config: {hideInputImages: true},
  *      key: "input.images.0.image.url"
  *  }) // returns true so the rule applies and the value will be removed
+ * ```
  */
 const maskSpanInputImagesRule: MaskingRule = {
   condition: ({ config, key }) =>
@@ -129,6 +134,7 @@ const maskSpanInputImagesRule: MaskingRule = {
  *      config: {hideOutputs: true},
  *      key: "output.images.0.image.url"
  *  }) // returns true so the rule applies and the value will be removed
+ * ```
  */
 const maskSpanOutputImagesRule: MaskingRule = {
   condition: ({ config, key }) =>
@@ -142,13 +148,14 @@ function isBase64Url(url?: AttributeValue): boolean {
 
 /**
  * Masks (redacts) base64 images that are too long.
- *  * @example
+ * @example
  * ```typescript
- *  maskOutputTextRule.condition({
+ *  maskLongBase64ImageRule.condition({
  *      config: {base64ImageMaxLength: 10},
  *      key: "llm.input_messages.[i].message.contents.[j].message_content.image.url",
  *      value: "data:image/base64,verylongbase64string"
  *  }) // returns true so the rule applies and the value will be redacted
+ * ```
  */
 const maskLongBase64ImageRule: MaskingRule = {
   condition: ({ config, key, value }) =>
@@ -165,12 +172,13 @@ const maskLongBase64ImageRule: MaskingRule = {
 
 /**
  * Masks (removes) embedding vectors.
- *  * @example
+ * @example
  * ```typescript
- *  maskOutputTextRule.condition({
+ *  maskEmbeddingVectorsRule.condition({
  *      config: {hideEmbeddingVectors: true},
  *      key: "embedding.embeddings.[i].embedding.vector"
  *  }) // returns true so the rule applies and the value will be redacted
+ * ```
  */
 const maskEmbeddingVectorsRule: MaskingRule = {
   condition: ({ config, key }) =>
@@ -188,6 +196,7 @@ const maskEmbeddingVectorsRule: MaskingRule = {
  *      config: {hidePrompts: true},
  *      key: "llm.prompts"
  *  }) // returns true so the rule applies and the value will be redacted
+ * ```
  */
 const maskPromptsRule: MaskingRule = {
   condition: ({ config, key }) => config.hidePrompts && key === SemanticConventions.LLM_PROMPTS,
@@ -216,7 +225,7 @@ const maskLLMToolsRule: MaskingRule = {
 /**
  * A list of {@link MaskingRule}s that are applied to span attributes to either redact or remove sensitive information.
  * The order of these rules is important as it can ensure appropriate masking of information
- * Rules should go from more specific to more general so that things like `llm.input_messages.[i].message.content` are masked with {@link REDACTED_VALUE} before the more generic masking of `llm.input_messages` might happen with `undefined` might happen.
+ * Rules should go from more specific to more general so that things like `llm.input_messages.[i].message.content` are masked with {@link REDACTED_VALUE} before the more generic masking of `llm.input_messages` with `undefined`.
  */
 const maskingRules: MaskingRule[] = [
   {
