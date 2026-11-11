@@ -1,5 +1,14 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.4.4
+
+### Patch Changes
+
+- 10bb8cc: Detect IBM watsonx.ai from the request host, so an OpenAI client pointed at its OpenAI-compatible endpoint (`https://<region>.ml.cloud.ibm.com`) records `llm.provider = ibm` instead of falling back to `openai`. Adds `ml.cloud.ibm.com` → `ibm` to `HOST_SUFFIX_TO_PROVIDER`.
+- Updated dependencies [10bb8cc]
+  - @arizeai/openinference-semantic-conventions@2.16.0
+  - @arizeai/openinference-core@2.8.2
+
 ## 4.4.3
 
 ### Patch Changes
