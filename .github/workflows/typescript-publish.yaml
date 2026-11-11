@@ -61,6 +61,7 @@ jobs:
         working-directory: ./js
         run: pnpm install --frozen-lockfile
       - name: Create and publish versions
+        id: changesets
         uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
         with:
           github-token: ${{ steps.factory-token.outputs.token }}
@@ -71,6 +72,19 @@ jobs:
           create-github-releases: true
           push-with-git-cli: true
           cwd: "${{ github.workspace }}/js"
+
+      - name: Enable auto-merge
+        if: steps.changesets.outputs.pr-number != ''
+        env:
+          GH_TOKEN: ${{ steps.factory-token.outputs.token }}
+          PR_NUMBER: ${{ steps.changesets.outputs.pr-number }}
+        # Lets a reviewer merge the version PR with a single approval; a failure
+        # here should not fail the run since the PR itself was opened successfully.
+        # Block scalar: in a plain YAML scalar the " #" below would start a
+        # comment and truncate the command mid-string.
+        run: |
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash \
+            || echo "::warning::Could not enable auto-merge on #$PR_NUMBER"
 
   slack:
     name: Slack notification
