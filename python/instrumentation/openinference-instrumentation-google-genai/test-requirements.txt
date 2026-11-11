@@ -1,4 +1,5 @@
 google-genai==2.0.1
+httpx
 opentelemetry-sdk
 pillow
 pytest-asyncio
