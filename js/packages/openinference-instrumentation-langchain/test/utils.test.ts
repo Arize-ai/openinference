@@ -637,7 +637,8 @@ describe("formatLLMProvider", () => {
     ["groq", LLMProvider.GROQ, LLMSystem.OPENAI],
     ["amazon_bedrock", LLMProvider.AWS, undefined],
     ["xai", LLMProvider.XAI, undefined],
-    ["watsonx", "ibm", undefined],
+    ["watsonx", LLMProvider.IBM, undefined],
+    ["ibm", LLMProvider.IBM, undefined],
     ["OpenAI", LLMProvider.OPENAI, LLMSystem.OPENAI],
     ["SomeNewProvider", "somenewprovider", undefined],
   ])("should map the 'ls_provider' %s", (lsProvider, provider, system) => {

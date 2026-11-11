@@ -71,6 +71,7 @@ const (
 	LLMProviderZAI        = "zai"
 	LLMProviderMiniMax    = "minimax"
 	LLMProviderOracle     = "oracle"
+	LLMProviderIBM        = "ibm"
 	LLMProviderTypeSafe   = "typesafe"
 )
 

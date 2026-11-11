@@ -40,7 +40,7 @@ const LANGCHAIN_PROVIDER_TO_LLM_PROVIDER: Partial<Record<string, string>> = {
   google_vertexai: LLMProvider.GOOGLE,
   groq: LLMProvider.GROQ,
   huggingface: "huggingface",
-  ibm: "ibm",
+  ibm: LLMProvider.IBM,
   mistral: LLMProvider.MISTRALAI,
   mistralai: LLMProvider.MISTRALAI,
   nvidia: "nvidia",
@@ -51,7 +51,7 @@ const LANGCHAIN_PROVIDER_TO_LLM_PROVIDER: Partial<Record<string, string>> = {
   together: LLMProvider.TOGETHER,
   vertex: LLMProvider.GOOGLE,
   vertexai: LLMProvider.GOOGLE,
-  watsonx: "ibm",
+  watsonx: LLMProvider.IBM,
   xai: LLMProvider.XAI,
 };
 
