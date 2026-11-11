@@ -1084,6 +1084,7 @@ export enum LLMProvider {
   MINIMAX = "minimax",
   TYPESAFE = "typesafe",
   ORACLE = "oracle",
+  IBM = "ibm",
   DOUBLEWORD = "doubleword",
 }
 

@@ -4,6 +4,13 @@ on:
     branches:
       - main
 permissions: {}
+# Serialize publish runs so back-to-back pushes to main can't race to publish
+# the same package version (npm E409 "Cannot publish over previously staged
+# version"). Queued runs start after the prior run finishes and see the
+# package already published.
+concurrency:
+  group: typescript-publish
+  cancel-in-progress: false
 env:
   CI: true
   PNPM_CACHE_FOLDER: .pnpm-store

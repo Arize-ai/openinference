@@ -736,6 +736,7 @@ class OpenInferenceLLMProviderValues(Enum):
     ZAI = "zai"
     MINIMAX = "minimax"
     ORACLE = "oracle"
+    IBM = "ibm"
     TYPESAFE = "typesafe"
     DOUBLEWORD = "doubleword"
 

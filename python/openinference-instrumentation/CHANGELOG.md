@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.76](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.75...python-openinference-instrumentation-v0.1.76) (2026-11-11)
+
+
+### Features
+
+* **langchain:** read LangSmith params for model name, provider and system ([#4274](https://github.com/Arize-ai/openinference/issues/4274)) ([10bb8cc](https://github.com/Arize-ai/openinference/commit/10bb8ccd5a12af36484246ec9095c749926c1780))
+
 ## [0.1.75](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.74...python-openinference-instrumentation-v0.1.75) (2026-10-31)
 
 

@@ -121,7 +121,12 @@ if _oracle_provider := getattr(OpenInferenceLLMProviderValues, "ORACLE", None):
 if _typesafe_provider := getattr(OpenInferenceLLMProviderValues, "TYPESAFE", None):
     _HOST_SUFFIX_TO_PROVIDER["api.typesafe.ai"] = _typesafe_provider
 
-# DOUBLEWORD joined OpenInferenceLLMProviderValues after semconv 0.1.43; same guard.
+# IBM joined OpenInferenceLLMProviderValues after semconv 0.1.43; same guard.
+# IBM watsonx.ai serves <region>.ml.cloud.ibm.com, so the suffix covers every region.
+if _ibm_provider := getattr(OpenInferenceLLMProviderValues, "IBM", None):
+    _HOST_SUFFIX_TO_PROVIDER["ml.cloud.ibm.com"] = _ibm_provider
+
+# DOUBLEWORD joined OpenInferenceLLMProviderValues after semconv 0.1.44; same guard.
 # Doubleword serves its OpenAI-compatible API from api.doubleword.ai.
 if _doubleword_provider := getattr(OpenInferenceLLMProviderValues, "DOUBLEWORD", None):
     _HOST_SUFFIX_TO_PROVIDER["api.doubleword.ai"] = _doubleword_provider
