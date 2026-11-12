@@ -909,6 +909,8 @@ def _assert_count_tokens_span(span: ReadableSpan, name: str, provider: str = "an
     assert json.loads(
         str(attributes.pop(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"))
     ) == {"name": "f", "input_schema": {"type": "object"}}
+    # count_tokens accepts tools too, so the tool name is recorded beside the schema
+    assert attributes.pop(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_NAME}") == "f"
     assert json.loads(str(attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS))) == {
         "tool_choice": {"type": "auto"}
     }
