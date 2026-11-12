@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference mem0 Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.10, <3.16"
+requires-python = ">=3.10, <3.15"
 authors = [
     { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -23,7 +23,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
-    "Programming Language :: Python :: 3.15",
 ]
 dependencies = [
     "opentelemetry-api",
@@ -37,7 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-    "mem0ai >= 2.0.0",
+    "mem0ai >= 2.0.12",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]

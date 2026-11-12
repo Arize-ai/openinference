@@ -16,7 +16,7 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.config import REDACTED_VALUE
-from openinference.instrumentation.mem0 import Mem0Instrumentor
+from openinference.instrumentation.mem0 import Mem0Instrumentor, _wrappers
 from openinference.semconv.trace import (
     DocumentAttributes,
     OpenInferenceMimeTypeValues,
@@ -44,6 +44,12 @@ def _spans_by_name(exporter: InMemorySpanExporter) -> Dict[str, ReadableSpan]:
 
 def _document(attrs: Dict[str, Any], index: int, field: str) -> Any:
     return attrs.get(f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{index}.{field}")
+
+
+def _pop_document(attrs: Dict[str, Any], index: int) -> Dict[str, Any]:
+    """Pops every attribute of one retrieved document; returns them by field name."""
+    prefix = f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{index}."
+    return {key[len(prefix) :]: attrs.pop(key) for key in list(attrs) if key.startswith(prefix)}
 
 
 def _seed(memory: Memory, exporter: InMemorySpanExporter) -> str:
@@ -79,22 +85,23 @@ def test_add_emits_chain_span(
     attrs = _attrs(span)
     assert span.name == "Memory.add"
     assert span.status.status_code is StatusCode.OK
-    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == CHAIN
-    assert attrs[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
-    assert json.loads(attrs[SpanAttributes.INPUT_VALUE]) == {
+    assert attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == CHAIN
+    assert attrs.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(attrs.pop(SpanAttributes.INPUT_VALUE)) == {
         "messages": [{"role": "user", "content": "I love playing tennis every weekend"}],
         "user_id": "alice",
         "agent_id": "coach",
         "run_id": "run-1",
         "metadata": {"source": "chat"},
     }
-    assert json.loads(attrs[SpanAttributes.METADATA]) == {
+    assert json.loads(attrs.pop(SpanAttributes.METADATA)) == {
         "user_id": "alice",
         "agent_id": "coach",
         "run_id": "run-1",
     }
-    assert attrs[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
-    assert json.loads(attrs[SpanAttributes.OUTPUT_VALUE]) == result
+    assert attrs.pop(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(attrs.pop(SpanAttributes.OUTPUT_VALUE)) == result
+    assert not attrs
     assert result["results"][0]["memory"] == EXTRACTED_FACT
 
 
@@ -107,19 +114,21 @@ def test_search_emits_retriever_span_with_documents(
     (span,) = in_memory_span_exporter.get_finished_spans()
     attrs = _attrs(span)
     assert span.name == "Memory.search"
-    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == RETRIEVER
-    assert attrs[SpanAttributes.INPUT_VALUE] == "tennis"
-    assert attrs[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.TEXT.value
-    assert json.loads(attrs[SpanAttributes.METADATA]) == {"user_id": "alice"}
-    # Retrieved memories are recorded as documents rather than repeated in output.value.
-    assert SpanAttributes.OUTPUT_VALUE not in attrs
+    assert attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == RETRIEVER
+    assert attrs.pop(SpanAttributes.INPUT_VALUE) == "tennis"
+    assert attrs.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.TEXT.value
+    assert json.loads(attrs.pop(SpanAttributes.METADATA)) == {"user_id": "alice"}
     (hit,) = result["results"]
-    assert _document(attrs, 0, DocumentAttributes.DOCUMENT_ID) == memory_id
-    assert _document(attrs, 0, DocumentAttributes.DOCUMENT_CONTENT) == EXTRACTED_FACT
-    assert _document(attrs, 0, DocumentAttributes.DOCUMENT_SCORE) == pytest.approx(hit["score"])
-    metadata = json.loads(_document(attrs, 0, DocumentAttributes.DOCUMENT_METADATA))
+    document = _pop_document(attrs, 0)
+    # Retrieved memories are recorded as documents rather than repeated in output.value.
+    assert not attrs
+    assert document.pop(DocumentAttributes.DOCUMENT_ID) == memory_id
+    assert document.pop(DocumentAttributes.DOCUMENT_CONTENT) == EXTRACTED_FACT
+    assert document.pop(DocumentAttributes.DOCUMENT_SCORE) == pytest.approx(hit["score"])
+    metadata = json.loads(document.pop(DocumentAttributes.DOCUMENT_METADATA))
+    assert not document
     assert metadata["user_id"] == "alice"
-    assert "memory" not in metadata and "score" not in metadata
+    assert "id" not in metadata and "memory" not in metadata and "score" not in metadata
 
 
 def test_get_all_emits_retriever_span(
@@ -134,9 +143,18 @@ def test_get_all_emits_retriever_span(
     (span,) = in_memory_span_exporter.get_finished_spans()
     attrs = _attrs(span)
     assert span.name == "Memory.get_all"
-    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == RETRIEVER
-    assert json.loads(attrs[SpanAttributes.INPUT_VALUE]) == {"filters": {"user_id": "alice"}}
-    contents = {_document(attrs, index, DocumentAttributes.DOCUMENT_CONTENT) for index in range(2)}
+    assert attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == RETRIEVER
+    assert attrs.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(attrs.pop(SpanAttributes.INPUT_VALUE)) == {"filters": {"user_id": "alice"}}
+    assert json.loads(attrs.pop(SpanAttributes.METADATA)) == {"user_id": "alice"}
+    documents = [_pop_document(attrs, index) for index in range(2)]
+    assert not attrs
+    contents = set()
+    for document in documents:
+        assert isinstance(document.pop(DocumentAttributes.DOCUMENT_ID), str)
+        contents.add(document.pop(DocumentAttributes.DOCUMENT_CONTENT))
+        assert json.loads(document.pop(DocumentAttributes.DOCUMENT_METADATA))["user_id"] == "alice"
+        assert not document
     assert contents == {EXTRACTED_FACT, "raw note"}
 
 
@@ -263,20 +281,34 @@ def test_memory_client(
     assert set(spans) == {"MemoryClient.add", "MemoryClient.search"}
 
     add_attrs = _attrs(spans["MemoryClient.add"])
-    assert add_attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == CHAIN
-    assert json.loads(add_attrs[SpanAttributes.INPUT_VALUE]) == {
+    assert add_attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == CHAIN
+    assert add_attrs.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(add_attrs.pop(SpanAttributes.INPUT_VALUE)) == {
         "messages": "I love tennis",
         "filters": {"user_id": "alice"},
     }
-    assert json.loads(add_attrs[SpanAttributes.METADATA]) == {"user_id": "alice"}
+    assert json.loads(add_attrs.pop(SpanAttributes.METADATA)) == {"user_id": "alice"}
+    assert add_attrs.pop(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(add_attrs.pop(SpanAttributes.OUTPUT_VALUE)) == {
+        "results": [{"id": "mem-1", "memory": EXTRACTED_FACT, "event": "ADD"}]
+    }
+    assert not add_attrs
 
     search_attrs = _attrs(spans["MemoryClient.search"])
-    assert search_attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == RETRIEVER
-    assert search_attrs[SpanAttributes.INPUT_VALUE] == "tennis"
+    assert search_attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == RETRIEVER
+    assert search_attrs.pop(SpanAttributes.INPUT_VALUE) == "tennis"
+    assert (
+        search_attrs.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.TEXT.value
+    )
     # The typed `options` model is read like keyword arguments.
-    assert json.loads(search_attrs[SpanAttributes.METADATA]) == {"user_id": "alice"}
-    assert _document(search_attrs, 0, DocumentAttributes.DOCUMENT_ID) == "mem-1"
-    assert _document(search_attrs, 0, DocumentAttributes.DOCUMENT_SCORE) == 0.9
+    assert json.loads(search_attrs.pop(SpanAttributes.METADATA)) == {"user_id": "alice"}
+    assert _pop_document(search_attrs, 0) == {
+        DocumentAttributes.DOCUMENT_ID: "mem-1",
+        DocumentAttributes.DOCUMENT_CONTENT: EXTRACTED_FACT,
+        DocumentAttributes.DOCUMENT_SCORE: 0.9,
+        DocumentAttributes.DOCUMENT_METADATA: json.dumps({"user_id": "alice"}),
+    }
+    assert not search_attrs
 
 
 def test_memory_client_error(
@@ -300,7 +332,21 @@ async def test_async_memory_client(
     assert _document(attrs, 0, DocumentAttributes.DOCUMENT_CONTENT) == EXTRACTED_FACT
 
 
-def test_suppress_tracing(memory: Memory, in_memory_span_exporter: InMemorySpanExporter) -> None:
+def _forbid_request_extraction(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fails the test if the wrapper reads the call while tracing is suppressed."""
+
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("request attributes extracted under suppress_tracing")
+
+    monkeypatch.setattr(_wrappers, "_call_arguments", fail)
+    # Extraction errors are logged and swallowed, so also fail on the log call.
+    monkeypatch.setattr(_wrappers.logger, "exception", fail)
+
+
+def test_suppress_tracing(
+    memory: Memory, in_memory_span_exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _forbid_request_extraction(monkeypatch)
     with suppress_tracing():
         memory.add("raw note", user_id="alice", infer=False)
         memory.get_all(filters={"user_id": "alice"})
@@ -318,15 +364,26 @@ def test_context_attributes(memory: Memory, in_memory_span_exporter: InMemorySpa
 
     (span,) = in_memory_span_exporter.get_finished_spans()
     attrs = _attrs(span)
-    assert attrs[SpanAttributes.SESSION_ID] == "session-1"
-    assert attrs[SpanAttributes.USER_ID] == "app-user"
-    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["memory"]
+    assert attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == CHAIN
+    assert attrs.pop(SpanAttributes.SESSION_ID) == "session-1"
+    assert attrs.pop(SpanAttributes.USER_ID) == "app-user"
+    assert list(attrs.pop(SpanAttributes.TAG_TAGS)) == ["memory"]
     # mem0 scope ids are merged into context metadata; context values take precedence.
-    assert json.loads(attrs[SpanAttributes.METADATA]) == {
+    assert json.loads(attrs.pop(SpanAttributes.METADATA)) == {
         "tier": "pro",
         "user_id": "from-context",
         "agent_id": "coach",
     }
+    assert attrs.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(attrs.pop(SpanAttributes.INPUT_VALUE)) == {
+        "messages": "raw note",
+        "user_id": "alice",
+        "agent_id": "coach",
+        "infer": False,
+    }
+    assert attrs.pop(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert "raw note" in attrs.pop(SpanAttributes.OUTPUT_VALUE)
+    assert not attrs
 
 
 def test_context_metadata_kept_without_scope(
@@ -362,15 +419,83 @@ def test_trace_config_masking(
         assert add_attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
         assert search_attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
         assert SpanAttributes.INPUT_MIME_TYPE not in add_attrs
+        # Scope ids are call arguments, so they are hidden from metadata too.
+        assert SpanAttributes.METADATA not in add_attrs
+        assert SpanAttributes.METADATA not in search_attrs
     else:
         assert "tennis" in add_attrs[SpanAttributes.INPUT_VALUE]
         assert search_attrs[SpanAttributes.INPUT_VALUE] == "tennis"
+        assert json.loads(add_attrs[SpanAttributes.METADATA]) == {"user_id": "alice"}
+        assert json.loads(search_attrs[SpanAttributes.METADATA]) == {"user_id": "alice"}
     if hide_outputs:
         assert add_attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
         assert _document(search_attrs, 0, DocumentAttributes.DOCUMENT_CONTENT) == REDACTED_VALUE
     else:
         assert EXTRACTED_FACT in add_attrs[SpanAttributes.OUTPUT_VALUE]
         assert _document(search_attrs, 0, DocumentAttributes.DOCUMENT_CONTENT) == EXTRACTED_FACT
+
+
+def test_hide_inputs_keeps_context_metadata(
+    memory: Memory,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    Mem0Instrumentor().uninstrument()
+    Mem0Instrumentor().instrument(
+        tracer_provider=tracer_provider, config=TraceConfig(hide_inputs=True)
+    )
+    with using_attributes(metadata={"tier": "pro"}):
+        memory.add("note", user_id="alice", agent_id="bot", infer=False)
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert json.loads(_attrs(span)[SpanAttributes.METADATA]) == {"tier": "pro"}
+
+
+def test_app_id_is_a_scope_id(
+    memory_client: MemoryClient, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
+    memory_client.add("I love tennis", filters={"app_id": "tennis-app"})
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert json.loads(_attrs(span)[SpanAttributes.METADATA]) == {"app_id": "tennis-app"}
+
+
+async def test_async_memory_error_is_recorded(
+    async_memory: AsyncMemory, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
+    with pytest.raises(ValueError, match="filters must contain"):
+        await async_memory.get_all(filters={})
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.name == "AsyncMemory.get_all"
+    assert span.status.status_code is StatusCode.ERROR
+    assert span.status.description is not None
+    assert span.status.description.startswith("ValueError: filters must contain")
+    (event,) = span.events
+    assert event.name == "exception"
+
+
+async def test_async_memory_client_error_is_recorded(
+    async_memory_client: AsyncMemoryClient, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
+    with pytest.raises(Exception):
+        await async_memory_client.get("missing")
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.name == "AsyncMemoryClient.get"
+    assert span.status.status_code is StatusCode.ERROR
+    assert SpanAttributes.OUTPUT_VALUE not in _attrs(span)
+    (event,) = span.events
+    assert event.name == "exception"
+
+
+async def test_async_suppress_tracing(
+    async_memory: AsyncMemory,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _forbid_request_extraction(monkeypatch)
+    with suppress_tracing():
+        await async_memory.add("raw note", user_id="bob", infer=False)
+        await async_memory.get_all(filters={"user_id": "bob"})
+    assert not in_memory_span_exporter.get_finished_spans()
 
 
 def test_uninstrument_restores_methods(

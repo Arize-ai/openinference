@@ -27,9 +27,9 @@ These traces are fully OpenTelemetry compatible and can be sent to an OpenTeleme
 - `Memory`, `AsyncMemory`, `MemoryClient` and `AsyncMemoryClient`
 - Suppressing tracing via `suppress_tracing()`
 - Context attribute propagation (`using_session`, `using_user`, `using_attributes`, metadata, tags)
-- Sensitive-data masking via `TraceConfig`: `hide_inputs` redacts `input.value`, `hide_outputs` redacts `output.value` and the content and metadata of retrieved memories (`hide_retrieval_documents` does the latter alone)
+- Sensitive-data masking via `TraceConfig`: `hide_inputs` redacts `input.value` and keeps the scope ids out of `metadata`, `hide_outputs` redacts `output.value` and the content and metadata of retrieved memories (`hide_retrieval_documents` does the latter alone)
 
-Requires `mem0ai >= 2.0.0`.
+Requires `mem0ai >= 2.0.12`.
 
 ## Installation
 

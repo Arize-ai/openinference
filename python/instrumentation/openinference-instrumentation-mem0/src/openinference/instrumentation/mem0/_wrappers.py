@@ -219,6 +219,10 @@ class _WithTracer:
                 span.set_attributes(metadata_attributes)
             yield span
 
+    def _hide_inputs(self) -> bool:
+        config = getattr(self._tracer, "_self_config", None)
+        return bool(getattr(config, "hide_inputs", False))
+
     def _request_attributes(
         self,
         wrapped: Callable[..., Any],
@@ -232,10 +236,12 @@ class _WithTracer:
             if self._signature is None:
                 self._signature = signature(wrapped)
             arguments = _call_arguments(self._signature, args, kwargs)
-            return (
-                dict(_input_attributes(self._method_name, arguments)),
-                dict(_metadata_attributes(arguments)),
-            )
+            input_attributes = dict(_input_attributes(self._method_name, arguments))
+            # The scope ids are call arguments, so a hidden input must not reappear in
+            # `metadata`. Context metadata from `using_metadata` is still applied by OITracer.
+            if self._hide_inputs():
+                return input_attributes, {}
+            return input_attributes, dict(_metadata_attributes(arguments))
         except Exception:
             logger.exception("Failed to extract mem0 request attributes")
             return {}, {}

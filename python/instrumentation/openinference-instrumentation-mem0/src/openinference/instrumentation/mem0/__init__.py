@@ -15,7 +15,7 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-_instruments = ("mem0ai >= 2.0.0",)
+_instruments = ("mem0ai >= 2.0.12",)
 
 # The classes are patched through mem0's public re-exports rather than their defining
 # modules (`mem0.memory.main`, `mem0.client.main`); wrapt sets the attribute on the same
