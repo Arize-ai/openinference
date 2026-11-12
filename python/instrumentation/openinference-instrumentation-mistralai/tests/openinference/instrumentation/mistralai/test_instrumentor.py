@@ -1544,14 +1544,44 @@ def test_messages_passed_as_sdk_models_are_recorded(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny"
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_NAME}") == "get_weather"
     input_messages = json.loads(cast(str, attributes.pop(INPUT_VALUE)))["messages"]
+    assert len(input_messages) == 4
     assert input_messages[0] == {"content": "You are a weather assistant.", "role": "system"}
+    assert input_messages[1] == {"content": "What is the weather in Paris?", "role": "user"}
+    assert input_messages[2]["role"] == "assistant"
+    assert input_messages[2]["content"] == ""
+    assert [
+        (tool_call["id"], tool_call["function"]) for tool_call in input_messages[2]["tool_calls"]
+    ] == [("call_1", {"name": "get_weather", "arguments": '{"city": "Paris"}'})]
     assert input_messages[3] == {
         "content": "sunny",
         "role": "tool",
         "tool_call_id": "call_1",
         "name": "get_weather",
     }
-    assert not any(key.startswith(LLM_INPUT_MESSAGES) for key in attributes)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    invocation_parameters = json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS)))
+    assert invocation_parameters["model"] == "mistral-large-latest"
+    assert invocation_parameters["stream"] is False
+    assert "messages" not in invocation_parameters
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "It is sunny in Paris."
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 5
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 5
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 10
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_FINISH_REASON) == "stop"
+    assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM) == OpenInferenceLLMSystemValues.MISTRALAI.value
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes == {}  # test should account for all span attributes
 
 
 def _check_context_attributes(
