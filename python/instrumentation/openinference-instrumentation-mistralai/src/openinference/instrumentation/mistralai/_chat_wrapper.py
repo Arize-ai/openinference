@@ -142,7 +142,9 @@ class _WithMistralAI(ABC):
 
         Based off of https://github.com/mistralai/client-python/blob/80c7951bad83338641d5e89684f841ce1cac938f/src/mistralai/client_base.py#L76
         """
-        from mistralai.client.types import BaseModel
+        from pydantic_core import to_jsonable_python
+
+        from mistralai.client.types import UNSET
 
         bound_signature = signature.bind(*args, **kwargs)
         bound_signature.apply_defaults()
@@ -150,13 +152,8 @@ class _WithMistralAI(ABC):
         request_data: Dict[str, Any] = {}
         for key, value in bound_arguments.items():
             try:
-                if isinstance(value, list):
-                    value = [
-                        item.model_dump(mode="json", by_alias=True)
-                        if isinstance(item, BaseModel)
-                        else item
-                        for item in value
-                    ]
+                if value is not UNSET:
+                    value = to_jsonable_python(value, by_alias=True, fallback=str)
                 if value is not None:
                     try:
                         # ensure the value is JSON-serializable
