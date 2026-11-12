@@ -1185,6 +1185,7 @@ async def test_client_tool_hooks_create_tool_spans(
 
 @pytest.mark.timeout(30)
 @pytest.mark.asyncio
+@pytest.mark.cassette("test_client_tool_hooks_create_tool_spans")
 async def test_client_query_with_session_id_records_prompt(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
