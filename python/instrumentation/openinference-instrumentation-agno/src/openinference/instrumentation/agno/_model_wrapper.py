@@ -25,6 +25,7 @@ from openinference.instrumentation import (
     infer_llm_system_from_model_name,
     safe_json_dumps,
 )
+from openinference.instrumentation.agno._context import DEFAULT_ACTIVATION, SpanActivation
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -460,8 +461,11 @@ def _stream_output_messages(output: Dict[str, Any]) -> Iterator[Tuple[str, Any]]
 
 
 class _ModelWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(
+        self, tracer: trace_api.Tracer, activation: SpanActivation = DEFAULT_ACTIVATION
+    ) -> None:
         self._tracer = tracer
+        self._activation = activation
 
     def run(
         self,
@@ -479,8 +483,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.invoke"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
@@ -488,7 +493,8 @@ class _ModelWrapper:
                 **dict(_llm_invocation_parameters(model, arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with self._activation.use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -542,8 +548,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.invoke_stream"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
@@ -551,7 +558,8 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with self._activation.use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -620,8 +628,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.ainvoke"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
@@ -629,7 +638,8 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with self._activation.use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -689,8 +699,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.ainvoke_stream"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
@@ -698,7 +709,8 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with self._activation.use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
