@@ -846,3 +846,28 @@ def test_document_rules_leave_images_unchanged() -> None:
     assert config.mask(image_key, oversized_image) == "https://storage.example.com/blob"
     assert len(uploader.uploads) == 1
     assert config.mask(image_key, non_image_data_uri) == non_image_data_uri
+
+
+class _CallableStr(str):
+    """A ``str`` that is also callable, like LangChain's ``message.text`` (``TextAccessor``),
+    whose call is deprecated."""
+
+    def __call__(self) -> str:
+        raise AssertionError("a callable str must not be evaluated as a lazy value")
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        SpanAttributes.OUTPUT_VALUE,
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.contents.0."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+    ],
+)
+def test_mask_does_not_call_callable_str(key: str) -> None:
+    value = _CallableStr("hello")
+    assert TraceConfig().mask(key, value) == "hello"
+
+
+def test_mask_still_evaluates_lazy_values() -> None:
+    assert TraceConfig().mask(SpanAttributes.OUTPUT_VALUE, lambda: "hello") == "hello"

@@ -434,7 +434,7 @@ class TraceConfig:
         elif _is_image_url(key):
             # Resolve lazy values before the size check so an oversized image
             # cannot bypass the budget by arriving as a callable.
-            value = value() if callable(value) else value
+            value = _resolve_lazy_value(value)
             if (
                 is_base64_url(value) and len(value) > self.base64_image_max_length  # type:ignore
             ):
@@ -444,7 +444,7 @@ class TraceConfig:
         elif self.hide_outputs and _is_within(key, SpanAttributes.OUTPUT_DOCUMENTS):
             return None
         elif _is_document_url(key):
-            value = value() if callable(value) else value
+            value = _resolve_lazy_value(value)
             if (
                 _is_base64_data_uri(value) and len(value) > self.base64_image_max_length  # type: ignore[operator]
             ):
@@ -461,7 +461,7 @@ class TraceConfig:
             and EmbeddingAttributes.EMBEDDING_TEXT in key
         ):
             value = REDACTED_VALUE
-        return value() if callable(value) else value
+        return _resolve_lazy_value(value)
 
     def _externalize_or_redact(self, key: str, value: str) -> AttributeValue:
         """
@@ -549,6 +549,17 @@ def _mask_supports_externalize(config_type: Type[TraceConfig]) -> bool:
             supported = False
         _MASK_EXTERNALIZE_SUPPORT[config_type] = supported
     return _MASK_EXTERNALIZE_SUPPORT[config_type]
+
+
+def _resolve_lazy_value(
+    value: Union[AttributeValue, Callable[[], AttributeValue]],
+) -> AttributeValue:
+    """Evaluates a lazy (callable) attribute value. A ``str`` is never treated as lazy,
+    even when it is callable: LangChain's ``message.text`` returns a callable ``str``
+    subclass whose call is deprecated."""
+    if callable(value) and not isinstance(value, str):
+        return value()
+    return value
 
 
 def mask_without_externalization(
