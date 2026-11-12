@@ -84,7 +84,7 @@ def _cache_tokens_excluded_from_input(model: Model, metrics: Any) -> int:
     Agno's Anthropic ``Claude`` (and its Bedrock, Vertex AI and Azure subclasses) copies
     Anthropic's ``usage.input_tokens``, which excludes cache reads and writes, so they are
     folded back into the prompt and total counts as the semantic conventions require.
-    Other agno models already count cached tokens in ``input_tokens``.
+    Other agno models are left as reported.
     """
     # Look the class up without importing it: agno.models.anthropic needs the anthropic SDK.
     claude = getattr(sys.modules.get("agno.models.anthropic.claude"), "Claude", None)

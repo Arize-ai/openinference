@@ -6,5 +6,5 @@ openai
 ddgs
 yfinance
 fastapi
-anthropic
+anthropic>=2
 httpx2
