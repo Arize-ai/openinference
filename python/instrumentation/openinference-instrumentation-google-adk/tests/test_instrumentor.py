@@ -472,37 +472,95 @@ async def test_call_llm_span_ends_error_on_real_adk_stream_exception(
     assert call_llm_span.status.status_code == trace_api.StatusCode.ERROR
 
 
-class _ToolThenTextLlm(BaseLlm):
-    """A fake model that asks for `_noop_tool` once, then answers with text."""
+def _noop_tool() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+class _PartialFinishThenFailLlm(BaseLlm):
+    """A fake model whose last partial chunk reports a finish reason, then fails."""
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        yield LlmResponse(
+            content=types.Content(role="model", parts=[types.Part(text="partial")]),
+            partial=True,
+        )
+        yield LlmResponse(
+            content=types.Content(role="model", parts=[types.Part(text=" answer")]),
+            partial=True,
+            finish_reason=types.FinishReason.STOP,
+        )
+        raise RuntimeError("stream failed")
+
+
+async def test_call_llm_span_records_stream_error_after_partial_chunk_with_finish_reason(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = Agent(name=f"agent{token_hex(4)}", model=_PartialFinishThenFailLlm(model="fake-model"))
+    runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id=user_id, session_id=session_id
+    )
+
+    with pytest.raises(RuntimeError, match="stream failed"):
+        async for _ in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=types.Content(role="user", parts=[types.Part(text="hi")]),
+        ):
+            ...
+
+    [call_llm_span] = [
+        s for s in in_memory_span_exporter.get_finished_spans() if s.name == "call_llm"
+    ]
+    assert call_llm_span.status.status_code == trace_api.StatusCode.ERROR
+    assert any(event.name == "exception" for event in call_llm_span.events)
+
+
+class _TextThenToolCallLlm(BaseLlm):
+    """A fake model that answers with text and then a tool call in the same turn."""
 
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse, None]:
         if llm_request.contents[-1].parts[0].function_response:  # type: ignore[index]
-            part = types.Part(text="done")
-        else:
-            part = types.Part(function_call=types.FunctionCall(name="_noop_tool", args={}))
+            yield LlmResponse(
+                content=types.Content(role="model", parts=[types.Part(text="done")]),
+                finish_reason=types.FinishReason.STOP,
+            )
+            return
         yield LlmResponse(
-            content=types.Content(role="model", parts=[part]),
+            content=types.Content(role="model", parts=[types.Part(text="calling the tool")]),
             finish_reason=types.FinishReason.STOP,
         )
-
-
-def _noop_tool() -> dict[str, str]:
-    return {"status": "ok"}
+        yield LlmResponse(
+            content=types.Content(
+                role="model",
+                parts=[types.Part(function_call=types.FunctionCall(name="_noop_tool", args={}))],
+            ),
+            finish_reason=types.FinishReason.STOP,
+        )
 
 
 async def test_call_llm_span_ends_before_the_tool_it_requested_runs(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Reproduces issue #4247: ADK only ends `call_llm` once the caller has handled
-    the response, so the tool the model asked for ran inside the LLM span's duration."""
+    the response, so the tool the model asked for ran inside the LLM span's duration.
+    Later responses and `after_model_callback` attributes must still land on the span."""
+
+    def after_model_callback(callback_context: Any, llm_response: LlmResponse) -> None:
+        trace_api.get_current_span().set_attribute("test.after_model_callback", True)
+
     agent = Agent(
         name=f"agent{token_hex(4)}",
-        model=_ToolThenTextLlm(model="fake-model"),
+        model=_TextThenToolCallLlm(model="fake-model"),
         tools=[_noop_tool],
+        after_model_callback=after_model_callback,
     )
     runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
     user_id, session_id = token_hex(4), token_hex(4)
@@ -521,15 +579,21 @@ async def test_call_llm_span_ends_before_the_tool_it_requested_runs(
     first_call_llm_span, second_call_llm_span = sorted(
         (s for s in spans if s.name == "call_llm"), key=lambda s: s.start_time or 0
     )
-    [tool_span] = [s for s in spans if s.name == "execute_tool _noop_tool"]
-    assert first_call_llm_span.end_time is not None
-    assert tool_span.start_time is not None
-    assert first_call_llm_span.end_time <= tool_span.start_time
     for span in (first_call_llm_span, second_call_llm_span):
         assert span.attributes
         assert span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "LLM"
         assert span.status.status_code == trace_api.StatusCode.OK
-    assert "ended span" not in caplog.text
+    [tool_span] = [s for s in spans if s.name == "execute_tool _noop_tool"]
+    assert first_call_llm_span.end_time is not None
+    assert tool_span.start_time is not None
+    assert first_call_llm_span.end_time <= tool_span.start_time
+    attributes = dict(first_call_llm_span.attributes or {})
+    tool_call_name = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    assert attributes.get(tool_call_name) == "_noop_tool"
+    assert attributes.get("test.after_model_callback") is True
 
 
 async def test_adk_native_spans_do_not_leak_when_adk_tracer_exports(
