@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.86](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.85...python-openinference-instrumentation-langchain-v0.1.86) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+* **langchain:** Map Mistral Alias to Provider and System Values ([#4282](https://github.com/Arize-ai/openinference/issues/4282)) ([eb8ef2c](https://github.com/Arize-ai/openinference/commit/eb8ef2ce4486f36e4532d880b905948c5cca5f45))
+
 ## [0.1.85](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.84...python-openinference-instrumentation-langchain-v0.1.85) (2026-11-12)
 
 

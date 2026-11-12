@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-ag2-v0.1.18...python-openinference-instrumentation-ag2-v0.1.19) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-ag2-v0.1.17...python-openinference-instrumentation-ag2-v0.1.18) (2026-11-12)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.67](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.66...python-openinference-instrumentation-bedrock-v0.1.67) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+
 ## [0.1.66](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.65...python-openinference-instrumentation-bedrock-v0.1.66) (2026-11-12)
 
 

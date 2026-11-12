@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.12...python-openinference-instrumentation-pipecat-v2.0.13) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+
 ## [2.0.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.11...python-openinference-instrumentation-pipecat-v2.0.12) (2026-11-11)
 
 
