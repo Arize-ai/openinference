@@ -3856,6 +3856,7 @@ class TestGetProviderFromHost:
             ("api.typesafe.ai", OpenInferenceLLMProviderValues.TYPESAFE),
             ("us-south.ml.cloud.ibm.com", OpenInferenceLLMProviderValues.IBM),
             ("eu-de.ml.cloud.ibm.com", OpenInferenceLLMProviderValues.IBM),
+            ("api.doubleword.ai", OpenInferenceLLMProviderValues.DOUBLEWORD),
         ],
     )
     def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:

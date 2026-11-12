@@ -1085,6 +1085,7 @@ export enum LLMProvider {
   TYPESAFE = "typesafe",
   ORACLE = "oracle",
   IBM = "ibm",
+  DOUBLEWORD = "doubleword",
 }
 
 /**

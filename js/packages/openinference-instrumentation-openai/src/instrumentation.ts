@@ -88,6 +88,7 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
   "api.minimax.chat": LLMProvider.MINIMAX,
   "oci.oraclecloud.com": LLMProvider.ORACLE,
   "ml.cloud.ibm.com": LLMProvider.IBM,
+  "api.doubleword.ai": LLMProvider.DOUBLEWORD,
 };
 
 /**

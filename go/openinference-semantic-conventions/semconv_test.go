@@ -225,6 +225,7 @@ func TestEnumValues(t *testing.T) {
 		{LLMProviderOracle, "oracle"},
 		{LLMProviderIBM, "ibm"},
 		{LLMProviderTypeSafe, "typesafe"},
+		{LLMProviderDoubleword, "doubleword"},
 
 		{DecisionSystemTypeSafe, "typesafe"},
 		{DecisionSystemOpenAI, "openai"},
