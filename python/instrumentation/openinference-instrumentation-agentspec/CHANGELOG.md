@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.18...python-openinference-instrumentation-agentspec-v0.1.19) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.17...python-openinference-instrumentation-agentspec-v0.1.18) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.16...python-openinference-instrumentation-agentspec-v0.1.17) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.15...python-openinference-instrumentation-agentspec-v0.1.16) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.14...python-openinference-instrumentation-agentspec-v0.1.15) (2026-10-09)
 
 

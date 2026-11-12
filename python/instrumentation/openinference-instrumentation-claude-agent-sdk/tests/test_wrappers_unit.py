@@ -1,7 +1,8 @@
 """Unit tests for helpers in `_wrappers.py` that don't need the full instrumentor.
 
-Covers `_extract_model_name_from_usage` (issue #3136) and
-`_extract_usage_and_cost_attributes` (cache-token undercount, #3611).
+Covers `_extract_model_name_from_usage` (issue #3136),
+`_extract_usage_and_cost_attributes` (cache-token undercount, #3611), and
+`_extract_prompt` (positional prompt lost alongside other kwargs).
 """
 
 from __future__ import annotations
@@ -12,7 +13,9 @@ import pytest
 
 from openinference.instrumentation.claude_agent_sdk._wrappers import (
     _extract_model_name_from_usage,
+    _extract_prompt,
     _extract_usage_and_cost_attributes,
+    _TurnUsageAccumulator,
 )
 from openinference.semconv.trace import SpanAttributes
 
@@ -238,3 +241,85 @@ def test_token_counts_fold_cache_tokens(
     assert (
         attrs.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == expected_cache_write
     )
+
+
+def test_turn_usage_accumulator_sums_distinct_root_assistant_messages() -> None:
+    accumulator = _TurnUsageAccumulator()
+    accumulator.add(
+        {
+            "type": "assistant",
+            "message_id": "message-1",
+            "parent_tool_use_id": None,
+            "usage": {"input_tokens": 10, "output_tokens": 3, "cache_read_input_tokens": 5},
+        }
+    )
+    accumulator.add(
+        {
+            "type": "assistant",
+            "message_id": "message-2",
+            "parent_tool_use_id": None,
+            "usage": {"input_tokens": 20, "output_tokens": 4, "cache_creation_input_tokens": 7},
+        }
+    )
+    assert accumulator.attributes() == {
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 42,
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 7,
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 49,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 5,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: 7,
+    }
+
+
+def test_turn_usage_accumulator_deduplicates_partial_message_snapshots() -> None:
+    accumulator = _TurnUsageAccumulator()
+    accumulator.add(
+        {
+            "message_id": "message-1",
+            "parent_tool_use_id": None,
+            "usage": {"input_tokens": 10, "output_tokens": 2},
+        }
+    )
+    accumulator.add(
+        {
+            "message_id": "message-1",
+            "parent_tool_use_id": None,
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+        }
+    )
+    assert accumulator.attributes()[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 15
+
+
+def test_turn_usage_accumulator_excludes_subagent_and_unidentified_messages() -> None:
+    accumulator = _TurnUsageAccumulator()
+    accumulator.add(
+        {
+            "message_id": "subagent-message",
+            "parent_tool_use_id": "task-1",
+            "usage": {"input_tokens": 100, "output_tokens": 50},
+        }
+    )
+    accumulator.add({"usage": {"input_tokens": 7, "output_tokens": 2}})
+    assert accumulator.attributes() == {}
+
+
+# ---------------------------------------------------------------------------
+# `_extract_prompt` — positional prompt must survive alongside other kwargs
+# ---------------------------------------------------------------------------
+
+
+def test_prompt_positional_only() -> None:
+    assert _extract_prompt(("hello",), {}) == "hello"
+
+
+def test_prompt_keyword_only() -> None:
+    assert _extract_prompt((), {"prompt": "hello"}) == "hello"
+
+
+def test_prompt_positional_alongside_unrelated_kwarg() -> None:
+    # ClaudeSDKClient.query(prompt, session_id=...) calls the wrapper this way.
+    assert _extract_prompt(("hello",), {"session_id": "my-session"}) == "hello"
+
+
+def test_prompt_absent_returns_none() -> None:
+    assert _extract_prompt((), {"session_id": "my-session"}) is None
+    assert _extract_prompt((), {}) is None

@@ -121,6 +121,11 @@ if _oracle_provider := getattr(OpenInferenceLLMProviderValues, "ORACLE", None):
 if _typesafe_provider := getattr(OpenInferenceLLMProviderValues, "TYPESAFE", None):
     _HOST_SUFFIX_TO_PROVIDER["api.typesafe.ai"] = _typesafe_provider
 
+# IBM joined OpenInferenceLLMProviderValues after semconv 0.1.43; same guard.
+# IBM watsonx.ai serves <region>.ml.cloud.ibm.com, so the suffix covers every region.
+if _ibm_provider := getattr(OpenInferenceLLMProviderValues, "IBM", None):
+    _HOST_SUFFIX_TO_PROVIDER["ml.cloud.ibm.com"] = _ibm_provider
+
 # Maps model name prefixes to their corresponding LLM system value.
 _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
     "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC,
@@ -706,11 +711,19 @@ def _llm_messages_attributes(
     for message_index, message in enumerate(messages):
         if not isinstance(message, dict):
             continue
-        if (role := message.get("role")) is not None:
+        if isinstance(role := message.get("role"), str):
             yield f"{base_key}.{message_index}.{MESSAGE_ROLE}", role
+        contents = message.get("contents")
         if (content := message.get("content")) is not None:
-            yield f"{base_key}.{message_index}.{MESSAGE_CONTENT}", content
-        if isinstance(contents := message.get("contents"), Sequence):
+            if isinstance(content, str):
+                yield f"{base_key}.{message_index}.{MESSAGE_CONTENT}", content
+            elif isinstance(content, Sequence) and not isinstance(content, (bytes, bytearray)):
+                # Some frameworks pass content blocks as a list under `content`.
+                # `contents` is the declared channel for typed blocks, so only
+                # fall back to `content` when `contents` is absent.
+                if not isinstance(contents, Sequence):
+                    contents = content
+        if isinstance(contents, Sequence):
             for content_block_index, content_block in enumerate(contents):
                 if not isinstance(content_block, dict):
                     continue

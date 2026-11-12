@@ -5,7 +5,7 @@ import json
 import logging
 import weakref
 from collections import defaultdict
-from contextvars import Context, copy_context
+from contextvars import Context, Token, copy_context
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
@@ -31,11 +31,19 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
+    cast,
 )
 
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
+from opentelemetry.trace import (
+    Span,
+    Status,
+    StatusCode,
+    Tracer,
+    get_current_span,
+    set_span_in_context,
+)
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import PrivateAttr
 from pydantic.v1.json import pydantic_encoder
@@ -45,6 +53,7 @@ from workflows.runtime.types.step_function import (
     WorkflowRunOutputEvent,
     WorkflowStepOutputEvent,
 )
+from wrapt import ObjectProxy
 
 from llama_index.core import QueryBundle
 from llama_index.core.response_synthesizers.base import BaseSynthesizer
@@ -311,6 +320,23 @@ class _StreamingStatus(Enum):
     IN_PROGRESS = auto()
 
 
+class _CurrentSpan(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
+    """Stands in for a LlamaIndex span in the runtime context.
+
+    A call that returns a Future exits from the event loop, outside the Context the span
+    was attached in, so the caller's Context cannot be reset. Once released, the stand-in
+    resolves to the span that was current before, and that Context stops parenting new
+    spans under the finished one.
+    """
+
+    def __init__(self, span: Span) -> None:
+        super().__init__(span)
+        self._self_previous = get_current_span()
+
+    def release(self) -> None:
+        self.__wrapped__ = self._self_previous
+
+
 class _Span(BaseSpan):
     _otel_span: Span = PrivateAttr()
     _attributes: Dict[str, AttributeValue] = PrivateAttr()
@@ -321,6 +347,8 @@ class _Span(BaseSpan):
 
     _end_time: Optional[int] = PrivateAttr()
     _last_updated_at: float = PrivateAttr()
+    _current_span: _CurrentSpan = PrivateAttr()
+    _context_token: Optional[Token[context_api.Context]] = PrivateAttr()
 
     def __init__(
         self,
@@ -338,6 +366,8 @@ class _Span(BaseSpan):
         self._attributes = {}
         self._end_time = None
         self._last_updated_at = time()
+        self._current_span = _CurrentSpan(otel_span)
+        self._context_token = None
         self._list_attr_len: DefaultDict[str, int] = defaultdict(int)
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
@@ -345,6 +375,22 @@ class _Span(BaseSpan):
 
     def record_exception(self, exception: BaseException) -> None:
         self._otel_span.record_exception(exception)
+
+    def attach_context(self) -> None:
+        self._context_token = context_api.attach(
+            set_span_in_context(cast(Span, self._current_span))
+        )
+
+    def detach_context(self) -> None:
+        if (token := self._context_token) is None:
+            return
+        self._context_token = None
+        self._current_span.release()
+        try:
+            # context_api.detach would log the expected cross-Context failure as an error.
+            token.var.reset(token)
+        except ValueError:
+            pass
 
     def end(self, exception: Optional[BaseException] = None) -> None:
         if not self._active:
@@ -731,6 +777,11 @@ class _Span(BaseSpan):
         self._process_response_text_type(event.response)
 
     def _extract_token_counts(self, response: Union[ChatResponse, CompletionResponse]) -> None:
+        # Convenience counts are a fallback: provider metadata may include additional
+        # tokens (e.g. Gemini thinking/tool-use tokens) omitted by LlamaIndex.
+        if additional_kwargs := getattr(response, "additional_kwargs", None):
+            for k, v in _get_token_counts(additional_kwargs):
+                self[k] = v
         if raw := getattr(response, "raw", None):
             usage = raw.get("usage") if isinstance(raw, Mapping) else getattr(raw, "usage", None)
             if usage:
@@ -746,8 +797,8 @@ class _Span(BaseSpan):
                 for k, v in _get_token_counts(usage):
                     self[k] = v
 
-            # Check for VertexAI usage_metadata
-            # VertexAI stores usage_metadata inside _raw_response
+            # VertexAI nests usage_metadata in _raw_response; GoogleGenAI puts it
+            # directly in the raw response dictionary.
             if isinstance(raw, Mapping) and (raw_response := raw.get("_raw_response")):
                 usage_metadata = (
                     raw_response.get("usage_metadata")
@@ -755,15 +806,14 @@ class _Span(BaseSpan):
                     else getattr(raw_response, "usage_metadata", None)
                 )
             else:
-                usage_metadata = getattr(raw, "usage_metadata", None)
+                usage_metadata = (
+                    raw.get("usage_metadata")
+                    if isinstance(raw, Mapping)
+                    else getattr(raw, "usage_metadata", None)
+                )
             if usage_metadata:
                 for k, v in _get_token_counts(usage_metadata):
                     self[k] = v
-        # Look for token counts in additional_kwargs of the completion payload
-        # This is needed for non-OpenAI models
-        if additional_kwargs := getattr(response, "additional_kwargs", None):
-            for k, v in _get_token_counts(additional_kwargs):
-                self[k] = v
 
     def _process_nodes(self, prefix: str, *nodes: NodeWithScore) -> None:
         for i, node in enumerate(nodes):
@@ -1030,6 +1080,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             id_=id_,
             parent_id=parent_span_id,
         )
+        span.attach_context()
         span.process_instance(instance)
         span.process_input(instance, bound_args)
         return span
@@ -1047,6 +1098,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         with self.lock:
             span = self.open_spans.get(id_)
         if span:
+            span.detach_context()
             if isinstance(instance, BaseSynthesizer) and isinstance(
                 result, (Generator, AsyncGenerator)
             ):
@@ -1098,6 +1150,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         with self.lock:
             span = self.open_spans.get(id_)
         if span:
+            span.detach_context()
             if err and isinstance(err, WorkflowDone):
                 span.end()
                 return span
@@ -1272,22 +1325,42 @@ def _get_token_counts_impl(
         except BaseException:
             pass
 
-    # VertexAI
-    if (prompt_token_count := get_value(usage, "prompt_token_count")) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_PROMPT, int(prompt_token_count)
-        except BaseException:
-            pass
-    if (candidates_token_count := get_value(usage, "candidates_token_count")) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_COMPLETION, int(candidates_token_count)
-        except BaseException:
-            pass
-    if (total_token_count := get_value(usage, "total_token_count")) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_TOTAL, int(total_token_count)
-        except BaseException:
-            pass
+    # GoogleGenAI / VertexAI
+    google_counts = {}
+    for key in (
+        "prompt_token_count",
+        "tool_use_prompt_token_count",
+        "candidates_token_count",
+        "thoughts_token_count",
+        "cached_content_token_count",
+        "total_token_count",
+    ):
+        if (value := get_value(usage, key)) is not None:
+            try:
+                google_counts[key] = int(value)
+            except (TypeError, ValueError, OverflowError):
+                pass
+    prompt_count = google_counts.get("prompt_token_count", 0) + google_counts.get(
+        "tool_use_prompt_token_count", 0
+    )
+    completion_count = google_counts.get("candidates_token_count", 0) + google_counts.get(
+        "thoughts_token_count", 0
+    )
+    if "prompt_token_count" in google_counts or "tool_use_prompt_token_count" in google_counts:
+        yield LLM_TOKEN_COUNT_PROMPT, prompt_count
+    if "candidates_token_count" in google_counts or "thoughts_token_count" in google_counts:
+        yield LLM_TOKEN_COUNT_COMPLETION, completion_count
+    # Vertex protos read unset fields as 0, so zero detail counts are omitted.
+    if google_counts.get("thoughts_token_count"):
+        yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, google_counts["thoughts_token_count"]
+    # Cached tokens are already included in prompt_token_count.
+    if google_counts.get("cached_content_token_count"):
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, google_counts["cached_content_token_count"]
+    if google_counts.keys() - {"cached_content_token_count"}:
+        yield (
+            LLM_TOKEN_COUNT_TOTAL,
+            max(prompt_count + completion_count, google_counts.get("total_token_count", 0)),
+        )
 
 
 if WorkflowStepOutputEvent is not None:

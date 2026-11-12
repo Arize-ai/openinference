@@ -83,6 +83,22 @@ describe("OITracer", () => {
       expect(span).toBeInstanceOf(OISpan);
     });
 
+    it("should apply masking from environment variables when no trace config is passed", () => {
+      process.env.OPENINFERENCE_HIDE_INPUTS = "true";
+      try {
+        const oiTracer = new OITracer({ tracer: mockTracer });
+        oiTracer.startSpan("test-span", {
+          attributes: { key1: "value1", "input.value": "sensitiveValue" },
+        });
+        expect(getMockMethod(mockSpan, "setAttributes")).toHaveBeenCalledWith({
+          key1: "value1",
+          "input.value": REDACTED_VALUE,
+        });
+      } finally {
+        delete process.env.OPENINFERENCE_HIDE_INPUTS;
+      }
+    });
+
     it("should add OpenInference context attributes to spans", () => {
       const oiTracer = new OITracer({
         tracer: mockTracer,

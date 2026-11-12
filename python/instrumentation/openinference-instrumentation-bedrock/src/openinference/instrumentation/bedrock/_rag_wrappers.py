@@ -26,6 +26,7 @@ from openinference.instrumentation import (
     get_attributes_from_context,
 )
 from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
+from openinference.instrumentation.bedrock.utils import _StreamClosed
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +265,8 @@ class _RagEventStream:
                         )
                     )
                 )
-                self._span.set_status(Status(StatusCode.OK))
+                if not isinstance(obj, _StreamClosed):
+                    self._span.set_status(Status(StatusCode.OK))
             except Exception:
                 logger.warning("Failed to set RAG response attributes on span", exc_info=True)
             finally:

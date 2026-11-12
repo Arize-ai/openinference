@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.33...python-openinference-instrumentation-vertexai-v0.1.34) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.32...python-openinference-instrumentation-vertexai-v0.1.33) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.31...python-openinference-instrumentation-vertexai-v0.1.32) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+* **vertexai:** end the stream span when the stream is dropped before it is exhausted ([#4144](https://github.com/Arize-ai/openinference/issues/4144)) ([5c68f3a](https://github.com/Arize-ai/openinference/commit/5c68f3a6d1ba1095e9b7ae594fabfbe0271c6948))
+
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.30...python-openinference-instrumentation-vertexai-v0.1.31) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.29...python-openinference-instrumentation-vertexai-v0.1.30) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.28...python-openinference-instrumentation-vertexai-v0.1.29) (2026-10-09)
 
 
