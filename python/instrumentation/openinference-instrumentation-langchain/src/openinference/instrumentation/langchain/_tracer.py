@@ -1634,6 +1634,7 @@ _PROVIDER_TO_SYSTEM = {
     "groq": OpenInferenceLLMSystemValues.OPENAI.value,
     "huggingface": _NA,  # TODO
     "ibm": _NA,  # TODO
+    "mistral": OpenInferenceLLMSystemValues.MISTRALAI.value,
     "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
     "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
     "openai": OpenInferenceLLMSystemValues.OPENAI.value,
@@ -1665,6 +1666,7 @@ _LANGCHAIN_PROVIDER_MAP = {
     "groq": "groq",
     "huggingface": "huggingface",
     "ibm": "ibm",
+    "mistral": OpenInferenceLLMProviderValues.MISTRALAI.value,
     "mistralai": OpenInferenceLLMProviderValues.MISTRALAI.value,
     "nvidia": "nvidia",
     "ollama": "ollama",
