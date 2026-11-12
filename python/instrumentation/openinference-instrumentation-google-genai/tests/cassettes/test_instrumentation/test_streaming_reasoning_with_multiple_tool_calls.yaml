@@ -9,27 +9,27 @@ interactions:
       "thinking_level": "LOW"}}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:streamGenerateContent?alt=sse
   response:
     body:
       string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\":
-        {\"name\": \"get_weather\",\"args\": {\"location\": \"Boston\"},\"id\": \"dv8szvqe\"},\"thoughtSignature\":
-        \"EvsDCvgDAQw51sfOm202VhDM/fOzDucl3NeMekkiE7gOacjnPJ069JpRTXprcfTE6Ax6MyY7VejmY9ddNZBua89/SdYPZ/TqAemzbhsA48yRrmbWlm5R/B4xDO6mjmDtMUrDfN6ZT8MLZbem3it8aALrWE4bSHqEGxzU4G3TQh4+EEwke2iq9uo12ax3ud2MIteByts1WSAnRxv4b0M8Usn8R3oi05q/lTFVYbUetSquNGoaE6pQKRuB1BI/wpsrU0GIlFGPEhlNmSAH9StVFZdZ1SacmiEAEr8TdNJ2R5Peg8xX9TqEbo1VzxeiPe+gLXk2qTZnwJ5U0gdA657I6M/iQR2UgBvV3eWSDbamBvXWilVRS4IOpdnBh38z/tCZTwiJjB03qvPTotN4SbjqALxUTKKlHC7CDORu0KJHk1I9ieLBwVCHNBP1jgAZAruSYojAy19i5NjKgXIMSiBEZUt1d4QKCOjFcqC6dPm0DgCJY9j9N8M8VmVrxayq3a8HUHl6mYQCE4skGjmFdPU0NHEs/vDl4nXdoDGDjB0DnWRg32CErUr8FrcAED5Qhw2jrJXA3/6g9RP4ZcPogQUzhS1cDMUhS54RCc2lurBZN0ToeUj9COah0l4aL4SqosCg+S/BANAcmHmtFKXwdsw9N+MXcPQOyd34GvNOMYsk\"}],\"role\":
+        {\"name\": \"get_weather\",\"args\": {\"location\": \"Boston\"},\"id\": \"call_6447876092944843280\"},\"thoughtSignature\":
+        \"EqwDCqkDAWkUfRNnMfYMbkEMo59bzWdWNcL28cPJdm9MKSCYSVo6SyWj10Fgde+Pmp8NnsB7BcF3XURZ3Kce1UxNLtkCC7WfEDxldkCrovFGPRl8EC1BCSGMfME3FZzY7lJKiiJ1xJZIxQLK+tzVe8HwAn5xG8+fM94/EVZNpaZMCXrKx76cFPzJs6dAw/aRpUYitRhkqVRH93DjGrvCi4oSj7525uGFuchEy7wgQphl5H/Bwa4fvT83OyEKFLflPki1AFQyDhHf88kuq4QSjmgAAvnPF77i9FFi5aqT9EnlMRjCA6MyUUQrd9meYliZM84mYfnbD7R/+InZhPr8dCS4u4Oa6cVYLPFIV1b5kwy5sVpimFMNIOqcNxTvZepCCBTBGfW5FHYob6/5O5zxCugFM24wRJyFcrwmLqmjv7yEhSrC2430zRD8BvB/zNGX+xqJKpoTkOlwtNNZG5LNqCXW5fJ5SJIqy0KlzgXw6Ywxim2WNrsP1DWMxwbu1W8fq1DeI74tbfRJbzulO1hF8tZx1dQMM3jATFIVX0EDhRnLT0l16yYqO4//jw6O5ag=\"}],\"role\":
         \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 71,\"candidatesTokenCount\":
-        16,\"totalTokenCount\": 180,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        71}],\"thoughtsTokenCount\": 93,\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-3.5-flash\",\"responseId\": \"FyIhav7bJNyw4-EP6eCsqA0\"}\r\n\r\ndata:
+        16,\"totalTokenCount\": 155,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        71}],\"thoughtsTokenCount\": 68,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"4Pr0aqnVHLC9jrEP-9iosAM\"}\r\n\r\ndata:
         {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\": {\"name\":
-        \"get_weather\",\"args\": {\"location\": \"New Delhi\"},\"id\": \"j80tal12\"}}],\"role\":
+        \"get_weather\",\"args\": {\"location\": \"New Delhi\"},\"id\": \"call_6447876092944842819\"}}],\"role\":
         \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 71,\"candidatesTokenCount\":
-        33,\"totalTokenCount\": 197,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        71}],\"thoughtsTokenCount\": 93,\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-3.5-flash\",\"responseId\": \"FyIhav7bJNyw4-EP6eCsqA0\"}\r\n\r\ndata:
+        33,\"totalTokenCount\": 172,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        71}],\"thoughtsTokenCount\": 68,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"4Pr0aqnVHLC9jrEP-9iosAM\"}\r\n\r\ndata:
         {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"\"}],\"role\": \"model\"},\"finishReason\":
         \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 71,\"candidatesTokenCount\":
-        33,\"totalTokenCount\": 197,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        71}],\"thoughtsTokenCount\": 93,\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-3.5-flash\",\"responseId\": \"FyIhav7bJNyw4-EP6eCsqA0\"}\r\n\r\n"
+        33,\"totalTokenCount\": 172,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        71}],\"thoughtsTokenCount\": 68,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"4Pr0aqnVHLC9jrEP-9iosAM\"}\r\n\r\n"
     headers: {}
     status:
       code: 200

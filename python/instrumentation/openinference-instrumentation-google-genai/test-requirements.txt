@@ -1,7 +1,6 @@
-google-genai==2.0.1
-httpx
+google-genai==3.0.0
+httpx2
 opentelemetry-sdk
 pillow
 pytest-asyncio
 pytest-recording
-respx

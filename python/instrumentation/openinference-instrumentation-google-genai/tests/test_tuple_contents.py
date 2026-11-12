@@ -3,7 +3,7 @@ import subprocess
 import sys
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 from google import genai
 from google.genai import types
@@ -66,18 +66,18 @@ async def _call(client: genai.Client, asynchronous: bool, streaming: bool, **kwa
 def mock_client() -> tuple[genai.Client, list[dict[str, Any]]]:
     requests: list[dict[str, Any]] = []
 
-    def respond(request: httpx.Request) -> httpx.Response:
+    def respond(request: httpx2.Request) -> httpx2.Response:
         requests.append(json.loads(request.content))
         if request.url.path.endswith(":streamGenerateContent"):
-            return httpx.Response(200, text=f"data: {json.dumps(_RESPONSE)}\n\n")
-        return httpx.Response(200, json=_RESPONSE)
+            return httpx2.Response(200, text=f"data: {json.dumps(_RESPONSE)}\n\n")
+        return httpx2.Response(200, json=_RESPONSE)
 
-    transport = httpx.MockTransport(respond)
+    transport = httpx2.MockTransport(respond)
     client = genai.Client(
         api_key="test-key",
         http_options=types.HttpOptions(
-            httpx_client=httpx.Client(transport=transport),
-            httpx_async_client=httpx.AsyncClient(transport=transport),
+            httpx_client=httpx2.Client(transport=transport),
+            httpx_async_client=httpx2.AsyncClient(transport=transport),
         ),
     )
     return client, requests

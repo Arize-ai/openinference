@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-langchain",
-  "version": "4.1.5",
+  "version": "4.2.0",
   "private": false,
   "description": "OpenInference Instrumentation for LangChain.js",
   "keywords": [],

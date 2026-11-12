@@ -29,8 +29,8 @@ dependencies = [
     "opentelemetry-api>=1.39.0",
     "opentelemetry-sdk>=1.39.0",
     "opentelemetry-semantic-conventions>=0.52b0",
-    "openinference-instrumentation>=0.1.75",
-    "openinference-semantic-conventions>=0.1.42",
+    "openinference-instrumentation>=0.1.77",
+    "openinference-semantic-conventions>=0.1.44",
     "typing-extensions",
 ]
 

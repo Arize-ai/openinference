@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.8.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.8.1...python-openinference-instrumentation-openai-agents-v2.8.2) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+
+## [2.8.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.8.0...python-openinference-instrumentation-openai-agents-v2.8.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
 ## [2.8.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.7.1...python-openinference-instrumentation-openai-agents-v2.8.0) (2026-11-11)
 
 
