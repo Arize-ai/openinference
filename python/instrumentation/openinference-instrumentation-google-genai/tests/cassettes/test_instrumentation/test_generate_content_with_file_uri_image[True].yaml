@@ -1,20 +1,35 @@
 interactions:
 - request:
     body: '{"contents": [{"parts": [{"text": "Describe this image in one sentence."},
-      {"fileData": {"fileUri": "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U",
-      "mimeType": "image/jpeg"}}], "role": "user"}], "systemInstruction": {"parts":
+      {"fileData": {"file_uri": "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U",
+      "mime_type": "image/jpeg"}}], "role": "user"}], "systemInstruction": {"parts":
       [{"text": "You are a helpful assistant that can describe images."}], "role":
       "user"}, "generationConfig": {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:streamGenerateContent?alt=sse
   response:
     body:
-      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"A adorable
-        black Labrador puppy with shiny, soulful eyes gazes upward while sitting on
-        a light-colored wooden floor.\"}],\"role\": \"model\"},\"finishReason\": \"STOP\",\"index\":
-        0}],\"usageMetadata\": {\"candidatesTokenCount\": 23,\"thoughtsTokenCount\":
-        67},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\": \"4TTZaY7hO-2Vg8UP1MXMiQw\"}\r\n\r\n"
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"An
+        adorable\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        1099,\"candidatesTokenCount\": 2,\"totalTokenCount\": 1330,\"promptTokensDetails\":
+        [{\"modality\": \"IMAGE\",\"tokenCount\": 1080},{\"modality\": \"TEXT\",\"tokenCount\":
+        19}],\"thoughtsTokenCount\": 229,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"9_r0aqT7AsG1jMcP053tyA0\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" black Labrador
+        puppy sitting on rustic wooden boards looks directly up at the camera with
+        wide, expressive eyes.\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 1099,\"candidatesTokenCount\": 22,\"totalTokenCount\":
+        1350,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 19},{\"modality\":
+        \"IMAGE\",\"tokenCount\": 1080}],\"thoughtsTokenCount\": 229,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"9_r0aqT7AsG1jMcP053tyA0\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"\",\"thoughtSignature\":
+        \"EvwJCvkJAWkUfRM2+n5ISdSQWHCJmnR2GFEUQTVj6Rl4qP6ypytYzsEX7W6Y62iLe1V8oRayyE/019yIGierpE/WR5NVOc4uAPOWixehweGlqC5DyM/s4CGy+fT7wHIKj8E4ETlyRgEt53ry1AsF5xgfqxNDWdoCCHRu1wGvrx5beK+YZ+izXm3+StfKCtMB69nZQ1g/lMJw975o4qo6vG1j/xwEl5g3/SVH0HEJ2b/JwPBKIiybgPnDwSyr+i2kaWwor5IKqAJJyAHfCF/IkrQ2Lhxqy52QYKGxEZ1aKpj7H+pbs935nEFSjfAWQdb1MPs6lMFK9h4BkLOHl6xlSdusMXV0TOH1F5bTd0iInNBnAc1Pm9NI45Yun+LP2ajf4mLotviiCwtjUYZ0XcGLQyfglGdQXAxMAZgVq6bt2/5q95dIoJh44pTqaxoK/LA7XdLZIDUWGShZwSIRQDlA2vQADdzevvBCfVbLcjGA9WJ8MMG9YTWUGgc8cvsNBQxUIuY6XyuvKLwiaxSUX7qPjs8mN8lpXu/N4BkGNnevaZIctqhELHQngIo3708xodniAm8uR+DEnFsfxYWssFgYoE8uV0MPIT5zTlNByVGefcLmXgDIPJ08kjcXwTjz9XaI1InlX/4d5sG10I/D7S4rxGKL4BVBR1+RcxX3j+BtYQ4cHvPxfLHgtSj6t9Md6bBpUgDcltUvtk/1ct+izZxzDeg0RJSocFW4KLg/XmAAlVKVDK2FIrp7pGe5Tn9LA9xA4x8oxmB4qJ0aiz7w0LaBZelHe2LVw8ohUf4pHwCxG2HR/LNblPdU8TOe1NZQhl6xO2M3cJUP+Y9qoKpgPZXegqLz76acy9d2oVOWx7WLhX0bnLcyGvM3YYNB2mEmjpv23cuQL34IVuBkHQbOesOtM+TN1xJhv51OqcbnQ5BV4AarWi+Khi+YbfTl5B61C/Z6DC6Bfnj2LM0pH3Gv6+KZnNspW23WGnzPj6AWST0drE1zeHhCrYcp2vj3b5JWqGndlSAPXjAmwKCb2r642+M885PawkiXENW2RO1V2xHvB3al8uvjg1taam3c64eAWCdNiHqPB6B5Tcw9yoIxskvbSH59bzHJH82hjnVgxAkB1Bb0AD1jnX4o+xborCGwIv5YXm55p2WdMJDVtBg6q4BfZPSRLHYFVeB/lSdZt2/n3nMJw6lYD9JUqQG4jQ/Z/vzt3ypa2mCOLnRInEcxBWszbMyQUZhljLixKFpqA0mrQDoG8Crb8PfZojzwr1wuZDWHwW4062FUxJ93Fz6vngf8/JjNJ28QcrA15s7RaSe0YTRmIAcOvNlLQ41MHw9ziAGZK0brO6hqxwmRljlRw74qiiK3egSjPekBNfDz0Au+M7oWZNnHktidciha+Qm4K1RNYXRh0mQep2cBOo1NJ5gz8jUSnQw3fr9Ng2nbawfOzWCOShJ2qnSGoDegqlI5zRSLSW0F0ZftR3xpg8kfBcqkPnBzT0MopNZ7VfbYju/wEEjVwHUIkvTaRh2DOuy58GLMTuxz8xPH4GLM9aShtX8rD+pM1R6vEiMOwRF0mZZBHXa5i6PJyOo6j5UyMgF1Rsm5ZjIR5ptbEYQyaPrBLdgrL4Adstby4Q799AhTAkcPsHxlQ1AT2ppb/9OOzd5yFGCUJkURA419fb5pNlDt7e49UyScEsnG6mBovWXZHKxKAQ==\"}],\"role\":
+        \"model\"},\"finishReason\": \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        1099,\"candidatesTokenCount\": 22,\"totalTokenCount\": 1350,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 19},{\"modality\": \"IMAGE\",\"tokenCount\":
+        1080}],\"thoughtsTokenCount\": 229,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"9_r0aqT7AsG1jMcP053tyA0\"}\r\n\r\n"
     headers: {}
     status:
       code: 200

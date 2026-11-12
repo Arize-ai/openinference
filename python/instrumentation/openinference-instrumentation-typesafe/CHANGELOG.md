@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-typesafe-v0.1.9...python-openinference-instrumentation-typesafe-v0.1.10) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-typesafe-v0.1.8...python-openinference-instrumentation-typesafe-v0.1.9) (2026-11-11)
 
 
