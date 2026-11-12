@@ -3,11 +3,14 @@
 Cassettes recorded against the real AWS Bedrock API and replayed for CI.
 """
 
+import io
 import json
 from typing import Any, Dict
 
 import boto3
 import pytest
+from botocore.response import StreamingBody
+from botocore.stub import Stubber
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -559,6 +562,56 @@ class TestNovaBodyTokenCounts:
         assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 5
         assert attributes[LLM_TOKEN_COUNT_TOTAL] == 15
         assert LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ not in attributes
+
+    def test_invoke_model_body_cache_tokens_override_header_count(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        # The header count matches inputTokens, which excludes the cache write.
+        usage = {
+            "inputTokens": 5,
+            "outputTokens": 4,
+            "totalTokens": 3005,
+            "cacheReadInputTokenCount": 0,
+            "cacheWriteInputTokenCount": 2996,
+        }
+        raw = json.dumps(
+            {
+                "output": {"message": {"role": "assistant", "content": [{"text": "4"}]}},
+                "stopReason": "end_turn",
+                "usage": usage,
+            }
+        ).encode()
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
+        with Stubber(client) as stubber:
+            stubber.add_response(
+                "invoke_model",
+                {
+                    "body": StreamingBody(io.BytesIO(raw), len(raw)),
+                    "contentType": "application/json",
+                    "ResponseMetadata": {
+                        "HTTPHeaders": {
+                            "x-amzn-bedrock-input-token-count": "5",
+                            "x-amzn-bedrock-output-token-count": "4",
+                        }
+                    },
+                },
+            )
+            client.invoke_model(
+                modelId="us.amazon.nova-2-lite-v1:0",
+                body=json.dumps({"messages": [{"role": "user", "content": [{"text": "2+2?"}]}]}),
+            )
+
+        attributes = dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3001
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 4
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 3005
+        assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 2996
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
