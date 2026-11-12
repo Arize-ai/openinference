@@ -29,6 +29,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -38,6 +39,38 @@ VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy").split(".")[:
 def _litellm_kwargs() -> Dict[str, str]:
     # Older DSPy forwards unknown constructor kwargs to the provider.
     return {"engine": "litellm"} if "engine" in inspect.signature(dspy.LM).parameters else {}
+
+
+def _mock_chat_completion(
+    monkeypatch: MonkeyPatch,
+    *,
+    message: Dict[str, Any],
+    finish_reason: str,
+    usage: Dict[str, Any],
+) -> None:
+    # lm15 is typed but DSPy is not; static imports make mypy lose DSPy's exports.
+    transport = import_module("dspy._vendor.lm15.transports._sync").StdlibTransport
+    transport_response = import_module("dspy._vendor.lm15.transports._types").TransportResponse
+    body = {
+        "id": "chatcmpl-local",
+        "object": "chat.completion",
+        "created": 0,
+        "model": "gpt-4o",
+        "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
+        "usage": usage,
+    }
+
+    def respond(_: Any, __: Any) -> Any:
+        return transport_response(
+            status=200,
+            reason="OK",
+            headers=[("content-type", "application/json")],
+            http_version="HTTP/1.1",
+            chunks=iter([json.dumps(body).encode()]),
+            release=lambda consumed: None,
+        )
+
+    monkeypatch.setattr(transport, "stream", respond)
 
 
 def _span_attributes(span: trace_sdk.ReadableSpan) -> Dict[str, AttributeValue]:
@@ -156,6 +189,151 @@ class TestLM:
         assert attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == prompt
         assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "France"
         assert json.loads(str(attributes[OUTPUT_VALUE])) == ["France"]
+
+    @pytest.mark.skipif(
+        VERSION < (3, 5, 0), reason="lm15 Request/Response LM API requires DSPy 3.5"
+    )
+    @pytest.mark.disable_socket
+    def test_lm15_request_and_response_are_recorded(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        lm15 = import_module("dspy.lm15")
+        _mock_chat_completion(
+            monkeypatch,
+            message={
+                "role": "assistant",
+                "content": "Checking again.",
+                "tool_calls": [
+                    {
+                        "id": "call_2",
+                        "type": "function",
+                        "function": {"name": "lookup", "arguments": '{"city": "Lyon"}'},
+                    }
+                ],
+            },
+            finish_reason="tool_calls",
+            usage={
+                "prompt_tokens": 20,
+                "completion_tokens": 7,
+                "total_tokens": 27,
+                "prompt_tokens_details": {"cached_tokens": 4},
+                "completion_tokens_details": {"reasoning_tokens": 3},
+            },
+        )
+        lm = dspy.LM("openai/gpt-4o", model_type="chat", cache=False, api_key="sk-fake-key")
+        request = lm15.Request(
+            model="openai/gpt-4o",
+            system="Be terse.",
+            messages=(
+                lm15.Message(role="user", parts=(lm15.TextPart(text="Weather in Paris?"),)),
+                lm15.Message(
+                    role="assistant",
+                    parts=(lm15.ToolCallPart(id="call_1", name="lookup", input={"city": "Paris"}),),
+                ),
+                lm15.Message(
+                    role="tool",
+                    parts=(
+                        lm15.ToolResultPart(
+                            id="call_1", name="lookup", content=(lm15.TextPart(text="Sunny"),)
+                        ),
+                    ),
+                ),
+            ),
+            tools=(
+                lm15.FunctionTool(
+                    name="lookup",
+                    description="Look up the weather",
+                    parameters={"type": "object", "properties": {"city": {"type": "string"}}},
+                ),
+            ),
+        )
+
+        lm(request)
+
+        (span,) = in_memory_span_exporter.get_finished_spans()
+        assert span.name == "LM.__call__"
+        attributes = _span_attributes(span)
+        assert attributes[LLM_MODEL_NAME] == "gpt-4o"
+        assert attributes[LLM_PROVIDER] == "openai"
+        assert attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}"] == "system"
+        assert attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "Be terse."
+        assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}"] == "user"
+        assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}"] == "Weather in Paris?"
+        assert attributes[f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}"] == "assistant"
+        prior_call = f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0"
+        assert attributes[f"{prior_call}.{TOOL_CALL_ID}"] == "call_1"
+        assert attributes[f"{prior_call}.{TOOL_CALL_FUNCTION_NAME}"] == "lookup"
+        assert json.loads(str(attributes[f"{prior_call}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"])) == {
+            "city": "Paris"
+        }
+        assert attributes[f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}"] == "tool"
+        assert attributes[f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_TOOL_CALL_ID}"] == "call_1"
+        assert attributes[f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}"] == "Sunny"
+        assert json.loads(str(attributes[f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"])) == {
+            "type": "function",
+            "function": {
+                "name": "lookup",
+                "description": "Look up the weather",
+                "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+            },
+        }
+        assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}"] == "assistant"
+        assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "Checking again."
+        new_call = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0"
+        assert attributes[f"{new_call}.{TOOL_CALL_ID}"] == "call_2"
+        assert attributes[f"{new_call}.{TOOL_CALL_FUNCTION_NAME}"] == "lookup"
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 20
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 7
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 27
+        assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 4
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] == 3
+        input_value = json.loads(str(attributes[INPUT_VALUE]))
+        assert input_value["prompt"]["system"] == "Be terse."
+        assert input_value["prompt"]["tools"] == ["lookup"]
+        output_value = json.loads(str(attributes[OUTPUT_VALUE]))
+        assert output_value["finish_reason"] == "tool_call"
+        assert output_value["usage"]["input_tokens"] == 20
+
+    @pytest.mark.skipif(
+        VERSION < (3, 5, 0), reason="lm15 Request/Response LM API requires DSPy 3.5"
+    )
+    @pytest.mark.disable_socket
+    def test_predict_records_lm_messages_and_token_counts(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        _mock_chat_completion(
+            monkeypatch,
+            message={
+                "role": "assistant",
+                "content": "[[ ## answer ## ]]\nFrance\n\n[[ ## completed ## ]]",
+            },
+            finish_reason="stop",
+            usage={"prompt_tokens": 50, "completion_tokens": 12, "total_tokens": 62},
+        )
+        lm = dspy.LM("openai/gpt-4o", model_type="chat", cache=False, api_key="sk-fake-key")
+        with dspy.context(lm=lm, adapter=dspy.ChatAdapter()):
+            prediction = dspy.Predict("question -> answer")(question="Who won the 2018 World Cup?")
+
+        assert prediction.answer == "France"
+        (span,) = [
+            span
+            for span in in_memory_span_exporter.get_finished_spans()
+            if span.name == "LM.__call__"
+        ]
+        attributes = _span_attributes(span)
+        assert attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}"] == "system"
+        assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}"] == "user"
+        assert "Who won the 2018 World Cup?" in str(
+            attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}"]
+        )
+        assert "France" in str(attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"])
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 50
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 12
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 62
 
     @pytest.mark.vcr
     def test_openai_chat_completions_api_invoked_via_prompt_positional_argument(
@@ -1390,6 +1568,11 @@ LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
@@ -1400,6 +1583,9 @@ MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
