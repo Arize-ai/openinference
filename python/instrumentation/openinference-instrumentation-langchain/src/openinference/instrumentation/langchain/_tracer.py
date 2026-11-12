@@ -808,7 +808,7 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
 
     # Strategy 1: Try the standard id field approach
     id_ = message_data.get("id")
-    if id_ is not None and isinstance(id_, List) and len(id_) > 0:
+    if id_ is not None and isinstance(id_, list) and len(id_) > 0:
         try:
             message_class_name = id_[-1]
             # RemoveMessage intentionally has no role - exit early without warning
