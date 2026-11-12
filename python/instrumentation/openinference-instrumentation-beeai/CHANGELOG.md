@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.33...python-openinference-instrumentation-beeai-v0.1.34) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.32...python-openinference-instrumentation-beeai-v0.1.33) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.31...python-openinference-instrumentation-beeai-v0.1.32) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
 ## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.30...python-openinference-instrumentation-beeai-v0.1.31) (2026-10-29)
 
 

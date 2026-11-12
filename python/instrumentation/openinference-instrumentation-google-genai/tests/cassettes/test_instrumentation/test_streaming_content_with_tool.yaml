@@ -11,16 +11,21 @@ interactions:
       "type": "OBJECT"}}]}], "generationConfig": {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:streamGenerateContent?alt=sse
   response:
     body:
       string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\":
-        {\"name\": \"get_weather\",\"args\": {\"location\": \"San Francisco\"}}}],\"role\":
-        \"model\"},\"finishReason\": \"STOP\"}],\"usageMetadata\": {\"promptTokenCount\":
-        63,\"candidatesTokenCount\": 6,\"totalTokenCount\": 69,\"promptTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 63}],\"candidatesTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 6}],\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.0-flash\",\"responseId\": \"ldcEapKDBbCH7_UP6LC-6AE\"}\r\n\r\n"
+        {\"name\": \"get_weather\",\"args\": {\"location\": \"San Francisco, CA\"},\"id\":
+        \"call_2390026099955866694\"},\"thoughtSignature\": \"Et8FCtwFAWkUfRNoyLMLke7ro4Pp2OC9FfG2l6vsdJjfgm/ojm/Wx0Ri18DhTQLd2g544l5H1qptudQZ3CNksffsvz0ZZTwD3BN2T9h6x+ekJDT/HbCU6w18N6FcAYznSaswsZfPQm7q55vuRSnXiHU1yaaXKJs+fzGK9HgJa7JbKsu5iEbIuQE3AX1D3Cp+Ny1HXluc4eFvlG/vEmEWKX0zMBH3tBGYIhuM8h99aCdXhhCUXoTvDnylW6QYMwcycrbgNpUOmXb1ktqewOe3+EzT3/dvOlmLdgs68LCvUYdJV/xd5hI6cHMQig9LtGFhzL5S7bRd9QqEV4DHUZ+Iia8Wx7BqOs/HfHyn3ehww+nE4sgu91QcG0B5GmY1ythU+uWYxsBm9atxSIcs4TT1CCD14gGGzxNnqxskzDMqYApl9I9q+wyLy2mf7PfgCIomWJDVaEdA7rxzPju4lKEWqd3VtN4p5zNUcYbZBOFN5ln4D/jtUvzp/HMEU+fxppc3QXAZ2KKzZXlgkgCr7OdMudt/rehEhA1e3kg7/z0Jwu7QSxaCn0HTfuShj44pxCEB/s0dAimabh7SMGhq7KV1LS2lre7GQHpd/FZxBMXLZ4cMu/hO+mG+djUD9/0VafowMwgxUQzECY1OSxmjBkrtA7IboPfpkkmmnSgImmk3CoW5EDz8o6M1p7eGK3cZttMj6YHJPukcSE6rUZFkjCmOfqBVEQVMc7Ny9TnStCFzmF3i9IaxiFOIEuw4uTy8dRdfEJVKlLSW0np6gc/6bQllHcJcpMs+Z2x5TTKa0/EGUqmdFvGrflAFkkGrLJnB8/aNA92MwgHfzXE5SNj7w2AGYnMCaAitRqIXmNuf17BbzvI03deoLdJdZrlaVGznmZZgSiGgYCgsbNmuAfwR5h+H+gYLoTiDFt+AAYLAIiQbHhwDShVuFCBfY4WQWxI97kjad0Ah3aL0j4/5mDPbiH4mYnQ5\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 119,\"candidatesTokenCount\":
+        19,\"totalTokenCount\": 273,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        119}],\"thoughtsTokenCount\": 135,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"2vr0aqzAO7ye_uMPzoiC6QQ\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"\"}],\"role\": \"model\"},\"finishReason\":
+        \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 119,\"candidatesTokenCount\":
+        19,\"totalTokenCount\": 273,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        119}],\"thoughtsTokenCount\": 135,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"2vr0aqzAO7ye_uMPzoiC6QQ\"}\r\n\r\n"
     headers: {}
     status:
       code: 200

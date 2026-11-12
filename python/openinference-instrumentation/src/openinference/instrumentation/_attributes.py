@@ -121,6 +121,11 @@ if _oracle_provider := getattr(OpenInferenceLLMProviderValues, "ORACLE", None):
 if _typesafe_provider := getattr(OpenInferenceLLMProviderValues, "TYPESAFE", None):
     _HOST_SUFFIX_TO_PROVIDER["api.typesafe.ai"] = _typesafe_provider
 
+# IBM joined OpenInferenceLLMProviderValues after semconv 0.1.43; same guard.
+# IBM watsonx.ai serves <region>.ml.cloud.ibm.com, so the suffix covers every region.
+if _ibm_provider := getattr(OpenInferenceLLMProviderValues, "IBM", None):
+    _HOST_SUFFIX_TO_PROVIDER["ml.cloud.ibm.com"] = _ibm_provider
+
 # Maps model name prefixes to their corresponding LLM system value.
 _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
     "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC,

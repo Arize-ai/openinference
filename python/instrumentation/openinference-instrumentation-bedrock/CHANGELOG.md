@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.65](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.64...python-openinference-instrumentation-bedrock-v0.1.65) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
+## [0.1.64](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.63...python-openinference-instrumentation-bedrock-v0.1.64) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+
+## [0.1.63](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.62...python-openinference-instrumentation-bedrock-v0.1.63) (2026-11-04)
+
+
+### Bug Fixes
+
+* **bedrock:** import and proxy without wrapt's C extension ([#4193](https://github.com/Arize-ai/openinference/issues/4193)) ([c2c1176](https://github.com/Arize-ai/openinference/commit/c2c1176bac058e5b629c8a06c6d0545c82d729d8))
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
 ## [0.1.62](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.61...python-openinference-instrumentation-bedrock-v0.1.62) (2026-10-29)
 
 

@@ -4,91 +4,78 @@ interactions:
       "role": "user"}]}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:streamGenerateContent?alt=sse
   response:
     body:
-      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"C\"}],\"role\":
-        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 10,\"totalTokenCount\":
-        10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\":
-        \"standard\"},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\": \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"lementine was no
-        ordinary calico. While most cats contented themselves with naps and chasing
-        dust bunnies,\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
-        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        10}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
-        \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
-        {\"parts\": [{\"text\": \" Clementine harbored a secret ambition: to learn
-        to read.\\n\\nEvery day, she\"}],\"role\": \"model\"}}],\"usageMetadata\":
-        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Wh\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 10,\"candidatesTokenCount\":
+        1,\"totalTokenCount\": 11,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.5-flash-lite\",\"responseId\":
+        \"1fr0atDuJ6Sl_PUP5MidKA\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\":
+        [{\"text\": \"iskers twitched. A low rumble vibrated in Elara\u2019s chest.
+        The afternoon sun\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"candidatesTokenCount\": 21,\"totalTokenCount\":
+        31,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-2.5-flash-lite\",\"responseId\":
+        \"1fr0atDuJ6Sl_PUP5MidKA\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\":
+        [{\"text\": \", a golden stripe across the worn rug, was precisely the right
+        temperature for a nap. She stretched, a luxurious unfurling of limbs, before
+        settling back into her chosen patch of warmth.\\n\\nHer human, Leo, was a
+        clumsy\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"candidatesTokenCount\": 69,\"totalTokenCount\": 79,\"promptTokensDetails\":
         [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.0-flash\",\"responseId\": \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"'d sit perched on
-        the windowsill, emerald eyes fixed on Mrs. Gable\u2019s book. Mrs. Gable,
-        a kind, elderly woman, would read aloud, her\"}],\"role\": \"model\"}}],\"usageMetadata\":
-        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        \"gemini-2.5-flash-lite\",\"responseId\": \"1fr0atDuJ6Sl_PUP5MidKA\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" giant. He\u2019d
+        made loud noises earlier, a clattering of metal and a sigh that was almost
+        a roar. But now, he was still. He sat at his bright, glowing rectangle, fingers
+        tap-dancing on keys. Elara didn\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"candidatesTokenCount\": 119,\"totalTokenCount\":
+        129,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-2.5-flash-lite\",\"responseId\":
+        \"1fr0atDuJ6Sl_PUP5MidKA\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\":
+        [{\"text\": \"\u2019t understand the rectangle, but she understood the stillness
+        it brought.\\n\\nSuddenly, a flicker. A shadow, too fast for Leo\u2019s slow
+        eyes, danced on the wall. Elara\u2019s emerald eyes snapped open, pupils dil\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 10,\"candidatesTokenCount\":
+        167,\"totalTokenCount\": 177,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.5-flash-lite\",\"responseId\":
+        \"1fr0atDuJ6Sl_PUP5MidKA\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\":
+        [{\"text\": \"ating into black pools. Her ears swiveled, pinpointing the source
+        of the disturbance. It was a dust bunny, a minuscule adventurer daring to
+        trespass in her kingdom.\\n\\nWith a silent grace that belied her plumpness,
+        Elara launched\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"candidatesTokenCount\": 217,\"totalTokenCount\":
+        227,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-2.5-flash-lite\",\"responseId\":
+        \"1fr0atDuJ6Sl_PUP5MidKA\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\":
+        [{\"text\": \" herself. Her paws, usually so soft, became weapons. She pounced,
+        a blur of ginger fur, and the dust bunny vanished beneath her controlled ferocity.
+        A triumphant chirrup escaped her.\\n\\nLeo looked up, his eyes cr\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 10,\"candidatesTokenCount\":
+        266,\"totalTokenCount\": 276,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.5-flash-lite\",\"responseId\":
+        \"1fr0atDuJ6Sl_PUP5MidKA\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\":
+        [{\"text\": \"inkling at the corners. \\\"What are you up to now, you little
+        hunter?\\\" he murmured, a smile in his voice.\\n\\nElara, however, had already
+        lost interest in the vanquished foe. The thrill of the chase,\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 10,\"candidatesTokenCount\":
+        315,\"totalTokenCount\": 325,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.5-flash-lite\",\"responseId\":
+        \"1fr0atDuJ6Sl_PUP5MidKA\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\":
+        [{\"text\": \" the satisfaction of the pounce \u2013 that was the real prize.
+        She blinked slowly at Leo, a gesture of supreme feline contentment. She\u2019d
+        defended her territory, maintained the peace, and now, the sunbeam was calling
+        her back. She yawned, revealing\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"candidatesTokenCount\": 368,\"totalTokenCount\":
+        378,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-2.5-flash-lite\",\"responseId\":
+        \"1fr0atDuJ6Sl_PUP5MidKA\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\":
+        [{\"text\": \" a tiny pink tongue, and curled back into her golden stripe,
+        the soft purr returning, a testament to a perfectly spent afternoon.\"}],\"role\":
+        \"model\"},\"finishReason\": \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"candidatesTokenCount\": 395,\"totalTokenCount\": 405,\"promptTokensDetails\":
         [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.0-flash\",\"responseId\": \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" voice a warm, comforting
-        rumble. Clementine couldn\u2019t understand the words, but she loved the rhythm,
-        the way Mrs. Gable\u2019s brow furrowed in\"}],\"role\": \"model\"}}],\"usageMetadata\":
-        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.0-flash\",\"responseId\": \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" concentration,
-        the sigh of satisfaction when she finished a chapter.\\n\\nOne afternoon,
-        while Mrs. Gable was out, Clementine decided to take matters into her own
-        paws. She leapt onto the armchair, then onto the side table, finally reaching\"}],\"role\":
-        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 10,\"totalTokenCount\":
-        10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\":
-        \"standard\"},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\": \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" the forbidden fruit
-        - Mrs. Gable's open book. The letters looked like strange, wriggling worms.
-        She tried to mimic the shapes with her paw, batting clumsily at the page.\\n\\nFrustrated,
-        Clementine did what\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
-        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        10}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
-        \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
-        {\"parts\": [{\"text\": \" cats do best: she rubbed her face against the book,
-        leaving a smudge of ginger fur on the page. Suddenly, a scent hit her nose
-        \u2013 ink, paper, and something else, something...like understanding. It
-        wasn't understanding the words, but understanding the purpose. This was a
-        portal, a doorway to another\"}],\"role\": \"model\"}}],\"usageMetadata\":
-        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.0-flash\",\"responseId\": \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" world.\\n\\nFrom
-        that day on, Clementine repeated her ritual. She'd rub her face on the books,
-        absorbing the scent, trying to glean the secrets within. She wouldn't say
-        she could \\\"read\\\" in the human sense, but she knew which books Mrs. Gable
-        loved best by their scent, and she\"}],\"role\": \"model\"}}],\"usageMetadata\":
-        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.0-flash\",\"responseId\": \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"'d curl up on them
-        when Mrs. Gable was away, purring contentedly.\\n\\nOne evening, Mrs. Gable,
-        noticing Clementine\u2019s peculiar affection for her books, smiled knowingly.
-        She gently stroked Clementine's fur. \\\"You're a clever girl, aren't you?\\\"
-        she murmured\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
-        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        10}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
-        \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
-        {\"parts\": [{\"text\": \". \\\"You want to know all the stories too.\\\"\\n\\nMrs.
-        Gable began reading to Clementine more often, pointing to the words, explaining
-        the characters. Clementine still couldn't decipher the individual letters,
-        but she could feel the stories unfold in her mind, fueled by the scent of
-        the pages and the warmth of Mrs\"}],\"role\": \"model\"}}],\"usageMetadata\":
-        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 10}],\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.0-flash\",\"responseId\": \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \". Gable's voice.
-        She might not have been able to read in the traditional sense, but Clementine,
-        the book-loving calico, had found her own way to understand the world, one
-        sniff, one purr, one story at a time. And that, she knew, was magic enough.\\n\"}],\"role\":
-        \"model\"},\"finishReason\": \"STOP\"}],\"usageMetadata\": {\"promptTokenCount\":
-        9,\"candidatesTokenCount\": 527,\"totalTokenCount\": 536,\"promptTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 9}],\"candidatesTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 527}],\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.0-flash\",\"responseId\": \"jNcEavSuHfWA7_UP9-uokQs\"}\r\n\r\n"
+        \"gemini-2.5-flash-lite\",\"responseId\": \"1fr0atDuJ6Sl_PUP5MidKA\"}\r\n\r\n"
     headers: {}
     status:
       code: 200
