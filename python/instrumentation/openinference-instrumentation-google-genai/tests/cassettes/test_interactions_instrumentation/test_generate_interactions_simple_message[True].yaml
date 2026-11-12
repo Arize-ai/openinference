@@ -1,19 +1,20 @@
 interactions:
 - request:
-    body: '{"input":"Tell me a short joke about programming.","model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":true}'
+    body: '{"model":"gemini-3.6-flash","generation_config":{"max_output_tokens":500,"temperature":0.7,"thinking_level":"low"},"input":"Tell
+      me a short joke about programming.","stream":true}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+    uri: https://generativelanguage.googleapis.com/v1/interactions
   response:
     body:
       string: 'event: interaction.created
 
-        data: {"interaction":{"id":"v1_ChdwZGNFYXRpUEs1bUdxdHNQci1HSGtBRRIXcGRjRWF0aVBLNW1HcXRzUHItR0hrQUU","status":"in_progress","object":"interaction","model":"gemini-2.5-flash"},"event_type":"interaction.created"}
+        data: {"interaction":{"id":"v1_ChdBX3YwYXN1MEpzMjZzT0lQNUp1X29RTRIXQV92MGFzdTBKczI2c09JUDVKdV9vUU0","object":"interaction","model":"gemini-3.6-flash"},"event_type":"interaction.created"}
 
 
         event: interaction.status_update
 
-        data: {"interaction_id":"v1_ChdwZGNFYXRpUEs1bUdxdHNQci1HSGtBRRIXcGRjRWF0aVBLNW1HcXRzUHItR0hrQUU","status":"in_progress","event_type":"interaction.status_update"}
+        data: {"interaction_id":"v1_ChdBX3YwYXN1MEpzMjZzT0lQNUp1X29RTRIXQV92MGFzdTBKczI2c09JUDVKdV9vUU0","status":"in_progress","event_type":"interaction.status_update"}
 
 
         event: step.start
@@ -23,7 +24,7 @@ interactions:
 
         event: step.delta
 
-        data: {"index":0,"delta":{"signature":"CiUBDDnWxyz8a2jt5L+A2j816ffLy6jSB4cO6Vfav5SHsLq3azBBCmUBDDnWx3DjJ1xbux6uNn+JiEt317FJdKL0Me0P9q1BWTvA7DelXu3bQ5RaZczdoCg2OOkf0IlHZbs6dK9xP3xwmldIznA7CdY/ccl81fbaAq0z1Sd3shAuWE68UZYzS0MTusao3ArqAQEMOdbHQ7+euKKGXp22UKjUQASPRMFsyQDOfi5L/EuLJIlhLMVTrzM61R55VKEzu08CR5F1xAh3283KpMWZCXvrSh/tZdZ4njz9dw+UGKaV/lPJQHVabKp94La7fPc7JfOMt39eZogPqUdmaTEJsYk+U9nRXmY6z5B1G56HkgWcj8FnXgPGhcFDWrSYR7L2E83d/K/kPh79dtdcqqeE+JDLYd9RLvkbO9PbcUCpCBF3HxzWI4J4O5G+HexUM7461XgKbB0/wdp9ab82NCBZAuGXufMcbXV0hmbfUoC6TLlORHZhMDXy4osVYArBAQEMOdbHcCs+FLo3D+ZzbpbK0qlTy0XViDEdfYfZCEzNIXtxMAGIeWcHkBv7Djc5L8Gqu8FVjYiTWaHCQFRVn1UPYLH9LzFv6RdaGvkzN6gRz/991JS7tPjYTSlZmIhJg0lJOK89gAiRJ/72+hcFBYnEP9usC8PMWixclf1BSDatWdWJTENjhuTbW6eYNdVLipmOeIjJbKdr9DtwGL0G8HaIF/oU/Bd/pYCcvWG7JHn+Qje3+dsNNLEyNmk0dIzIl34KzQEBDDnWx6MH58GSbOrjX3Fwd0IVWOLsXBuj0T4StJ9xLTDgRrqIZL5l4yh5FJCuqVIh8y8kl7hBvqvOg/IpAT4j9Bp4BawdmCVwoevbVfOoHMg1wVkIfRYTb9I4hpIm7Dov+RhtlakmTddXy+LdWcsTqtjpblCPgGTIgkNycxlgLB3YzJ3QygT+o75aKkul6RxiuJ2V5ysq8ZTcvvt0PV1Dyb0kZn2mxPzXHidnvHVwARL5yr+WGd6c5mS9iPTvBsnl98DVTbJDBf4WijjLCnkBDDnWx/xC43EmvtJCdl4SrHD2THdzQFE7kAK5LKNw6M3L+E2Sm8Vr1deGFYOxkDpgJBeKSjZFiT25dmOO7vH8XbAGrlu9hz1/LFWz/3Fxq0qgDNMMXpKjY93yH231+olLDjpGRQT4yf4jJifKZu2pHhfHCe3JqAEc","type":"thought_signature"},"event_type":"step.delta"}
+        data: {"index":0,"delta":{"signature":"Et8ICtwIAWkUfRPalmsxNvOsbXoHuS5UO2n7Dr6rM5hP2Fy729SSdcxbQlSzwtn+HhMgmvjYeqxrDEMFyFCr8UphJfNGRE8XQRn+HYTZZdqzZLXndeokuRquerMDFVHwEv1uAVZQUM5TH96wbmJpUBtVuJ0SN7/P9pFAX2JQF39JVXkyZDJtl56HSPqL4vx30MhthMYLXWCGPtFKFva1MqLi1iciyzcYQSIyYyAVd2EzS0eP3U91hjB/ufhFlkJvXKk0qhomLJFxm730h1wMXHafNUl0RwN1OXg+xKw+qVUb5xQti1aHL9WcCgTpQ3DSUSc5Ooci3fy7UBSxd8wBu3G2EjMDRliEE4gdG8QUCJCvDyq5JRDukh6IDv4ceQQr8MgS2kxshFu0d7WaUTmnv+eaP52DQV32cZo9E1HValLb9tAOZXih4Q/XtzeR2pYOh33Esl0qTmEPLyzsXbyBhlGWibrojGGOXe6+QsGv8h57y2RdCLp6sNCok/0yG8aZ6RsOogNh2zLdzIk1pr4JmwQFsqcEvV01oikVWHxtpfK9QesIYqjuKONvxV7+8Pc3vdf7Hrn50YUz2IKlCboanFY6Q99XLMpBHcrUCmRwjVX8t01RXIZf2IXCUjRhrj4VMlFSY4W/Vuy7D/paolayc38GtGPYToON0X7tLL647TG+7vNc4vh3OI1Nhmc1cwSOVRcqYI/1gMXGhzvNGXPOFvrriyGYe/ITlEh0TVlduIPmsh8K9yEkzDyDESmVqWaUhW/4Zj2hPRkFpAHLUSDox/eklaMpHIGlfE+3Z36PxxtBEku5VEc6VXdfU/y5+XHwTL0PxYo1GauQvsFvpCaDvadCzCFMU4e11u+hOqfoJol23pu+/GfPGjzNtmpXoCT9qAGlMtiP2kWOjMLWhdL3+Wp3utnrIDzQ3c5A+gnlCpZ+2cYQLjX4nW60kubQVemepoLQ2uGj/ugRfVXDFFU6Lb9uSXGI+LEQ9bOa4AJkoCY3hnMUdsbR5AyGh0pdVBlm9dxtQBPN8q0BXqBmJU1WACMtUAuT+rI6k12lAJlhQKkvqMQRyuMHae1JYjsCQ0vbioewC19C6JbAHZcYFQTYI0mpUTruhMcvSqXw1pn93hqle1l9O+wMRap7UYm4lK1RyVFsUL+YaHmXnLiH74r5PcAK3yRoQ+H0K6mo+tbBqMN+jLnBBbvZg7iyvO+LL9r9+EHgjFqJJGMvwL8hucZDsYbfq2SPgz0xmSBmN+V0Llex/PjK6epUxaTeSgdppZI2a57/knWLzdgl2M9eKGx418z/BgH7JPR0PeHlbqLKS0tmzjDqQkRjzhFM81LR6d1CT9rY/IINIrjv8IRKAor2hGRtSCEu0fqpfVKOjUJfEl89xN0llNrK8uhuxQMA9xjgO9zEz9md2KJrqz9zR2UvRmGJzYv7URT4k8Ua5aqXlG78AkoNNzMhGnKUdTBq0lgQFDKxKmdu67eHsPbQmUYU3IMT","type":"thought_signature"},"event_type":"step.delta"}
 
 
         event: step.stop
@@ -49,7 +50,7 @@ interactions:
 
         event: interaction.completed
 
-        data: {"interaction":{"id":"v1_ChdwZGNFYXRpUEs1bUdxdHNQci1HSGtBRRIXcGRjRWF0aVBLNW1HcXRzUHItR0hrQUU","status":"completed","usage":{"total_tokens":211,"total_input_tokens":9,"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_output_tokens":13,"total_tool_use_tokens":0,"total_thought_tokens":189},"created":"2026-05-13T19:57:27Z","updated":"2026-05-13T19:57:27Z","service_tier":"standard","object":"interaction","model":"gemini-2.5-flash"},"event_type":"interaction.completed"}
+        data: {"interaction":{"id":"v1_ChdBX3YwYXN1MEpzMjZzT0lQNUp1X29RTRIXQV92MGFzdTBKczI2c09JUDVKdV9vUU0","status":"completed","usage":{"total_tokens":254,"total_input_tokens":9,"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_output_tokens":13,"total_tool_use_tokens":0,"total_thought_tokens":232,"initial_input_tokens":9},"created":"2026-11-11T23:32:22Z","updated":"2026-11-11T23:32:22Z","service_tier":"standard","object":"interaction","model":"gemini-3.6-flash"},"event_type":"interaction.completed"}
 
 
         event: done

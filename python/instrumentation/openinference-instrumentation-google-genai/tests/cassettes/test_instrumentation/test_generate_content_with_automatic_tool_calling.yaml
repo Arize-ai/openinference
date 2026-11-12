@@ -5,34 +5,36 @@ interactions:
       assistant that can answer questions and help with tasks. Use the available tools
       when appropriate."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
       "This function will be automatically executed by Google GenAI.\nIt must return
-      a JSON-serializable value.", "name": "get_weather", "parameters": {"properties":
-      {"location": {"type": "STRING"}, "unit": {"default": "fahrenheit", "type": "STRING"}},
-      "required": ["location"], "type": "OBJECT"}}]}], "generationConfig": {}}'
+      a JSON-serializable value.", "name": "get_weather", "parameters_json_schema":
+      {"type": "object", "properties": {"location": {"type": "string"}, "unit": {"type":
+      "string", "default": "fahrenheit"}}, "required": ["location"]}, "response_json_schema":
+      {"additionalProperties": true, "type": "object"}}]}], "generationConfig": {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"functionCall\": {\n              \"name\": \"get_weather\",\n
         \             \"args\": {\n                \"location\": \"San Francisco\"\n
-        \             },\n              \"id\": \"call_353972\"\n            },\n
-        \           \"thoughtSignature\": \"EuECCt4CAWkUfRPjKyM4l/LZUrXS+klGiTY0YdRvGeJ4LKKVHkkGDUgCp5MR7pcgwE4/bOUtqggio5066KZG2LLBX16+eo/aRruXpq0KhKYhoYkdFGjoH+kVPcum/lI1+qbghlZxjzoe1ohwLTXSH1JjBbi3Gj10O2qjEyNxTsCznAr1oQRHg09GCPSr468MShVEFclqs47UDBkMawZTlvqzp/3zp9z8wgbxhDYA/qgrAu1HKcBV7onLmB+ukpuXiLNWUlUTu0H9m3x3UK35zlflW4rdycB0uhld12rgnDw0eH9XMoFDQzN2e82HK7E/5hrwfLQGrRH3qe6J9Lc1GRVaqUCa31kLJz93HFe/FVmyA+VgYoOsU1Iaq+PbO0LdiRONqxkuJQl0yyaAIXEtqwAA2xWDPJdO5c7DkzQYaIzWwhCeKLuVC90Ck1FHecgDypbXZn9qTNE5OFh60X/3QRQyCTU=\"\n
+        \             },\n              \"id\": \"call_1459361364091640341\"\n            },\n
+        \           \"thoughtSignature\": \"EqMDCqADAWkUfRMs3PZx/Mlpmu5IJfRGAxHAq6wEES7RQEPLnBHd1+5iFzycAUm4G/cR6kfo/gjWECEUPOH3vequEygyHTxYVThLT24nHMY4QvMZMNNfN7gEfalxpo6hhmDjaIYK8CaNakuiR1KcuwL3vr7bFc3uWh6qWHaAS/3YHPNPlB1H08DFLtNpkOArlyEQzm6CZpFq2smOizTt7Bi1pIyAmYY50VHx85TsoKFiW406GikWwbk+JAOEbGjmzOph0ims3gZh+mbH3sFhKTCBFutaCmmbIMRgtc8RdZ6xWXksyRWaOw4Nv9fVbKFhHbVBEDKPoSf2+DfWgxp8MDwv/cW17mhA8S602VlTnhDywPZMr3/hokBPB6+1AZPM2nBBRkoREvlU+ewCSsd1sZU/XbmWKBT6Zvvk7jKDKiW7X4ZiwUnbcya82MWvGoYpIN1oJ8TYJGdUuXkvI/F9MlX6m/V0OgKUdsP1/0F1OS5xwVJAZq3HddNuTrZLQOKfxut/knNRtVJyyB+lz8KA3ZiFGVHsABxZJzJXtiC6eV287aedYQE=\"\n
         \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
         \"STOP\",\n      \"index\": 0,\n      \"finishMessage\": \"Model generated
         function call(s).\"\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
-        107,\n    \"candidatesTokenCount\": 17,\n    \"totalTokenCount\": 181,\n    \"promptTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 107\n
-        \     }\n    ],\n    \"thoughtsTokenCount\": 57,\n    \"serviceTier\": \"standard\"\n
-        \ },\n  \"modelVersion\": \"gemini-3.6-flash\",\n  \"responseId\": \"nCnaavuLIuPm4t4P3sbJ2Ao\"\n}\n"
+        120,\n    \"candidatesTokenCount\": 17,\n    \"totalTokenCount\": 209,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 120\n
+        \     }\n    ],\n    \"thoughtsTokenCount\": 72,\n    \"serviceTier\": \"standard\"\n
+        \ },\n  \"modelVersion\": \"gemini-3.6-flash\",\n  \"responseId\": \"7Pr0apvLHpPG39IP0oG7gAM\"\n}\n"
     headers: {}
     status:
       code: 200
       message: OK
 - request:
     body: '{"contents": [{"parts": [{"text": "What''s the weather like in San Francisco?"}],
-      "role": "user"}, {"parts": [{"functionCall": {"id": "call_353972", "args": {"location":
-      "San Francisco"}, "name": "get_weather"}, "thoughtSignature": "EuECCt4CAWkUfRPjKyM4l_LZUrXS-klGiTY0YdRvGeJ4LKKVHkkGDUgCp5MR7pcgwE4_bOUtqggio5066KZG2LLBX16-eo_aRruXpq0KhKYhoYkdFGjoH-kVPcum_lI1-qbghlZxjzoe1ohwLTXSH1JjBbi3Gj10O2qjEyNxTsCznAr1oQRHg09GCPSr468MShVEFclqs47UDBkMawZTlvqzp_3zp9z8wgbxhDYA_qgrAu1HKcBV7onLmB-ukpuXiLNWUlUTu0H9m3x3UK35zlflW4rdycB0uhld12rgnDw0eH9XMoFDQzN2e82HK7E_5hrwfLQGrRH3qe6J9Lc1GRVaqUCa31kLJz93HFe_FVmyA-VgYoOsU1Iaq-PbO0LdiRONqxkuJQl0yyaAIXEtqwAA2xWDPJdO5c7DkzQYaIzWwhCeKLuVC90Ck1FHecgDypbXZn9qTNE5OFh60X_3QRQyCTU="}],
+      "role": "user"}, {"parts": [{"functionCall": {"id": "call_1459361364091640341",
+      "args": {"location": "San Francisco"}, "name": "get_weather"}, "thoughtSignature":
+      "EqMDCqADAWkUfRMs3PZx_Mlpmu5IJfRGAxHAq6wEES7RQEPLnBHd1-5iFzycAUm4G_cR6kfo_gjWECEUPOH3vequEygyHTxYVThLT24nHMY4QvMZMNNfN7gEfalxpo6hhmDjaIYK8CaNakuiR1KcuwL3vr7bFc3uWh6qWHaAS_3YHPNPlB1H08DFLtNpkOArlyEQzm6CZpFq2smOizTt7Bi1pIyAmYY50VHx85TsoKFiW406GikWwbk-JAOEbGjmzOph0ims3gZh-mbH3sFhKTCBFutaCmmbIMRgtc8RdZ6xWXksyRWaOw4Nv9fVbKFhHbVBEDKPoSf2-DfWgxp8MDwv_cW17mhA8S602VlTnhDywPZMr3_hokBPB6-1AZPM2nBBRkoREvlU-ewCSsd1sZU_XbmWKBT6Zvvk7jKDKiW7X4ZiwUnbcya82MWvGoYpIN1oJ8TYJGdUuXkvI_F9MlX6m_V0OgKUdsP1_0F1OS5xwVJAZq3HddNuTrZLQOKfxut_knNRtVJyyB-lz8KA3ZiFGVHsABxZJzJXtiC6eV287aedYQE="}],
       "role": "model"}, {"parts": [{"functionResponse": {"name": "get_weather", "response":
       {"result": {"location": "San Francisco", "temperature": 65, "unit": "fahrenheit",
       "condition": "foggy", "humidity": "85%"}}}}], "role": "user"}], "systemInstruction":
@@ -40,24 +42,25 @@ interactions:
       help with tasks. Use the available tools when appropriate."}], "role": "user"},
       "tools": [{"functionDeclarations": [{"description": "This function will be automatically
       executed by Google GenAI.\nIt must return a JSON-serializable value.", "name":
-      "get_weather", "parameters": {"properties": {"location": {"type": "STRING"},
-      "unit": {"default": "fahrenheit", "type": "STRING"}}, "required": ["location"],
-      "type": "OBJECT"}}]}], "generationConfig": {}}'
+      "get_weather", "parameters_json_schema": {"type": "object", "properties": {"location":
+      {"type": "string"}, "unit": {"type": "string", "default": "fahrenheit"}}, "required":
+      ["location"]}, "response_json_schema": {"additionalProperties": true, "type":
+      "object"}}]}], "generationConfig": {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"text\": \"The weather in San Francisco is currently
-        foggy with a temperature of 65\xB0F and 85% humidity.\",\n            \"thoughtSignature\":
-        \"EpQCCpECAWkUfROWdCYg2d5IJSyH/GZ6PMFCpQWj8Ce0ykLUSgIkmFm1Y6Sb0jRLGhcflbf0yXTaXDs1FK//eufqhZ/AsFbnjG9RAlz0pJQ6F0uoFTJeBeje/t7CO95N3MC0Xcyu60DK15qaJ0cQsOHpsw/JZRPsjcE7tLyj4LIyOCReZnpfj8jQv4VzPX2DhC11JCFOWNWkkubfZez2RLWg3dSaOmGKxnqFa9pJ5CQ0eBEB9w4c48LsfWkRj33rnzfa0fZ8/dki7/PPuYASeWh0TUxcf6rX+H7OLutOLrTL+Yrm4XgKtIN0A22XjCARAHAroUF4NxSgYQ8ayBvpUuZVef9vEjXOOM9uOGxGODQq/XY7Im2w\"\n
+        foggy with a temperature of 65\xB0F and a humidity of 85%.\",\n            \"thoughtSignature\":
+        \"EqkCCqYCAWkUfROQcYKUAPHwCw4F8sJ6QgR31JtRVB8NvNKilS6a86TDU5vdgKUwBiGPTEUSkVlfMxMcK40GPq6wypU0OEIumZJzAHXLqlsnHJqBkSGar7KlyhBufr0txKwNksHu4CpCY2EjVwhUmP0M//mP1lZPHG0PmZZhjCdfKt3eLuZqogjD2zPU86c5TWQAehCJHVJkXeE8doLIMQNgUDCpPx+oVlMFzevD0cxus8YRSnf8Admn9jSAo9pFWNIWu6P4NBYAE19g32ickxhuf3jYG5gAHoQu53zRkuVXreUZwnlJsCwiCU+Rq1nkXdafbBFk+mGrkJJk0Wvd5EtibgSR9K/HPQJ9Tk6/+TnRl4k/MkKSLFkFPWIdB4odGojOPaL913Of2/L5\"\n
         \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
         \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
-        225,\n    \"candidatesTokenCount\": 24,\n    \"totalTokenCount\": 292,\n    \"promptTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 225\n
-        \     }\n    ],\n    \"thoughtsTokenCount\": 43,\n    \"serviceTier\": \"standard\"\n
-        \ },\n  \"modelVersion\": \"gemini-3.6-flash\",\n  \"responseId\": \"ninaat6MJseEz7sPptaIgQs\"\n}\n"
+        253,\n    \"candidatesTokenCount\": 25,\n    \"totalTokenCount\": 325,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 253\n
+        \     }\n    ],\n    \"thoughtsTokenCount\": 47,\n    \"serviceTier\": \"standard\"\n
+        \ },\n  \"modelVersion\": \"gemini-3.6-flash\",\n  \"responseId\": \"7vr0augM1Zn-4w-ay-eJBQ\"\n}\n"
     headers: {}
     status:
       code: 200

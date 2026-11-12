@@ -9,6 +9,10 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from openinference.semconv.trace import SpanAttributes
 
+# Context caching is not served on the Gemini API's `v1` endpoint, the default from
+# google-genai 3.0 on, so cache clients have to opt into `v1beta`.
+CACHE_HTTP_OPTIONS = genai.types.HttpOptions(api_version="v1beta")
+
 
 def normalize_request(r: Any) -> Any:
     r.method = r.method.lower()
@@ -29,7 +33,7 @@ def test_create_cache(
     # Get API key from environment variable
     api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
     # Initialize the client
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=api_key, http_options=CACHE_HTTP_OPTIONS)
     with open(Path(__file__).parent / "fixtures/story.txt") as f:
         story_content = f.read()
     model = "gemini-2.5-flash"
@@ -88,7 +92,7 @@ async def test_create_cache_async(
     # Get API key from environment variable
     api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
     # Initialize the client
-    client = genai.Client(api_key=api_key).aio
+    client = genai.Client(api_key=api_key, http_options=CACHE_HTTP_OPTIONS).aio
     with open(Path(__file__).parent / "fixtures/story.txt") as f:
         story_content = f.read()
     model = "gemini-2.5-flash"

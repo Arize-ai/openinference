@@ -1,22 +1,27 @@
 interactions:
 - request:
     body: '{"contents": [{"parts": [{"text": "Describe this image in one sentence."},
-      {"fileData": {"fileUri": "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U",
-      "mimeType": "image/jpeg"}}], "role": "user"}], "systemInstruction": {"parts":
+      {"fileData": {"file_uri": "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U",
+      "mime_type": "image/jpeg"}}], "role": "user"}], "systemInstruction": {"parts":
       [{"text": "You are a helpful assistant that can describe images."}], "role":
       "user"}, "generationConfig": {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
-        [\n          {\n            \"text\": \"A cute black Labrador puppy with glistening
-        eyes looks up at the camera from a wooden surface.\"\n          }\n        ],\n
-        \       \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n
-        \     \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"candidatesTokenCount\":
-        18,\n    \"thoughtsTokenCount\": 58\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n
-        \ \"responseId\": \"BTXZacmsFouhjuMPhoHg6As\"\n}\n"
+        [\n          {\n            \"text\": \"A cute black Labrador puppy looks
+        directly up at the camera with wide, expressive eyes while sitting on a wooden
+        surface.\",\n            \"thoughtSignature\": \"EuUFCuIFAWkUfRN/eKgEy5cKfR21JtAPJgxQebp80TIH5oE08NCW+GiED+kyu369U5jx0NrRUCclP46fbJO6zKF3QwtW5P5QG7pE3V7hEMZ7zGk8MOej0o79XHkmdswMYbRANNsT2o/8qFD/WUOOc9DTuM3j2cbNhiY5gNX0Xj+tHLc2MsmSp9SlsvRHVDfVk38t3ksDZm+yyRZdi4aMyUXl8/1C5LNTRsbSmg1r2K+mR/i1Rj/DrUQ+EF9UZ/HSUhMgFsc7QG0el9rW985CE7r9n5grz7HX19xjr7bo9bSRM9zD0fCaYJqVEry5EgHAcj2ZqJpw1pSW4+ZmIMCsQfJwvcG17+v7qQAzWJLNWtOwkGwvgYuUhR+WADvwWGWxqavgXuvrIjn0WaoXDAeeRyV2t7jeiszcMRFTHNMyrQkuV6xdklfzj7dT5gM61hZa3KIpqHUJJXCWFxB3v2l9TX/TcCwGq4+hDLmdQHTpJiQ8l9McHcXlcp1Fc9CfKL7IDCRV7kbgZOxYhvc/sPfnQ0n3haoy8csucImTKNVSWhYDzvUmjXUT2egX9Y+2t91fHOfdlyrlMFkNCbijfuNKclaFM1bhPk32YPBOH4Q35QpAaejJzX9+OJ6VShyrYdzJ6q1ioCYosK/HNGO981hcrUgwc2J2PedeYJ3e2KEETtJEFE6WLq53HVy/sNXJQRnrK5so4xKfq+VcCNFpvrHJ9a4vv4zyk9axnNPNwlCzlZbA9K90VNGCA5JgYmOVdOJxZyMb6pWrHGjfJj+RADnewq36smMdNXv6uMGnUz4r2defueMU64R+iUfwhUi3ungL0L13MDqyrGm2Me6FkIgFt0gHDas6ZgioY08Q3kKyFsbhuaCcvPoiRH2fB+fb1lMPukt8DvQa/Sw0taD3JKaI6ORRbndwqqkpeB2g9j0f4JgBoptvjcxOxovy8NkGIaql++w4VoA5oryWMtQ4lt9sdCpZ8Skpg9lw\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        1099,\n    \"candidatesTokenCount\": 23,\n    \"totalTokenCount\": 1275,\n
+        \   \"promptTokensDetails\": [\n      {\n        \"modality\": \"IMAGE\",\n
+        \       \"tokenCount\": 1080\n      },\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 19\n      }\n    ],\n    \"thoughtsTokenCount\": 153,\n
+        \   \"serviceTier\": \"standard\"\n  },\n  \"modelVersion\": \"gemini-3.6-flash\",\n
+        \ \"responseId\": \"8_r0ao6hN5WA-8YP_KzSoQM\"\n}\n"
     headers: {}
     status:
       code: 200
