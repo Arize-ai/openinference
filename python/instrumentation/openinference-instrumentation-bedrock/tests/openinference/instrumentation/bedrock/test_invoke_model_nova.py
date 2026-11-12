@@ -3,15 +3,21 @@
 Cassettes recorded against the real AWS Bedrock API and replayed for CI.
 """
 
+import io
 import json
 from typing import Any, Dict
 
 import boto3
 import pytest
+from botocore.response import StreamingBody
+from botocore.stub import Stubber
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.bedrock._wrappers import _NovaStreamCallback
+from openinference.instrumentation.bedrock.utils._extract_invoke_model_attributes import (
+    _set_nova_body_token_attributes,
+)
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -461,9 +467,10 @@ class TestNovaStreamCallbackUnit:
         span_data = spans[-1]
         attributes = dict(span_data.attributes or {})
 
-        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 30
+        # inputTokens excludes cache reads and writes, so the prompt count adds them.
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 30 + 5 + 7
         assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 12
-        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 42
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 54
         assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 5
         assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 7
 
@@ -495,6 +502,116 @@ class TestNovaStreamCallbackUnit:
             attributes["llm.output_messages.0.message.contents.0.message_content.text"]
             == "Looking up weather."
         )
+
+    def test_streaming_without_cache_tokens_keeps_input_tokens(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        span = tracer_provider.get_tracer(__name__).start_span("nova.stream.test")
+        callback = _NovaStreamCallback(span, {"modelId": "us.amazon.nova-pro-v1:0", "body": {}})
+        callback(self._chunk({"metadata": {"usage": {"inputTokens": 10, "outputTokens": 5}}}))
+        callback(StopIteration())
+
+        attributes = dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 10
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 5
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 15
+        assert LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ not in attributes
+
+
+class TestNovaBodyTokenCounts:
+    """``_set_nova_body_token_attributes`` reads usage from the invoke_model response body."""
+
+    def test_prompt_token_count_includes_cache_tokens(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        span = tracer_provider.get_tracer(__name__).start_span("nova.body.test")
+        usage = {
+            "inputTokens": 4299,
+            "outputTokens": 631,
+            "totalTokens": 58291,
+            "cacheReadInputTokenCount": 35574,
+            "cacheWriteInputTokenCount": 17787,
+        }
+        _set_nova_body_token_attributes(span, {"usage": usage})
+        span.end()
+
+        attributes = dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 4299 + 35574 + 17787
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 631
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 58291
+        assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 35574
+        assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 17787
+
+    def test_prompt_token_count_without_cache_tokens(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        span = tracer_provider.get_tracer(__name__).start_span("nova.body.test")
+        _set_nova_body_token_attributes(
+            span, {"usage": {"inputTokens": 10, "outputTokens": 5, "totalTokens": 15}}
+        )
+        span.end()
+
+        attributes = dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 10
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 5
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 15
+        assert LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ not in attributes
+
+    def test_invoke_model_body_cache_tokens_override_header_count(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        # The header count matches inputTokens, which excludes the cache write.
+        usage = {
+            "inputTokens": 5,
+            "outputTokens": 4,
+            "totalTokens": 3005,
+            "cacheReadInputTokenCount": 0,
+            "cacheWriteInputTokenCount": 2996,
+        }
+        raw = json.dumps(
+            {
+                "output": {"message": {"role": "assistant", "content": [{"text": "4"}]}},
+                "stopReason": "end_turn",
+                "usage": usage,
+            }
+        ).encode()
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
+        with Stubber(client) as stubber:
+            stubber.add_response(
+                "invoke_model",
+                {
+                    "body": StreamingBody(io.BytesIO(raw), len(raw)),
+                    "contentType": "application/json",
+                    "ResponseMetadata": {
+                        "HTTPHeaders": {
+                            "x-amzn-bedrock-input-token-count": "5",
+                            "x-amzn-bedrock-output-token-count": "4",
+                        }
+                    },
+                },
+            )
+            client.invoke_model(
+                modelId="us.amazon.nova-2-lite-v1:0",
+                body=json.dumps({"messages": [{"role": "user", "content": [{"text": "2+2?"}]}]}),
+            )
+
+        attributes = dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3001
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 4
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 3005
+        assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 2996
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
