@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
 
 from groq import NOT_GIVEN
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -18,7 +19,11 @@ from openinference.instrumentation.groq._request_attributes_extractor import (
 from openinference.instrumentation.groq._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.groq._types import AttributeValue
+from openinference.instrumentation.groq._stream import (
+    _AsyncStream,
+    _ChatCompletionAccumulator,
+    _Stream,
+)
 from openinference.instrumentation.groq._utils import (
     _finish_tracing,
     _materialize_content_iterables,
@@ -95,9 +100,15 @@ def _parse_args(
     *args: Tuple[Any],
     **kwargs: Mapping[str, Any],
 ) -> Dict[str, Any]:
-    bound_signature = signature.bind(*args, **kwargs)
-    bound_signature.apply_defaults()
-    bound_arguments = bound_signature.arguments  # Defaults empty to NOT_GIVEN
+    """
+    Map the call's arguments to parameter names, keeping only values the caller set.
+
+    Applying signature defaults would add every optional parameter the caller left
+    out, and the SDK marks those with a sentinel (``Omit`` on groq >= 1.0, the
+    ``NOT_GIVEN`` singleton before that) that is not caller input: on groq 1.0.0 a
+    two-argument call ends up recording 34 parameters.
+    """
+    bound_arguments = signature.bind(*args, **kwargs).arguments
     request_data: Dict[str, Any] = {}
     for key, value in bound_arguments.items():
         try:
@@ -162,6 +173,19 @@ class _CompletionsWrapper(_WithTracer):
                 )
                 span.finish_tracing(status=status)
                 raise
+            if request_parameters.get("stream") is True and (
+                hasattr(response, "__iter__") or hasattr(response, "__aiter__")
+            ):
+                # Nothing has arrived yet: the span is finished from the stream
+                # wrapper once the caller consumes, closes, or drops it.
+                return _Stream(
+                    stream=response,
+                    with_span=span,
+                    accumulator=_ChatCompletionAccumulator(
+                        request_parameters=request_parameters,
+                        response_extractor=self._response_extractor,
+                    ),
+                )
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
@@ -227,6 +251,19 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 )
                 span.finish_tracing(status=status)
                 raise
+            if request_parameters.get("stream") is True and (
+                hasattr(response, "__iter__") or hasattr(response, "__aiter__")
+            ):
+                # Nothing has arrived yet: the span is finished from the stream
+                # wrapper once the caller consumes, closes, or drops it.
+                return _AsyncStream(
+                    stream=response,
+                    with_span=span,
+                    accumulator=_ChatCompletionAccumulator(
+                        request_parameters=request_parameters,
+                        response_extractor=self._response_extractor,
+                    ),
+                )
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),

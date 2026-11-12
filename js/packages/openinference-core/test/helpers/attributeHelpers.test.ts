@@ -12,6 +12,7 @@ import {
   defaultProcessInput,
   defaultProcessOutput,
   getAnnotationAttributes,
+  getDecisionAttributes,
   getDocumentAttributes,
   getEmbeddingAttributes,
   getEvaluationAttributes,
@@ -454,6 +455,90 @@ describe("attributeHelpers", () => {
           action: "execute",
         }),
       });
+    });
+  });
+
+  describe("getDecisionAttributes", () => {
+    it("should generate basic decision attributes", () => {
+      const result = getDecisionAttributes({
+        provider: "typesafe",
+        system: "typesafe",
+        modelName: "jev-1.13.0",
+      });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_PROVIDER]: "typesafe",
+        [SemanticConventions.DECISION_SYSTEM]: "typesafe",
+        [SemanticConventions.DECISION_MODEL_NAME]: "jev-1.13.0",
+      });
+    });
+
+    it("should lowercase provider and system", () => {
+      const result = getDecisionAttributes({ provider: "TypeSafe", system: "OpenAI" });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_PROVIDER]: "typesafe",
+        [SemanticConventions.DECISION_SYSTEM]: "openai",
+      });
+    });
+
+    it("should generate request and response model name attributes", () => {
+      const result = getDecisionAttributes({
+        requestModelName: "jev-latest",
+        responseModelName: "jev-1.13.0",
+      });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_MODEL_NAME]: "jev-1.13.0",
+        [SemanticConventions.DECISION_REQUEST_MODEL_NAME]: "jev-latest",
+        [SemanticConventions.DECISION_RESPONSE_MODEL_NAME]: "jev-1.13.0",
+      });
+    });
+
+    it("should mirror decision.model_name from the request model when the response model is unknown", () => {
+      const result = getDecisionAttributes({ requestModelName: "jev-latest" });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_MODEL_NAME]: "jev-latest",
+        [SemanticConventions.DECISION_REQUEST_MODEL_NAME]: "jev-latest",
+      });
+    });
+
+    it("should let an explicit modelName override the mirrored model name", () => {
+      const result = getDecisionAttributes({
+        modelName: "my-alias",
+        responseModelName: "jev-1.13.0",
+      });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_MODEL_NAME]: "my-alias",
+        [SemanticConventions.DECISION_RESPONSE_MODEL_NAME]: "jev-1.13.0",
+      });
+    });
+
+    it("should generate token count attributes", () => {
+      const result = getDecisionAttributes({ tokenCount: { input: 412, output: 2 } });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_TOKEN_COUNT_INPUT]: 412,
+        [SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT]: 2,
+      });
+    });
+
+    it("should only set the token counts that are provided", () => {
+      const result = getDecisionAttributes({ tokenCount: { input: 412 } });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_TOKEN_COUNT_INPUT]: 412,
+      });
+    });
+
+    it("should never emit llm.* attributes", () => {
+      const result = getDecisionAttributes({
+        provider: "typesafe",
+        system: "typesafe",
+        requestModelName: "jev-latest",
+        responseModelName: "jev-1.13.0",
+        tokenCount: { input: 412, output: 2 },
+      });
+      expect(Object.keys(result).every((key) => key.startsWith("decision."))).toBe(true);
+    });
+
+    it("should return empty attributes for empty options", () => {
+      expect(getDecisionAttributes({})).toEqual({});
     });
   });
 

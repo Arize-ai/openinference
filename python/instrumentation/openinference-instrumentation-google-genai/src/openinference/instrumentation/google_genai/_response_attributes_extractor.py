@@ -1,11 +1,15 @@
 import base64
 import logging
+import warnings
 from typing import Any, Iterable, Iterator, Mapping, Optional
 
-from google.genai import types
+from google.genai import _transformers, types
+from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.google_genai._types import AttributeValue
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig, safe_json_dumps
+from openinference.instrumentation.google_genai._image_utils import (
+    redact_images_from_output_value,
+)
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _get_attributes_from_content_text,
@@ -13,10 +17,12 @@ from openinference.instrumentation.google_genai._utils import (
     _get_attributes_from_inline_data,
     _get_token_count_attributes_from_usage_metadata,
     _io_value_and_type,
+    _ValueAndType,
 )
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -27,19 +33,62 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
+def _request_content_count(request_parameters: Mapping[str, Any]) -> int:
+    """Return the number of request contents seeded into AFC history.
+
+    The SDK seeds the history with `t_contents(contents)` before appending
+    this call's own function-call/response turns, so those entries belong to
+    `llm.input_messages` rather than to this span's output.
+    """
+    contents = request_parameters.get("contents")
+    if contents is None:
+        return 0
+
+    try:
+        return len(_transformers.t_contents(contents))
+    except Exception:
+        logger.warning("Failed to size the request contents seeded into the AFC history")
+        return 0
+
+
 class _ResponseAttributesExtractor:
+    def __init__(self, config: Optional[TraceConfig] = None) -> None:
+        self._config = config
+
     def get_attributes(
         self,
         response: Any,
         request_parameters: Mapping[str, Any],
     ) -> Iterator[tuple[str, AttributeValue]]:
         yield from _as_output_attributes(
-            _io_value_and_type(response),
+            self._get_output_value_and_type(response),
         )
         yield from self._get_attributes_from_generate_content(
             response=response,
             request_parameters=request_parameters,
         )
+
+    def _get_output_value_and_type(self, response: Any) -> _ValueAndType:
+        if self._config is not None and callable(getattr(response, "model_dump", None)):
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    response_tree = response.model_dump(mode="json", exclude_unset=True)
+                redacted, changed = redact_images_from_output_value(
+                    response_tree,
+                    base64_image_max_length=int(self._config.base64_image_max_length or 0),
+                )
+                # Only re-serialize when an image was redacted so that output.value
+                # otherwise stays byte-identical to the SDK's own JSON serialization.
+                if changed:
+                    return _ValueAndType(
+                        safe_json_dumps(redacted), OpenInferenceMimeTypeValues.JSON
+                    )
+            except Exception:
+                # Fail closed: never export an unredacted image after a redaction error.
+                logger.exception("Failed to redact images from output value")
+                return _ValueAndType(REDACTED_VALUE, OpenInferenceMimeTypeValues.TEXT)
+        return _io_value_and_type(response)
 
     def _get_attributes_from_generate_content(
         self,
@@ -51,6 +100,10 @@ class _ResponseAttributesExtractor:
             yield SpanAttributes.LLM_MODEL_NAME, model_version
         if usage_metadata := getattr(response, "usage_metadata", None):
             yield from self._get_attributes_from_generate_content_usage(usage_metadata)
+
+        last_output_message_index = -1
+        published_contents: list[object] = []
+
         if (candidates := getattr(response, "candidates", None)) and isinstance(
             candidates, Iterable
         ):
@@ -65,8 +118,16 @@ class _ResponseAttributesExtractor:
                     else getattr(candidate, "index")
                 )
                 if content := getattr(candidate, "content", None):
+                    published_contents.append(content)
                     for key, value in self._get_attributes_from_generate_content_content(content):
-                        yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+                        yield (
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}",
+                            value,
+                        )
+                    last_output_message_index = max(
+                        last_output_message_index,
+                        index,
+                    )
 
                 # Only capture finish_reason for the first candidate.
                 if index == 0:
@@ -77,7 +138,10 @@ class _ResponseAttributesExtractor:
         # For automatic function calling, the function call details are stored separately
         if automatic_history := getattr(response, "automatic_function_calling_history", None):
             yield from self._get_attributes_from_automatic_function_calling_history(
-                automatic_history
+                automatic_history,
+                first_message_index=last_output_message_index + 1,
+                request_content_count=_request_content_count(request_parameters),
+                published_contents=published_contents,
             )
 
     def _get_attributes_from_generate_content_content(
@@ -192,28 +256,25 @@ class _ResponseAttributesExtractor:
     def _get_attributes_from_automatic_function_calling_history(
         self,
         history: Iterable[object],
+        *,
+        first_message_index: int,
+        request_content_count: int,
+        published_contents: list[object],
     ) -> Iterator[tuple[str, AttributeValue]]:
-        """Extract function call information from automatic_function_calling_history.
+        """Publish the model turns this call's AFC loop added, after the candidates.
 
-        This history contains the sequence of model->function call->function response
-        that happened during automatic function calling.
+        The SDK seeds the history with the request contents, and on a spent remote-call
+        budget its last function-call turn is also the candidate, so both are skipped.
         """
-        tool_call_index = 0
-
-        for content_entry in history:
-            # Each entry is a Content object with parts
-            if not hasattr(content_entry, "parts") or not hasattr(content_entry, "role"):
+        message_index = first_message_index
+        for content in list(history)[request_content_count:]:
+            if getattr(content, "role", None) != "model":
                 continue
-
-            # Look for model responses that contain function calls
-            if getattr(content_entry, "role") == "model":
-                parts = getattr(content_entry, "parts", [])
-                for part in parts:
-                    if function_call := getattr(part, "function_call", None):
-                        thought_signature: Optional[bytes] = getattr(
-                            part, "thought_signature", None
-                        )
-                        yield from self._get_attributes_from_function_call(
-                            function_call, tool_call_index, thought_signature
-                        )
-                        tool_call_index += 1
+            if any(content is published for published in published_contents):
+                continue
+            parts = getattr(content, "parts", None) or ()
+            if not any(getattr(part, "function_call", None) for part in parts):
+                continue
+            for key, value in self._get_attributes_from_generate_content_content(content):
+                yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{key}", value
+            message_index += 1

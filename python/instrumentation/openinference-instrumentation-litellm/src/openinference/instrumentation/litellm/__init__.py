@@ -3,6 +3,9 @@ from __future__ import annotations
 import functools
 import inspect
 import logging
+import weakref
+from contextlib import contextmanager
+from contextvars import ContextVar
 from enum import Enum
 from types import SimpleNamespace
 from typing import (
@@ -16,8 +19,10 @@ from typing import (
     Mapping,
     Optional,
     Tuple,
+    Type,
     TypeVar,
     Union,
+    cast,
 )
 
 import wrapt
@@ -25,6 +30,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     OITracer,
@@ -50,7 +56,6 @@ from openinference.instrumentation.litellm._responses_attributes import (
     _get_attributes_from_response_input,
     _get_attributes_from_response_output,
 )
-from openinference.instrumentation.litellm._types import AttributeValue
 from openinference.instrumentation.litellm.package import _instruments
 from openinference.instrumentation.litellm.version import __version__
 from openinference.semconv.trace import (
@@ -70,7 +75,7 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 
 # Skip capture
-KEYS_TO_REDACT = ["api_key", "messages"]
+KEYS_TO_REDACT = ["api_key", "messages", "proxy_server_request"]
 
 RESPONSES_KEYS_TO_REDACT = KEYS_TO_REDACT + ["input", "tools", "model"]
 
@@ -1035,34 +1040,109 @@ def _remove_redundant_reasoning_entries(
                 del output_messages[index]
 
 
+class _ReadState:
+    __slots__ = ("started",)
+
+    def __init__(self) -> None:
+        self.started = False
+
+
+def _end_span_if_unread(span: trace_api.Span, read_state: _ReadState) -> None:
+    # A finalizer generator that never started never runs its ``finally``.
+    if not read_state.started and span.is_recording():
+        span.end()
+
+
+# Set while litellm.responses()/aresponses() runs. For providers without native Responses API
+# support, LiteLLM bridges the call to litellm.completion()/acompletion(); the Responses span
+# already covers that call, so the completion wrappers must not open a second LLM span.
+_IN_RESPONSES_CALL: ContextVar[bool] = ContextVar(
+    "openinference_litellm_in_responses_call", default=False
+)
+_RESPONSES_CALL_TYPES = ("responses", "aresponses")
+
+
+def _is_bridged_from_responses(kwargs: Mapping[str, Any]) -> bool:
+    # The bridge forwards the Responses call's own logging object. A completion() that user
+    # code makes while responses() runs, such as from a success callback, carries none.
+    if not _IN_RESPONSES_CALL.get():
+        return False
+    logging_obj = kwargs.get("litellm_logging_obj")
+    return getattr(logging_obj, "call_type", None) in _RESPONSES_CALL_TYPES
+
+
+def _sync_responses_stream_types() -> Tuple[Type[Any], ...]:
+    from litellm.responses.streaming_iterator import SyncResponsesAPIStreamingIterator
+
+    try:
+        from litellm.responses.litellm_completion_transformation.streaming_iterator import (
+            LiteLLMCompletionStreamingIterator,
+        )
+    except ImportError:  # litellm < 1.67 has no Responses-to-completion bridge
+        return (SyncResponsesAPIStreamingIterator,)
+    return (SyncResponsesAPIStreamingIterator, LiteLLMCompletionStreamingIterator)
+
+
+@contextmanager
+def _responses_call() -> Iterator[None]:
+    token = _IN_RESPONSES_CALL.set(True)
+    try:
+        yield
+    finally:
+        _IN_RESPONSES_CALL.reset(token)
+
+
+def _end_span_with_error(span: trace_api.Span, error: BaseException) -> None:
+    span.record_exception(error)
+    span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(error)))
+    span.end()
+
+
 class _TracedSyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """Proxy the original stream while collecting tracing data."""
 
-    def __init__(self, wrapped: Any, finalized_iterator: Any) -> None:
+    def __init__(self, wrapped: Any, finalized_iterator: Any, span: trace_api.Span) -> None:
         super().__init__(wrapped)
         self._self_finalized_iterator = finalized_iterator
+        self._self_span = span
+        self._self_read_state = _ReadState()
+        # Ends the span if the stream is discarded without being read.
+        weakref.finalize(self, _end_span_if_unread, span, self._self_read_state)
 
     def __iter__(self) -> Any:
         return self
 
     def __next__(self) -> Any:
+        self._self_read_state.started = True
         return next(self._self_finalized_iterator)
 
     def close(self) -> Any:
-        return self._self_finalized_iterator.close()
+        # Mirror aclose: the wrapped stream's own close releases the provider
+        # connection, so closing only the tracing generator leaks it.
+        try:
+            return self._self_finalized_iterator.close()
+        finally:
+            _end_span_if_unread(self._self_span, self._self_read_state)
+            wrapped_close = getattr(self.__wrapped__, "close", None)
+            if wrapped_close is not None:
+                wrapped_close()
 
 
 class _TracedAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """Async counterpart of ``_TracedSyncStream``."""
 
-    def __init__(self, wrapped: Any, finalized_iterator: Any) -> None:
+    def __init__(self, wrapped: Any, finalized_iterator: Any, span: trace_api.Span) -> None:
         super().__init__(wrapped)
         self._self_finalized_iterator = finalized_iterator
+        self._self_span = span
+        self._self_read_state = _ReadState()
+        weakref.finalize(self, _end_span_if_unread, span, self._self_read_state)
 
     def __aiter__(self) -> Any:
         return self
 
     async def __anext__(self) -> Any:
+        self._self_read_state.started = True
         return await self._self_finalized_iterator.__anext__()
 
     async def aclose(self) -> None:
@@ -1071,15 +1151,38 @@ class _TracedAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,t
         try:
             await self._self_finalized_iterator.aclose()
         finally:
+            _end_span_if_unread(self._self_span, self._self_read_state)
             wrapped_aclose = getattr(self.__wrapped__, "aclose", None)
             if wrapped_aclose is not None:
                 await wrapped_aclose()
 
 
+def _set_streaming_output_attributes(
+    span: trace_api.Span,
+    output_messages: Dict[int, Dict[str, Any]],
+    usage_stats: Any,
+) -> str:
+    if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
+        _remove_redundant_reasoning_entries(output_messages, reasoning_items)
+    aggregated_output = cast(str, output_messages.get(0, {}).get("content", ""))
+    _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
+    if finish_reason := output_messages.get(0, {}).get("finish_reason"):
+        _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
+    for idx, msg in output_messages.items():
+        message = _build_message_from_accumulated(msg)
+        for key, value in _get_attributes_from_message_param(message):
+            _set_span_attribute(span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value)
+
+    if usage_stats:
+        _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
+
+    return aggregated_output
+
+
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
     usage_stats = None
-    aggregated_output = None
+    aggregated_output: Optional[str] = None
     try:
         for token in stream:
             if token.choices:
@@ -1117,33 +1220,26 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
             if usage_attrs:
                 usage_stats = usage_attrs
             yield token
-        if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
-            _remove_redundant_reasoning_entries(output_messages, reasoning_items)
-        aggregated_output = output_messages.get(0, {}).get("content", "")
-        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
-        if finish_reason := output_messages.get(0, {}).get("finish_reason"):
-            _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
-        for idx, msg in output_messages.items():
-            message = _build_message_from_accumulated(msg)
-            for key, value in _get_attributes_from_message_param(message):
-                _set_span_attribute(
-                    span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
-                )
-
-        if usage_stats:
-            _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
+        aggregated_output = _set_streaming_output_attributes(span, output_messages, usage_stats)
     except Exception as e:
         span.record_exception(e)
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
         raise
     else:
         _set_span_status(span, aggregated_output)
     finally:
+        if aggregated_output is None:
+            try:
+                _set_streaming_output_attributes(span, output_messages, usage_stats)
+            except Exception:
+                logger.exception("Failed to record partial streaming span output")
         span.end()
 
 
 async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
     usage_stats = None
+    aggregated_output: Optional[str] = None
     try:
         async for token in stream:
             if token.choices:
@@ -1181,26 +1277,19 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
             if usage_attrs:
                 usage_stats = usage_attrs
             yield token
-        if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
-            _remove_redundant_reasoning_entries(output_messages, reasoning_items)
-        aggregated_output = output_messages.get(0, {}).get("content", "")
-        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
-        if finish_reason := output_messages.get(0, {}).get("finish_reason"):
-            _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
-        for idx, msg in output_messages.items():
-            message = _build_message_from_accumulated(msg)
-            for key, value in _get_attributes_from_message_param(message):
-                _set_span_attribute(
-                    span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
-                )
-        if usage_stats:
-            _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
+        aggregated_output = _set_streaming_output_attributes(span, output_messages, usage_stats)
     except Exception as e:
         span.record_exception(e)
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
         raise
     else:
         _set_span_status(span, aggregated_output)
     finally:
+        if aggregated_output is None:
+            try:
+                _set_streaming_output_attributes(span, output_messages, usage_stats)
+            except Exception:
+                logger.exception("Failed to record partial streaming span output")
         span.end()
 
 
@@ -1208,24 +1297,57 @@ async def _finalize_aresponses_streaming_span(span: trace_api.Span, stream: Any)
     from litellm.responses.streaming_iterator import ResponsesAPIStreamingIterator
     from litellm.types.llms.openai import ResponsesAPIStreamEvents
 
+    terminal_events = (
+        ResponsesAPIStreamEvents.RESPONSE_COMPLETED,
+        ResponsesAPIStreamEvents.RESPONSE_INCOMPLETE,
+        ResponsesAPIStreamEvents.RESPONSE_FAILED,
+    )
     if isinstance(stream, ResponsesAPIStreamingIterator):
-        async for token in stream:
-            if token.type == ResponsesAPIStreamEvents.RESPONSE_COMPLETED:
-                _finalize_span(span, token.response)
+        try:
+            async for token in stream:
+                if token.type in terminal_events and span.is_recording():
+                    _finalize_span(span, token.response)
+                    span.end()
+                yield token
+        except GeneratorExit:
+            # The caller closed the stream early, which is not an error.
+            raise
+        except BaseException as e:
+            if span.is_recording():
+                span.record_exception(e)
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
+            raise
+        finally:
+            if span.is_recording():
                 span.end()
-            yield token
 
 
 def _finalize_responses_streaming_span(span: trace_api.Span, stream: Any) -> Any:
-    from litellm.responses.streaming_iterator import SyncResponsesAPIStreamingIterator
     from litellm.types.llms.openai import ResponsesAPIStreamEvents
 
-    if isinstance(stream, SyncResponsesAPIStreamingIterator):
-        for token in stream:
-            if token.type == ResponsesAPIStreamEvents.RESPONSE_COMPLETED:
-                _finalize_span(span, token.response)
+    terminal_events = (
+        ResponsesAPIStreamEvents.RESPONSE_COMPLETED,
+        ResponsesAPIStreamEvents.RESPONSE_INCOMPLETE,
+        ResponsesAPIStreamEvents.RESPONSE_FAILED,
+    )
+    if isinstance(stream, _sync_responses_stream_types()):
+        try:
+            for token in stream:
+                if token.type in terminal_events and span.is_recording():
+                    _finalize_span(span, token.response)
+                    span.end()
+                yield token
+        except GeneratorExit:
+            # The caller closed the stream early, which is not an error.
+            raise
+        except BaseException as e:
+            if span.is_recording():
+                span.record_exception(e)
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
+            raise
+        finally:
+            if span.is_recording():
                 span.end()
-            yield token
 
 
 class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
@@ -1386,8 +1508,6 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
         return _finalize_anthropic_messages_result(span, result)
 
     def _responses_wrapper(self, *args: Any, **kwargs: Any) -> Any:
-        from litellm.responses.streaming_iterator import SyncResponsesAPIStreamingIterator
-
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return self.original_litellm_funcs["responses"](*args, **kwargs)
 
@@ -1397,9 +1517,19 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             )
             _instrument_func_type_responses(span, kwargs)
 
-            result = self.original_litellm_funcs["responses"](*args, **kwargs)
-            if isinstance(result, SyncResponsesAPIStreamingIterator):
-                return _TracedSyncStream(result, _finalize_responses_streaming_span(span, result))
+            try:
+                with trace_api.use_span(
+                    span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+                ):
+                    with _responses_call():
+                        result = self.original_litellm_funcs["responses"](*args, **kwargs)
+            except BaseException as e:
+                _end_span_with_error(span, e)
+                raise
+            if isinstance(result, _sync_responses_stream_types()):
+                return _TracedSyncStream(
+                    result, _finalize_responses_streaming_span(span, result), span
+                )
             span.end()
             return result
         else:
@@ -1407,7 +1537,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 name="responses", attributes=dict(get_attributes_from_context())
             ) as span:
                 _instrument_func_type_responses(span, kwargs)
-                result = self.original_litellm_funcs["responses"](*args, **kwargs)
+                with _responses_call():
+                    result = self.original_litellm_funcs["responses"](*args, **kwargs)
                 _finalize_span(span, result)
                 return result
 
@@ -1420,11 +1551,21 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 name="aresponses", attributes=dict(get_attributes_from_context())
             )
             _instrument_func_type_responses(span, kwargs)
-            result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
+            try:
+                with trace_api.use_span(
+                    span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+                ):
+                    with _responses_call():
+                        result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
+            except BaseException as e:
+                _end_span_with_error(span, e)
+                raise
             from litellm.responses.streaming_iterator import ResponsesAPIStreamingIterator
 
             if isinstance(result, ResponsesAPIStreamingIterator):
-                return _TracedAsyncStream(result, _finalize_aresponses_streaming_span(span, result))
+                return _TracedAsyncStream(
+                    result, _finalize_aresponses_streaming_span(span, result), span
+                )
             span.end()
             return result
         else:
@@ -1432,14 +1573,17 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 name="aresponses", attributes=dict(get_attributes_from_context())
             ) as span:
                 _instrument_func_type_responses(span, kwargs)
-                result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
+                with _responses_call():
+                    result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
                 _finalize_span(span, result)
                 return result
 
     def _completion_wrapper(self, *args: Any, **kwargs: Any) -> Any:
         from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 
-        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY) or _is_bridged_from_responses(
+            kwargs
+        ):
             return self.original_litellm_funcs["completion"](*args, **kwargs)
 
         if kwargs.get("stream", False):
@@ -1448,10 +1592,17 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             )
             _instrument_func_type_completion(span, kwargs)
 
-            result = self.original_litellm_funcs["completion"](*args, **kwargs)
+            try:
+                with trace_api.use_span(
+                    span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+                ):
+                    result = self.original_litellm_funcs["completion"](*args, **kwargs)
+            except BaseException as e:
+                _end_span_with_error(span, e)
+                raise
 
             if isinstance(result, CustomStreamWrapper):
-                return _TracedSyncStream(result, _finalize_sync_streaming_span(span, result))
+                return _TracedSyncStream(result, _finalize_sync_streaming_span(span, result), span)
 
             _finalize_span(span, result)
             span.end()
@@ -1466,7 +1617,9 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 return result
 
     async def _acompletion_wrapper(self, *args: Any, **kwargs: Any) -> Any:
-        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY) or _is_bridged_from_responses(
+            kwargs
+        ):
             return await self.original_litellm_funcs["acompletion"](*args, **kwargs)
 
         if kwargs.get("stream", False):
@@ -1475,10 +1628,17 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             )
             _instrument_func_type_completion(span, kwargs)
 
-            result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
+            try:
+                with trace_api.use_span(
+                    span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+                ):
+                    result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
+            except BaseException as e:
+                _end_span_with_error(span, e)
+                raise
 
             if hasattr(result, "__aiter__"):
-                return _TracedAsyncStream(result, _finalize_streaming_span(span, result))
+                return _TracedAsyncStream(result, _finalize_streaming_span(span, result), span)
 
             _finalize_span(span, result)
             span.end()

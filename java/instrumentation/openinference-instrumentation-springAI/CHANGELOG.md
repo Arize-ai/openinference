@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.9...java-openinference-instrumentation-springAI-v0.1.10) (2026-10-01)
+
+
+### Features
+
+* **springAI:** Add Finish Reason Attribute ([#3839](https://github.com/Arize-ai/openinference/issues/3839)) ([b3e714a](https://github.com/Arize-ai/openinference/commit/b3e714a0006e6b77f6df566b486e22879bde740a))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.8...java-openinference-instrumentation-springAI-v0.1.9) (2026-04-04)
 
 

@@ -21,6 +21,7 @@ from typing import (
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     OITracer,
@@ -29,7 +30,6 @@ from openinference.instrumentation import (
     get_output_attributes,
     safe_json_dumps,
 )
-from openinference.instrumentation.crewai._types import AttributeValue
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,

@@ -2,9 +2,7 @@ import logging
 from typing import Dict, Optional
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import Attributes
-
-from openinference.instrumentation.groq._types import AttributeValue
+from opentelemetry.util.types import Attributes, AttributeValue
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -37,7 +35,7 @@ class _WithSpan:
     def is_finished(self) -> bool:
         return self._is_finished
 
-    def record_exception(self, exception: Exception) -> None:
+    def record_exception(self, exception: BaseException) -> None:
         if self._is_finished:
             return
         try:

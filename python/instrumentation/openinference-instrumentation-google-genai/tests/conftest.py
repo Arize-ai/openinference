@@ -1,6 +1,8 @@
 import os
-from typing import Any, Dict, Iterator
+import re
+from typing import Any, Dict, Iterator, List, Tuple
 
+import httpx2
 import pytest
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -30,6 +32,48 @@ def setup_google_genai_instrumentation(tracer_provider: TracerProvider) -> Itera
     instrumentor.instrument(tracer_provider=tracer_provider)
     yield
     instrumentor.uninstrument()
+
+
+class MockGeminiAPI:
+    """Serves canned responses to requests the SDK sends through httpx2.
+
+    google-genai >= 3.0 sends requests through httpx2, which respx does not mock.
+    The `mock_gemini_api` fixture patches httpx2's sync and async transports, so
+    every client the SDK builds (models, chats, interactions) is routed here and a
+    request without a matching route fails instead of reaching the network.
+    """
+
+    def __init__(self) -> None:
+        self._routes: List[Tuple[str, "re.Pattern[str]", httpx2.Response]] = []
+
+    def post(self, path_regex: str, response: httpx2.Response) -> None:
+        self._routes.append(("POST", re.compile(path_regex), response))
+
+    def handle(self, request: httpx2.Request) -> httpx2.Response:
+        for method, path_pattern, response in self._routes:
+            if request.method == method and path_pattern.search(request.url.path):
+                return httpx2.Response(
+                    response.status_code,
+                    headers=response.headers,
+                    content=response.content,
+                    request=request,
+                )
+        raise AssertionError(f"No mock route for {request.method} {request.url}")
+
+
+@pytest.fixture
+def mock_gemini_api(monkeypatch: pytest.MonkeyPatch) -> MockGeminiAPI:
+    api = MockGeminiAPI()
+
+    def handle_request(_: Any, request: httpx2.Request) -> httpx2.Response:
+        return api.handle(request)
+
+    async def handle_async_request(_: Any, request: httpx2.Request) -> httpx2.Response:
+        return api.handle(request)
+
+    monkeypatch.setattr(httpx2.HTTPTransport, "handle_request", handle_request)
+    monkeypatch.setattr(httpx2.AsyncHTTPTransport, "handle_async_request", handle_async_request)
+    return api
 
 
 def _normalize_request(request: Any) -> Any:
@@ -92,6 +136,12 @@ def _bridge_google_api_key() -> None:
 #   response.  That poisons the cached stream and makes the next readline()
 #   raise instead of returning data.
 #
+#   Fixes #1 and #2 are skipped once vcrpy fixes the bug itself
+#   (https://github.com/kevin1024/vcrpy/pull/1055): its MockStream is then aiohttp's
+#   StreamReader, not an asyncio.StreamReader, and `content` is a plain attribute
+#   holding one stream per response, so these patches are not needed and would
+#   break replay.
+#
 # Fix #3 — normalise old-format cassettes before build_response sees them.
 #   Cassettes recorded with older vcrpy versions use a flat layout:
 #     { content: "...", status_code: 200, http_version: "HTTP/1.1" }
@@ -102,8 +152,9 @@ def _bridge_google_api_key() -> None:
 #
 # Fix #4 — gzip decoding for aiohttp stubs.
 #   VCR's httpcore stubs handle gzip, but aiohttp stubs return raw gzip bytes.
-#   Decompress gzip in text(), read(), and the content stream.
+#   Decompress gzip in text(), read(), and (with Fix #1) the content stream.
 try:
+    import asyncio
     import gzip
 
     import vcr.stubs.aiohttp_stubs as _aiohttp_stubs
@@ -136,12 +187,12 @@ try:
             self._content_stream_cache = s
         return self._content_stream_cache
 
-    MockClientResponse.content = property(_cached_content)
-
     def _noop_set_exception(self: Any, exc: Any) -> None:
         pass
 
-    MockStream.set_exception = _noop_set_exception
+    if issubclass(MockStream, asyncio.StreamReader):
+        MockClientResponse.content = property(_cached_content)
+        MockStream.set_exception = _noop_set_exception
 
     _original_build_response = _aiohttp_stubs.build_response
 

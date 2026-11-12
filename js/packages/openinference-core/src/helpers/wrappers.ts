@@ -424,3 +424,46 @@ export function tracePrompt<Fn extends AnyFn>(
 ): Fn {
   return withSpan<Fn>(fn, { ...options, kind: OpenInferenceSpanKind.PROMPT });
 }
+
+/**
+ * Wraps a function with tracing capabilities, specifically marking it as a DECISION span.
+ *
+ * This is a convenience function that wraps `withSpan` with the OpenInference span kind
+ * pre-configured to DECISION. Decision spans represent calls to a decision model that
+ * scores or selects among candidate options provided in the request rather than
+ * generating free-form text, such as choosing a route, judging a condition, or scoring
+ * an item against a rubric.
+ *
+ * @experimental This API is experimental and may change in future versions
+ *
+ * @template Fn - The function type being wrapped, preserving original signature
+ * @param fn - The function to wrap with DECISION span tracing
+ * @param options - Configuration options for tracing behavior (excluding kind)
+ * @param options.tracer - Custom OpenTelemetry tracer instance (otherwise the current global tracer
+ * provider is resolved when the wrapper is invoked)
+ * @param options.name - Custom span name (defaults to function name)
+ * @param options.openTelemetrySpanKind - OpenTelemetry span kind (defaults to INTERNAL)
+ * @param options.processInput - Custom function to process input arguments into attributes
+ * @param options.processOutput - Custom function to process output values into attributes
+ * @param options.attributes - Base attributes to be added to every span created
+ *
+ * @returns A wrapped function with identical signature that creates DECISION spans during execution
+ *
+ * @example
+ * ```typescript
+ * // Trace a route selection decision
+ * const selectRoute = async (query: string, routes: Route[]) => {
+ *   return await decisionModel.choose({ query, candidates: routes });
+ * };
+ * const tracedDecision = traceDecision(selectRoute, { name: "route-selection" });
+ * ```
+ */
+export function traceDecision<Fn extends AnyFn>(
+  fn: Fn,
+  options?: Omit<SpanTraceOptions, "kind">,
+): Fn {
+  return withSpan<Fn>(fn, {
+    ...options,
+    kind: OpenInferenceSpanKind.DECISION,
+  });
+}

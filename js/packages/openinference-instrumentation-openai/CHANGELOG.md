@@ -1,5 +1,57 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.4.4
+
+### Patch Changes
+
+- 10bb8cc: Detect IBM watsonx.ai from the request host, so an OpenAI client pointed at its OpenAI-compatible endpoint (`https://<region>.ml.cloud.ibm.com`) records `llm.provider = ibm` instead of falling back to `openai`. Adds `ml.cloud.ibm.com` → `ibm` to `HOST_SUFFIX_TO_PROVIDER`.
+- Updated dependencies [10bb8cc]
+  - @arizeai/openinference-semantic-conventions@2.16.0
+  - @arizeai/openinference-core@2.8.2
+
+## 4.4.3
+
+### Patch Changes
+
+- 07ce304: Record the output and token counts of OpenAI Responses streams that end with `response.incomplete` or `response.failed`. Previously only `response.completed` was kept, so the span ended with an error status and no output or usage. A failed response still sets an error status; an incomplete one (for example `max_output_tokens`) is recorded like a completed one.
+
+## 4.4.2
+
+### Patch Changes
+
+- 100ce01: Record token usage on `embeddings.create` spans: `llm.token_count.prompt` and `llm.token_count.total` from the response's `usage`, as the Python OpenAI instrumentor does. Previously embedding spans carried no token counts, so embedding usage was missing from traces.
+- Updated dependencies [dc63d01]
+- Updated dependencies [298ff79]
+  - @arizeai/openinference-semantic-conventions@2.15.0
+  - @arizeai/openinference-core@2.8.1
+
+## 4.4.1
+
+### Patch Changes
+
+- 744ab39: End the span with an ERROR status and an `exception` event when the request made by `chat.completions.create`, `completions.create`, `embeddings.create` or `responses.create` fails (for example a 404, 429, 5xx, timeout or abort). Previously the span was never ended, so failed calls were missing from traces.
+
+## 4.4.0
+
+### Minor Changes
+
+- 889a937: Trace OpenAI Decisions API calls (`client.decisions.create`, openai >= 7.30.0) as `DECISION` spans with `decision.*` model, system, provider and token count attributes.
+
+## 4.3.2
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
+## 4.3.1
+
+### Patch Changes
+
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+  - @arizeai/openinference-core@2.7.3
+
 ## 4.3.0
 
 ### Minor Changes

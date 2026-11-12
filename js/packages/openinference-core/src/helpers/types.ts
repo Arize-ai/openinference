@@ -448,6 +448,19 @@ export interface TokenCount {
 }
 
 /**
+ * Token count information for DECISION operations.
+ *
+ * Decision models have no prompt/completion split, only the tokens sent
+ * (state, questions, and candidate options) and the tokens that make up
+ * the typed answers. There is no total: it is derivable as the sum when
+ * both counts are present.
+ */
+export interface DecisionTokenCount {
+  input?: number;
+  output?: number;
+}
+
+/**
  * Tool definition for LLM function calling.
  *
  * Defines a tool that can be called by an LLM, including

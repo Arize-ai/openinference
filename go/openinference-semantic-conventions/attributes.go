@@ -22,6 +22,9 @@ const (
 	// InputImages is the span-kind-independent list of input images,
 	// flattened with indexed prefixes (e.g. "input.images.0.image.url").
 	InputImages = "input.images"
+	// InputDocuments is the span-kind-independent list of input documents
+	// such as PDFs, flattened with indexed prefixes (e.g. "input.documents.0.document.url").
+	InputDocuments = "input.documents"
 
 	// OutputValue is the output of the operation. Plain string by default;
 	// set OutputMimeType to "application/json" if the value is a JSON string.
@@ -30,6 +33,9 @@ const (
 	// OutputImages is the span-kind-independent list of output images,
 	// flattened with indexed prefixes (e.g. "output.images.0.image.url").
 	OutputImages = "output.images"
+	// OutputDocuments is the span-kind-independent list of output documents
+	// such as PDFs, flattened with indexed prefixes (e.g. "output.documents.0.document.url").
+	OutputDocuments = "output.documents"
 
 	// Metadata is a JSON-encoded map of user-defined key-value pairs.
 	Metadata = "metadata"
@@ -108,6 +114,56 @@ const (
 	LLMPromptTemplateVersion   = "llm.prompt_template.version"
 
 	LLMTools = "llm.tools"
+)
+
+// Decision-span attributes — set when the span represents a call to a
+// decision model (SpanKindDecision): a model that takes state plus typed
+// questions and returns a typed, probabilistic answer per question instead
+// of generated text. These mirror the llm.* identification attributes and
+// share their well-known values. See
+// https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+// for the convention and the decision model families it covers.
+const (
+	// DecisionModelName is the name of the decision model being used.
+	DecisionModelName = "decision.model_name"
+
+	// DecisionRequestModelName is the decision model requested by the caller,
+	// as sent in the request. May differ from DecisionResponseModelName when
+	// the provider resolves an alias (e.g. jev-latest) or routes the request.
+	DecisionRequestModelName = "decision.request.model_name"
+
+	// DecisionResponseModelName is the decision model that actually produced
+	// the response, as reported by the provider.
+	DecisionResponseModelName = "decision.response.model_name"
+
+	// DecisionProvider is the hosting provider of the decision model: who runs
+	// the hardware that answered (e.g. "typesafe" when calling TypeSafe
+	// directly, or the cloud or self-hosting provider for a model served
+	// elsewhere). Distinct from DecisionSystem, which names the API shape.
+	// Well-known values are the DecisionProvider* constants, which alias the
+	// matching LLMProvider* constants.
+	DecisionProvider = "decision.provider"
+
+	// DecisionSystem is the decision API ecosystem the call conforms to, i.e.
+	// which request and response shape the client speaks, as identified by
+	// the client or server: "typesafe" for the TypeSafe System One / Jev API,
+	// "openai" for the OpenAI Decisions API. A self-hosted vLLM server
+	// answering the Jev-compatible /v1/systemone shape is still "typesafe".
+	// Distinct from DecisionProvider, which says who hosts the model.
+	// Well-known values are the DecisionSystem* constants, which alias the
+	// matching LLMSystem* constants.
+	DecisionSystem = "decision.system"
+
+	// DecisionTokenCountInput is the number of input tokens consumed by a
+	// decision model call: the state, questions, and candidate options. Maps
+	// to usage.input_tokens in TypeSafe System One responses.
+	DecisionTokenCountInput = "decision.token_count.input"
+
+	// DecisionTokenCountOutput is the number of output tokens produced by a
+	// decision model call. Decision models emit typed answers rather than
+	// text, so this is typically small. Maps to usage.output_tokens in
+	// TypeSafe System One responses.
+	DecisionTokenCountOutput = "decision.token_count.output"
 )
 
 // Token-count attributes for LLM spans. Values are integer counts of tokens.
@@ -198,8 +254,8 @@ const (
 
 // Message-content attributes — for the contents array on a message.
 //
-// MessageContentType values include "text", "image", "audio", "video", "reasoning",
-// and "tool_use". MessageContentID captures provider-assigned content ids such
+// MessageContentType values include "text", "image", "audio", "video", "document",
+// "reasoning", and "tool_use". MessageContentID captures provider-assigned content ids such
 // as OpenAI ResponseReasoningItem.id. MessageContentSignature, MessageContentData,
 // and MessageContentEncryptedContent capture opaque provider reasoning-continuity
 // fields verbatim.
@@ -209,6 +265,7 @@ const (
 	MessageContentImage            = "message_content.image"
 	MessageContentAudio            = "message_content.audio"
 	MessageContentVideo            = "message_content.video"
+	MessageContentDocument         = "message_content.document"
 	MessageContentID               = "message_content.id"
 	MessageContentSignature        = "message_content.signature"
 	MessageContentData             = "message_content.data"
@@ -232,12 +289,18 @@ const (
 	VideoURL = "video.url"
 )
 
-// Document attributes — nested under RetrievalDocuments.{i}.
+// Document attributes — nested under RetrievalDocuments.{i}, MessageContentDocument,
+// InputDocuments or OutputDocuments. DocumentID is a retrieved document's id or,
+// for a document passed to a model, the provider's file id. DocumentURL,
+// DocumentMimeType and DocumentName describe documents passed to a model, such as PDFs.
 const (
 	DocumentID       = "document.id"
 	DocumentScore    = "document.score"
 	DocumentContent  = "document.content"
 	DocumentMetadata = "document.metadata"
+	DocumentURL      = "document.url"
+	DocumentMimeType = "document.mime_type"
+	DocumentName     = "document.name"
 )
 
 // Tool-call attributes — nested under MessageToolCalls.{i}; also used under

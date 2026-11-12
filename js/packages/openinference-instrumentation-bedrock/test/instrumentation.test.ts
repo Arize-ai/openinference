@@ -11,6 +11,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import nock from "nock";
 
 import {
+  OITracer,
   setMetadata,
   setPromptTemplate,
   setSession,
@@ -18,6 +19,7 @@ import {
   setUser,
 } from "@arizeai/openinference-core";
 import {
+  LLMSystem,
   METADATA,
   PROMPT_TEMPLATE_TEMPLATE,
   PROMPT_TEMPLATE_VARIABLES,
@@ -27,8 +29,10 @@ import {
   USER_ID,
 } from "@arizeai/openinference-semantic-conventions";
 
+import { extractInvokeModelRequestAttributes } from "../src/attributes/invoke-model-request-attributes";
 import { BedrockInstrumentation } from "../src/instrumentation";
 import { TEST_MAX_TOKENS, TEST_MODEL_ID, TEST_USER_MESSAGE } from "./config/constants";
+import { buildStream } from "./helpers/build-eventstream-fixture";
 import {
   commonTools,
   generateToolCallMessage,
@@ -40,6 +44,7 @@ import {
   verifySpanBasics,
 } from "./helpers/test-helpers";
 import {
+  createNockMock,
   createTestClient,
   getRecordingPath,
   initializeRecordingMode,
@@ -171,6 +176,138 @@ describe("BedrockInstrumentation", () => {
 `);
       });
     });
+    describe("System Prompt", () => {
+      const claudeResponse = {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "Hi." }],
+        stop_reason: "end_turn",
+        usage: { input_tokens: 5, output_tokens: 2 },
+      };
+
+      const invokeClaude = async (system: unknown) => {
+        createNockMock(claudeResponse, TEST_MODEL_ID);
+        const client = createTestClient(false);
+        await client.send(
+          new InvokeModelCommand({
+            modelId: TEST_MODEL_ID,
+            body: JSON.stringify({
+              anthropic_version: "bedrock-2023-05-31",
+              max_tokens: TEST_MAX_TOKENS,
+              system,
+              messages: [{ role: "user", content: "Hi" }],
+            }),
+            contentType: "application/json",
+            accept: "application/json",
+          }),
+        );
+        return verifySpanBasics(spanExporter).attributes;
+      };
+
+      it.each([
+        { name: "a string", system: "Be brief.", expected: "Be brief." },
+        {
+          name: "text blocks",
+          system: [
+            { type: "text", text: "Be brief." },
+            { type: "text", text: "" },
+            { type: "text", text: "Use plain words.", cache_control: { type: "ephemeral" } },
+          ],
+          expected: "Be brief.\n\nUse plain words.",
+        },
+      ])("should record a system prompt given as $name", async ({ system, expected }) => {
+        const attributes = await invokeClaude(system);
+        expect(attributes).toMatchObject({
+          "llm.input_messages.0.message.role": "system",
+          "llm.input_messages.0.message.content": expected,
+          "llm.input_messages.1.message.role": "user",
+          "llm.input_messages.1.message.content": "Hi",
+        });
+        expect(Object.keys(attributes).some((key) => key.includes(".message.contents."))).toBe(
+          false,
+        );
+      });
+
+      it.each([
+        { name: "an empty string", system: "" },
+        { name: "an empty array", system: [] },
+        { name: "empty text blocks", system: [{ type: "text", text: "" }] },
+      ])("should not record a system message for $name", async ({ system }) => {
+        const attributes = await invokeClaude(system);
+        expect(attributes["llm.input_messages.0.message.role"]).toBe("user");
+        expect(attributes["llm.input_messages.0.message.content"]).toBe("Hi");
+        expect(attributes["llm.input_messages.1.message.role"]).toBeUndefined();
+      });
+
+      it("should record the system prompt of a streaming request", async () => {
+        const chunk = (data: Record<string, unknown>): [string, Record<string, unknown>] => [
+          "chunk",
+          { bytes: Buffer.from(JSON.stringify(data)).toString("base64") },
+        ];
+        const stream = buildStream([
+          chunk({ type: "message_start", message: { usage: { input_tokens: 5 } } }),
+          chunk({
+            type: "content_block_delta",
+            index: 0,
+            delta: { type: "text_delta", text: "Hi." },
+          }),
+          chunk({
+            type: "message_delta",
+            delta: { stop_reason: "end_turn" },
+            usage: { output_tokens: 2 },
+          }),
+          chunk({ type: "message_stop" }),
+        ]);
+        createNockMock(stream.toString("hex"), TEST_MODEL_ID, 200, TEST_MODEL_ID, true);
+        const client = createTestClient(false);
+        const result = await client.send(
+          new InvokeModelWithResponseStreamCommand({
+            modelId: TEST_MODEL_ID,
+            body: JSON.stringify({
+              anthropic_version: "bedrock-2023-05-31",
+              max_tokens: TEST_MAX_TOKENS,
+              system: [{ type: "text", text: "Be brief." }],
+              messages: [{ role: "user", content: "Hi" }],
+            }),
+            contentType: "application/json",
+            accept: "application/json",
+          }),
+        );
+        await consumeStreamResponse(result);
+
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchObject({
+          "llm.input_messages.0.message.role": "system",
+          "llm.input_messages.0.message.content": "Be brief.",
+          "llm.input_messages.1.message.role": "user",
+          "llm.output_messages.0.message.content": "Hi.",
+        });
+      });
+
+      it("should hide the system message with hideInputMessages", () => {
+        const tracer = new OITracer({
+          tracer: provider.getTracer("test"),
+          traceConfig: { hideInputMessages: true },
+        });
+        const span = tracer.startSpan("bedrock.invoke_model");
+        extractInvokeModelRequestAttributes({
+          span,
+          command: new InvokeModelCommand({
+            modelId: TEST_MODEL_ID,
+            body: JSON.stringify({
+              system: "Be brief.",
+              messages: [{ role: "user", content: "Hi" }],
+            }),
+          }),
+          system: LLMSystem.ANTHROPIC,
+        });
+        span.end();
+        const attributes = spanExporter.getFinishedSpans()[0].attributes;
+        expect(Object.keys(attributes).some((key) => key.startsWith("llm.input_messages"))).toBe(
+          false,
+        );
+      });
+    });
     describe("Tool Calling", () => {
       it("should handle tool calling with function definitions", async () => {
         setupTestRecordingWrapper("should handle tool calling with function definitions");
@@ -276,6 +413,8 @@ describe("BedrockInstrumentation", () => {
   "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{"location":"Paris, France"}",
   "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "get_weather",
   "llm.input_messages.1.message.tool_calls.0.tool_call.id": "toolu_123",
+  "llm.input_messages.2.message.contents.0.message_content.text": "The weather in Paris is currently 22°C and sunny.",
+  "llm.input_messages.2.message.contents.0.message_content.type": "text",
   "llm.input_messages.2.message.contents.1.message_content.text": "Great! What should I wear?",
   "llm.input_messages.2.message.contents.1.message_content.type": "text",
   "llm.input_messages.2.message.role": "user",
@@ -1017,7 +1156,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.model_name": "claude-3-sonnet-20240229",
   "llm.output_messages.0.message.content": "Okay, let's get the current weather for San Francisco:",
   "llm.output_messages.0.message.role": "assistant",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA","unit":"fahrenheit"}",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
   "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg",
   "llm.provider": "aws",
@@ -1027,7 +1166,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.tools.0.tool.json_schema": "{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}",
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
-  "output.value": "{"text":"Okay, let's get the current weather for San Francisco:","tool_calls":[{"id":"toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg","name":"get_weather","input":{}}],"usage":{"input_tokens":273,"output_tokens":88},"streaming":true}",
+  "output.value": "{"text":"Okay, let's get the current weather for San Francisco:","tool_calls":[{"id":"toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg","name":"get_weather","input":{"location":"San Francisco, CA","unit":"fahrenheit"}}],"usage":{"input_tokens":273,"output_tokens":88},"streaming":true}",
 }
 `);
       });

@@ -2,9 +2,7 @@ import logging
 from typing import Optional
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import Attributes
-
-from openinference.instrumentation.google_genai._types import AttributeValue
+from opentelemetry.util.types import Attributes, AttributeValue
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -62,6 +60,7 @@ class _WithSpan:
         self,
         status: Optional[trace_api.Status] = None,
         attributes: Attributes = None,
+        end_time: Optional[int] = None,
     ) -> None:
         if self._is_finished:
             return
@@ -84,7 +83,7 @@ class _WithSpan:
             except Exception:
                 logger.warning("Failed to set status code on span")
         try:
-            self._span.end()
+            self._span.end(end_time=end_time)
         except Exception:
             logger.warning("Failed to end span")
         self._is_finished = True

@@ -1,3 +1,4 @@
+import { SpanStatusCode } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import OpenAI, { APIPromise } from "openai";
@@ -27,6 +28,7 @@ describe("OpenAIInstrumentation - Responses", () => {
 
   const responseBase = {
     status: "completed",
+    access_programs: null,
     error: null,
     incomplete_details: null,
     instructions: null,
@@ -136,7 +138,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.token_count.total": 18,
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
-        "output.value": "{"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
+        "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
       }
     `);
   });
@@ -223,7 +225,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.token_count.total": 18,
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
-        "output.value": "{"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
+        "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
       }
     `);
   });
@@ -292,6 +294,7 @@ describe("OpenAIInstrumentation - Responses", () => {
     expect(spans.length).toBe(1);
     const span = spans[0];
     expect(span.name).toBe("OpenAI Responses");
+    expect(span.status).toEqual({ code: SpanStatusCode.OK });
     expect(span.attributes).toMatchInlineSnapshot(`
       {
         "input.mime_type": "application/json",
@@ -310,11 +313,145 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.token_count.total": 18,
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
-        "output.value": "{"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp-567","model":"gpt-4.1","output":[{"type":"output_text","text":"I am streaming!","annotations":[]}]}",
+        "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp-567","model":"gpt-4.1","output":[{"type":"output_text","text":"I am streaming!","annotations":[]}]}",
       }
     `);
   });
 
+  it.each([
+    {
+      eventType: "response.incomplete",
+      status: "incomplete",
+      extra: { incomplete_details: { reason: "max_output_tokens" } },
+      spanStatus: SpanStatusCode.OK,
+    },
+    {
+      eventType: "response.failed",
+      status: "failed",
+      extra: { error: { code: "server_error", message: "The model failed" } },
+      spanStatus: SpanStatusCode.ERROR,
+    },
+  ])(
+    "records output and token counts for a stream that ends with $eventType",
+    async ({ eventType, status, extra, spanStatus }) => {
+      vi.spyOn(openai, "post").mockImplementation(
+        // @ts-expect-error the response type is not correct - this is just for testing
+        (): Promise<unknown> => {
+          const iterator = () =>
+            (async function* () {
+              yield { type: "response.output_text.delta", delta: "I am cut" };
+              yield {
+                type: eventType,
+                response: {
+                  ...responseBase,
+                  ...extra,
+                  status,
+                  id: "resp-789",
+                  model: "gpt-4.1",
+                  output: [
+                    {
+                      type: "message",
+                      id: "msg_1",
+                      status: "incomplete",
+                      role: "assistant",
+                      content: [{ type: "output_text", text: "I am cut", annotations: [] }],
+                    },
+                  ],
+                },
+              };
+            })();
+          const controller = new AbortController();
+          const stream = new Stream(iterator, controller);
+          return new APIPromise(
+            new OpenAI({ apiKey: "fake-api-key" }),
+            // @ts-expect-error the response type is not correct - this is just for testing
+            Promise.resolve({ response: new Response(), options: {}, controller }),
+            () => stream,
+          );
+        },
+      );
+      const stream = await openai.responses.create({
+        input: "Say something long",
+        model: "gpt-4.1",
+        stream: true,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _event of stream) {
+        // drain the stream so the span is recorded
+      }
+      await new Promise((resolve) => setTimeout(resolve));
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      const attributes = spans[0].attributes;
+      expect(spans[0].status.code).toBe(spanStatus);
+      expect(attributes["output.value"]).toContain("I am cut");
+      expect(attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+      expect(attributes["llm.token_count.prompt"]).toBe(12);
+      expect(attributes["llm.token_count.completion"]).toBe(6);
+      expect(attributes["llm.token_count.total"]).toBe(18);
+    },
+  );
+
+  describe("streaming span status", () => {
+    // Mocks a stream that yields the given events and then awaits `end`, which can throw
+    const mockStream = (events: object[], end?: (signal: AbortSignal) => Promise<void>) => {
+      const controller = new AbortController();
+      vi.spyOn(openai, "post").mockImplementation(
+        // @ts-expect-error the response type is not correct - this is just for testing
+        (): Promise<unknown> => {
+          const iterator = () =>
+            (async function* () {
+              for (const event of events) {
+                yield event;
+              }
+              await end?.(controller.signal);
+            })();
+          const stream = new Stream(iterator, controller);
+          return new APIPromise(
+            new OpenAI({ apiKey: "fake-api-key" }),
+            // @ts-expect-error the response type is not correct - this is just for testing
+            Promise.resolve({ response: new Response(), options: {}, controller }),
+            () => stream,
+          );
+        },
+      );
+      return controller;
+    };
+    const createStream = () =>
+      openai.responses.create({ input: "Say I am streaming!", model: "gpt-4.1", stream: true });
+
+    it("ends the span with status ERROR when the stream fails", async () => {
+      mockStream([{ type: "response.output_text.delta", delta: "I " }], async () => {
+        throw new Error("connection reset");
+      });
+      const stream = await createStream();
+      await expect(async () => {
+        for await (const _event of stream) {
+          // consume the stream
+        }
+      }).rejects.toThrow("connection reset");
+      await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: "connection reset" });
+      expect(span.events.map((event) => event.name)).toEqual(["exception"]);
+      expect(span.events[0].attributes?.["exception.message"]).toBe("connection reset");
+    });
+
+    it("leaves the status unset when the stream is aborted", async () => {
+      // Like the SDK, the stream waits on the server and then ends quietly once aborted
+      const controller = mockStream(
+        [{ type: "response.output_text.delta", delta: "I " }],
+        (signal) => new Promise((resolve) => signal.addEventListener("abort", () => resolve())),
+      );
+      for await (const _event of await createStream()) {
+        controller.abort();
+      }
+      await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.status).toEqual({ code: SpanStatusCode.UNSET });
+      expect(span.events).toEqual([]);
+    });
+  });
   it("should capture tool calls with streaming responses", async () => {
     // Mock out the post endpoint to return a stream with tool calls
     vi.spyOn(openai, "post").mockImplementation(

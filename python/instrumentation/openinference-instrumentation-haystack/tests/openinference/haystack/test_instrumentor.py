@@ -1341,12 +1341,16 @@ def test_individual_component_without_child_components(
     retriever = InMemoryBM25Retriever(document_store=document_store)
     results = retriever.run(query="How many languages are spoken around the world today?")
     assert results.get("documents") is not None
-    assert len(results["documents"]) == 3
+    # Haystack >= 3.0 drops documents whose BM25 score is exactly zero (no query term
+    # overlap), so the number of retrieved documents depends on the haystack-ai version.
+    assert 1 <= len(results["documents"]) <= len(documents)
+    written_contents = {document.content for document in documents}
     for document in results["documents"]:
         assert isinstance(document, Document)
         assert document.id is not None
         assert document.content_type == "text"
         assert isinstance(document.content, str)
+        assert document.content in written_contents
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     retriever_span = spans[0]
@@ -1396,12 +1400,16 @@ async def test_individual_component_run_async_without_child_components(
         query="How many languages are spoken around the world today?"
     )
     assert results.get("documents") is not None
-    assert len(results["documents"]) == 3
+    # Haystack >= 3.0 drops documents whose BM25 score is exactly zero (no query term
+    # overlap), so the number of retrieved documents depends on the haystack-ai version.
+    assert 1 <= len(results["documents"]) <= len(documents)
+    written_contents = {document.content for document in documents}
     for document in results["documents"]:
         assert isinstance(document, Document)
         assert document.id is not None
         assert document.content_type == "text"
         assert isinstance(document.content, str)
+        assert document.content in written_contents
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     retriever_span = spans[0]
@@ -1600,3 +1608,99 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 USER_ID = SpanAttributes.USER_ID
+
+
+from typing import List  # noqa: E402
+
+from haystack import component  # noqa: E402
+from haystack.dataclasses import ToolCall  # noqa: E402
+
+
+@component
+class FakeChatGenerator:
+    @component.output_types(replies=List[ChatMessage])
+    def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+        # A reply that pairs text with a tool call, and one whose meta carries no
+        # finish_reason (haystack's own streaming conversion leaves it None when no
+        # chunk reports one).
+        tool_reply = ChatMessage.from_assistant(
+            text="Let me check that for you.",
+            tool_calls=[
+                ToolCall(tool_name="get_weather", arguments={"city": "Paris"}, id="call_1")
+            ],
+            meta={"model": "fake-model", "finish_reason": "tool_calls"},
+        )
+        plain_reply = ChatMessage.from_assistant(
+            text="streamed answer",
+            meta={"model": "fake-model"},
+        )
+        return {"replies": [tool_reply, plain_reply]}
+
+
+@component
+class FakeTextGenerator:
+    @component.output_types(replies=List[str])
+    def run(self, prompt: str) -> Dict[str, Any]:
+        return {"replies": ["answer one", "answer two"]}
+
+
+def test_output_messages_keep_content_without_finish_reason(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    pipe.add_component("chat_llm", FakeChatGenerator())
+    pipe.add_component("text_llm", FakeTextGenerator())
+    pipe.run(
+        {
+            "chat_llm": {"messages": [ChatMessage.from_user("hi")]},
+            "text_llm": {"prompt": "hi"},
+        }
+    )
+
+    spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
+    chat_attributes = dict(spans["FakeChatGenerator.run"].attributes or {})
+    assert chat_attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert chat_attributes.pop(LLM_MODEL_NAME) == "fake-model"
+    assert chat_attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(chat_attributes.pop(INPUT_VALUE), str)
+    assert chat_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(chat_attributes.pop(OUTPUT_VALUE), str)
+    assert chat_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hi"
+    assert chat_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Let me check that for you."
+    )
+    assert (
+        chat_attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}"
+        )
+        == "get_weather"
+    )
+    assert isinstance(
+        tool_call_arguments := chat_attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert json.loads(tool_call_arguments) == {"city": "Paris"}
+    assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "streamed answer"
+    assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+    assert not chat_attributes
+
+    text_attributes = dict(spans["FakeTextGenerator.run"].attributes or {})
+    assert text_attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert text_attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(text_attributes.pop(INPUT_VALUE), str)
+    assert text_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(text_attributes.pop(OUTPUT_VALUE), str)
+    assert text_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hi"
+    assert text_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "answer one"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "answer two"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+    assert not text_attributes

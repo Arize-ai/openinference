@@ -28,7 +28,11 @@ import {
 } from "../types/bedrock-types";
 
 const isExtendedConversationRole = (value: unknown): value is ExtendedConversationRole =>
-  value === "assistant" || value === "user" || value === "system" || value === "tool";
+  value === "assistant" ||
+  value === "user" ||
+  value === "system" ||
+  value === "tool" ||
+  value === "developer";
 
 const isMessageContentBlock = (
   item: unknown,
@@ -350,13 +354,17 @@ function convertMistralAssistantToolCallsMessage({
     if (typeof fn?.name !== "string" || typeof fn.arguments !== "string") {
       continue;
     }
-    const parsedInput: unknown = JSON.parse(fn.arguments);
-    content.push({
-      type: "tool_use",
-      id: typeof rawToolCall.id === "string" ? rawToolCall.id : "unknown",
-      name: fn.name,
-      input: parsedInput,
-    });
+    try {
+      content.push({
+        type: "tool_use",
+        id: typeof rawToolCall.id === "string" ? rawToolCall.id : "unknown",
+        name: fn.name,
+        input: JSON.parse(fn.arguments),
+      });
+    } catch (error) {
+      // Skip only this tool call so the rest of the history is still recorded
+      diag.warn("Failed to parse tool call arguments:", error);
+    }
   }
 
   // Add text content if present
@@ -480,6 +488,41 @@ function convertMistralChatToBedrockMessages(
 }
 
 /**
+ * Converts an OpenAI Chat Completions request (gpt-oss, GPT-5.x, GPT-6) to BedrockMessage array.
+ * Reuses the Mistral chat conversion, then restores the `developer` role and links `tool`
+ * messages to their tool call through `tool_call_id`.
+ *
+ * @param requestBody The OpenAI-formatted request body containing messages array
+ * @returns {BedrockMessage[]} Array of converted BedrockMessage objects
+ */
+function convertOpenAIChatToBedrockMessages(
+  requestBody: Record<string, unknown>,
+): BedrockMessage[] {
+  const rawMessages = Array.isArray(requestBody.messages)
+    ? requestBody.messages.filter(isObjectWithStringKeys)
+    : [];
+  return convertMistralChatToBedrockMessages(requestBody).map((converted, index) => {
+    const raw = rawMessages[index];
+    if (raw.role === "developer") {
+      return { ...converted, role: "developer" };
+    }
+    if (raw.role === "tool" && typeof raw.tool_call_id === "string") {
+      return {
+        ...converted,
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: raw.tool_call_id,
+            content: typeof raw.content === "string" ? raw.content : "",
+          },
+        ],
+      };
+    }
+    return converted;
+  });
+}
+
+/**
  * Converts AI21 Jamba request format to standardized BedrockMessage array
  * Handles messages with system, user, and assistant roles
  * Similar to Anthropic format but supports system role like Mistral
@@ -599,6 +642,31 @@ function normalizeMistralRequestContentBlocks(
 }
 
 /**
+ * Converts the top-level `system` prompt of an Anthropic request (a string or an array of
+ * text blocks) to a leading system message. Text blocks are joined with a blank line, like
+ * Converse system prompts.
+ *
+ * @param requestBody The parsed Anthropic request body
+ * @returns {BedrockMessage[]} A single system message, or an empty array without a usable prompt
+ */
+function anthropicSystemPromptToBedrockMessages(
+  requestBody: InvokeModelRequestBody,
+): BedrockMessage[] {
+  const { system } = requestBody;
+  let text = "";
+  if (typeof system === "string") {
+    text = system;
+  } else if (Array.isArray(system)) {
+    text = system
+      .filter(isTextContent)
+      .map((block) => block.text)
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  return text ? [{ role: "system", content: text }] : [];
+}
+
+/**
  * Normalizes AI21 request bodies (completion prompt or Jamba messages).
  *
  * @param requestBody The parsed AI21 request body
@@ -633,9 +701,12 @@ export const normalizeRequestContentBlocks = withSafety({
   fn: (requestBody: InvokeModelRequestBody, llm_system: LLMSystem): BedrockMessage[] => {
     switch (llm_system) {
       case LLMSystem.ANTHROPIC:
-        return Array.isArray(requestBody.messages)
-          ? requestBody.messages.flatMap((message) => toBedrockMessage(message) ?? [])
-          : [];
+        return [
+          ...anthropicSystemPromptToBedrockMessages(requestBody),
+          ...(Array.isArray(requestBody.messages)
+            ? requestBody.messages.flatMap((message) => toBedrockMessage(message) ?? [])
+            : []),
+        ];
       case LLMSystem.AMAZON:
         return normalizeAmazonRequestContentBlocks(requestBody);
       case LLMSystem.COHERE:
@@ -644,6 +715,10 @@ export const normalizeRequestContentBlocks = withSafety({
         return hasStringProperty({ requestBody, key: "prompt" })
           ? convertSimpleTextToBedrockMessages(requestBody, "prompt")
           : fallbackNormalizeRequestContentBlocks(requestBody);
+      case LLMSystem.OPENAI:
+        return isMistralChatRequest(requestBody)
+          ? convertOpenAIChatToBedrockMessages(requestBody)
+          : normalizeMistralRequestContentBlocks(requestBody);
       case LLMSystem.MISTRALAI:
         return normalizeMistralRequestContentBlocks(requestBody);
       case LLMSystem.AI21:
@@ -862,6 +937,12 @@ function convertAI21JambaToMessageContent(responseBody: Record<string, unknown>)
             type: "text",
             text: message.content,
           });
+        } else if (typeof message.refusal === "string") {
+          // OpenAI-style refusals arrive as { content: null, refusal: "..." }
+          content.push({
+            type: "text",
+            text: message.refusal,
+          });
         }
 
         // Handle tool calls - AI21 format: { tool_calls: [{ id, function: { name, arguments } }] }
@@ -996,6 +1077,8 @@ function normalizeResponseContent({
       return typeof responseBody.generation === "string"
         ? convertMetaToMessageContent(responseBody)
         : [];
+    // OpenAI models on Bedrock use the same Chat Completions body as AI21 Jamba.
+    case LLMSystem.OPENAI:
     case LLMSystem.AI21:
       return convertAI21JambaToMessageContent(responseBody);
     default:
@@ -1152,6 +1235,8 @@ export const normalizeUsageAttributes = withSafety({
         return normalizeAnthropicUsage(responseBody);
       case LLMSystem.AMAZON:
         return normalizeAmazonUsage(responseBody);
+      // OpenAI models on Bedrock use the same Chat Completions body as AI21 Jamba.
+      case LLMSystem.OPENAI:
       case LLMSystem.AI21:
         return normalizeAI21Usage(responseBody);
       case LLMSystem.META:

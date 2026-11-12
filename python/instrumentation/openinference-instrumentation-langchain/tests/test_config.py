@@ -82,7 +82,7 @@ def test_chat_with_config_hiding_inputs(
     assert span is not None
     assert span is not None
     assert span.parent is None
-    attributes = dict(span.attributes or {})
+    attributes: Dict[str, Any] = dict(span.attributes or {})
     assert (
         attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND, None)
         == OpenInferenceSpanKindValues.LLM.value
@@ -188,7 +188,7 @@ def test_chat_with_config_hiding_outputs(
     assert span is not None
     assert span is not None
     assert span.parent is None
-    attributes = dict(span.attributes or {})
+    attributes: Dict[str, Any] = dict(span.attributes or {})
     assert (
         attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND, None)
         == OpenInferenceSpanKindValues.LLM.value

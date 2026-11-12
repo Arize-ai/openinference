@@ -9,7 +9,7 @@ Claude VV3+ models running on AWS Bedrock.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Iterator, List, Mapping, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
 from opentelemetry.trace import Span
 
@@ -18,6 +18,7 @@ from openinference.instrumentation import (
     ImageMessageContent,
     Message,
     TextMessageContent,
+    Tool,
     ToolCall,
     ToolCallFunction,
     get_input_attributes,
@@ -88,6 +89,42 @@ def _get_input_messages(content: Any) -> List[Message]:
                     Message(contents=contents, tool_calls=tool_calls, role=message.get("role"))
                 )
     return messages
+
+
+def _get_system_message(system: Any) -> Optional[Message]:
+    """
+    Convert the request's system prompt, a string or a list of text blocks, to a system
+    Message, or None when there is no system prompt.
+    """
+    if isinstance(system, str):
+        texts = [system] if system else []
+    elif isinstance(system, Iterable):
+        texts = [
+            block["text"]
+            for block in system
+            if isinstance(block, Mapping) and isinstance(block.get("text"), str)
+        ]
+    else:
+        texts = []
+    if not texts:
+        return None
+    contents: List[Any] = [TextMessageContent(text=text, type="text") for text in texts]
+    return Message(role="system", contents=contents)
+
+
+def _get_tools(tools: Any) -> List[Tool]:
+    """
+    Convert the request's tool definitions to OpenInference Tool objects.
+
+    Args:
+        tools: The ``tools`` value from the request body
+
+    Returns:
+        List of Tool objects whose JSON schema is the full tool definition
+    """
+    if not isinstance(tools, list):
+        return []
+    return [Tool(json_schema=tool) for tool in tools if isinstance(tool, dict)]
 
 
 def _get_llm_token_counts(usage: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -215,6 +252,10 @@ def _validate_invocation_parameter(parameter: Any) -> bool:
     excluded_params = (
         "messages",
         "modelId",
+        # recorded as llm.input_messages / llm.tools, where TraceConfig masking applies
+        "system",
+        "tools",
+        "anthropic_version",
     )
     return parameter not in excluded_params
 
@@ -240,6 +281,8 @@ def get_llm_input_attributes(request_body: Dict[str, Any], model_id: str) -> Dic
     """
     invocation_parameters = _get_invocation_parameters(request_body)
     input_messages = _get_input_messages(request_body.get("messages"))
+    if system_message := _get_system_message(request_body.get("system")):
+        input_messages.insert(0, system_message)
     return {
         **get_llm_attributes(
             model_name=_get_llm_model_name_from_input(model_id),
@@ -247,6 +290,7 @@ def get_llm_input_attributes(request_body: Dict[str, Any], model_id: str) -> Dic
             provider=OpenInferenceLLMProviderValues.AWS.value,
             invocation_parameters=invocation_parameters,
             input_messages=input_messages,
+            tools=_get_tools(request_body.get("tools")),
         ),
         **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
         **get_input_attributes(request_body),

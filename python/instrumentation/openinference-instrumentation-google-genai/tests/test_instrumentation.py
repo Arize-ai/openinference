@@ -1,12 +1,14 @@
 # type: ignore
 # ruff: noqa: E501
+import asyncio
 import base64
+import gc
 import json
 import os
 from typing import Any, Dict
+from unittest.mock import patch
 
 import pytest
-import respx
 from google import genai
 from google.genai import types
 from google.genai.types import (
@@ -20,9 +22,11 @@ from google.genai.types import (
     Tool,
     ToolCodeExecution,
 )
-from httpx import Response
+from httpx2 import Response
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from pydantic import BaseModel
 
 from openinference.semconv.trace import (
@@ -38,6 +42,25 @@ from openinference.semconv.trace import (
 
 class Answer(BaseModel):
     answer: str
+
+
+def _completion_token_count(usage_metadata: Any) -> int:
+    # The instrumentation counts thinking tokens as completion tokens.
+    return (usage_metadata.candidates_token_count or 0) + (usage_metadata.thoughts_token_count or 0)
+
+
+def _signed_text_output_attributes(response: Any) -> Dict[str, Any]:
+    # Gemini 3 models sign their text replies. The instrumentation records a signed text
+    # part as indexed message contents so the signature is kept with the text.
+    (part,) = response.candidates[0].content.parts
+    prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}.0"
+    return {
+        f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+        f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": part.text,
+        f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}": base64.b64encode(
+            part.thought_signature
+        ).decode(),
+    }
 
 
 @pytest.mark.vcr(
@@ -232,7 +255,11 @@ def test_generate_content(
                 Part(
                     function_call=FunctionCall(
                         name="get_weather", args={"location": "San Francisco"}, id="call_abc123"
-                    )
+                    ),
+                    # Gemini 3 models reject replayed function calls without a thought
+                    # signature; this placeholder is the documented way to skip the check
+                    # for calls the model did not produce.
+                    thought_signature=b"skip_thought_signature_validator",
                 ),
             ],
         ),
@@ -263,7 +290,7 @@ def test_generate_content(
 
     # Make the API call
     response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=contents, config=config
+        model="gemini-3.6-flash", contents=contents, config=config
     )
 
     # Get the spans
@@ -286,7 +313,8 @@ def test_generate_content(
         ),
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}": "call_abc123",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "call_abc123",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "tool",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_NAME}": "get_weather",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
             {
                 "location": "San Francisco",
@@ -298,10 +326,10 @@ def test_generate_content(
         ),
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        **_signed_text_output_attributes(response),
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
 
@@ -311,7 +339,9 @@ def test_generate_content(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    response.usage_metadata
+                ),
             }
         )
 
@@ -364,7 +394,7 @@ def test_generate_content_describe_image(
     )
     if streaming:
         response = client.models.generate_content_stream(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             contents=content,
             config=config,
         )
@@ -372,7 +402,7 @@ def test_generate_content_describe_image(
             ...
     else:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             contents=content,
             config=config,
         )
@@ -395,7 +425,7 @@ def test_generate_content_describe_image(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "image",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -443,7 +473,7 @@ def test_generate_content_with_config_as_dict(
 
     # # Make the API call
     response = client.models.generate_content(
-        model="gemini-2.5-flash", contents=content, config=config
+        model="gemini-3.6-flash", contents=content, config=config
     )
 
     # Get the spans
@@ -459,10 +489,10 @@ def test_generate_content_with_config_as_dict(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Repeat: this is a test",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        **_signed_text_output_attributes(response),
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
         SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(
             {
@@ -527,7 +557,7 @@ async def test_async_generate_content(
 
     # Make the API call
     response = await client.models.generate_content(
-        model="gemini-2.0-flash", contents=content, config=config
+        model="gemini-3.6-flash", contents=content, config=config
     )
 
     # Get the spans
@@ -545,10 +575,10 @@ async def test_async_generate_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        **_signed_text_output_attributes(response),
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
 
@@ -558,7 +588,9 @@ async def test_async_generate_content(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    response.usage_metadata
+                ),
             }
         )
     # Verify attributes
@@ -584,7 +616,7 @@ def test_multi_turn_conversation(
     client = genai.Client(api_key=api_key)
 
     # Create a chat session
-    chat = client.chats.create(model="gemini-2.0-flash")
+    chat = client.chats.create(model="gemini-2.5-flash-lite")
 
     # Send first message
     response1 = chat.send_message("What is the capital of France?")
@@ -605,7 +637,7 @@ def test_multi_turn_conversation(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What is the capital of France?",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash-lite",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response1.text,
@@ -618,7 +650,9 @@ def test_multi_turn_conversation(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response1.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response1.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response1.usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    response1.usage_metadata
+                ),
             }
         )
 
@@ -636,12 +670,12 @@ def test_multi_turn_conversation(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What is the capital of France?",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "The capital of France is **Paris**.\n",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": response1.text,
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_CONTENT}": "Why is the sky blue?",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash-lite",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response2.text,
@@ -653,7 +687,9 @@ def test_multi_turn_conversation(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response2.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response2.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response2.usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    response2.usage_metadata
+                ),
             }
         )
 
@@ -679,7 +715,7 @@ def test_streaming_text_content(
 
     # Make the streaming API call
     stream = client.models.generate_content_stream(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash-lite",
         contents=Content(
             role="user",
             parts=[Part.from_text(text="Tell me a short story about a cat.")],
@@ -705,7 +741,7 @@ def test_streaming_text_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Tell me a short story about a cat.",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash-lite",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
@@ -719,9 +755,9 @@ def test_streaming_text_content(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[
-                    -1
-                ].usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    chunks[-1].usage_metadata
+                ),
             }
         )
 
@@ -748,7 +784,7 @@ async def test_async_streaming_text_content(
 
     # Make the streaming API call
     stream = await client.models.generate_content_stream(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash-lite",
         contents=Content(
             role="user",
             parts=[Part.from_text(text="Tell me a short story about a cat within 20 words.")],
@@ -774,7 +810,7 @@ async def test_async_streaming_text_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Tell me a short story about a cat within 20 words.",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash-lite",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
@@ -788,9 +824,9 @@ async def test_async_streaming_text_content(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[
-                    -1
-                ].usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    chunks[-1].usage_metadata
+                ),
             }
         )
 
@@ -855,7 +891,7 @@ def test_generate_content_with_tool(
 
     # Make the API call
     response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=content, config=config
+        model="gemini-3.6-flash", contents=content, config=config
     )
 
     # Get the spans
@@ -873,7 +909,7 @@ def test_generate_content_with_tool(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
@@ -942,7 +978,9 @@ def test_generate_content_with_tool(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    response.usage_metadata
+                ),
             }
         )
 
@@ -1012,7 +1050,7 @@ def test_generate_content_with_raw_json_tool(
 
     # Make the API call
     response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=content, config=config
+        model="gemini-3.6-flash", contents=content, config=config
     )
 
     # Get the spans
@@ -1030,7 +1068,7 @@ def test_generate_content_with_raw_json_tool(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
@@ -1097,7 +1135,9 @@ def test_generate_content_with_raw_json_tool(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    response.usage_metadata
+                ),
             }
         )
 
@@ -1162,7 +1202,7 @@ def test_streaming_content_with_tool(
 
     # Make the streaming API call
     stream = client.models.generate_content_stream(
-        model="gemini-2.0-flash", contents=content, config=config
+        model="gemini-3.6-flash", contents=content, config=config
     )
 
     # Collect all chunks from the stream
@@ -1187,7 +1227,7 @@ def test_streaming_content_with_tool(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -1263,9 +1303,9 @@ def test_streaming_content_with_tool(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[
-                    -1
-                ].usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    chunks[-1].usage_metadata
+                ),
             }
         )
 
@@ -1336,7 +1376,7 @@ def test_response_with_multiple_tool_calls(
     # Make the streaming API call
     if streaming:
         response = client.models.generate_content_stream(
-            model="gemini-2.0-flash", contents=content, config=config
+            model="gemini-3.6-flash", contents=content, config=config
         )
         for rec in response:
             ...
@@ -1344,7 +1384,7 @@ def test_response_with_multiple_tool_calls(
         full_response = ""
     else:
         response = client.models.generate_content(
-            model="gemini-2.0-flash", contents=content, config=config
+            model="gemini-3.6-flash", contents=content, config=config
         )
         # Collect all chunks from the stream
         full_response = response.text or ""
@@ -1364,7 +1404,7 @@ def test_response_with_multiple_tool_calls(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -1442,7 +1482,9 @@ def test_response_with_multiple_tool_calls(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    response.usage_metadata
+                ),
             }
         )
 
@@ -1470,7 +1512,7 @@ def test_streaming_reasoning_with_multiple_tool_calls(
     must remain separate tool_calls.0 and tool_calls.1 (not merged or dropped).
     Mirrors examples/multiple_tools_response.py.
     """
-    client = genai.Client(api_key="dummy-api-key")
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
 
     weather_tool = Tool(
         function_declarations=[
@@ -1503,7 +1545,7 @@ def test_streaming_reasoning_with_multiple_tool_calls(
     )
 
     stream = client.models.generate_content_stream(
-        model="gemini-3.5-flash", contents=content, config=config
+        model="gemini-3.6-flash", contents=content, config=config
     )
     for _ in stream:
         ...
@@ -1550,9 +1592,9 @@ def test_streaming_reasoning(
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
 ) -> None:
-    client = genai.Client(api_key="dummy-api-key")
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
     stream = client.models.generate_content_stream(
-        model="gemini-3.5-flash",
+        model="gemini-3.6-flash",
         contents="Tell bed storey for 5 years old boy.",
         config=types.GenerateContentConfig(
             thinking_config=types.ThinkingConfig(
@@ -1650,7 +1692,7 @@ def test_chat_session_with_tool(
     config = GenerateContentConfig(system_instruction=system_instruction, tools=[weather_tool])
 
     # Create a chat session with tools
-    chat = client.chats.create(model="gemini-2.0-flash", config=config)
+    chat = client.chats.create(model="gemini-3.6-flash", config=config)
 
     # Send message without tools config (tools are already configured for the chat session)
     response = chat.send_message(user_message)
@@ -1670,7 +1712,7 @@ def test_chat_session_with_tool(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -1746,7 +1788,9 @@ def test_chat_session_with_tool(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: _completion_token_count(
+                    response.usage_metadata
+                ),
             }
         )
 
@@ -1795,7 +1839,7 @@ def test_streaming_tool_call_aggregation(
                     },
                 }
             ],
-            "model_version": "gemini-2.0-flash",
+            "model_version": "gemini-2.5-flash-lite",
         }
     )
 
@@ -2031,7 +2075,7 @@ def test_generate_content_with_automatic_tool_calling(
 
     # Make the API call
     response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=content, config=config
+        model="gemini-3.6-flash", contents=content, config=config
     )
 
     # For automatic tool calling, we expect a complete text response
@@ -2053,7 +2097,18 @@ def test_generate_content_with_automatic_tool_calling(
     span = spans[0]
     attributes = dict(span.attributes or {})
 
+    # The SDK builds this history from the recorded function-call turn
+    afc_history = response.automatic_function_calling_history
+    assert afc_history is not None
+    function_call_part = afc_history[1].parts[0]
+    assert function_call_part.function_call is not None
+    final_text_part = response.candidates[0].content.parts[0]
+
     # Define expected attributes
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    output_content = f"{output_message}.{MessageAttributes.MESSAGE_CONTENTS}.0"
+    tool_call_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1"
+    tool_call = f"{tool_call_message}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     expected_attributes: Dict[str, Any] = {
         f"{SpanAttributes.LLM_PROVIDER}": "google",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
@@ -2062,18 +2117,34 @@ def test_generate_content_with_automatic_tool_calling(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-3.6-flash",
         SpanAttributes.LLM_FINISH_REASON: "STOP",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        f"{output_message}.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{output_content}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+        f"{output_content}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": response.text,
+        f"{output_content}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}": base64.b64encode(
+            final_text_part.thought_signature
+        ).decode(),
+        # The automatic function call is published as its own output message
+        f"{tool_call_message}.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{tool_call}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
+        f"{tool_call}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}": json.dumps(
+            {"location": "San Francisco"}
+        ),
+        f"{tool_call}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}": base64.b64encode(
+            function_call_part.thought_signature
+        ).decode(),
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
+
+    # Tool calls must never be emitted without an output message prefix
+    assert not any(key.startswith(f"{MessageAttributes.MESSAGE_TOOL_CALLS}.") for key in attributes)
 
     # For automatic tool calling, the tool schema should still be recorded
     # but it will be auto-generated from the function signature
     tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
     assert tool_schema_key in attributes, "Tool schema not found in attributes"
-    tool_schema_json = attributes.get(tool_schema_key)
+    tool_schema_json = attributes.pop(tool_schema_key)
     assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
 
     # Parse and validate the tool schema was auto-generated correctly
@@ -2091,24 +2162,30 @@ def test_generate_content_with_automatic_tool_calling(
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
+        completion_token_count = 0
+        if candidates := response.usage_metadata.candidates_token_count:
+            completion_token_count += candidates
+        if thoughts := response.usage_metadata.thoughts_token_count:
+            completion_token_count += thoughts
+
         expected_attributes.update(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: completion_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: response.usage_metadata.thoughts_token_count,
             }
         )
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
+        assert attributes.pop(key, None) == expected_value, (
             f"Attribute {key} does not match expected value"
         )
 
-    # Note: For automatic tool calling, the function execution happens transparently
-    # We may or may not see explicit tool call attributes in the span depending on
-    # how Google GenAI implements it internally. The key difference is that we get
-    # a complete text response that incorporates the function results.
+    assert isinstance(attributes.pop(SpanAttributes.INPUT_VALUE), str)
+    assert isinstance(attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
+    assert not attributes, f"Unexpected attributes found: {attributes}"
 
 
 @pytest.mark.vcr(
@@ -2123,7 +2200,7 @@ def test_validate_token_counts(
 ) -> None:
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.6-flash",
         contents="What is the sum of the first 50 prime numbers? "
         "Generate and run code for the calculation, and make sure you get all 50.",
         config=GenerateContentConfig(tools=[Tool(code_execution=ToolCodeExecution)]),
@@ -2192,7 +2269,7 @@ def test_generate_content_with_file_uri_image(
             Part.from_uri(file_uri=file_uri, mime_type="image/jpeg"),
         ],
     )
-    model_name = "gemini-2.5-flash"
+    model_name = "gemini-3.6-flash"
     config = GenerateContentConfig(
         system_instruction="You are a helpful assistant that can describe images."
     )
@@ -2263,7 +2340,7 @@ def test_validate_token_counts_stream(
 ) -> None:
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
     response = client.models.generate_content_stream(
-        model="gemini-2.5-flash",
+        model="gemini-3.6-flash",
         contents="What is the sum of the first 50 prime numbers? "
         "Generate and run code for the calculation, and make sure you get all 50.",
         config=GenerateContentConfig(tools=[Tool(code_execution=ToolCodeExecution)]),
@@ -2316,6 +2393,7 @@ def test_finish_reason_values(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
 ) -> None:
     api_key = "fake-key"
     client = genai.Client(api_key=api_key)
@@ -2336,21 +2414,301 @@ def test_finish_reason_values(
             "candidatesTokenCount": 3,
             "totalTokenCount": 8,
         },
-        "modelVersion": "gemini-2.0-flash",
+        "modelVersion": "gemini-2.5-flash-lite",
     }
 
-    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
-        mock_router.post(path__regex=r"/v1beta/models/gemini-2\.0-flash:generateContent.*").mock(
-            return_value=Response(200, json=mock_response)
-        )
+    mock_gemini_api.post(
+        r"/v1/models/gemini-2\.5-flash-lite:generateContent.*", Response(200, json=mock_response)
+    )
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=Content(role="user", parts=[Part.from_text(text="hello")]),
-        )
-        assert response is not None
+    response = client.models.generate_content(
+        model="gemini-2.5-flash-lite",
+        contents=Content(role="user", parts=[Part.from_text(text="hello")]),
+    )
+    assert response is not None
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attributes = dict(spans[0].attributes or {})
     assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason
+
+
+def test_generate_content_with_parallel_function_responses(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
+) -> None:
+    # The reply to parallel function calls arrives as one content with several
+    # function_response parts (the shape AFC writes into chat history). Each
+    # part must become its own tool message so every id survives.
+    client = genai.Client(api_key="fake-key")
+
+    contents = [
+        Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(name="get_weather", args={"city": "SF"}, id="fc-1")
+                ),
+                Part(function_call=FunctionCall(name="get_time", args={"city": "NYC"}, id="fc-2")),
+            ],
+        ),
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather", response={"result": "72F sunny"}, id="fc-1"
+                    )
+                ),
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_time", response={"result": "12:00 EDT"}, id="fc-2"
+                    )
+                ),
+            ],
+        ),
+    ]
+
+    mock_response = {
+        "candidates": [
+            {
+                "content": {"parts": [{"text": "72F and noon."}], "role": "model"},
+                "finishReason": "STOP",
+                "index": 0,
+            }
+        ],
+        "usageMetadata": {
+            "promptTokenCount": 50,
+            "candidatesTokenCount": 10,
+            "totalTokenCount": 60,
+        },
+        "modelVersion": "gemini-2.5-flash",
+    }
+
+    mock_gemini_api.post(
+        r"/v1/models/gemini-2\.5-flash:generateContent.*", Response(200, json=mock_response)
+    )
+    response = client.models.generate_content(model="gemini-2.5-flash", contents=contents)
+    assert response is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}": "fc-1",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_time",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1.{ToolCallAttributes.TOOL_CALL_ID}": "fc-2",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "tool",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
+            {"result": "72F sunny"}
+        ),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "fc-1",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}": "tool",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_NAME}": "get_time",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
+            {"result": "12:00 EDT"}
+        ),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "fc-2",
+    }
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+    # No merged user-role message carrying tool results.
+    roles = {
+        key: value
+        for key, value in attributes.items()
+        if key.startswith(f"{SpanAttributes.LLM_INPUT_MESSAGES}.")
+        and key.endswith(MessageAttributes.MESSAGE_ROLE)
+    }
+    assert "user" not in roles.values()
+
+
+def test_generate_content_with_mixed_text_and_function_response(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
+) -> None:
+    # A content mixing text and a function_response keeps its own message for
+    # the text, and the response becomes a separate tool message after it.
+    client = genai.Client(api_key="fake-key")
+
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part.from_text(text="Here are the results:"),
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather", response={"result": "72F sunny"}, id="fc-1"
+                    )
+                ),
+            ],
+        ),
+    ]
+
+    mock_response = {
+        "candidates": [
+            {
+                "content": {"parts": [{"text": "Thanks!"}], "role": "model"},
+                "finishReason": "STOP",
+                "index": 0,
+            }
+        ],
+        "usageMetadata": {
+            "promptTokenCount": 20,
+            "candidatesTokenCount": 5,
+            "totalTokenCount": 25,
+        },
+        "modelVersion": "gemini-2.5-flash",
+    }
+
+    mock_gemini_api.post(
+        r"/v1/models/gemini-2\.5-flash:generateContent.*", Response(200, json=mock_response)
+    )
+    response = client.models.generate_content(model="gemini-2.5-flash", contents=contents)
+    assert response is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Here are the results:",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "tool",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
+            {"result": "72F sunny"}
+        ),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "fc-1",
+    }
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+
+
+def test_cancelled_generate_content_ends_span(
+    setup_google_genai_instrumentation: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    client = genai.Client(api_key="test")
+    with patch("httpx2.Client.send", side_effect=KeyboardInterrupt), pytest.raises(
+        KeyboardInterrupt
+    ):
+        client.models.generate_content(model="gemini-2.5-flash-lite", contents="hello")
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def _mock_stream_generate_content(mock_gemini_api: Any) -> None:
+    chunks = [
+        {"candidates": [{"content": {"role": "model", "parts": [{"text": text}]}}]}
+        for text in ("one ", "two ", "three")
+    ]
+    body = "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks)
+    mock_gemini_api.post(
+        r"/v1/models/gemini-2\.5-flash-lite:streamGenerateContent.*",
+        Response(200, text=body, headers={"content-type": "text/event-stream"}),
+    )
+
+
+def _assert_stream_span_ended_with_partial_output(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == StatusCode.UNSET
+    attributes = dict(span.attributes or {})
+    assert (
+        attributes.get(
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+        )
+        == "one "
+    )
+
+
+@pytest.mark.parametrize("abandon", ["break", "close", "drop"])
+def test_stream_left_early_ends_span(
+    abandon: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
+) -> None:
+    client = genai.Client(api_key="fake-key")
+    _mock_stream_generate_content(mock_gemini_api)
+    stream = client.models.generate_content_stream(model="gemini-2.5-flash-lite", contents="hi")
+    if abandon == "break":
+        for _ in stream:
+            break
+    else:
+        iterator = iter(stream)
+        next(iterator)
+        if abandon == "close":
+            iterator.close()
+        else:
+            del iterator
+            gc.collect()
+
+    _assert_stream_span_ended_with_partial_output(in_memory_span_exporter)
+
+
+@pytest.mark.parametrize("abandon", ["break", "aclose"])
+async def test_async_stream_left_early_ends_span(
+    abandon: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
+) -> None:
+    client = genai.Client(api_key="fake-key").aio
+    _mock_stream_generate_content(mock_gemini_api)
+    stream = await client.models.generate_content_stream(
+        model="gemini-2.5-flash-lite", contents="hi"
+    )
+    if abandon == "break":
+        async for _ in stream:
+            break
+        gc.collect()
+        for _ in range(3):
+            await asyncio.sleep(0)
+    else:
+        iterator = stream.__aiter__()
+        await iterator.__anext__()
+        await iterator.aclose()
+
+    _assert_stream_span_ended_with_partial_output(in_memory_span_exporter)
+
+
+async def test_async_stream_cancelled_ends_span_with_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
+) -> None:
+    client = genai.Client(api_key="fake-key").aio
+    _mock_stream_generate_content(mock_gemini_api)
+    stream = await client.models.generate_content_stream(
+        model="gemini-2.5-flash-lite", contents="hi"
+    )
+    iterator = stream.__aiter__()
+    await iterator.__anext__()
+    with pytest.raises(asyncio.CancelledError):
+        await iterator.athrow(asyncio.CancelledError())
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == StatusCode.ERROR
+    assert [event.name for event in span.events] == ["exception"]

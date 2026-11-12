@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.12...go/openinference-semantic-conventions/v0.1.13) (2026-11-11)
+
+
+### Features
+
+* **langchain:** read LangSmith params for model name, provider and system ([#4274](https://github.com/Arize-ai/openinference/issues/4274)) ([10bb8cc](https://github.com/Arize-ai/openinference/commit/10bb8ccd5a12af36484246ec9095c749926c1780))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.11...go/openinference-semantic-conventions/v0.1.12) (2026-10-23)
+
+
+### Features
+
+* **semconv:** add document content semantic conventions ([#4099](https://github.com/Arize-ai/openinference/issues/4099)) ([dc63d01](https://github.com/Arize-ai/openinference/commit/dc63d01d474e0fa14eb379f0d32d9808990e9b23))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.10...go/openinference-semantic-conventions/v0.1.11) (2026-10-01)
+
+
+### Features
+
+* **semconv:** add decision model attributes ([#3900](https://github.com/Arize-ai/openinference/issues/3900)) ([53b7a0e](https://github.com/Arize-ai/openinference/commit/53b7a0e2c7b0dd2622a9390a124e737ea7d50759))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.9...go/openinference-semantic-conventions/v0.1.10) (2026-10-01)
 
 

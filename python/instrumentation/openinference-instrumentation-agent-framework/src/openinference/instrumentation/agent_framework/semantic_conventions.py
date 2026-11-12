@@ -9,7 +9,7 @@ Reference: agent_framework/observability.py OtelAttr enum
 
 import json
 import logging
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Tuple
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -242,9 +242,7 @@ def _parse_messages(messages_raw: Any) -> List[Dict[str, Any]]:
             if not isinstance(msg, dict):
                 continue
 
-            parsed_msg = _parse_single_message(msg)
-            if parsed_msg:
-                messages.append(parsed_msg)
+            messages.extend(_parse_single_message(msg))
 
     except (json.JSONDecodeError, TypeError) as e:
         logger.debug(f"Failed to parse messages: {e}")
@@ -252,8 +250,14 @@ def _parse_messages(messages_raw: Any) -> List[Dict[str, Any]]:
     return messages
 
 
-def _parse_single_message(msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Parse a single message from MS Agent Framework format to OpenInference format."""
+def _parse_single_message(msg: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+    """Parse a single message from MS Agent Framework format to OpenInference format.
+
+    A message can carry several tool results: Agent Framework puts every result of a
+    parallel tool-calling turn into one ``Message(role="tool", contents=[...])``. A
+    result is tied to its call by the scalar ``message.tool_call_id``, so each tool
+    result becomes a message of its own.
+    """
     role = msg.get("role", "user")
     parts = msg.get("parts") or []
 
@@ -261,6 +265,7 @@ def _parse_single_message(msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     text_content: List[str] = []
     tool_calls: List[Dict[str, Any]] = []
+    tool_results: List[Dict[str, Any]] = []
 
     for part in parts:
         if not isinstance(part, dict):
@@ -277,31 +282,67 @@ def _parse_single_message(msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 text_content.append(str(content))
 
         elif part_type == "tool_call":
+            # Agent Framework already serializes arguments to a JSON string
+            arguments = part.get("arguments", {})
             tool_call = {
                 "tool_call.id": part.get("id", ""),
                 "tool_call.function.name": part.get("name", ""),
-                "tool_call.function.arguments": safe_json_dumps(part.get("arguments", {})),
+                "tool_call.function.arguments": (
+                    arguments if isinstance(arguments, str) else safe_json_dumps(arguments)
+                ),
             }
             tool_calls.append(tool_call)
 
         elif part_type == "tool_call_response":
-            result["message.role"] = "tool"
-            result["message.tool_call_id"] = part.get("id", "")
             response = part.get("response", {})
-            if isinstance(response, dict):
-                text_content.append(safe_json_dumps(response))
-            else:
-                text_content.append(str(response))
+            tool_results.append(
+                {
+                    "message.role": "tool",
+                    "message.tool_call_id": part.get("id", ""),
+                    "message.content": (
+                        safe_json_dumps(response) if isinstance(response, dict) else str(response)
+                    ),
+                }
+            )
 
     if text_content:
         result["message.content"] = " ".join(text_content)
     if tool_calls:
         result["message.tool_calls"] = tool_calls
 
-    if "message.content" not in result and "message.tool_calls" not in result:
-        return None
+    if "message.content" in result or "message.tool_calls" in result:
+        yield result
+    yield from tool_results
 
-    return result
+
+def _parse_system_instructions(instructions_raw: Any) -> List[Dict[str, Any]]:
+    """Parse gen_ai.system_instructions into OpenInference system messages, one per instruction."""
+    instructions_data = instructions_raw
+    if isinstance(instructions_raw, str):
+        try:
+            instructions_data = json.loads(instructions_raw)
+        except (json.JSONDecodeError, TypeError):
+            instructions_data = instructions_raw
+        # Plain-text instructions, including text that happens to parse as a JSON scalar
+        if not isinstance(instructions_data, (list, dict)):
+            instructions_data = instructions_raw
+
+    if isinstance(instructions_data, (str, dict)):
+        instructions_data = [instructions_data]
+    if not isinstance(instructions_data, (list, tuple)):
+        return []
+
+    messages: List[Dict[str, Any]] = []
+    for part in instructions_data:
+        if isinstance(part, str):
+            content: Any = part
+        elif isinstance(part, dict) and part.get("type", "text") == "text":
+            content = part.get("content")
+        else:
+            continue
+        if content:
+            messages.append({"message.role": "system", "message.content": str(content)})
+    return messages
 
 
 def _extract_token_usage(attrs: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -323,15 +364,24 @@ def _extract_llm_agent_attributes(
     span_kind: str,
 ) -> Iterator[Tuple[str, Any]]:
     """Handle LLM and AGENT span attributes."""
-    if input_messages:
-        yield "llm.input_messages", safe_json_dumps(input_messages)
-        yield from _flatten_messages(input_messages, "llm.input_messages")
+    # Agent Framework 1.0 puts the system prompt in the input messages as well as
+    # gen_ai.system_instructions; later versions only use gen_ai.system_instructions,
+    # so prepend it only when the input messages don't already carry it
+    all_input_messages = input_messages
+    if not any(msg.get("message.role") == "system" for msg in input_messages):
+        all_input_messages = (
+            _parse_system_instructions(attrs.get(SYSTEM_INSTRUCTIONS)) + input_messages
+        )
+
+    # Only emit the flattened form; a JSON-string llm.input_messages alongside it
+    # makes backends show every message twice
+    if all_input_messages:
+        yield from _flatten_messages(all_input_messages, "llm.input_messages")
 
     if output_messages:
-        yield "llm.output_messages", safe_json_dumps(output_messages)
         yield from _flatten_messages(output_messages, "llm.output_messages")
 
-    yield from _create_input_output_values(attrs, input_messages, output_messages, span_kind)
+    yield from _create_input_output_values(attrs, all_input_messages, output_messages, span_kind)
 
     if attrs.get(SYSTEM_INSTRUCTIONS) or attrs.get(AGENT_NAME):
         yield "llm.system", "microsoft.agent_framework"
@@ -370,8 +420,11 @@ def _create_input_output_values(
 
     if span_kind in ["LLM", "AGENT"]:
         if input_messages:
-            if len(input_messages) == 1 and input_messages[0].get("message.role") == "user":
-                yield "input.value", input_messages[0].get("message.content", "")
+            # Ignore the system prompt so a lone user prompt stays plain text
+            # whether or not Agent Framework put the system prompt in the input messages
+            prompt_messages = [m for m in input_messages if m.get("message.role") != "system"]
+            if len(prompt_messages) == 1 and prompt_messages[0].get("message.role") == "user":
+                yield "input.value", prompt_messages[0].get("message.content", "")
                 yield "input.mime_type", "text/plain"
             else:
                 input_structure = {"messages": input_messages, "model": model_name}
@@ -404,15 +457,30 @@ def _create_input_output_values(
                 if completion_tokens is not None and prompt_tokens is not None:
                     total_tokens = completion_tokens + prompt_tokens
 
+                output_message: Dict[str, Any] = {
+                    "content": content,
+                    "role": last_message.get("message.role", "assistant"),
+                }
+                # A tool-calling turn has no text, so show the requested calls instead
+                if tool_calls := last_message.get("message.tool_calls"):
+                    output_message["tool_calls"] = [
+                        {
+                            "id": tool_call.get("tool_call.id", ""),
+                            "type": "function",
+                            "function": {
+                                "name": tool_call.get("tool_call.function.name", ""),
+                                "arguments": tool_call.get("tool_call.function.arguments", ""),
+                            },
+                        }
+                        for tool_call in tool_calls
+                    ]
+
                 output_structure = {
                     "choices": [
                         {
                             "finish_reason": finish_reason,
                             "index": 0,
-                            "message": {
-                                "content": content,
-                                "role": last_message.get("message.role", "assistant"),
-                            },
+                            "message": output_message,
                         }
                     ],
                     "model": model_name,

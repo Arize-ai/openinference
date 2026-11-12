@@ -135,6 +135,7 @@ def _text_response(text: str = "It is 21C and sunny in London.", **kwargs: Any) 
 
 def _make_processor(
     config: Optional[TraceConfig] = None,
+    tool_span_kinds: Optional[dict[str, str]] = None,
 ) -> tuple[OpenInferenceTracingProcessor, InMemorySpanExporter]:
     """Build a processor over an OITracer, matching how the instrumentor wires it up so
     that TraceConfig masking is exercised the same way it is in production.
@@ -143,7 +144,10 @@ def _make_processor(
     provider = trace_sdk.TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     tracer = OITracer(provider.get_tracer(__name__), config=config or TraceConfig())
-    return OpenInferenceTracingProcessor(tracer), exporter  # type: ignore[arg-type]
+    return (
+        OpenInferenceTracingProcessor(tracer, tool_span_kinds=tool_span_kinds),  # type: ignore[arg-type]
+        exporter,
+    )
 
 
 def _attrs(span: ReadableSpan) -> dict[str, Any]:
@@ -1127,6 +1131,97 @@ def test_computer_tool_does_not_duplicate_screenshot_in_raw_output(name: str) ->
     assert image not in json.dumps(attrs)
 
 
+# --- tool_span_kinds maps function tools to RETRIEVER ---------------------------------
+
+_RETRIEVED_DOCUMENTS = [
+    {"id": "doc-1", "content": "Paris is the capital of France.", "score": 0.92, "source": "wiki"},
+    {"id": 2, "content": "Lyon is in France.", "score": 1},
+]
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        pytest.param(json.dumps(_RETRIEVED_DOCUMENTS), id="json-string"),
+        pytest.param(json.dumps(_RETRIEVED_DOCUMENTS) + "\n", id="json-string-with-whitespace"),
+        pytest.param(_RETRIEVED_DOCUMENTS, id="list"),
+    ],
+)
+def test_tool_mapped_to_retriever_records_documents(output: Any) -> None:
+    processor, exporter = _make_processor(tool_span_kinds={"search_documents": "retriever"})
+    data = FunctionSpanData(name="search_documents", input='{"query": "France"}', output=output)
+    _run(processor, _FakeTrace(), [_FakeSpan("tool", None, data)])
+
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "RETRIEVER", "search_documents")
+    assert attrs["tool.name"] == "search_documents"
+    assert attrs["input.value"] == '{"query": "France"}'
+    assert json.loads(attrs["output.value"]) == _RETRIEVED_DOCUMENTS
+    assert attrs["output.mime_type"] == "application/json"
+    assert attrs["retrieval.documents.0.document.id"] == "doc-1"
+    assert attrs["retrieval.documents.0.document.content"] == "Paris is the capital of France."
+    assert attrs["retrieval.documents.0.document.score"] == 0.92
+    assert json.loads(attrs["retrieval.documents.0.document.metadata"]) == {"source": "wiki"}
+    assert attrs["retrieval.documents.1.document.id"] == "2"
+    assert attrs["retrieval.documents.1.document.score"] == 1.0
+    assert "retrieval.documents.1.document.metadata" not in attrs
+
+
+def test_unmapped_tool_stays_tool_span() -> None:
+    processor, exporter = _make_processor(tool_span_kinds={"search_documents": "RETRIEVER"})
+    data = FunctionSpanData(name="get_weather", input="{}", output=json.dumps(_RETRIEVED_DOCUMENTS))
+    _run(processor, _FakeTrace(), [_FakeSpan("tool", None, data)])
+
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "TOOL", "get_weather")
+    assert not any(key.startswith("retrieval.documents") for key in attrs)
+
+
+def test_tool_span_kinds_apply_to_function_spans_only() -> None:
+    processor, exporter = _make_processor(tool_span_kinds={"search_documents": "RETRIEVER"})
+    _run(processor, _FakeTrace(), [_FakeSpan("a1", None, AgentSpanData(name="search_documents"))])
+
+    _one_of_kind(list(exporter.get_finished_spans()), "AGENT", "search_documents")
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        pytest.param("No documents matched.", id="plain-text"),
+        pytest.param('{"id": "doc-1", "content": "not a list"}', id="json-object"),
+        pytest.param('[{"id": "doc-1"}, "not an object"]', id="mixed-list"),
+    ],
+)
+def test_retriever_output_that_is_not_a_document_list_falls_back(output: str) -> None:
+    processor, exporter = _make_processor(tool_span_kinds={"search_documents": "RETRIEVER"})
+    data = FunctionSpanData(name="search_documents", input="{}", output=output)
+    _run(processor, _FakeTrace(), [_FakeSpan("tool", None, data)])
+
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "RETRIEVER", "search_documents")
+    assert attrs["output.value"] == output
+    assert not any(key.startswith("retrieval.documents") for key in attrs)
+
+
+def test_retriever_document_content_is_masked_by_trace_config() -> None:
+    processor, exporter = _make_processor(
+        config=TraceConfig(hide_outputs=True),
+        tool_span_kinds={"search_documents": "RETRIEVER"},
+    )
+    data = FunctionSpanData(
+        name="search_documents", input="{}", output=json.dumps(_RETRIEVED_DOCUMENTS)
+    )
+    _run(processor, _FakeTrace(), [_FakeSpan("tool", None, data)])
+
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "RETRIEVER", "search_documents")
+    assert attrs["retrieval.documents.0.document.content"] == REDACTED_VALUE
+    assert attrs["retrieval.documents.0.document.metadata"] == REDACTED_VALUE
+    assert attrs["retrieval.documents.0.document.id"] == "doc-1"
+
+
+@pytest.mark.parametrize("kind", ["EMBEDDING", "TOOL", "not-a-kind"])
+def test_unsupported_tool_span_kind_is_rejected(kind: str) -> None:
+    with pytest.raises(ValueError, match="tool_span_kinds"):
+        _make_processor(tool_span_kinds={"search_documents": kind})
+
+
 def test_undumpable_computer_call_output_does_not_break_span() -> None:
     class _Undumpable:
         def model_dump(self, **kwargs: Any) -> dict[str, Any]:
@@ -1143,3 +1238,78 @@ def test_undumpable_computer_call_output_does_not_break_span() -> None:
     assert attrs["llm.input_messages.1.message.tool_call_id"] == "call-x"
     assert "_Undumpable" in str(attrs["llm.input_messages.1.message.content"])
     assert "_Undumpable" in str(attrs["input.value"])
+
+
+# --- Trace.group_id maps to session.id on the root span ----------------------------
+
+
+class _FakeTraceWithGroupId(_FakeTrace):
+    def __init__(self, group_id: Any, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.group_id = group_id
+
+
+def _root_span(exporter: InMemorySpanExporter) -> ReadableSpan:
+    """Return the root AGENT span (the one produced by on_trace_start)."""
+    spans = exporter.get_finished_spans()
+    roots = [s for s in spans if s.parent is None]
+    assert len(roots) == 1, f"Expected 1 root span, got {[s.name for s in roots]}"
+    return roots[0]
+
+
+def test_group_id_mapped_to_session_id() -> None:
+    """group_id present → root span carries session.id."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTraceWithGroupId("conv-abc"), [])
+    assert _attrs(_root_span(exporter))["session.id"] == "conv-abc"
+
+
+def test_none_group_id_omits_session_id() -> None:
+    """group_id=None → session.id must not be set on the root span."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTraceWithGroupId(None), [])
+    assert "session.id" not in _attrs(_root_span(exporter))
+
+
+def test_empty_group_id_omits_session_id() -> None:
+    """group_id='' → session.id absent, consistent with using_session()."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTraceWithGroupId(""), [])
+    assert "session.id" not in _attrs(_root_span(exporter))
+
+
+def test_missing_group_id_attr_no_crash() -> None:
+    """Trace whose type lacks group_id (abstract Trace) → no crash, session.id omitted."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTrace(), [])  # _FakeTrace has no group_id attr
+    assert "session.id" not in _attrs(_root_span(exporter))
+
+
+def test_using_session_overrides_group_id() -> None:
+    """using_session() context takes precedence over group_id on root span."""
+    processor, exporter = _make_processor()
+    with using_session("ctx-sess"):
+        _run(processor, _FakeTraceWithGroupId("g1"), [])
+    assert _attrs(_root_span(exporter))["session.id"] == "ctx-sess"
+
+
+def test_group_id_sdk_integration() -> None:
+    """Real agents.trace(group_id=...) → session.id on root span, no extra attributes."""
+    import agents
+    from agents import set_trace_processors
+    from agents.tracing import get_trace_provider
+
+    processor, exporter = _make_processor()
+    # Restore whatever was registered before, rather than leaving the global list empty.
+    saved = list(get_trace_provider()._multi_processor._processors)  # type: ignore[attr-defined]
+    set_trace_processors([processor])
+    try:
+        with agents.trace("wf", group_id="conv-1"):
+            pass
+    finally:
+        set_trace_processors(saved)
+
+    attrs = _attrs(_root_span(exporter))
+    assert attrs.pop("openinference.span.kind") == "AGENT"
+    assert attrs.pop("session.id") == "conv-1"
+    assert not attrs, f"unexpected attributes: {attrs}"

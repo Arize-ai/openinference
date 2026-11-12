@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Sequence, Union
 
 from openinference.instrumentation import (
     Image,
@@ -67,6 +67,8 @@ def get_message_objects(message_list: Sequence[MessageUnionTypeDef]) -> List[Mes
         role = message["role"]
         contents: list[Any] = []  # Accept both TextMessageContent and ImageMessageContent
         tool_calls: list[ToolCall] = []
+        tool_result_messages: list[Message] = []
+        saw_tool_result = False
         message_obj = Message(role=role)
         for message_content in message["content"]:
             _content: ContentBlockOutputTypeDef = message_content  # type: ignore[assignment]
@@ -104,24 +106,39 @@ def get_message_objects(message_list: Sequence[MessageUnionTypeDef]) -> List[Mes
                 )
             if "toolResult" in _content:
                 _tool_result: ToolResultBlockOutputTypeDef = _content["toolResult"]
-                message_obj["tool_call_id"] = _tool_result["toolUseId"]
+                # A single API message can carry several toolResult blocks (parallel tool
+                # calls) and each block can carry several content blocks, while `Message`
+                # has one `tool_call_id` and one `content`. Writing them into `message_obj`
+                # kept only the last id and the last output, so the other tool results
+                # could no longer be linked or read.
+                tool_result_blocks: list[str] = []
                 for tool_result_content in _tool_result["content"]:
                     _tr_content: ToolResultContentBlockOutputTypeDef = tool_result_content
                     if "text" in _tr_content:
-                        message_obj["content"] = _tr_content["text"]
+                        tool_result_blocks.append(_tr_content["text"])
                     if "json" in _tr_content:
-                        message_obj["content"] = safe_json_dumps(_tr_content["json"])
+                        tool_result_blocks.append(safe_json_dumps(_tr_content["json"]))
                     if "image" in _tr_content:
                         pass  # TODO: handle image tool result
                     if "video" in _tr_content:
                         pass  # TODO: handle video tool result
                     if "document" in _tr_content:
                         pass  # TODO: handle document tool result
+                tool_result_message = Message(role="tool")
+                tool_result_message["tool_call_id"] = _tool_result["toolUseId"]
+                if tool_result_blocks:
+                    tool_result_message["content"] = "\n\n".join(tool_result_blocks)
+                tool_result_messages.append(tool_result_message)
+                saw_tool_result = True
         if contents:
             message_obj["contents"] = contents
         if tool_calls:
             message_obj["tool_calls"] = tool_calls
-        messages.append(message_obj)
+        # A message whose only content was tool results is fully represented by those
+        # messages; anything else keeps the message it always produced.
+        if contents or tool_calls or not saw_tool_result:
+            messages.append(message_obj)
+        messages.extend(tool_result_messages)
     return messages
 
 
@@ -169,8 +186,20 @@ def get_attributes_from_request_data(
     """
     llm_attributes: dict[str, Any] = {"model_name": request_data["modelId"]}
 
+    invocation_parameters: dict[str, Any] = {}
     if "inferenceConfig" in request_data:
-        llm_attributes["invocation_parameters"] = request_data["inferenceConfig"]
+        inference_config = request_data["inferenceConfig"]
+        if isinstance(inference_config, Mapping):
+            invocation_parameters.update(inference_config)
+    # This field is a free-form JSON document, so it is not always an object.
+    # botocore leaves None out of the request, so there is nothing to record for it.
+    additional_fields: Any = request_data.get("additionalModelRequestFields")
+    if isinstance(additional_fields, Mapping):
+        invocation_parameters.update(additional_fields)
+    elif additional_fields is not None:
+        invocation_parameters["additionalModelRequestFields"] = additional_fields
+    if "inferenceConfig" in request_data or additional_fields is not None:
+        llm_attributes["invocation_parameters"] = invocation_parameters
 
     if "toolConfig" in request_data:
         tool_config = request_data["toolConfig"]
@@ -206,15 +235,19 @@ def get_token_counts(output_params: ConverseResponseTypeDef) -> TokenCount | Non
     if "usage" not in output_params:
         return None
     usage = output_params["usage"]
+    cache_read = usage.get("cacheReadInputTokens")
+    cache_write = usage.get("cacheWriteInputTokens")
+    # inputTokens excludes cache reads and writes, while totalTokens includes them. Fold the
+    # cache tokens into the prompt count so that prompt + completion matches the total.
     token_count = TokenCount(
-        prompt=usage["inputTokens"],
+        prompt=usage["inputTokens"] + (cache_read or 0) + (cache_write or 0),
         completion=usage["outputTokens"],
         total=usage["totalTokens"],
     )
     prompt_details: PromptDetails = {}
-    if (cache_read := usage.get("cacheReadInputTokens")) is not None:
+    if cache_read is not None:
         prompt_details["cache_read"] = cache_read
-    if (cache_write := usage.get("cacheWriteInputTokens")) is not None:
+    if cache_write is not None:
         prompt_details["cache_write"] = cache_write
     if prompt_details:
         token_count["prompt_details"] = prompt_details
@@ -241,12 +274,7 @@ def get_attributes_from_response_data(
     # stopReason is required in ConverseResponseTypeDef but may be absent from
     # stream-constructed responses when no messageStop event was received.
     if "stopReason" in response_data:
-        stop_reason = response_data["stopReason"]
-        llm_attributes["invocation_parameters"] = (
-            dict(request_data["inferenceConfig"]) if "inferenceConfig" in request_data else {}
-        )
-        llm_attributes["invocation_parameters"]["stop_reason"] = stop_reason
-        finish_reason_attributes[SpanAttributes.LLM_FINISH_REASON] = stop_reason
+        finish_reason_attributes[SpanAttributes.LLM_FINISH_REASON] = response_data["stopReason"]
 
     # output is required in ConverseResponseTypeDef and always set by _construct_final_message.
     output = response_data["output"]

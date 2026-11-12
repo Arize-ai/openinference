@@ -30,6 +30,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, use_span
+from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -40,7 +41,6 @@ from openinference.instrumentation.vertexai._accumulator import (
     _PartsAccumulator,
 )
 from openinference.instrumentation.vertexai._proxy import _proxy
-from openinference.instrumentation.vertexai._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -184,21 +184,37 @@ class _CallbackForIterable:
     def __init__(self, request: proto.Message, span: Span) -> None:
         self._span = span
         self._accumulator = _get_response_accumulator(request)
+        self._is_finished = False
 
     def __call__(self, obj: _AnyT) -> _AnyT:
         span = self._span
         if isinstance(obj, proto.Message):
             self._accumulator.accumulate(obj)
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
-            try:
-                result = self._accumulator.result
-            except BaseException as exc:
-                logger.exception(str(exc))
-                result = None
-            _finish(span, result)
+            self._is_finished = True
+            _finish(span, self._result())
         elif isinstance(obj, BaseException):
+            self._is_finished = True
             _finish(span, obj)
         return cast(_AnyT, obj)
+
+    def __del__(self) -> None:
+        # The stream was dropped before it was exhausted, e.g. the caller stopped iterating
+        # early or the SDK raised while handling a chunk. End the span with the output
+        # received so far, leaving the status unset.
+        try:
+            if not self._is_finished:
+                self._is_finished = True
+                _finish(self._span, self._result(), set_ok_status=False)
+        except BaseException:
+            pass
+
+    def _result(self) -> Optional[proto.Message]:
+        try:
+            return self._accumulator.result
+        except BaseException as exc:
+            logger.exception(str(exc))
+            return None
 
 
 _IncrementType = TypeVar("_IncrementType", contravariant=True)
@@ -285,7 +301,7 @@ def _use_span(span: Span) -> Callable[[], ContextManager[Span]]:
     return lambda: cast(ContextManager[Span], use_span(span, False, False, False))
 
 
-def _finish(span: Span, result: Any) -> None:
+def _finish(span: Span, result: Any, *, set_ok_status: bool = True) -> None:
     if isinstance(result, BaseException):
         span.record_exception(result)
         span.set_status(Status(StatusCode.ERROR, f"{type(result).__name__}: {result}"))
@@ -300,7 +316,8 @@ def _finish(span: Span, result: Any) -> None:
         _update_span(result, span)
     except BaseException as exc:
         logger.exception(str(exc))
-    span.set_status(Status(StatusCode.OK))
+    if set_ok_status:
+        span.set_status(Status(StatusCode.OK))
     span.end()
 
 
@@ -338,10 +355,33 @@ def _(req: GenerateContentRequest, span: Span) -> None:
         for k, v in _parse_content(cast(Content, system_instruction), prefix, "system"):
             span.set_attribute(k, v)
     for content in cast(Iterable[Content], req.contents):
-        msg_idx += 1
-        prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
-        for k, v in _parse_content(content, prefix):
-            span.set_attribute(k, v)
+        # A content can carry several function_response parts (parallel function
+        # calls), but a span message has one message.name and one message.content.
+        # Each part becomes its own tool message right after this one, per the
+        # OpenInference spec.
+        function_response_parts = [
+            part for part in cast(Iterable[Part], content.parts) if part.function_response.name
+        ]
+        pure_function_responses = len(function_response_parts) > 0 and len(
+            function_response_parts
+        ) == len(content.parts)
+        if not pure_function_responses:
+            msg_idx += 1
+            prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
+            for k, v in _parse_content(content, prefix):
+                span.set_attribute(k, v)
+        for part in function_response_parts:
+            msg_idx += 1
+            prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
+            span.set_attribute(f"{prefix}{MESSAGE_ROLE}", "tool")
+            span.set_attribute(f"{prefix}{MESSAGE_NAME}", part.function_response.name)
+            cls = part.function_response.__class__
+            # Maybe there's an easier way to do this.
+            function_response = cls.to_dict(part.function_response)
+            span.set_attribute(
+                f"{prefix}{MESSAGE_CONTENT}",
+                safe_json_dumps(function_response.get("response") or {}),
+            )
 
 
 @_update_span.register(v1.GenerateContentResponse)
@@ -415,19 +455,6 @@ def _parse_content(
     """
     yield f"{prefix}{MESSAGE_ROLE}", role_override or _role(content.role)
     parts = cast(Iterable[Part], content.parts)
-    for part in parts:
-        if part.function_response.name:
-            # FIXME: It's unclear whether multiple `function_response` can
-            # coexist, but currently we can retain only one.
-            yield f"{prefix}{MESSAGE_ROLE}", "tool"
-            yield f"{prefix}{MESSAGE_NAME}", part.function_response.name
-            cls = part.function_response.__class__
-            # Maybe there's an easier way to do this.
-            function_response = cls.to_dict(part.function_response)
-            yield (
-                f"{prefix}{MESSAGE_CONTENT}",
-                safe_json_dumps(function_response.get("response") or {}),
-            )
     yield from _parse_parts(parts, prefix)
     yield from _parse_tool_calls(parts, prefix)
 

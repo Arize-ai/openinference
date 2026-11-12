@@ -5,8 +5,7 @@ import logging
 import threading
 import weakref
 from abc import ABC
-from contextlib import ExitStack
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from typing import (
     Any,
     AsyncGenerator,
@@ -18,10 +17,8 @@ from typing import (
     Mapping,
     Optional,
     OrderedDict,
-    Sequence,
     TypedDict,
     TypeVar,
-    Union,
 )
 
 import wrapt
@@ -36,15 +33,16 @@ from google.genai import types
 from google.genai.types import Blob
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, Context
 from opentelemetry.trace import StatusCode, get_current_span
-from typing_extensions import NotRequired, ParamSpec, TypeAlias
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import NotRequired, ParamSpec
 
 from openinference.instrumentation import (
     get_attributes_from_context,
+    get_input_attributes,
+    get_output_attributes,
     safe_json_dumps,
-    using_session,
-    using_user,
 )
 from openinference.semconv.trace import (
     ImageAttributes,
@@ -61,22 +59,58 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-# As of opentelemetry-api 1.45.0, `opentelemetry.util.types.AttributeValue` is defined
-# via a chained assignment (`AnyValue = AttributeValue = ...`), which mypy does not treat
-# as a valid type alias. Define our own alias to keep annotations working across versions.
-AttributeValue: TypeAlias = Union[
-    str,
-    bool,
-    int,
-    float,
-    Sequence[str],
-    Sequence[bool],
-    Sequence[int],
-    Sequence[float],
-]
-
 P = ParamSpec("P")
 T = TypeVar("T")
+
+
+def _safe_detach(token: Token[Context]) -> None:
+    """Detach an OpenTelemetry context token without logging when it cannot be reset.
+
+    ``opentelemetry.context.detach`` logs an ERROR when the token was created in a
+    different ``contextvars.Context``. That happens when an async generator holding a
+    span open is closed by asyncio's async-generator finalizer, which runs
+    ``aclose()`` in a fresh task: the generator's context is gone and there is
+    nothing left to reset. The span is still ended by the caller.
+    """
+    try:
+        context_api._RUNTIME_CONTEXT.detach(token)
+    except Exception:
+        logger.debug("Failed to detach context", exc_info=True)
+
+
+class _SpanAsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """Proxy over an ADK event generator whose ``_aiter`` holds a span open.
+
+    ADK does not always exhaust the generators it iterates (an ``LlmAgent`` stops on
+    ``transfer_to_agent``, for example). Keeping the generator returned by
+    ``__aiter__`` lets ``aclose()`` end the span in the caller's task when ADK closes
+    the generator explicitly; when ADK drops it instead, asyncio's finalizer closes it
+    in another task and ``_safe_detach`` keeps that quiet.
+    """
+
+    __wrapped__: AsyncGenerator[Event, None]
+
+    def __init__(self, wrapped: AsyncGenerator[Event, None]) -> None:
+        super().__init__(wrapped)
+        self._self_span_generator: Optional[AsyncGenerator[Event, None]] = None
+
+    @staticmethod
+    async def _aiter(generator: AsyncGenerator[Event, None]) -> AsyncGenerator[Event, None]:
+        raise NotImplementedError  # pragma: no cover
+        yield  # makes this an async generator for type checkers
+
+    def __aiter__(self) -> AsyncGenerator[Event, None]:
+        # A proxy reference in ``_aiter``'s frame would be a cycle that only gc can end.
+        self._self_span_generator = self._aiter(self.__wrapped__)
+        return self._self_span_generator
+
+    async def aclose(self) -> None:
+        span_generator, self._self_span_generator = self._self_span_generator, None
+        try:
+            await self.__wrapped__.aclose()
+        finally:
+            if span_generator is not None:
+                await span_generator.aclose()
 
 
 class _WithTracer(ABC):
@@ -138,29 +172,20 @@ class _RunnerRunAsync(_WithTracer):
         elif session_id is not None:
             attributes[SpanAttributes.SESSION_ID] = session_id
 
-        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-            __wrapped__: AsyncGenerator[Event, None]
-
-            async def __aiter__(self) -> Any:
-                with ExitStack() as stack:
-                    span = stack.enter_context(
-                        tracer.start_as_current_span(
-                            name=name,
-                            attributes=attributes,
-                        )
-                    )
-                    if user_id is not None:
-                        stack.enter_context(using_user(user_id))
-
-                    # Skip pushing a new session context if one already exists in ambient context.
-                    if (
-                        session_id is not None
-                        and SpanAttributes.SESSION_ID not in ambient_attributes
-                    ):
-                        stack.enter_context(using_session(session_id))
-
+        class _AsyncGenerator(_SpanAsyncGenerator):
+            @staticmethod
+            async def _aiter(generator: AsyncGenerator[Event, None]) -> AsyncGenerator[Event, None]:
+                span = tracer.start_span(name=name, attributes=attributes)
+                context = trace_api.set_span_in_context(span)
+                if user_id is not None:
+                    context = context_api.set_value(SpanAttributes.USER_ID, user_id, context)
+                # Skip pushing a new session context if one already exists in ambient context.
+                if session_id is not None and SpanAttributes.SESSION_ID not in ambient_attributes:
+                    context = context_api.set_value(SpanAttributes.SESSION_ID, session_id, context)
+                token = context_api.attach(context)
+                try:
                     has_output_with_content = False
-                    async for event in self.__wrapped__:
+                    async for event in generator:
                         if event.is_final_response():
                             event_has_content = _event_has_content(event)
                             if has_output_with_content and not event_has_content:
@@ -185,6 +210,13 @@ class _RunnerRunAsync(_WithTracer):
                                 )
                         yield event
                     span.set_status(StatusCode.OK)
+                except Exception as exception:
+                    span.set_status(StatusCode.ERROR, f"{type(exception).__name__}: {exception}")
+                    span.record_exception(exception)
+                    raise
+                finally:
+                    _safe_detach(token)
+                    span.end()
 
         return _AsyncGenerator(generator)
 
@@ -209,17 +241,15 @@ class _BaseAgentRunAsync(_WithTracer):
         if description := getattr(instance, "description", None):
             attributes["gen_ai.agent.description"] = description
 
-        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-            __wrapped__: AsyncGenerator[Event, None]
-
-            async def __aiter__(self) -> Any:
-                with tracer.start_as_current_span(
-                    name=name,
-                    attributes=attributes,
-                ) as span:
+        class _AsyncGenerator(_SpanAsyncGenerator):
+            @staticmethod
+            async def _aiter(generator: AsyncGenerator[Event, None]) -> AsyncGenerator[Event, None]:
+                span = tracer.start_span(name=name, attributes=attributes)
+                token = context_api.attach(trace_api.set_span_in_context(span))
+                try:
                     last_escalation_event: Optional[Event] = None
                     has_output_with_content = False
-                    async for event in self.__wrapped__:
+                    async for event in generator:
                         if event.actions.escalate:
                             last_escalation_event = event
                         if event.is_final_response():
@@ -260,8 +290,64 @@ class _BaseAgentRunAsync(_WithTracer):
                                 f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
                             )
                     span.set_status(StatusCode.OK)
+                except Exception as exception:
+                    span.set_status(StatusCode.ERROR, f"{type(exception).__name__}: {exception}")
+                    span.record_exception(exception)
+                    raise
+                finally:
+                    _safe_detach(token)
+                    span.end()
 
         return _AsyncGenerator(generator)
+
+
+class _NodeRunnerExecuteNode:
+    """Records a workflow node's input and output on its ``invoke_node`` or
+    ``invoke_workflow`` span.
+
+    Agent nodes are skipped: ADK opens no span for them here, so the current
+    span is the enclosing workflow, and ``agent_run`` already records their
+    input and output.
+    """
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        span = get_current_span()
+        span_name = getattr(span, "name", None)
+        if isinstance(getattr(instance, "_node", None), BaseAgent) or not (
+            isinstance(span_name, str) and span_name.startswith(("invoke_workflow", "invoke_node"))
+        ):
+            return await wrapped(*args, **kwargs)
+        ctx = None
+        try:
+            arguments = bind_args_kwargs(wrapped, *args, **kwargs)
+            ctx = arguments.get("ctx")
+            if (node_input := arguments.get("node_input")) is not None:
+                value, mime_type = _get_node_io_value_and_mime_type(node_input)
+                span.set_attributes(get_input_attributes(value, mime_type=mime_type))
+        except Exception:
+            logger.exception("Failed to set workflow node input.")
+        result = await wrapped(*args, **kwargs)
+        try:
+            if (output := getattr(ctx, "output", None)) is not None:
+                value, mime_type = _get_node_io_value_and_mime_type(output)
+                span.set_attributes(get_output_attributes(value, mime_type=mime_type))
+        except Exception:
+            logger.exception("Failed to set workflow node output.")
+        return result
+
+
+def _get_node_io_value_and_mime_type(value: Any) -> tuple[str, OpenInferenceMimeTypeValues]:
+    if isinstance(value, str):
+        return value, OpenInferenceMimeTypeValues.TEXT
+    return json.dumps(value, default=_default, ensure_ascii=False), OpenInferenceMimeTypeValues.JSON
 
 
 class _TraceCallLlm(_WithTracer):

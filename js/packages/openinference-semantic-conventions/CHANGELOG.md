@@ -1,5 +1,23 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.16.0
+
+### Minor Changes
+
+- 10bb8cc: Add `IBM` to the `LLMProvider` enum, giving IBM watsonx.ai a well-known `llm.provider` value (`ibm`) instead of leaving it to a custom string. Mirrors the same addition in the Python, Java, and Go semantic conventions and in the spec's well-known value table.
+
+## 2.15.0
+
+### Minor Changes
+
+- dc63d01: Add `message_content.document`, `document.url`, `document.mime_type`, `document.name`, `input.documents`, and `output.documents` constants for file documents such as PDFs.
+
+## 2.14.0
+
+### Minor Changes
+
+- 53b7a0e: Add `decision.model_name`, `decision.request.model_name`, `decision.response.model_name`, `decision.system`, `decision.provider`, `decision.token_count.input`, and `decision.token_count.output` attributes for `DECISION` spans, plus `DecisionSystem` and `DecisionProvider` well-known value enums that alias the matching `LLMSystem` and `LLMProvider` values.
+
 ## 2.13.0
 
 ### Minor Changes
