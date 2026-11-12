@@ -346,6 +346,7 @@ func (m *middleware) setResponseAttrs(span trace.Span, body []byte, statusCode i
 		span.RecordError(fmt.Errorf("parse response body: %w", err))
 		return
 	}
+	span.SetStatus(codes.Ok, "")
 
 	// Anthropic returns the canonical model name in the response — prefer
 	// it over the request (which may be an alias).
