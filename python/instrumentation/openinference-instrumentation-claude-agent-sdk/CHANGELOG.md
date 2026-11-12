@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.27...python-openinference-instrumentation-claude-agent-sdk-v0.1.28) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+* **claude-agent-sdk:** capture prompt when passed positionally alongside kwargs ([#3828](https://github.com/Arize-ai/openinference/issues/3828)) ([19eabd2](https://github.com/Arize-ai/openinference/commit/19eabd217c10e559415d45f0a443b69f306b58b2))
+
 ## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.26...python-openinference-instrumentation-claude-agent-sdk-v0.1.27) (2026-11-11)
 
 
