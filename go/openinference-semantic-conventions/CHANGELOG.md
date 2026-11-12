@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.13...go/openinference-semantic-conventions/v0.1.14) (2026-11-12)
+
+
+### Features
+
+* **semconv:** add doubleword as a well-known llm.provider value ([#4249](https://github.com/Arize-ai/openinference/issues/4249)) ([7f295ae](https://github.com/Arize-ai/openinference/commit/7f295ae26cff766ee6057b50561ce6fa285d2222))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.12...go/openinference-semantic-conventions/v0.1.13) (2026-11-11)
 
 
