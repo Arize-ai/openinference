@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-guardrails-v0.1.32...python-openinference-instrumentation-guardrails-v0.1.33) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+
 ## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-guardrails-v0.1.31...python-openinference-instrumentation-guardrails-v0.1.32) (2026-11-12)
 
 
