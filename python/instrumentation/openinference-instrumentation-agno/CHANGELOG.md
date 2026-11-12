@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.4...python-openinference-instrumentation-agno-v1.1.5) (2026-11-12)
+
+
+### Bug Fixes
+
+* **agno:** fold Anthropic cache tokens into prompt and total token counts ([#4174](https://github.com/Arize-ai/openinference/issues/4174)) ([a076b01](https://github.com/Arize-ai/openinference/commit/a076b01e1eb3ccca8cd6a1473e3aad6adf42cc68))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+
 ## [1.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.3...python-openinference-instrumentation-agno-v1.1.4) (2026-11-11)
 
 
