@@ -2041,6 +2041,7 @@ describe("getProviderFromHost", () => {
     ["api.minimax.chat", LLMProvider.MINIMAX],
     ["inference.generativeai.us-chicago-1.oci.oraclecloud.com", LLMProvider.ORACLE],
     ["us-south.ml.cloud.ibm.com", LLMProvider.IBM],
+    ["api.doubleword.ai", LLMProvider.DOUBLEWORD],
   ])("resolves %s to %s", (host, expected) => {
     expect(getProviderFromHost(host)).toBe(expected);
   });

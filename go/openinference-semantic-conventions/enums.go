@@ -73,6 +73,7 @@ const (
 	LLMProviderOracle     = "oracle"
 	LLMProviderIBM        = "ibm"
 	LLMProviderTypeSafe   = "typesafe"
+	LLMProviderDoubleword = "doubleword"
 )
 
 // Values for the DecisionSystem attribute: the decision API ecosystem a

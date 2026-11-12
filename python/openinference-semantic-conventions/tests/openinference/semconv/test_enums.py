@@ -81,6 +81,7 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.ORACLE: "oracle",
             OpenInferenceLLMProviderValues.IBM: "ibm",
             OpenInferenceLLMProviderValues.TYPESAFE: "typesafe",
+            OpenInferenceLLMProviderValues.DOUBLEWORD: "doubleword",
         }
 
 

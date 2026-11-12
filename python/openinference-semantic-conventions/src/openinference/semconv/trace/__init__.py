@@ -738,6 +738,7 @@ class OpenInferenceLLMProviderValues(Enum):
     ORACLE = "oracle"
     IBM = "ibm"
     TYPESAFE = "typesafe"
+    DOUBLEWORD = "doubleword"
 
 
 class OpenInferenceDecisionSystemValues(Enum):
