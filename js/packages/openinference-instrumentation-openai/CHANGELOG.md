@@ -1,5 +1,14 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.4.6
+
+### Patch Changes
+
+- 7f295ae: Detect Doubleword from the request host, so an OpenAI client pointed at its OpenAI-compatible endpoint (`https://api.doubleword.ai/v1`) records `llm.provider = doubleword` instead of falling back to `openai`. Adds `api.doubleword.ai` → `doubleword` to `HOST_SUFFIX_TO_PROVIDER`.
+- Updated dependencies [7f295ae]
+  - @arizeai/openinference-semantic-conventions@2.17.0
+  - @arizeai/openinference-core@2.8.3
+
 ## 4.4.5
 
 ### Patch Changes
