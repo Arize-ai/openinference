@@ -695,3 +695,36 @@ def test_uninstrument_deactivates_captured_aliases(
     finally:
         # Restore for the autouse fixture's teardown symmetry.
         OllamaInstrumentor().instrument()
+
+
+def test_options_model_recorded_like_mapping(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ollama.Options` must land in the span the way the equivalent mapping does.
+
+    `Client.chat` accepts either, and both send the same request body, so the
+    recorded invocation parameters should not depend on which one the caller
+    chose. Dumping the model with `str()` recorded its repr, carrying every
+    unset field along with it.
+    """
+    monkeypatch.setattr(
+        Client,
+        "_request",
+        lambda self, *a, **k: ChatResponse(
+            model=MODEL, message=Message(role="assistant", content="hi"), done=True
+        ),
+    )
+    messages = [{"role": "user", "content": "hi"}]
+
+    ollama.chat(model=MODEL, messages=messages, options={"temperature": 0.1})
+    ollama.chat(model=MODEL, messages=messages, options=ollama.Options(temperature=0.1))
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    from_mapping, from_model = (
+        json.loads(str(dict(span.attributes or {})[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
+        for span in spans
+    )
+    assert from_mapping["options"] == {"temperature": 0.1}
+    assert from_model["options"] == {"temperature": 0.1}
