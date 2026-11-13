@@ -35,9 +35,26 @@ from openinference.semconv.trace import (
 VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy").split(".")[:3])))
 
 
-def _litellm_kwargs() -> Dict[str, str]:
+def _litellm_kwargs(model_type: str = "chat") -> Dict[str, str]:
+    # DSPy 3.5 defaults to model_type="auto", which routes OpenAI models to the
+    # Responses API; the cassettes record the Chat Completions API.
+    kwargs = {"model_type": model_type}
     # Older DSPy forwards unknown constructor kwargs to the provider.
-    return {"engine": "litellm"} if "engine" in inspect.signature(dspy.LM).parameters else {}
+    if "engine" in inspect.signature(dspy.LM).parameters:
+        kwargs["engine"] = "litellm"
+    return kwargs
+
+
+# DSPy 3.5's ChainOfThought asks non-reasoning models for a `plan` field unless
+# an explicit `reasoning` field type is given; the cassettes record `reasoning`.
+COT_KWARGS: Dict[str, Any] = {"rationale_field_type": str}
+
+
+def _expected_lm_input(prompt: str, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    # DSPy 3.5 removed the `messages` argument from `LM.__call__`.
+    if VERSION < (3, 5, 0):
+        return {"prompt": prompt, "messages": None, "kwargs": kwargs}
+    return {"prompt": prompt, "kwargs": kwargs}
 
 
 def _span_attributes(span: trace_sdk.ReadableSpan) -> Dict[str, AttributeValue]:
@@ -136,7 +153,9 @@ class TestLM:
             )
 
         monkeypatch.setattr(StdlibTransport, "stream", respond)
-        lm = dspy.LM("openai/gpt-4", engine=engine, cache=False, api_key="sk-fake-key")
+        lm = dspy.LM(
+            "openai/gpt-4", model_type="chat", engine=engine, cache=False, api_key="sk-fake-key"
+        )
         prompt = "Who won the World Cup in 2018?"
         assert lm(prompt) == ["France"]
         assert len(requests) == 1
@@ -189,11 +208,7 @@ class TestLM:
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
         input_data = json.loads(input_value)
-        assert input_data == {
-            "prompt": prompt,
-            "messages": None,
-            "kwargs": {"temperature": 0.2},
-        }
+        assert input_data == _expected_lm_input(prompt, {"temperature": 0.2})
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(output_data := json.loads(output_value), list)
@@ -214,6 +229,7 @@ class TestLM:
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
         assert not attributes
 
+    @pytest.mark.skipif(VERSION >= (3, 5, 0), reason="DSPy 3.5 removed the messages argument")
     @pytest.mark.vcr
     def test_openai_chat_completions_api_invoked_via_messages_kwarg(
         self,
@@ -268,8 +284,7 @@ class TestLM:
     ) -> None:
         lm = dspy.LM(
             "text-completion-openai/gpt-3.5-turbo-instruct",
-            **_litellm_kwargs(),
-            model_type="text",
+            **_litellm_kwargs(model_type="text"),
             cache=False,
         )
         prompt = "Who won the World Cup in 2018?"
@@ -287,11 +302,7 @@ class TestLM:
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
         input_data = json.loads(input_value)
-        assert input_data == {
-            "prompt": prompt,
-            "messages": None,
-            "kwargs": {},
-        }
+        assert input_data == _expected_lm_input(prompt, {})
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(output_data := json.loads(output_value), list)
@@ -353,11 +364,7 @@ class TestLM:
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
         input_data = json.loads(input_value)
-        assert input_data == {
-            "prompt": prompt,
-            "messages": None,
-            "kwargs": {},
-        }
+        assert input_data == _expected_lm_input(prompt, {})
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
@@ -401,11 +408,7 @@ class TestLM:
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
         input_data = json.loads(input_value)
-        assert input_data == {
-            "prompt": prompt,
-            "messages": None,
-            "kwargs": {},
-        }
+        assert input_data == _expected_lm_input(prompt, {})
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(output_data := json.loads(output_value), list)
@@ -448,7 +451,7 @@ async def test_rag_module(
         def __init__(self) -> None:
             super().__init__()
             self.retrieve = dspy.Retrieve(k=K)
-            self.generate_answer = dspy.ChainOfThought(BasicQA)
+            self.generate_answer = dspy.ChainOfThought(BasicQA, **COT_KWARGS)
 
         def forward(self, question: str) -> dspy.Prediction:
             context = self.retrieve(question).passages
@@ -463,6 +466,7 @@ async def test_rag_module(
 
     with dspy.context(
         lm=dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False),
+        adapter=dspy.ChatAdapter(),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
     ):
         rag = RAG()
@@ -618,12 +622,19 @@ async def test_rag_module(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     input_data = json.loads(input_value)
-    assert set(input_data.keys()) == {"prompt", "messages", "kwargs"}
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
-    assert isinstance(output_data := json.loads(output_value), list)
-    assert len(output_data) == 1
-    assert isinstance(output_data[0], str)
+    output_data = json.loads(output_value)
+    if VERSION < (3, 5, 0):
+        assert set(input_data.keys()) == {"prompt", "messages", "kwargs"}
+        assert isinstance(output_data, list)
+        assert len(output_data) == 1
+        assert isinstance(output_data[0], str)
+    else:
+        # DSPy 3.5 adapters call the LM with a dspy.lm15.Request and get a Response.
+        assert set(input_data.keys()) == {"prompt", "kwargs"}
+        assert input_data["prompt"]["model"] == "openai/gpt-4"
+        assert output_data["message"]["role"] == "assistant"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     invocation_params = json.loads(inv_params)
     assert "temperature" in invocation_params
@@ -648,6 +659,10 @@ async def test_rag_module(
     assert not attributes
 
 
+@pytest.mark.skipif(
+    VERSION >= (3, 5, 0),
+    reason="DSPy 3.5 ReAct emits `tool_calls`; cassettes were recorded with `next_tool_name`",
+)
 @pytest.mark.vcr
 @pytest.mark.parametrize("is_async", [False, True])
 async def test_react(
@@ -1200,7 +1215,7 @@ def test_context_attributes_are_instrumented(
         def __init__(self) -> None:
             super().__init__()
             self.retrieve = dspy.Retrieve(k=K)
-            self.generate_answer = dspy.ChainOfThought(BasicQA)
+            self.generate_answer = dspy.ChainOfThought(BasicQA, **COT_KWARGS)
 
         def forward(self, question: str) -> dspy.Prediction:
             context = self.retrieve(question).passages
@@ -1209,6 +1224,7 @@ def test_context_attributes_are_instrumented(
 
     dspy.settings.configure(
         lm=dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False),
+        adapter=dspy.ChatAdapter(),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
     )
     rag = RAG()
@@ -1245,7 +1261,8 @@ def test_dummy_lm_instrumentation(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     lm = dspy.utils.DummyLM(answers=[{"answer": "dummy answer"}])
-    dspy.settings.configure(lm=lm)
+    # DSPy 3.5 changed the default adapter from ChatAdapter to XMLAdapter.
+    dspy.settings.configure(lm=lm, adapter=dspy.ChatAdapter())
 
     predict = dspy.Predict("question -> answer")
 
