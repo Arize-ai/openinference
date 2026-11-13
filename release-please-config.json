@@ -86,6 +86,10 @@
             "package-name": "python-openinference-instrumentation-typesafe",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-mem0": {
+            "package-name": "python-openinference-instrumentation-mem0",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-ollama": {
             "package-name": "python-openinference-instrumentation-ollama",
             "release-type": "python"

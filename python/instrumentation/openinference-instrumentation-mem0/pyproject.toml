@@ -1,0 +1,97 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-mem0"
+dynamic = ["version"]
+description = "OpenInference mem0 Instrumentation"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10, <3.15"
+authors = [
+    { name = "OpenInference Authors", email = "oss@arize.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "opentelemetry-api",
+    "opentelemetry-instrumentation",
+    "opentelemetry-semantic-conventions",
+    "openinference-instrumentation>=0.1.75",
+    "openinference-semantic-conventions>=0.1.42",
+    "wrapt",
+    "typing-extensions",
+]
+
+[project.optional-dependencies]
+instruments = [
+    "mem0ai >= 2.0.12",
+]
+
+[project.entry-points.opentelemetry_instrumentor]
+mem0 = "openinference.instrumentation.mem0:Mem0Instrumentor"
+
+[project.entry-points.openinference_instrumentor]
+mem0 = "openinference.instrumentation.mem0:Mem0Instrumentor"
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-mem0"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/mem0/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+    "tests",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+    "examples",
+    "dist",
+    "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+    "wrapt",
+    "mem0",
+    "mem0.*",
+    "qdrant_client.*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
