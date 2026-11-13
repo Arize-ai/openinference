@@ -2,6 +2,7 @@ import json
 from abc import ABC
 from copy import copy, deepcopy
 from enum import Enum
+from importlib import import_module
 from inspect import signature
 from logging import getLogger
 from typing import (
@@ -315,12 +316,13 @@ class _LMCallWrapper(_WithTracer):
         ) as span:
             response = wrapped(*args, **kwargs)
             span.set_status(StatusCode.OK)
+            output = _normalize_lm_response(response)
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            **dict(_output_value_and_mime_type(response)),
-                            **dict(_llm_output_messages(response)),
+                            **dict(_output_value_and_mime_type(output)),
+                            **dict(_llm_output_messages(output)),
                         }
                     )
                 )
@@ -362,12 +364,13 @@ class _LMAcallWrapper(_WithTracer):
         ) as span:
             response = await wrapped(*args, **kwargs)
             span.set_status(StatusCode.OK)
+            output = _normalize_lm_response(response)
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            **dict(_output_value_and_mime_type(response)),
-                            **dict(_llm_output_messages(response)),
+                            **dict(_output_value_and_mime_type(output)),
+                            **dict(_llm_output_messages(output)),
                         }
                     )
                 )
@@ -1069,10 +1072,17 @@ def _llm_provider(lm: "LM") -> Iterator[Tuple[str, Any]]:
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    if isinstance(prompt := arguments.get("prompt"), str):
+    prompt = arguments.get("prompt")
+    if isinstance(prompt, str):
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
-    elif isinstance(messages := arguments.get("messages"), list):
+        return
+    messages: Any = (
+        list(_lm15_request_messages(prompt))
+        if isinstance(prompt, Mapping)
+        else arguments.get("messages")
+    )
+    if isinstance(messages, list):
         for i, message in enumerate(messages):
             if not isinstance(message, dict):
                 continue
@@ -1082,8 +1092,65 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
 
 
+def _lm15_to_dict(value: Any) -> Optional[Dict[str, Any]]:
+    """
+    Serializes a DSPy >= 3.5 `dspy.lm15.Request` or `Response` to its canonical
+    lm15 JSON form. Returns None for any other value.
+    """
+    # lm15 is typed but DSPy is not; static imports make mypy lose DSPy's exports.
+    try:
+        lm15 = import_module("dspy._vendor.lm15")
+        serde = import_module("dspy._vendor.lm15.serde")
+    except ImportError:
+        return None
+    try:
+        if isinstance(value, lm15.Request):
+            return dict(serde.request_to_dict(value))
+        if isinstance(value, lm15.Response):
+            return dict(serde.response_to_dict(value))
+    except Exception:
+        logger.exception("Failed to serialize lm15 object")
+    return None
+
+
+def _lm15_text(parts: Any) -> Optional[str]:
+    if isinstance(parts, str):
+        return parts
+    if not isinstance(parts, list):
+        return None
+    texts = [
+        text
+        for part in parts
+        if isinstance(part, Mapping)
+        and part.get("type") == "text"
+        and isinstance(text := part.get("text"), str)
+    ]
+    return "".join(texts) if texts else None
+
+
+def _lm15_request_messages(request: Mapping[str, Any]) -> Iterator[Dict[str, Any]]:
+    """
+    Converts a serialized lm15 request into OpenAI-style role/content messages.
+    """
+    if (system := _lm15_text(request.get("system"))) is not None:
+        yield {"role": "system", "content": system}
+    for message in request.get("messages") or ():
+        if isinstance(message, Mapping):
+            yield {"role": message.get("role"), "content": _lm15_text(message.get("parts"))}
+
+
+def _normalize_lm_response(response: Any) -> Any:
+    lm15_response = _lm15_to_dict(response)
+    return response if lm15_response is None else lm15_response
+
+
 def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
-    if isinstance(response, Iterable):
+    if isinstance(response, Mapping):  # serialized lm15 response
+        if isinstance(message := response.get("message"), Mapping):
+            yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", message.get("role", "assistant")
+            if (content := _lm15_text(message.get("parts"))) is not None:
+                yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", content
+    elif isinstance(response, Iterable):
         for i, message in enumerate(response):
             if isinstance(message, str):
                 yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", "assistant"
@@ -1093,7 +1160,12 @@ def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
 def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
     kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
-    combined_kwargs = lm_kwargs | kwargs
+    # A serialized lm15 request carries its generation options in `config`.
+    prompt = arguments.get("prompt")
+    request_config = (
+        _ if isinstance(prompt, Mapping) and isinstance(_ := prompt.get("config"), dict) else {}
+    )
+    combined_kwargs = lm_kwargs | request_config | kwargs
     combined_kwargs.pop("api_key", None)
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(combined_kwargs)
 
@@ -1112,8 +1184,12 @@ def _normalize_lm_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
     DSPy 3.3.0 changed the signature from `(prompt=None, messages=None, **kwargs)`
     to `(*items, prompt=None, messages=None, request=None, **kwargs)`, so a
     positionally-passed prompt string now arrives in `items` instead of `prompt`.
-    Map that shape back to the legacy `prompt` argument so span attributes are
-    stable across DSPy versions, and drop the new parameters when unused.
+    DSPy 3.5.0 changed it again to `(prompt=None, *, cache=None, rollout_id=None,
+    **options)`, renaming the generation options from `kwargs` to `options`,
+    and adapters now pass a `dspy.lm15.Request` as the prompt. Map these shapes
+    back to the legacy `prompt` and `kwargs` arguments so span attributes are
+    stable across DSPy versions, serialize lm15 requests, and drop the new
+    parameters when unused.
     """
     arguments = dict(arguments)
     items: Tuple[Any, ...] = tuple(arguments.pop("items", None) or ())
@@ -1121,8 +1197,13 @@ def _normalize_lm_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
         arguments["prompt"] = items[0]
     elif items:
         arguments["items"] = list(items)
-    if arguments.get("request", None) is None:
-        arguments.pop("request", None)
+    if (request := _lm15_to_dict(arguments.get("prompt"))) is not None:
+        arguments["prompt"] = request
+    if "options" in arguments and "kwargs" not in arguments:
+        arguments["kwargs"] = arguments.pop("options")
+    for name in ("request", "cache", "rollout_id"):
+        if arguments.get(name, None) is None:
+            arguments.pop(name, None)
     return arguments
 
 
