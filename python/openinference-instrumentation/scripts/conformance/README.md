@@ -16,7 +16,7 @@ Each instrumentor is configured with `TraceConfig(enable_genai_semconv=True)`, s
 
 Only [`uv`](https://docs.astral.sh/uv/getting-started/installation/) and `git` are required. All Python dependencies are declared as PEP 723 inline metadata at the top of each script and resolved into ephemeral environments managed by uv. The local OpenInference packages (`openinference-instrumentation`, the per-provider instrumentor packages, and `openinference-semantic-conventions`) are installed editable from this repo via `[tool.uv.sources]` rather than from PyPI, so in-progress changes are picked up on the next run.
 
-[run.py](./run.py) downloads Weaver and the semantic-conventions registry on first run and caches them under `~/.cache/oi-conformance/`. No real provider API keys or network access to provider servers is required.
+[run.py](./run.py) downloads Weaver and the [GenAI semantic-conventions](https://github.com/open-telemetry/semantic-conventions-genai) registry on first run and caches them under `~/.cache/oi-conformance/`. No real provider API keys or network access to provider servers is required.
 
 ## Running
 
@@ -49,5 +49,5 @@ The summary has four sections:
 ## Caveats
 
 - This is an MVP. Coverage is the chat / tool / embeddings / retriever scenarios listed above; expand by adding scenarios to the provider scripts and corresponding response shapes to `mock_server.py`.
-- The pinned versions are `WEAVER_VERSION=v0.23.0` and `SEMCONV_VERSION=v1.41.1` (see top of [run.py](./run.py)).
+- The pinned versions are `WEAVER_VERSION=v0.26.1` and `SEMCONV_GENAI_REF` (a commit of [semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai), which has no releases yet) at the top of [run.py](./run.py). The GenAI conventions are deprecated in `open-telemetry/semantic-conventions` from v1.42.0 onwards, so that registry is no longer used.
 - The runner deletes and recreates `./results/` on each invocation.
