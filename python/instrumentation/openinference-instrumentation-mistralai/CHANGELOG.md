@@ -1,5 +1,40 @@
 # Changelog
 
+## [2.3.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.3.4...python-openinference-instrumentation-mistralai-v2.3.5) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+
+## [2.3.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.3.3...python-openinference-instrumentation-mistralai-v2.3.4) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+
+## [2.3.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.3.2...python-openinference-instrumentation-mistralai-v2.3.3) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
+## [2.3.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.3.1...python-openinference-instrumentation-mistralai-v2.3.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+
+## [2.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.3.0...python-openinference-instrumentation-mistralai-v2.3.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
 ## [2.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.2.3...python-openinference-instrumentation-mistralai-v2.3.0) (2026-10-29)
 
 

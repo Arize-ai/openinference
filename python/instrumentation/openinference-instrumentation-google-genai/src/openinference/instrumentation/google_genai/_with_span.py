@@ -60,6 +60,7 @@ class _WithSpan:
         self,
         status: Optional[trace_api.Status] = None,
         attributes: Attributes = None,
+        end_time: Optional[int] = None,
     ) -> None:
         if self._is_finished:
             return
@@ -82,7 +83,7 @@ class _WithSpan:
             except Exception:
                 logger.warning("Failed to set status code on span")
         try:
-            self._span.end()
+            self._span.end(end_time=end_time)
         except Exception:
             logger.warning("Failed to end span")
         self._is_finished = True

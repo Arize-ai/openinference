@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.78](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.77...python-openinference-instrumentation-v0.1.78) (2026-11-12)
+
+
+### Features
+
+* **semconv:** add doubleword as a well-known llm.provider value ([#4249](https://github.com/Arize-ai/openinference/issues/4249)) ([7f295ae](https://github.com/Arize-ai/openinference/commit/7f295ae26cff766ee6057b50561ce6fa285d2222))
+
+## [0.1.77](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.76...python-openinference-instrumentation-v0.1.77) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+
+## [0.1.76](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.75...python-openinference-instrumentation-v0.1.76) (2026-11-11)
+
+
+### Features
+
+* **langchain:** read LangSmith params for model name, provider and system ([#4274](https://github.com/Arize-ai/openinference/issues/4274)) ([10bb8cc](https://github.com/Arize-ai/openinference/commit/10bb8ccd5a12af36484246ec9095c749926c1780))
+
 ## [0.1.75](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.74...python-openinference-instrumentation-v0.1.75) (2026-10-31)
 
 

@@ -8,6 +8,7 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
 )
+from openinference.instrumentation.agno._context import SpanActivation
 from openinference.instrumentation.agno.version import __version__
 
 _instruments = ("agno >= 2.5.0",)
@@ -120,12 +121,15 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
+
+        activation = SpanActivation(kwargs.get("runtime_context"))
+
         self._tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
 
-        run_wrapper = _RunWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+        run_wrapper = _RunWrapper(tracer=self._tracer, activation=activation)  # type: ignore[arg-type]
 
         # Wrap Agent module-level run functions
         self._original_run_method = getattr(agent_run_module, "_run", None)
@@ -266,7 +270,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         agno_model_subclasses = find_model_subclasses()
         # Instrument all model subclasses
         for model_subclass in agno_model_subclasses:
-            model_wrapper = _ModelWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+            model_wrapper = _ModelWrapper(tracer=self._tracer, activation=activation)  # type: ignore[arg-type]
             self._original_model_call_methods[model_subclass] = {
                 "invoke": model_subclass.invoke,
                 "ainvoke": model_subclass.ainvoke,
@@ -302,7 +306,10 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                             model_wrapper.arun_stream,
                         )
 
-        function_call_wrapper = _FunctionCallWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+        function_call_wrapper = _FunctionCallWrapper(
+            tracer=self._tracer,  # type: ignore[arg-type]
+            activation=activation,
+        )
         self._original_function_execute_method = getattr(FunctionCall, "execute", None)
         wrap_function_wrapper(
             FunctionCall,
@@ -321,9 +328,12 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             from agno.workflow.step import Step
             from agno.workflow.workflow import Workflow
 
-            workflow_wrapper = _WorkflowWrapper(tracer=self._tracer)  # type: ignore[arg-type]
-            execute_wrapper = _WorkflowExecuteWrapper(tracer=self._tracer)  # type: ignore[arg-type]
-            step_wrapper = _StepWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+            workflow_wrapper = _WorkflowWrapper(tracer=self._tracer, activation=activation)  # type: ignore[arg-type]
+            execute_wrapper = _WorkflowExecuteWrapper(
+                tracer=self._tracer,  # type: ignore[arg-type]
+                activation=activation,
+            )
+            step_wrapper = _StepWrapper(tracer=self._tracer, activation=activation)  # type: ignore[arg-type]
 
             # Store original methods
             self._original_workflow_methods = {}
@@ -411,7 +421,10 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             try:
                 from agno.workflow.parallel import Parallel
 
-                parallel_wrapper = _ParallelWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+                parallel_wrapper = _ParallelWrapper(
+                    tracer=self._tracer,  # type: ignore[arg-type]
+                    activation=activation,
+                )
                 self._original_parallel_methods = {}
 
                 # Wrap Parallel.execute (sync non-streaming)

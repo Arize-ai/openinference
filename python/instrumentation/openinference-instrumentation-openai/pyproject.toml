@@ -30,8 +30,8 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions>=0.46b0",
-  "openinference-instrumentation>=0.1.74",
-  "openinference-semantic-conventions>=0.1.42",
+  "openinference-instrumentation>=0.1.77",
+  "openinference-semantic-conventions>=0.1.44",
   "typing-extensions",
   "wrapt",
 ]

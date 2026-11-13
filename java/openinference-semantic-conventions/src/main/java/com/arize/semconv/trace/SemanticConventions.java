@@ -1054,7 +1054,9 @@ public class SemanticConventions {
         ZAI("zai"),
         MINIMAX("minimax"),
         ORACLE("oracle"),
-        TYPESAFE("typesafe");
+        IBM("ibm"),
+        TYPESAFE("typesafe"),
+        DOUBLEWORD("doubleword");
 
         private final String value;
 

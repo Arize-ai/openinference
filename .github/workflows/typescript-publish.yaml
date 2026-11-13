@@ -4,6 +4,13 @@ on:
     branches:
       - main
 permissions: {}
+# Serialize publish runs so back-to-back pushes to main can't race to publish
+# the same package version (npm E409 "Cannot publish over previously staged
+# version"). Queued runs start after the prior run finishes and see the
+# package already published.
+concurrency:
+  group: typescript-publish
+  cancel-in-progress: false
 env:
   CI: true
   PNPM_CACHE_FOLDER: .pnpm-store
@@ -54,6 +61,7 @@ jobs:
         working-directory: ./js
         run: pnpm install --frozen-lockfile
       - name: Create and publish versions
+        id: changesets
         uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
         with:
           github-token: ${{ steps.factory-token.outputs.token }}
@@ -65,6 +73,19 @@ jobs:
           push-with-git-cli: true
           cwd: "${{ github.workspace }}/js"
 
+      - name: Enable auto-merge
+        if: steps.changesets.outputs.pr-number != ''
+        env:
+          GH_TOKEN: ${{ steps.factory-token.outputs.token }}
+          PR_NUMBER: ${{ steps.changesets.outputs.pr-number }}
+        # Lets a reviewer merge the version PR with a single approval; a failure
+        # here should not fail the run since the PR itself was opened successfully.
+        # Block scalar: in a plain YAML scalar the " #" below would start a
+        # comment and truncate the command mid-string.
+        run: |
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash \
+            || echo "::warning::Could not enable auto-merge on #$PR_NUMBER"
+
   slack:
     name: Slack notification
     needs: [version]
@@ -75,9 +96,10 @@ jobs:
       - name: Send message to Slack
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             {
+              "channel": ${{ toJSON(vars.SLACK_CHANNEL_ID) }},
               "text": ${{ toJSON(format('🚨 TypeScript publish failed on {0}: {1}/{2}/actions/runs/{3}', github.sha, github.server_url, github.repository, github.run_id)) }}
             }

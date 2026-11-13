@@ -210,6 +210,8 @@ used; otherwise, a custom value MAY be used.
 | `minimax`    | MiniMax         |
 | `typesafe`   | TypeSafe AI     |
 | `oracle`     | Oracle (OCI Generative AI) |
+| `ibm`        | IBM (watsonx.ai) |
+| `doubleword` | Doubleword      |
 
 ### Decision System and Provider Values
 

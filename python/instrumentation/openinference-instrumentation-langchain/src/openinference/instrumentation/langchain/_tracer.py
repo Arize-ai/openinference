@@ -1634,6 +1634,7 @@ _PROVIDER_TO_SYSTEM = {
     "groq": OpenInferenceLLMSystemValues.OPENAI.value,
     "huggingface": _NA,  # TODO
     "ibm": _NA,  # TODO
+    "mistral": OpenInferenceLLMSystemValues.MISTRALAI.value,
     "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
     "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
     "openai": OpenInferenceLLMSystemValues.OPENAI.value,
@@ -1646,7 +1647,10 @@ _PROVIDER_TO_SYSTEM = {
 
 # Map LangChain provider names to OpenInference provider values
 _LANGCHAIN_PROVIDER_MAP = {
+    "amazon_bedrock": OpenInferenceLLMProviderValues.AWS.value,
     "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC.value,
+    "anthropic-bedrock": OpenInferenceLLMProviderValues.AWS.value,
+    "anthropic-mantle": OpenInferenceLLMProviderValues.AWS.value,
     "azure": OpenInferenceLLMProviderValues.AZURE.value,
     "azure_ai": OpenInferenceLLMProviderValues.AZURE.value,
     "azure_openai": OpenInferenceLLMProviderValues.AZURE.value,
@@ -1662,10 +1666,12 @@ _LANGCHAIN_PROVIDER_MAP = {
     "groq": "groq",
     "huggingface": "huggingface",
     "ibm": "ibm",
+    "mistral": OpenInferenceLLMProviderValues.MISTRALAI.value,
     "mistralai": OpenInferenceLLMProviderValues.MISTRALAI.value,
     "nvidia": "nvidia",
     "ollama": "ollama",
     "openai": OpenInferenceLLMProviderValues.OPENAI.value,
+    "openai-mantle": OpenInferenceLLMProviderValues.AWS.value,
     "perplexity": "perplexity",
     "together": "together",
     "vertex": OpenInferenceLLMProviderValues.GOOGLE.value,

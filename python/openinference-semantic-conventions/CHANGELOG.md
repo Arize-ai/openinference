@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.44...python-openinference-semantic-conventions-v0.1.45) (2026-11-12)
+
+
+### Features
+
+* **semconv:** add doubleword as a well-known llm.provider value ([#4249](https://github.com/Arize-ai/openinference/issues/4249)) ([7f295ae](https://github.com/Arize-ai/openinference/commit/7f295ae26cff766ee6057b50561ce6fa285d2222))
+
+## [0.1.44](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.43...python-openinference-semantic-conventions-v0.1.44) (2026-11-11)
+
+
+### Features
+
+* **langchain:** read LangSmith params for model name, provider and system ([#4274](https://github.com/Arize-ai/openinference/issues/4274)) ([10bb8cc](https://github.com/Arize-ai/openinference/commit/10bb8ccd5a12af36484246ec9095c749926c1780))
+
 ## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.42...python-openinference-semantic-conventions-v0.1.43) (2026-10-29)
 
 

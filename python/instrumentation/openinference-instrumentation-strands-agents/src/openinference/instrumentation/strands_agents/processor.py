@@ -1028,7 +1028,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 self._flatten_messages(input_messages, SpanAttributes.LLM_INPUT_MESSAGES, result)
 
             if isinstance(tool_parameters, dict):
-                if "text" in tool_parameters:
+                if len(tool_parameters) == 1 and isinstance(tool_parameters.get("text"), str):
                     result[SpanAttributes.INPUT_VALUE] = tool_parameters["text"]
                     result[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
                 else:
