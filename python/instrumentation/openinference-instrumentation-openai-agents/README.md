@@ -10,7 +10,8 @@ The traces emitted by this instrumentation are fully OpenTelemetry compatible an
 
 | `openinference-instrumentation-openai-agents` | `openai-agents` | Python           |
 | --------------------------------------------- | --------------- | ---------------- |
-| `>=2.0`                                        | `>=0.11.0`      | `>=3.10, <3.15`  |
+| `>=2.7.0`                                      | `>=0.11.0`      | `>=3.10, <3.16`  |
+| `>=2.0, <2.7.0`                                | `>=0.11.0`      | `>=3.10, <3.15`  |
 | `>=1.4.1, <2.0`                                | `>=0.2.6`       | `>=3.10, <3.15`  |
 | `>=1.2.0, <1.4.1`                              | `>=0.2.6`       | `>=3.9, <3.14`   |
 | `>=1.0.0, <1.2.0`                              | `>=0.1.0`       | `>=3.9, <3.14`   |
@@ -79,6 +80,19 @@ Now simply run the python file and observe the traces in Phoenix.
 
 ```shell
 python your_file.py
+```
+
+## Session tracking
+
+`trace(group_id=...)` and `RunConfig(group_id=...)` are recorded as `session.id` on the root span of that trace, so multiple runs in the same conversation correlate in Phoenix. `RunConfig.group_id` only applies when the run starts its own trace; inside an enclosing `trace(...)`, the SDK ignores it and the enclosing trace's `group_id` is used. The value is stamped on the root span only; child spans do not inherit it unless you also wrap the call in `using_session(...)`.
+
+`using_session("…")` takes precedence over `group_id`: when both are set, the context value wins.
+
+```python
+from openinference.instrumentation import using_session
+
+with using_session("conversation-42"):
+    result = await Runner.run(agent, "Hello")  # root span and all children get session.id="conversation-42"
 ```
 
 ## Hosted search tools

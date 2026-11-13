@@ -1,4 +1,5 @@
 import json
+import sys
 from enum import Enum
 from inspect import signature
 from os import getenv
@@ -24,6 +25,7 @@ from openinference.instrumentation import (
     infer_llm_system_from_model_name,
     safe_json_dumps,
 )
+from openinference.instrumentation.agno._context import DEFAULT_ACTIVATION, SpanActivation
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -75,6 +77,23 @@ def _get_llm_system(model: Model) -> Optional[str]:
             return None
         return "vertexai" if vertexai else "google"
     return system.value
+
+
+def _cache_tokens_excluded_from_input(model: Model, metrics: Any) -> int:
+    """Return the cache tokens that the model's ``input_tokens`` leaves out.
+
+    Agno's Anthropic ``Claude`` (and its Bedrock, Vertex AI and Azure subclasses) copies
+    Anthropic's ``usage.input_tokens``, which excludes cache reads and writes, so they are
+    folded back into the prompt and total counts as the semantic conventions require.
+    Other agno models are left as reported.
+    """
+    # Look the class up without importing it: agno.models.anthropic needs the anthropic SDK.
+    claude = getattr(sys.modules.get("agno.models.anthropic.claude"), "Claude", None)
+    if not (isinstance(claude, type) and isinstance(model, claude)):
+        return 0
+    cache_read = getattr(metrics, "cache_read_tokens", None) or 0
+    cache_write = getattr(metrics, "cache_write_tokens", None) or 0
+    return int(cache_read) + int(cache_write)
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
@@ -442,8 +461,11 @@ def _stream_output_messages(output: Dict[str, Any]) -> Iterator[Tuple[str, Any]]
 
 
 class _ModelWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(
+        self, tracer: trace_api.Tracer, activation: SpanActivation = DEFAULT_ACTIVATION
+    ) -> None:
         self._tracer = tracer
+        self._activation = activation
 
     def run(
         self,
@@ -461,8 +483,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.invoke"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
@@ -470,7 +493,8 @@ class _ModelWrapper:
                 **dict(_llm_invocation_parameters(model, arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with self._activation.use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -485,8 +509,9 @@ class _ModelWrapper:
                 metrics = response.response_usage
 
                 # Set token usage attributes
-                if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
+                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
+                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
@@ -523,8 +548,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.invoke_stream"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
@@ -532,7 +558,8 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with self._activation.use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -562,8 +589,9 @@ class _ModelWrapper:
                 metrics = final_response_with_metrics.response_usage
 
                 # Set token usage attributes
-                if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
+                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
+                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
@@ -600,8 +628,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.ainvoke"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
@@ -609,7 +638,8 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with self._activation.use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -623,14 +653,15 @@ class _ModelWrapper:
                 metrics = response.response_usage
 
                 # Set token usage attributes
-                if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
+                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
+                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
 
                 if hasattr(metrics, "total_tokens") and metrics.total_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.total_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.total_tokens + cache_tokens)
 
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
@@ -668,8 +699,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.ainvoke_stream"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
@@ -677,7 +709,8 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with self._activation.use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -707,8 +740,9 @@ class _ModelWrapper:
                 metrics = final_response_with_metrics.response_usage
 
                 # Set token usage attributes
-                if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
+                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
+                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)

@@ -9,6 +9,7 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.anthropic._sdk_spans import _StartApiCallSpanWrapper
 from openinference.instrumentation.anthropic._wrappers import (
     _AsyncCountTokensWrapper,
     _AsyncMessagesStreamWrapper,
@@ -58,6 +59,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_async_beta_messages_parse",
         "_original_prepare_request_data",
         "_original_async_prepare_request_data",
+        "_original_start_api_call_span",
         "_originals",
         "_config",
         "_instruments",
@@ -242,6 +244,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             self._wrap_platform_beta_messages(module)
 
         self._wrap_request_preparation()
+        self._wrap_sdk_span_start()
 
     def _wrap(self, cls: Any, name: str, wrapper: Any) -> None:
         # only a method of the class itself, e.g. not one a platform class lacks and inherits
@@ -325,6 +328,19 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self._original_prepare_request_data = original
         self._original_async_prepare_request_data = async_original
 
+    def _wrap_sdk_span_start(self) -> None:
+        """
+        anthropic>=1.14.0 starts a span of its own for each API call, which a call that is traced
+        here has instead, see _sdk_spans.
+        """
+        from anthropic import _base_client
+
+        self._original_start_api_call_span = getattr(_base_client, "start_api_call_span", None)
+        if self._original_start_api_call_span is None:
+            # an anthropic version that starts no spans of its own
+            return
+        wrap_function_wrapper(_base_client, "start_api_call_span", _StartApiCallSpanWrapper())
+
     def _uninstrument(self, **kwargs: Any) -> None:
         from anthropic import _base_client
         from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
@@ -377,6 +393,8 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 "async_prepare_request_data",
                 self._original_async_prepare_request_data,
             )
+        if getattr(self, "_original_start_api_call_span", None) is not None:
+            setattr(_base_client, "start_api_call_span", self._original_start_api_call_span)
 
 
 def _import_platform_beta_messages_modules() -> List[Any]:

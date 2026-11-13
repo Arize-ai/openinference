@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.57...python-openinference-instrumentation-litellm-v0.1.58) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+
+## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.56...python-openinference-instrumentation-litellm-v0.1.57) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+
+## [0.1.56](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.55...python-openinference-instrumentation-litellm-v0.1.56) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
+## [0.1.55](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.54...python-openinference-instrumentation-litellm-v0.1.55) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+
+## [0.1.54](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.53...python-openinference-instrumentation-litellm-v0.1.54) (2026-11-05)
+
+
+### Bug Fixes
+
+* **litellm:** skip nested completion span for bridged responses calls ([#4112](https://github.com/Arize-ai/openinference/issues/4112)) ([0ad0efe](https://github.com/Arize-ai/openinference/commit/0ad0efe65fe6e3bbec7ffc0355f9380e3ece2aa8))
+
+## [0.1.53](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.52...python-openinference-instrumentation-litellm-v0.1.53) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
+## [0.1.52](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.51...python-openinference-instrumentation-litellm-v0.1.52) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
+## [0.1.51](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.50...python-openinference-instrumentation-litellm-v0.1.51) (2026-10-23)
+
+
+### Bug Fixes
+
+* **litellm:** end spans on failed calls, unread streams, and non-completed responses ([#3948](https://github.com/Arize-ai/openinference/issues/3948)) ([25423c4](https://github.com/Arize-ai/openinference/commit/25423c4605af442fef23f9e9e703dc392cb3e763))
+* **litellm:** forward _TracedSyncStream.close() to the wrapped stream ([#4074](https://github.com/Arize-ai/openinference/issues/4074)) ([2212cc5](https://github.com/Arize-ai/openinference/commit/2212cc5d8477f6438035d61e7a2662ea6b38035c))
+* **litellm:** make the span current while streaming calls run ([#4042](https://github.com/Arize-ai/openinference/issues/4042)) ([a5dd653](https://github.com/Arize-ai/openinference/commit/a5dd653070dd935696e367c49b558c74e616c770))
+* **litellm:** record partial output on early stream close ([#4016](https://github.com/Arize-ai/openinference/issues/4016)) ([87387bd](https://github.com/Arize-ai/openinference/commit/87387bde29f4d34444c5a9fc70bae29adc06003f))
+* **litellm:** set ERROR status on streaming spans that fail mid-stream ([#4015](https://github.com/Arize-ai/openinference/issues/4015)) ([2d009b7](https://github.com/Arize-ai/openinference/commit/2d009b714085b172296034bf1b0d6dbb7e219155))
+
 ## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.49...python-openinference-instrumentation-litellm-v0.1.50) (2026-10-09)
 
 

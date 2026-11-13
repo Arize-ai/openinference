@@ -1,5 +1,49 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.4.6
+
+### Patch Changes
+
+- 7f295ae: Detect Doubleword from the request host, so an OpenAI client pointed at its OpenAI-compatible endpoint (`https://api.doubleword.ai/v1`) records `llm.provider = doubleword` instead of falling back to `openai`. Adds `api.doubleword.ai` → `doubleword` to `HOST_SUFFIX_TO_PROVIDER`.
+- Updated dependencies [7f295ae]
+  - @arizeai/openinference-semantic-conventions@2.17.0
+  - @arizeai/openinference-core@2.8.3
+
+## 4.4.5
+
+### Patch Changes
+
+- 715e299: Fix streamed chat completion and Responses API spans:
+  
+  - Record each parallel tool call of a streamed chat completion as its own tool call. Stream deltas were keyed by their position in the chunk instead of their `index`, so calls streamed in separate chunks were merged into one with concatenated ids, names and arguments. Providers that leave out the `index`, such as Gemini's OpenAI-compatible endpoint, start a new tool call on each new tool call id.
+  - Set the status of streamed chat completion spans: OK when the stream is read to the end, ERROR with the error recorded when reading it fails, and unset when the request is aborted. The span keeps what was streamed before it ended.
+  - End the span with status ERROR when a chat completion or Responses API stream fails part way. Previously the span was left unended and the instrumentation raised an unhandled promise rejection, which ended the process even when the caller handled the error. An aborted Responses API stream now leaves the status unset instead of setting ERROR.
+
+## 4.4.4
+
+### Patch Changes
+
+- 10bb8cc: Detect IBM watsonx.ai from the request host, so an OpenAI client pointed at its OpenAI-compatible endpoint (`https://<region>.ml.cloud.ibm.com`) records `llm.provider = ibm` instead of falling back to `openai`. Adds `ml.cloud.ibm.com` → `ibm` to `HOST_SUFFIX_TO_PROVIDER`.
+- Updated dependencies [10bb8cc]
+  - @arizeai/openinference-semantic-conventions@2.16.0
+  - @arizeai/openinference-core@2.8.2
+
+## 4.4.3
+
+### Patch Changes
+
+- 07ce304: Record the output and token counts of OpenAI Responses streams that end with `response.incomplete` or `response.failed`. Previously only `response.completed` was kept, so the span ended with an error status and no output or usage. A failed response still sets an error status; an incomplete one (for example `max_output_tokens`) is recorded like a completed one.
+
+## 4.4.2
+
+### Patch Changes
+
+- 100ce01: Record token usage on `embeddings.create` spans: `llm.token_count.prompt` and `llm.token_count.total` from the response's `usage`, as the Python OpenAI instrumentor does. Previously embedding spans carried no token counts, so embedding usage was missing from traces.
+- Updated dependencies [dc63d01]
+- Updated dependencies [298ff79]
+  - @arizeai/openinference-semantic-conventions@2.15.0
+  - @arizeai/openinference-core@2.8.1
+
 ## 4.4.1
 
 ### Patch Changes

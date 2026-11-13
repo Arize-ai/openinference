@@ -29,6 +29,7 @@ from httpx import AsyncByteStream, Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv.attributes.server_attributes import SERVER_ADDRESS, SERVER_PORT
 from respx import MockRouter
 
 from openinference.semconv.trace import (
@@ -134,6 +135,8 @@ def _assert_attributes(span: ReadableSpan, output: Optional[Dict[str, Any]]) -> 
     )
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "openai"
     assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "openai"
+    assert attributes.pop(SERVER_ADDRESS) == "api.openai.com"
+    assert attributes.pop(SERVER_PORT) == 443
     assert json.loads(cast(str, attributes.pop(SpanAttributes.INPUT_VALUE))) == {
         "messages": _MESSAGES,
         "model": _MODEL,

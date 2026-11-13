@@ -184,21 +184,37 @@ class _CallbackForIterable:
     def __init__(self, request: proto.Message, span: Span) -> None:
         self._span = span
         self._accumulator = _get_response_accumulator(request)
+        self._is_finished = False
 
     def __call__(self, obj: _AnyT) -> _AnyT:
         span = self._span
         if isinstance(obj, proto.Message):
             self._accumulator.accumulate(obj)
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
-            try:
-                result = self._accumulator.result
-            except BaseException as exc:
-                logger.exception(str(exc))
-                result = None
-            _finish(span, result)
+            self._is_finished = True
+            _finish(span, self._result())
         elif isinstance(obj, BaseException):
+            self._is_finished = True
             _finish(span, obj)
         return cast(_AnyT, obj)
+
+    def __del__(self) -> None:
+        # The stream was dropped before it was exhausted, e.g. the caller stopped iterating
+        # early or the SDK raised while handling a chunk. End the span with the output
+        # received so far, leaving the status unset.
+        try:
+            if not self._is_finished:
+                self._is_finished = True
+                _finish(self._span, self._result(), set_ok_status=False)
+        except BaseException:
+            pass
+
+    def _result(self) -> Optional[proto.Message]:
+        try:
+            return self._accumulator.result
+        except BaseException as exc:
+            logger.exception(str(exc))
+            return None
 
 
 _IncrementType = TypeVar("_IncrementType", contravariant=True)
@@ -285,7 +301,7 @@ def _use_span(span: Span) -> Callable[[], ContextManager[Span]]:
     return lambda: cast(ContextManager[Span], use_span(span, False, False, False))
 
 
-def _finish(span: Span, result: Any) -> None:
+def _finish(span: Span, result: Any, *, set_ok_status: bool = True) -> None:
     if isinstance(result, BaseException):
         span.record_exception(result)
         span.set_status(Status(StatusCode.ERROR, f"{type(result).__name__}: {result}"))
@@ -300,7 +316,8 @@ def _finish(span: Span, result: Any) -> None:
         _update_span(result, span)
     except BaseException as exc:
         logger.exception(str(exc))
-    span.set_status(Status(StatusCode.OK))
+    if set_ok_status:
+        span.set_status(Status(StatusCode.OK))
     span.end()
 
 

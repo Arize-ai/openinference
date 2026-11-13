@@ -21,6 +21,7 @@ from agno.run.team import RunContentEvent as TeamRunContentEvent
 from agno.run.team import TeamRunOutputEvent
 from agno.tools.function import FunctionCall, ToolResult
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.agno._context import DEFAULT_ACTIVATION, SpanActivation
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -72,8 +73,11 @@ def _output_value_and_mime_type_for_tool_span(result: Any) -> Iterator[Tuple[str
 
 
 class _FunctionCallWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(
+        self, tracer: trace_api.Tracer, activation: SpanActivation = DEFAULT_ACTIVATION
+    ) -> None:
         self._tracer = tracer
+        self._activation = activation
 
     def run(
         self,
@@ -94,6 +98,7 @@ class _FunctionCallWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: TOOL,
                 **dict(_input_value_and_mime_type_for_tool_span(function_arguments)),
@@ -103,7 +108,7 @@ class _FunctionCallWrapper:
         )
 
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            with self._activation.use_span(span):
                 response = wrapped(*args, **kwargs)
 
             if response.status == "success":
@@ -154,6 +159,7 @@ class _FunctionCallWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: TOOL,
                 **dict(_input_value_and_mime_type_for_tool_span(function_arguments)),
@@ -163,7 +169,7 @@ class _FunctionCallWrapper:
         )
 
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            with self._activation.use_span(span):
                 response = await wrapped(*args, **kwargs)
 
             if response.status == "success":

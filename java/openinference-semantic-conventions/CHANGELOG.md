@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.24...java-openinference-semantic-conventions-v0.1.25) (2026-11-12)
+
+
+### Features
+
+* **semconv:** add doubleword as a well-known llm.provider value ([#4249](https://github.com/Arize-ai/openinference/issues/4249)) ([7f295ae](https://github.com/Arize-ai/openinference/commit/7f295ae26cff766ee6057b50561ce6fa285d2222))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.23...java-openinference-semantic-conventions-v0.1.24) (2026-11-11)
+
+
+### Features
+
+* **langchain:** read LangSmith params for model name, provider and system ([#4274](https://github.com/Arize-ai/openinference/issues/4274)) ([10bb8cc](https://github.com/Arize-ai/openinference/commit/10bb8ccd5a12af36484246ec9095c749926c1780))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.22...java-openinference-semantic-conventions-v0.1.23) (2026-10-23)
+
+
+### Features
+
+* **semconv:** add document content semantic conventions ([#4099](https://github.com/Arize-ai/openinference/issues/4099)) ([dc63d01](https://github.com/Arize-ai/openinference/commit/dc63d01d474e0fa14eb379f0d32d9808990e9b23))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.21...java-openinference-semantic-conventions-v0.1.22) (2026-10-01)
 
 

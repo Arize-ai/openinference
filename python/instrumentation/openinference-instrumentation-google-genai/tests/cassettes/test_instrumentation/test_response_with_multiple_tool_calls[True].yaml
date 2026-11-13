@@ -12,17 +12,27 @@ interactions:
       {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:streamGenerateContent?alt=sse
   response:
     body:
       string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\":
-        {\"name\": \"get_weather\",\"args\": {\"location\": \"Boston\"}}},{\"functionCall\":
-        {\"name\": \"get_weather\",\"args\": {\"location\": \"New Delhi\"}}}],\"role\":
-        \"model\"},\"finishReason\": \"STOP\"}],\"usageMetadata\": {\"promptTokenCount\":
-        64,\"candidatesTokenCount\": 11,\"totalTokenCount\": 75,\"promptTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 64}],\"candidatesTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.0-flash\",\"responseId\": \"l9cEarvcAfjC7_UPtZea-Aw\"}\r\n\r\n"
+        {\"name\": \"get_weather\",\"args\": {\"location\": \"Boston\"},\"id\": \"call_17040227098771877285\"},\"thoughtSignature\":
+        \"Ev4DCvsDAWkUfROj+1KzUzxkMYxm5IIf7nMcYaK0X6uqwo1t9fN52yiaIn+Gdf3glhK3y1IM4QeaONAST0Iy4fJ5kYHKyaFAIE3/UxpoBQ/Cdx8/7fB0NtpKQhTqjlSEOEfJQ/0T30CbsQxSUFUI5drC1NpxeoZyiXVtxQ0SBf0EYHKsf9xp8Gx4ZVb9RAuQKk89N/MLSKy7FnzcaoiOBoMiCaW5nXyrtzYSOL8GvM1QDGrZCX72ZpjB83uIr1GMIog/XOdjKoRMhYilMmIwEw8bfS2Ggt2tQ60LS4nFpoa9vhh2UvjC9BybMFncyA2y2d9b1S3Tsuj9McDNOqGcth1l0DASyE/j9DMbaJk9wC6Hb0BxZ/pqglb7+pwM3zbZeVLPNFSkNxeL9CeKHLSbLtFwgwSHcW0B4kbW5E6/Si4kFlMnrFwcLjL25phXiqL9nxKlvVWU5vBGUs5Q3PwGfxfz53l+D6QeEtXALQf8bxrFs5uMGivNYLtnFHQfOfIUXrVH9rQEh/WeIms7l+eXtOFEwTA8u9kLCkJcVEnvbjXDEguX4ghHt4/2YXqV9ZINhobKjSfdzwdELcttwZsGhVewfF1QndMoWPERN2WVW0ormgCEegABBRuySDs9R3IY1c8MJDur+CFtH5f9heXtZcfU3A8vTWUKDo5L0fNHQ0H7\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 120,\"candidatesTokenCount\":
+        16,\"totalTokenCount\": 222,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        120}],\"thoughtsTokenCount\": 86,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"3vr0atnsFuKw1MkPq_a1yQs\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\": {\"name\":
+        \"get_weather\",\"args\": {\"location\": \"New Delhi\"},\"id\": \"call_17040227098771876392\"}}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 120,\"candidatesTokenCount\":
+        33,\"totalTokenCount\": 239,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        120}],\"thoughtsTokenCount\": 86,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"3vr0atnsFuKw1MkPq_a1yQs\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"\"}],\"role\": \"model\"},\"finishReason\":
+        \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 120,\"candidatesTokenCount\":
+        33,\"totalTokenCount\": 239,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        120}],\"thoughtsTokenCount\": 86,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"3vr0atnsFuKw1MkPq_a1yQs\"}\r\n\r\n"
     headers: {}
     status:
       code: 200

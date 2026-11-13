@@ -642,6 +642,31 @@ function normalizeMistralRequestContentBlocks(
 }
 
 /**
+ * Converts the top-level `system` prompt of an Anthropic request (a string or an array of
+ * text blocks) to a leading system message. Text blocks are joined with a blank line, like
+ * Converse system prompts.
+ *
+ * @param requestBody The parsed Anthropic request body
+ * @returns {BedrockMessage[]} A single system message, or an empty array without a usable prompt
+ */
+function anthropicSystemPromptToBedrockMessages(
+  requestBody: InvokeModelRequestBody,
+): BedrockMessage[] {
+  const { system } = requestBody;
+  let text = "";
+  if (typeof system === "string") {
+    text = system;
+  } else if (Array.isArray(system)) {
+    text = system
+      .filter(isTextContent)
+      .map((block) => block.text)
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  return text ? [{ role: "system", content: text }] : [];
+}
+
+/**
  * Normalizes AI21 request bodies (completion prompt or Jamba messages).
  *
  * @param requestBody The parsed AI21 request body
@@ -676,9 +701,12 @@ export const normalizeRequestContentBlocks = withSafety({
   fn: (requestBody: InvokeModelRequestBody, llm_system: LLMSystem): BedrockMessage[] => {
     switch (llm_system) {
       case LLMSystem.ANTHROPIC:
-        return Array.isArray(requestBody.messages)
-          ? requestBody.messages.flatMap((message) => toBedrockMessage(message) ?? [])
-          : [];
+        return [
+          ...anthropicSystemPromptToBedrockMessages(requestBody),
+          ...(Array.isArray(requestBody.messages)
+            ? requestBody.messages.flatMap((message) => toBedrockMessage(message) ?? [])
+            : []),
+        ];
       case LLMSystem.AMAZON:
         return normalizeAmazonRequestContentBlocks(requestBody);
       case LLMSystem.COHERE:

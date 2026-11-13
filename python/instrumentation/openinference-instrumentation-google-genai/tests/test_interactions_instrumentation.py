@@ -6,9 +6,8 @@ import os
 from typing import Any, Dict, Optional
 
 import pytest
-import respx
 from google import genai
-from httpx import Response
+from httpx2 import Response
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
@@ -40,7 +39,7 @@ def test_generate_interactions_simple_message(
     # Initialize the client
     client = genai.Client(api_key=api_key)
     input_message = "Tell me a short joke about programming."
-    model_name = "gemini-2.5-flash"
+    model_name = "gemini-3.6-flash"
     interaction = client.interactions.create(
         model=model_name,
         input=input_message,
@@ -125,10 +124,10 @@ def test_generate_interactions_multi_model_messages(
             "resolution": "low",
         },
     ]
-    model_name = "gemini-2.5-flash-lite"
+    model_name = "gemini-3.6-flash"
     generation_config = {
         "temperature": 0.7,
-        "max_output_tokens": 64,
+        "max_output_tokens": 1024,
         "thinking_level": "high",
     }
     interaction = client.interactions.create(
@@ -213,7 +212,7 @@ async def test_generate_interactions_async(
     # Initialize the client
     client = genai.Client(api_key=api_key).aio
     input_message = "Tell me a short joke about programming."
-    model_name = "gemini-2.5-flash"
+    model_name = "gemini-3.6-flash"
     interaction = await client.interactions.create(
         model=model_name,
         input=input_message,
@@ -286,7 +285,7 @@ def test_interactions_with_thinking_stream(
     api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
     client = genai.Client(api_key=api_key)
     input_message = "Explain why the sky is blue in two sentences."
-    model_name = "gemini-2.5-flash"
+    model_name = "gemini-3.6-flash"
     generation_config = {
         "temperature": 0.7,
         "max_output_tokens": 1024,
@@ -422,11 +421,10 @@ _INTERACTIONS_STREAM_SSE = (
 )
 
 
-def _mock_interactions_stream(mock_router: Any) -> None:
-    mock_router.post(path__regex=r"/v1beta/interactions.*").mock(
-        return_value=Response(
-            200, text=_INTERACTIONS_STREAM_SSE, headers={"content-type": "text/event-stream"}
-        )
+def _mock_interactions_stream(mock_gemini_api: Any) -> None:
+    mock_gemini_api.post(
+        r"/v1/interactions.*",
+        Response(200, text=_INTERACTIONS_STREAM_SSE, headers={"content-type": "text/event-stream"}),
     )
 
 
@@ -453,24 +451,24 @@ def test_interactions_stream_left_early_ends_span(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
 ) -> None:
     client = genai.Client(api_key="fake-key")
-    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
-        _mock_interactions_stream(mock_router)
-        stream = client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True)
-        if abandon == "break":
-            for event in stream:
-                if getattr(event, "event_type", None) == "step.delta":
-                    break
+    _mock_interactions_stream(mock_gemini_api)
+    stream = client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True)
+    if abandon == "break":
+        for event in stream:
+            if getattr(event, "event_type", None) == "step.delta":
+                break
+    else:
+        iterator = iter(stream)
+        for _ in range(3):
+            next(iterator)
+        if abandon == "close":
+            iterator.close()
         else:
-            iterator = iter(stream)
-            for _ in range(3):
-                next(iterator)
-            if abandon == "close":
-                iterator.close()
-            else:
-                del iterator
-                gc.collect()
+            del iterator
+            gc.collect()
 
     _assert_one_interactions_span(in_memory_span_exporter)
 
@@ -481,23 +479,23 @@ async def test_async_interactions_stream_left_early_ends_span(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
 ) -> None:
     client = genai.Client(api_key="fake-key").aio
-    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
-        _mock_interactions_stream(mock_router)
-        stream = await client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True)
-        if abandon == "break":
-            async for event in stream:
-                if getattr(event, "event_type", None) == "step.delta":
-                    break
-            gc.collect()
-            for _ in range(3):
-                await asyncio.sleep(0)
-        else:
-            iterator = stream.__aiter__()
-            for _ in range(3):
-                await iterator.__anext__()
-            await iterator.aclose()
+    _mock_interactions_stream(mock_gemini_api)
+    stream = await client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True)
+    if abandon == "break":
+        async for event in stream:
+            if getattr(event, "event_type", None) == "step.delta":
+                break
+        gc.collect()
+        for _ in range(3):
+            await asyncio.sleep(0)
+    else:
+        iterator = stream.__aiter__()
+        for _ in range(3):
+            await iterator.__anext__()
+        await iterator.aclose()
 
     _assert_one_interactions_span(in_memory_span_exporter)
 
@@ -516,16 +514,14 @@ def test_interactions_stream_in_with_block_ends_span(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
 ) -> None:
     client = genai.Client(api_key="fake-key")
-    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
-        _mock_interactions_stream(mock_router)
-        with client.interactions.create(
-            model="gemini-2.5-flash", input="hi", stream=True
-        ) as stream:
-            for event in stream:
-                if consume == "break" and getattr(event, "event_type", None) == "step.delta":
-                    break
+    _mock_interactions_stream(mock_gemini_api)
+    with client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True) as stream:
+        for event in stream:
+            if consume == "break" and getattr(event, "event_type", None) == "step.delta":
+                break
 
     _assert_one_interactions_span(in_memory_span_exporter, status_code, output_text)
 
@@ -536,16 +532,16 @@ def test_interactions_stream_closed_or_dropped_unread_ends_span(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
 ) -> None:
     client = genai.Client(api_key="fake-key")
-    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
-        _mock_interactions_stream(mock_router)
-        stream = client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True)
-        if abandon == "close":
-            stream.close()
-        else:
-            del stream
-            gc.collect()
+    _mock_interactions_stream(mock_gemini_api)
+    stream = client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True)
+    if abandon == "close":
+        stream.close()
+    else:
+        del stream
+        gc.collect()
 
     _assert_one_interactions_span(in_memory_span_exporter, output_text=None)
 
@@ -564,16 +560,16 @@ async def test_async_interactions_stream_in_with_block_ends_span(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
 ) -> None:
     client = genai.Client(api_key="fake-key").aio
-    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
-        _mock_interactions_stream(mock_router)
-        async with await client.interactions.create(
-            model="gemini-2.5-flash", input="hi", stream=True
-        ) as stream:
-            async for event in stream:
-                if consume == "break" and getattr(event, "event_type", None) == "step.delta":
-                    break
+    _mock_interactions_stream(mock_gemini_api)
+    async with await client.interactions.create(
+        model="gemini-2.5-flash", input="hi", stream=True
+    ) as stream:
+        async for event in stream:
+            if consume == "break" and getattr(event, "event_type", None) == "step.delta":
+                break
 
     _assert_one_interactions_span(in_memory_span_exporter, status_code, output_text)
 
@@ -582,12 +578,12 @@ async def test_async_interactions_stream_closed_unread_ends_span(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
+    mock_gemini_api: Any,
 ) -> None:
     client = genai.Client(api_key="fake-key").aio
-    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
-        _mock_interactions_stream(mock_router)
-        stream = await client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True)
-        await stream.close()
+    _mock_interactions_stream(mock_gemini_api)
+    stream = await client.interactions.create(model="gemini-2.5-flash", input="hi", stream=True)
+    await stream.close()
 
     _assert_one_interactions_span(in_memory_span_exporter, output_text=None)
 

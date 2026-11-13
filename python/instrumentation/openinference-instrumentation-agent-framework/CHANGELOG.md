@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.16...python-openinference-instrumentation-agent-framework-v0.1.17) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.15...python-openinference-instrumentation-agent-framework-v0.1.16) (2026-11-04)
+
+
+### Bug Fixes
+
+* **agent-framework:** keep parallel tool results with their own tool call ([#4103](https://github.com/Arize-ai/openinference/issues/4103)) ([2f0ee49](https://github.com/Arize-ai/openinference/commit/2f0ee4963bfef5a869f4420b6c048340e309d9f1))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.14...python-openinference-instrumentation-agent-framework-v0.1.15) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.13...python-openinference-instrumentation-agent-framework-v0.1.14) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.12...python-openinference-instrumentation-agent-framework-v0.1.13) (2026-10-07)
 
 
