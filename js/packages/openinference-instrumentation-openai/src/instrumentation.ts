@@ -10,6 +10,7 @@ import {
   InstrumentationNodeModuleDefinition,
   safeExecuteInTheMiddle,
 } from "@opentelemetry/instrumentation";
+import { ATTR_SERVER_ADDRESS, ATTR_SERVER_PORT } from "@opentelemetry/semantic-conventions";
 import type openai from "openai";
 import { APIPromise } from "openai";
 import type { Completion, CreateEmbeddingResponse, EmbeddingCreateParams } from "openai/resources";
@@ -148,6 +149,31 @@ function getExecContext(span: Span) {
   return execContext;
 }
 
+const DEFAULT_PORTS: Partial<Record<string, number>> = { "http:": 80, "https:": 443 };
+
+/**
+ * Gets the baseURL of the OpenAI client instance
+ * @param clientInstance The OpenAI client instance
+ */
+function getBaseURL(clientInstance: unknown): unknown {
+  // The clientInstance might be a sub-object (like Completions) that has a _client property
+  // pointing to the actual OpenAI/AzureOpenAI client
+  if (clientInstance == null || typeof clientInstance !== "object") {
+    return undefined;
+  }
+  // First try to get baseURL from the instance itself
+  const baseURL = Reflect.get(clientInstance, "baseURL");
+  if (baseURL) {
+    return baseURL;
+  }
+  // If not found (or empty), try the _client property (this is where Azure OpenAI stores it)
+  const nestedClient = Reflect.get(clientInstance, "_client");
+  if (nestedClient != null && typeof nestedClient === "object") {
+    return Reflect.get(nestedClient, "baseURL");
+  }
+  return undefined;
+}
+
 /**
  * Gets the appropriate LLM provider based on the OpenAI client instance
  * Follows the same logic as the Python implementation by checking the baseURL host
@@ -156,22 +182,8 @@ function getExecContext(span: Span) {
  */
 function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
   try {
-    // The clientInstance might be a sub-object (like Completions) that has a _client property
-    // pointing to the actual OpenAI/AzureOpenAI client
     let host: string | undefined;
-    let baseURL: unknown;
-
-    // First try to get baseURL from the instance itself
-    if (clientInstance != null && typeof clientInstance === "object") {
-      baseURL = Reflect.get(clientInstance, "baseURL");
-      // If not found (or empty), try the _client property (this is where Azure OpenAI stores it)
-      if (!baseURL) {
-        const nestedClient = Reflect.get(clientInstance, "_client");
-        if (nestedClient != null && typeof nestedClient === "object") {
-          baseURL = Reflect.get(nestedClient, "baseURL");
-        }
-      }
-    }
+    const baseURL = getBaseURL(clientInstance);
 
     if (typeof baseURL === "string") {
       // Extract host from URL string
@@ -194,6 +206,36 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
     diag.debug("Failed to determine LLM provider from instance", error);
   }
   return undefined;
+}
+
+/**
+ * Gets the host and port of the endpoint the OpenAI client instance sends requests to.
+ * They are recorded whether or not a provider can be inferred from the host, so a span
+ * shows when a call went through a gateway or a self-hosted proxy. Only the host and
+ * port are recorded: the path and query can carry tenant identifiers.
+ * @param clientInstance The OpenAI client instance
+ * @returns server.address and server.port attributes
+ */
+function getServerAttributes(clientInstance: unknown): Attributes {
+  try {
+    const baseURL = getBaseURL(clientInstance);
+    if (typeof baseURL !== "string") {
+      return {};
+    }
+    const url = new URL(baseURL);
+    // URL keeps the brackets around an IPv6 host; server.address is the bare address.
+    const hostname = url.hostname.replace(/^\[(.*)\]$/, "$1");
+    if (!hostname) {
+      return {};
+    }
+    const port = url.port ? Number(url.port) : DEFAULT_PORTS[url.protocol];
+    return port == null
+      ? { [ATTR_SERVER_ADDRESS]: hostname }
+      : { [ATTR_SERVER_ADDRESS]: hostname, [ATTR_SERVER_PORT]: port };
+  } catch (error) {
+    diag.debug("Failed to determine the server address from instance", error);
+  }
+  return {};
 }
 
 /**
@@ -324,6 +366,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+              ...getServerAttributes(this),
               ...getLLMInputMessagesAttributes(body),
               ...getLLMToolsJSONSchema(body),
             },
@@ -399,6 +442,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+              ...getServerAttributes(this),
               ...getCompletionInputValueAndMimeType(body),
             },
           });
@@ -463,6 +507,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.INPUT_MIME_TYPE]: isStringInput ? MimeType.TEXT : MimeType.JSON,
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+              ...getServerAttributes(this),
               ...getEmbeddingTextAttributes(body),
             },
           });
@@ -524,6 +569,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   JSON.stringify(invocationParameters),
                 [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
                 [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+                ...getServerAttributes(this),
                 ...getResponsesInputMessagesAttributes(body),
                 ...getLLMToolsJSONSchema(body),
               },
@@ -616,6 +662,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               attributes: {
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.DECISION,
                 ...getDecisionsRequestAttributes(body),
+                ...getServerAttributes(this),
               },
             });
             const execContext = getExecContext(span);
