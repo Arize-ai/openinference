@@ -13,7 +13,6 @@ from typing import (
     Set,
     cast,
 )
-from uuid import uuid4
 
 import pytest
 from langchain_core.callbacks import (
@@ -635,14 +634,12 @@ def test_suppress_tracing_attaches_nothing(
 def test_suppression_starting_mid_run_still_releases_the_context(
     inner_tracer: trace_api.Tracer,
 ) -> None:
-    tracer = LangChainInstrumentor()._tracer
-    assert tracer is not None
-    run_id = uuid4()
+    stream = RunnableLambda(_stream, name="run").stream(1)
     with inner_tracer.start_as_current_span("outer") as outer:
-        tracer.on_chain_start({}, {}, run_id=run_id, name="run")
+        next(stream)
         assert trace_api.get_current_span().get_span_context() != outer.get_span_context()
         with suppress_tracing():
-            tracer.on_chain_end({}, run_id=run_id)
+            list(stream)
         _assert_outer_is_current(outer)
 
 
