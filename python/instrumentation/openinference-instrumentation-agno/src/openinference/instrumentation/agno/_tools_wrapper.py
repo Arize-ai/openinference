@@ -232,8 +232,18 @@ class _FunctionCallWrapper:
     ) -> Iterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
         """Handle streaming success case: set span attributes and close span."""
         function_result = ""
+        iterator = iter(result)
         try:
-            for item in result:
+            while True:
+                # A generator tool runs its body on each ``next()``, after the tool
+                # span has been deactivated, so the span has to be current for the
+                # duration of that call or everything the body opens becomes a
+                # sibling of the tool span instead of a child of it.
+                with self._activation.use_span(span):
+                    try:
+                        item = next(iterator)
+                    except StopIteration:
+                        break
                 yield item
                 if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
                     function_result += self._parse_content(item.content)
@@ -257,16 +267,28 @@ class _FunctionCallWrapper:
     ) -> AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
         """Handle streaming success case: set span attributes and close span."""
         function_result = ""
-        async for item in result:
-            yield item
-            try:
-                if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
-                    function_result += self._parse_content(item.content)
-                elif isinstance(item, str):
-                    function_result += str(item)
-            except Exception:
-                # Don't break if observability fails
-                pass
+        iterator = result.__aiter__()
+        try:
+            while True:
+                # See _handle_success_streaming: the async generator body runs while
+                # awaiting the next item, so the tool span has to be current then.
+                with self._activation.use_span(span):
+                    try:
+                        item = await iterator.__anext__()
+                    except StopAsyncIteration:
+                        break
+                yield item
+                try:
+                    if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
+                        function_result += self._parse_content(item.content)
+                    elif isinstance(item, str):
+                        function_result += str(item)
+                except Exception:
+                    # Don't break if observability fails
+                    pass
+        except Exception:
+            # Don't break if observability fails
+            pass
 
         span.set_status(trace_api.StatusCode.OK)
         span.set_attributes(
