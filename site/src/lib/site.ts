@@ -12,10 +12,13 @@ export const routeOf = (repoPath: string): string => {
   return route;
 };
 
+const TAGLINE = "Open conventions and instrumentation for observing AI agents with OpenTelemetry.";
+
 export const site = {
   name: "OpenInference",
-  description:
-    "OpenInference is a set of conventions and plugins, complementary to OpenTelemetry, for tracing AI applications.",
+  /** The landing hero's heading, and the site's meta description. */
+  tagline: TAGLINE,
+  description: TAGLINE,
   repo: GITHUB_URL,
   community:
     "https://join.slack.com/t/arize-ai/shared_invite/zt-1px8dcmlf-fmThhDFD_V_48oU7ALan4Q",

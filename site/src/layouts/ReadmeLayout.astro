@@ -1,34 +1,72 @@
 ---
 /**
- * The landing page: the root README, or one of its translations. A hero
- * (the lockup, the README's introduction, the calls to action and the
- * language picker) over the rest of the README in the content column. See
- * DESIGN.md ("Landing").
+ * The landing page: the root README, or one of its translations. Laid out
+ * like the Arize Labs site's home page: a full-bleed art band (the Cupola
+ * photo as a halftone, under the lockup) over the hero copy (the tagline,
+ * the calls to action and the language picker), three pillars, then the
+ * rest of the README in the content column, with page markings in the
+ * margins. See DESIGN.md ("Landing").
  */
-import Lockup from "../assets/openinference-lockup.svg";
+import HeroLockup from "../components/heroes/HeroLockup.astro";
+import HeroPhoto from "../components/heroes/HeroPhoto.astro";
 import LanguagePicker from "../components/LanguagePicker.astro";
+import PageMarkings, { type Run } from "../components/PageMarkings.astro";
+import { heroPhoto } from "../lib/credits";
 import { base, directionOf, site } from "../lib/site";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Props {
-  /** The README's introduction, as HTML (from rehype-readme-intro). */
-  intro?: string;
   /** The README's language code. */
   lang?: string;
 }
 
-const { intro, lang = "en" } = Astro.props;
+const { lang = "en" } = Astro.props;
 const dir = directionOf(lang);
+
+/** What OpenInference is made of, each pointing at where to read more. */
+const pillars = [
+  {
+    name: "Specification",
+    body: "Semantic conventions for how LLM calls, tools, retrievals and agent steps are recorded as spans.",
+    href: `${base}spec/`,
+    cta: "Read the spec",
+  },
+  {
+    name: "Instrumentation",
+    body: "Libraries that trace popular model providers and agent frameworks in Python, JavaScript, Java and Go.",
+    href: "#instrumentation",
+    cta: "Browse packages",
+  },
+  {
+    name: "Any backend",
+    body: "Every trace is plain OpenTelemetry. Send it to Arize Phoenix, Arize AX, Dynatrace or any OTLP collector.",
+    href: "#supported-destinations",
+    cta: "See destinations",
+  },
+];
+
+// Gutter rulers: from under the art band to the README, and alongside the
+// packages. Each README section gets a registration cross.
+const rulerRuns: Run[] = [
+  { from: [".hero .art", "bottom"], to: ["#specification", "top"], fadeIn: 96, fadeOut: 160 },
+  { from: ["#instrumentation", "top"], to: ["#supported-destinations", "top"], fadeIn: 96, fadeOut: 0.2 },
+];
 ---
 
 <BaseLayout>
-  <section class="hero bleed page-grid">
-    <div class="hero-inner">
-      <h1>
-        <Lockup class="lockup" aria-hidden="true" />
-        <span class="visually-hidden">{site.name}</span>
-      </h1>
-      {intro && <p class="lede" lang={lang} dir={dir} set:html={intro} />}
+  <PageMarkings runs={rulerRuns} marks=".readme > h2" />
+  <section class="hero bleed page-grid" aria-labelledby="hero-heading">
+    <div class="band bleed">
+      <div class="art">
+        <HeroPhoto />
+        <HeroLockup />
+      </div>
+      <p class="art-credit frame">
+        <a href={heroPhoto.url}>Photo: {heroPhoto.author}, ISS Cupola</a>
+      </p>
+    </div>
+    <div class="copy">
+      <h1 id="hero-heading">{site.tagline}</h1>
       <div class="actions">
         <a class="button solid" href={`${base}spec/`}>Read the spec</a>
         <a class="button" href={site.repo}>View on GitHub</a>
@@ -36,53 +74,88 @@ const dir = directionOf(lang);
       <LanguagePicker current={lang} />
     </div>
   </section>
+  <ul class="pillars" aria-label={`What ${site.name} is`}>
+    {
+      pillars.map((pillar) => (
+        <li class="tick-card">
+          <h2>{pillar.name}</h2>
+          <p>{pillar.body}</p>
+          <a class="eyebrow" href={pillar.href}>
+            {pillar.cta} →
+          </a>
+        </li>
+      ))
+    }
+  </ul>
   <article class="prose readme" lang={lang} dir={dir}>
     <slot />
   </article>
 </BaseLayout>
 
 <style>
-  /* The one patch of texture on the site: a dot ground behind the hero that
-     fades out before it reaches the edges. */
-  .hero {
+  /*
+   * The hero, as on the Arize Labs home page: a full-bleed art band that
+   * fades into the page, then the copy, centred under it.
+   */
+  .band { position: relative; }
+  .art {
     position: relative;
-    padding-block: var(--space-9) var(--space-8);
+    height: min(78vh, 720px);
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, #000 55%, transparent);
   }
-  .hero::before {
-    content: "";
+  .art > :global(*) { width: 100%; height: 100%; object-fit: cover; }
+  /* The photo's credit, small, at the band's foot on the frame's right edge. */
+  .art-credit {
     position: absolute;
-    inset: 0;
-    z-index: -1;
-    background-image: var(--dot-ground);
-    background-size: var(--dot-pitch) var(--dot-pitch);
-    background-position: center top;
-    mask-image: radial-gradient(ellipse 60% 70% at 50% 45%, #000 20%, transparent 75%);
+    left: 0;
+    right: 0;
+    bottom: var(--space-3);
+    color: var(--dim);
+    font: 500 var(--text-micro) / 1.4 var(--font-mono);
+    letter-spacing: var(--tracking-micro);
+    text-align: end;
+    text-transform: uppercase;
   }
-  .hero-inner {
+  .art-credit a { color: inherit; text-decoration: none; }
+  .art-credit a:hover, .art-credit a:focus-visible { color: var(--fg); }
+  .copy {
     display: grid;
     justify-items: center;
     gap: var(--space-6);
+    padding-top: var(--space-8);
     text-align: center;
   }
-  .lockup { width: auto; height: clamp(120px, 17vw, 200px); }
-  .lede {
-    max-width: 40ch;
-    color: var(--soft);
-    font-size: var(--text-lede);
-    line-height: 1.45;
-    text-wrap: pretty;
+  h1 {
+    max-width: 22ch;
+    font: 600 var(--text-display) / 1.02 var(--font-sans);
+    letter-spacing: var(--tracking-display);
+    text-wrap: balance;
   }
-  /* The underline and hover come from the shared link rule in global.css. */
-  .lede :global(a) { color: var(--fg); }
   .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-3); }
 
+  /* Three cards that say what the project is, between the hero and the
+     README. Their headings are h2s in the outline but read as card titles. */
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+    margin-block: var(--space-9) var(--space-8);
+    padding: 0;
+    list-style: none;
+  }
+  .pillars li { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-6) var(--space-5); }
+  .pillars h2 { font: 600 20px / 1.2 var(--font-sans); letter-spacing: -0.01em; }
+  .pillars p { flex: 1; color: var(--soft); line-height: 1.5; }
+  .pillars a { margin-top: var(--space-4); color: var(--fg); text-decoration: none; }
+  .pillars a:hover, .pillars a:focus-visible { color: var(--accent); }
+
   /*
-   * The README, on one left edge: the content column's. Running text keeps
-   * the reading measure; tables span the column. Each `##` opens a section,
-   * ruled from the one before.
+   * The README fills the page column, text and tables alike, so it has one
+   * left edge and one right edge and sits on the hero's centre line. Each
+   * `##` opens a section, ruled from the one before.
    */
   .readme { padding-bottom: var(--space-8); }
-  .readme > :global(:not(.table-scroll, h2)) { max-width: var(--prose-max); }
   .readme > :global(* + *) { margin-top: var(--space-4); }
   .readme > :global(h2) {
     margin-top: var(--space-8);
@@ -106,13 +179,14 @@ const dir = directionOf(lang);
   .readme > :global(h3 + *) { margin-top: var(--space-3); }
   /* A note after a table ("Requires Go 1.25+") reads as a footnote. */
   .readme > :global(.table-scroll + p) { margin-top: var(--space-5); color: var(--soft); font-size: var(--text-small); }
-  /* The README's lists lead with an emoji, which does a bullet's job. */
-  .readme > :global(ul) { padding: 0; list-style: none; }
-  .readme > :global(ul > li + li) { margin-top: var(--space-2); }
+  /* The README's lists (destinations, community links) are ruled rows. */
+  .readme > :global(ul) { padding: 0; list-style: none; border-top: 1px solid var(--rule); }
+  .readme > :global(ul > li) { padding-block: var(--space-3); border-bottom: 1px solid var(--rule); }
 
   @media (max-width: 720px) {
-    .hero { padding-block: var(--space-8) var(--space-7); }
-    .hero-inner { gap: var(--space-5); }
+    .art { height: auto; aspect-ratio: 4 / 5; }
+    .copy { gap: var(--space-5); padding-top: var(--space-6); }
+    .pillars { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); margin-block: var(--space-8) var(--space-7); }
     .readme { padding-bottom: var(--space-7); }
     .readme > :global(h2) { margin-top: var(--space-7); padding-top: var(--space-7); }
   }

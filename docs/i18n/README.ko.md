@@ -1,5 +1,8 @@
 <p align="center">
-    <img alt="OpenInference" src="https://raw.githubusercontent.com/Arize-ai/phoenix-assets/main/logos/OpenInference/Full%20color/OI-full-horiz.svg" width="40%" height="100%" />
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="../../site/src/assets/brand/openinference-lockup-paper.svg" />
+        <img alt="OpenInference" src="../../site/src/assets/brand/openinference-lockup.svg" width="40%" />
+    </picture>
 </p>
 <p align="center">
     <a href="../../README.md">🇺🇸 English</a> • <a href="README.zh.md">🇨🇳 中文</a> • <a href="README.zh-TW.md">🇹🇼 繁體中文</a> • <a href="README.ja.md">🇯🇵 日本語</a> • <a href="README.pt-PT.md">🇵🇹 Português</a> • <a href="README.pt-BR.md">🇧🇷 Português</a> • <b>🇰🇷 한국어</b> • <a href="README.es.md">🇪🇸 Español</a> • <a href="README.de.md">🇩🇪 Deutsch</a> • <a href="README.fr.md">🇫🇷 Français</a> • <a href="README.he.md">🇮🇱 עברית</a> • <a href="README.ar.md">🇸🇦 العربية</a> • <a href="README.ru.md">🇷🇺 Русский</a> • <a href="README.pl.md">🇵🇱 Polski</a> • <a href="README.cs.md">🇨🇿 Čeština</a> • <a href="README.nl.md">🇳🇱 Nederlands</a> • <a href="README.tr.md">🇹🇷 Türkçe</a> • <a href="README.uk.md">🇺🇦 Українська</a> • <a href="README.vi.md">🇻🇳 Tiếng Việt</a> • <a href="README.tl.md">🇵🇭 Tagalog</a> • <a href="README.id.md">🇮🇩 Indonesia</a> • <a href="README.th.md">🇹🇭 ไทย</a> • <a href="README.hi.md">🇮🇳 हिन्दी</a> • <a href="README.bn.md">🇧🇩 বাংলা</a> • <a href="README.ur.md">🇵🇰 اردو</a> • <a href="README.ro.md">🇷🇴 Română</a> • <a href="README.sv.md">🇸🇪 Svenska</a> • <a href="README.it.md">🇮🇹 Italiano</a> • <a href="README.el.md">🇬🇷 Ελληνικά</a> • <a href="README.hu.md">🇭🇺 Magyar</a> • <a href="README.fi.md">🇫🇮 Suomi</a> • <a href="README.da.md">🇩🇰 Dansk</a> • <a href="README.no.md">🇳🇴 Norsk</a>
@@ -179,19 +182,19 @@ Go 1.25 이상이 필요합니다. [Arize AX](https://arize.com/products/ax?utm_
 
 ## 지원되는 대상
 
-OpenInference는 다음 대상을 스팬 수집기로 지원합니다.
+OpenInference 트레이스는 표준 OpenTelemetry 트레이스이므로 OTLP를 지원하는 모든 백엔드로 보낼 수 있습니다.
 
-- ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
-- ✅ [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
-- ✅ 모든 OTEL 호환 수집기
+- [Arize Phoenix](https://github.com/Arize-ai/phoenix): 오픈 소스이며 OpenInference를 네이티브로 지원합니다.
+- [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference): OpenInference를 네이티브로 지원합니다.
+- [Dynatrace](https://docs.dynatrace.com/docs/observe/dynatrace-for-ai-observability/get-started/openinference): Dynatrace AI Observability의 OpenInference 지원.
+- 모든 OpenTelemetry 수집기 또는 OTLP 호환 백엔드.
 
 ## 커뮤니티
 
-커뮤니티에 참여하여 수천 명의 머신러닝 실무자 및 LLM 관측성 애호가와 교류하세요!
+질문, 버그 제보, 아이디어 모두 환영합니다.
 
-- 🌍 [Slack 커뮤니티](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A)에 참여하세요.
-- 💡 _#phoenix-support_ 채널에서 질문하고 피드백을 남겨 주세요.
-- 🌟 [GitHub](https://github.com/Arize-ai/openinference)에 스타를 남겨 주세요.
-- 🐞 [GitHub Issues](https://github.com/Arize-ai/openinference/issues)로 버그를 제보해 주세요.
-- 𝕏 [X](https://twitter.com/ArizePhoenix)에서 팔로우하세요.
-- 🗺️ [로드맵](https://github.com/orgs/Arize-ai/projects/45)에서 앞으로의 계획을 확인하세요.
+- [Arize Slack 커뮤니티](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A)의 `#phoenix-support` 채널에서 질문하세요.
+- [GitHub Issues](https://github.com/Arize-ai/openinference/issues)에서 버그를 제보하고 기능을 요청하세요.
+- [로드맵](https://github.com/orgs/Arize-ai/projects/45)에서 앞으로의 계획을 확인하세요.
+- X에서 [@ArizePhoenix](https://twitter.com/ArizePhoenix)를 팔로우하세요.
+- GitHub에서 [저장소](https://github.com/Arize-ai/openinference)에 스타를 남겨 주세요.

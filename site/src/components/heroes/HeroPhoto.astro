@@ -1,0 +1,52 @@
+---
+/**
+ * Hero background art for the `art` slot: the ISS Cupola, halftoned (see
+ * hero-photo.ts). A NASA photograph in the public domain, credited on
+ * /credits.html (src/lib/credits.ts) and in the hero. Without WebGL2 or
+ * JavaScript, a greyscale still stands in.
+ */
+import { getImage } from "astro:assets";
+
+import cupola from "../../assets/hero/cupola.jpg";
+import type { PhotoLayout } from "./hero-photo";
+
+// The halftone screen is a few pixels a dot, so the photo needn't be full size.
+const photo = await getImage({ src: cupola, width: 2400, format: "jpg", quality: 80 });
+
+// The Cupola's round nadir window centred behind the lockup, zoomed out so
+// the ring of windows shows whole; on a wide band the photo is narrower than
+// it, and its dark edges fade into the page. The station's interior is mostly
+// shadow, so it prints lightly on the paper ground.
+const layout: PhotoLayout = { focusX: 0.51, focusY: 0.5, fitHeight: 0.9, minWidth: 0.92, paperInk: 0.24 };
+---
+
+<div class="hero-photo" data-hero-photo data-src={photo.src} data-layout={JSON.stringify(layout)} aria-hidden="true">
+  <canvas></canvas>
+  <img class="hero-photo-fallback" src={photo.src} alt="" decoding="async" />
+  <noscript><style>.hero-photo-fallback { display: block !important; }</style></noscript>
+</div>
+
+<style>
+  .hero-photo { position: relative; background: var(--bg); }
+  canvas, .hero-photo-fallback { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hero-photo-fallback {
+    display: none;
+    object-fit: cover;
+    object-position: 51% 50%;
+    filter: grayscale(1) contrast(1.1);
+    opacity: 0.5;
+  }
+  .hero-photo[data-fallback] .hero-photo-fallback { display: block; }
+  .hero-photo[data-fallback] canvas { display: none; }
+</style>
+
+<script>
+  import { mountHeroPhoto, type PhotoLayout } from "./hero-photo";
+
+  for (const host of document.querySelectorAll<HTMLElement>("[data-hero-photo]")) {
+    const canvas = host.querySelector("canvas")!;
+    const layout = JSON.parse(host.dataset.layout!) as PhotoLayout;
+    const fallBack = () => (host.dataset.fallback = "");
+    if (!mountHeroPhoto(canvas, host.dataset.src!, layout, fallBack)) fallBack();
+  }
+</script>

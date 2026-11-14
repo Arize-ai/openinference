@@ -1,5 +1,8 @@
 <p align="center">
-    <img alt="OpenInference" src="https://raw.githubusercontent.com/Arize-ai/phoenix-assets/main/logos/OpenInference/Full%20color/OI-full-horiz.svg" width="40%" height="100%" />
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="../../site/src/assets/brand/openinference-lockup-paper.svg" />
+        <img alt="OpenInference" src="../../site/src/assets/brand/openinference-lockup.svg" width="40%" />
+    </picture>
 </p>
 <p align="center">
     <a href="../../README.md">🇺🇸 English</a> • <b>🇨🇳 中文</b> • <a href="README.zh-TW.md">🇹🇼 繁體中文</a> • <a href="README.ja.md">🇯🇵 日本語</a> • <a href="README.pt-PT.md">🇵🇹 Português</a> • <a href="README.pt-BR.md">🇧🇷 Português</a> • <a href="README.ko.md">🇰🇷 한국어</a> • <a href="README.es.md">🇪🇸 Español</a> • <a href="README.de.md">🇩🇪 Deutsch</a> • <a href="README.fr.md">🇫🇷 Français</a> • <a href="README.he.md">🇮🇱 עברית</a> • <a href="README.ar.md">🇸🇦 العربية</a> • <a href="README.ru.md">🇷🇺 Русский</a> • <a href="README.pl.md">🇵🇱 Polski</a> • <a href="README.cs.md">🇨🇿 Čeština</a> • <a href="README.nl.md">🇳🇱 Nederlands</a> • <a href="README.tr.md">🇹🇷 Türkçe</a> • <a href="README.uk.md">🇺🇦 Українська</a> • <a href="README.vi.md">🇻🇳 Tiếng Việt</a> • <a href="README.tl.md">🇵🇭 Tagalog</a> • <a href="README.id.md">🇮🇩 Indonesia</a> • <a href="README.th.md">🇹🇭 ไทย</a> • <a href="README.hi.md">🇮🇳 हिन्दी</a> • <a href="README.bn.md">🇧🇩 বাংলা</a> • <a href="README.ur.md">🇵🇰 اردو</a> • <a href="README.ro.md">🇷🇴 Română</a> • <a href="README.sv.md">🇸🇪 Svenska</a> • <a href="README.it.md">🇮🇹 Italiano</a> • <a href="README.el.md">🇬🇷 Ελληνικά</a> • <a href="README.hu.md">🇭🇺 Magyar</a> • <a href="README.fi.md">🇫🇮 Suomi</a> • <a href="README.da.md">🇩🇰 Dansk</a> • <a href="README.no.md">🇳🇴 Norsk</a>
@@ -179,19 +182,19 @@ OpenInference 为多种编程语言中的主流机器学习 SDK 和框架提供�
 
 ## 支持的目标端
 
-OpenInference 支持以下目标端作为 Span 收集器。
+OpenInference 链路追踪数据是标准的 OpenTelemetry 追踪数据，因此可以发送到任何接受 OTLP 的后端。
 
-- ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
-- ✅ [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
-- ✅ 任何兼容 OTEL 的收集器
+- [Arize Phoenix](https://github.com/Arize-ai/phoenix)：开源，原生支持 OpenInference。
+- [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)：原生支持 OpenInference。
+- [Dynatrace](https://docs.dynatrace.com/docs/observe/dynatrace-for-ai-observability/get-started/openinference)：Dynatrace AI Observability 支持 OpenInference。
+- 任何 OpenTelemetry 收集器或兼容 OTLP 的后端。
 
 ## 社区与交流
 
-加入我们的社区，与数千名机器学习从业者和 LLM 可观测性爱好者交流！
+欢迎提问、报告缺陷和分享想法。
 
-- 🌍 加入我们的 [Slack 社区](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A)。
-- 💡 在 _#phoenix-support_ 频道提问与反馈。
-- 🌟 在 [GitHub](https://github.com/Arize-ai/openinference) 上为我们点亮 Star。
-- 🐞 通过 [GitHub Issues](https://github.com/Arize-ai/openinference/issues) 报告缺陷。
-- 𝕏 在 [X](https://twitter.com/ArizePhoenix) 上关注我们。
-- 🗺️ 查看我们的 [路线图](https://github.com/orgs/Arize-ai/projects/45)，了解未来的发展方向。
+- 在 [Arize Slack 社区](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A) 的 `#phoenix-support` 频道提问。
+- 在 [GitHub Issues](https://github.com/Arize-ai/openinference/issues) 报告缺陷或提出功能需求。
+- 在 [路线图](https://github.com/orgs/Arize-ai/projects/45) 中查看后续规划。
+- 在 X 上关注 [@ArizePhoenix](https://twitter.com/ArizePhoenix)。
+- 在 GitHub 上为 [本仓库](https://github.com/Arize-ai/openinference) 点亮 Star。

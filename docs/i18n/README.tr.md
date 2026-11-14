@@ -1,5 +1,8 @@
 <p align="center">
-    <img alt="OpenInference" src="https://raw.githubusercontent.com/Arize-ai/phoenix-assets/main/logos/OpenInference/Full%20color/OI-full-horiz.svg" width="40%" height="100%" />
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="../../site/src/assets/brand/openinference-lockup-paper.svg" />
+        <img alt="OpenInference" src="../../site/src/assets/brand/openinference-lockup.svg" width="40%" />
+    </picture>
 </p>
 <p align="center">
     <a href="../../README.md">🇺🇸 English</a> • <a href="README.zh.md">🇨🇳 中文</a> • <a href="README.zh-TW.md">🇹🇼 繁體中文</a> • <a href="README.ja.md">🇯🇵 日本語</a> • <a href="README.pt-PT.md">🇵🇹 Português</a> • <a href="README.pt-BR.md">🇧🇷 Português</a> • <a href="README.ko.md">🇰🇷 한국어</a> • <a href="README.es.md">🇪🇸 Español</a> • <a href="README.de.md">🇩🇪 Deutsch</a> • <a href="README.fr.md">🇫🇷 Français</a> • <a href="README.he.md">🇮🇱 עברית</a> • <a href="README.ar.md">🇸🇦 العربية</a> • <a href="README.ru.md">🇷🇺 Русский</a> • <a href="README.pl.md">🇵🇱 Polski</a> • <a href="README.cs.md">🇨🇿 Čeština</a> • <a href="README.nl.md">🇳🇱 Nederlands</a> • <b>🇹🇷 Türkçe</b> • <a href="README.uk.md">🇺🇦 Українська</a> • <a href="README.vi.md">🇻🇳 Tiếng Việt</a> • <a href="README.tl.md">🇵🇭 Tagalog</a> • <a href="README.id.md">🇮🇩 Indonesia</a> • <a href="README.th.md">🇹🇭 ไทย</a> • <a href="README.hi.md">🇮🇳 हिन्दी</a> • <a href="README.bn.md">🇧🇩 বাংলা</a> • <a href="README.ur.md">🇵🇰 اردو</a> • <a href="README.ro.md">🇷🇴 Română</a> • <a href="README.sv.md">🇸🇪 Svenska</a> • <a href="README.it.md">🇮🇹 Italiano</a> • <a href="README.el.md">🇬🇷 Ελληνικά</a> • <a href="README.hu.md">🇭🇺 Magyar</a> • <a href="README.fi.md">🇫🇮 Suomi</a> • <a href="README.da.md">🇩🇰 Dansk</a> • <a href="README.no.md">🇳🇴 Norsk</a>
@@ -179,19 +182,19 @@ Go 1.25+ gerektirir. [Arize AX](https://arize.com/products/ax?utm_source=docs&ut
 
 ## Desteklenen Hedefler
 
-OpenInference, span toplayıcıları olarak aşağıdaki hedefleri destekler.
+OpenInference trace'leri standart OpenTelemetry trace'leridir, bu nedenle OTLP kabul eden herhangi bir backend'e gönderilebilir.
 
-- ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
-- ✅ [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
-- ✅ OTEL ile uyumlu herhangi bir toplayıcı (collector)
+- [Arize Phoenix](https://github.com/Arize-ai/phoenix): açık kaynaklıdır ve OpenInference'ı doğal olarak destekler.
+- [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference): OpenInference'ı doğal olarak destekler.
+- [Dynatrace](https://docs.dynatrace.com/docs/observe/dynatrace-for-ai-observability/get-started/openinference): Dynatrace AI Observability'de OpenInference desteği.
+- Herhangi bir OpenTelemetry toplayıcısı (collector) veya OTLP uyumlu backend.
 
 ## Topluluk
 
-Binlerce makine öğrenmesi uygulayıcısı ve LLM gözlemlenebilirliği meraklısıyla bağlantı kurmak için topluluğumuza katılın!
+Sorularınızı, hata bildirimlerinizi ve fikirlerinizi bekliyoruz.
 
-- 🌍 [Slack topluluğumuza](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A) katılın.
-- 💡 _#phoenix-support_ kanalında soru sorun ve geri bildirimde bulunun.
-- 🌟 [GitHub](https://github.com/Arize-ai/openinference)'da bize yıldız verin.
-- 🐞 Hataları [GitHub Issues](https://github.com/Arize-ai/openinference/issues) üzerinden bildirin.
-- 𝕏 Bizi [X](https://twitter.com/ArizePhoenix)'te takip edin.
-- 🗺️ Bundan sonra nereye gittiğimizi görmek için [yol haritamıza](https://github.com/orgs/Arize-ai/projects/45) göz atın.
+- Sorularınızı [Arize Slack topluluğunun](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A) `#phoenix-support` kanalında sorun.
+- Hataları bildirin ve özellik isteklerinizi [GitHub Issues](https://github.com/Arize-ai/openinference/issues) üzerinden iletin.
+- Planlananları [yol haritasında](https://github.com/orgs/Arize-ai/projects/45) görün.
+- X'te [@ArizePhoenix](https://twitter.com/ArizePhoenix) hesabını takip edin.
+- GitHub'da [depoya](https://github.com/Arize-ai/openinference) yıldız verin.

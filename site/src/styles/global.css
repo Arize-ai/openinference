@@ -20,7 +20,9 @@ img, svg, video { display: block; max-width: 100%; }
 img { height: auto; }
 h1, h2, h3, h4, p, figure, blockquote, ul, ol { margin: 0; }
 a { color: inherit; }
-::selection { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+/* Selected text: solid signal with ink text, the same in both themes (a
+   translucent signal turns muddy brown on the dark ground). */
+::selection { background: var(--accent); color: var(--color-ink); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -36,7 +38,7 @@ a { color: inherit; }
   display: grid;
   grid-template-columns:
     [full-start] minmax(var(--gutter), 1fr)
-    [content-start] minmax(0, var(--content-max))
+    [content-start] minmax(0, var(--page-max))
     [content-end] minmax(var(--gutter), 1fr)
     [full-end];
 }
@@ -75,6 +77,22 @@ a { color: inherit; }
 .button:hover, .button:focus-visible { background: var(--fg); color: var(--bg); }
 .button.solid { background: var(--fg); color: var(--bg); }
 .button.solid:hover, .button.solid:focus-visible { background: transparent; color: var(--fg); }
+
+/*
+ * Contact-sheet card: a faint fill framed only by 10px corner ticks, drawn
+ * as background layers so it needs no extra markup.
+ */
+.tick-card {
+  --tick-len: 10px;
+  --t: linear-gradient(var(--tick), var(--tick));
+  background:
+    var(--t) top left / var(--tick-len) 1px, var(--t) top left / 1px var(--tick-len),
+    var(--t) top right / var(--tick-len) 1px, var(--t) top right / 1px var(--tick-len),
+    var(--t) bottom left / var(--tick-len) 1px, var(--t) bottom left / 1px var(--tick-len),
+    var(--t) bottom right / var(--tick-len) 1px, var(--t) bottom right / 1px var(--tick-len),
+    var(--card);
+  background-repeat: no-repeat;
+}
 
 .visually-hidden {
   position: absolute !important;
