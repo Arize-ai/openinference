@@ -1,0 +1,28 @@
+---
+import type { GetStaticPaths } from "astro";
+import { getCollection, render } from "astro:content";
+
+import Layout from "../../../layouts/Layout.astro";
+
+const RTL_LANGUAGES = new Set(["ar", "he", "ur"]);
+
+export const getStaticPaths = (async () => {
+  const entries = await getCollection("i18n");
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const lang = entry.id.replace(/^README\./, "");
+const { Content } = await render(entry);
+---
+
+<Layout
+  title="OpenInference"
+  lang={lang}
+  dir={RTL_LANGUAGES.has(lang) ? "rtl" : "ltr"}
+>
+  <Content />
+</Layout>
