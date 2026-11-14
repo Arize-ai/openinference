@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.6...python-openinference-instrumentation-llama-index-v4.7.7) (2026-11-14)
+
+
+### Bug Fixes
+
+* **llama_index:** make the span current while each step of an LLM stream runs ([#4115](https://github.com/Arize-ai/openinference/issues/4115)) ([2890f81](https://github.com/Arize-ai/openinference/commit/2890f8164e3c5bdb5f4a544561936f86bea4c1b9))
+
 ## [4.7.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.5...python-openinference-instrumentation-llama-index-v4.7.6) (2026-11-12)
 
 

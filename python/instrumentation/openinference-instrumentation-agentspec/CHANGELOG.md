@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.21...python-openinference-instrumentation-agentspec-v0.1.22) (2026-11-14)
+
+
+### Bug Fixes
+
+* **agentspec:** handle spans opened with async with instead of raising NotImplementedError ([#4066](https://github.com/Arize-ai/openinference/issues/4066)) ([f9067cd](https://github.com/Arize-ai/openinference/commit/f9067cd5d171d00545615c93197d2b6e705a09c0))
+
 ## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.20...python-openinference-instrumentation-agentspec-v0.1.21) (2026-11-12)
 
 

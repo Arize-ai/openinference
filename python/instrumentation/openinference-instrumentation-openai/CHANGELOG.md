@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.74](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.73...python-openinference-instrumentation-openai-v0.1.74) (2026-11-14)
+
+
+### Features
+
+* **openai:** record the base URL host as server.address and server.port ([#4054](https://github.com/Arize-ai/openinference/issues/4054)) ([eb5f2e6](https://github.com/Arize-ai/openinference/commit/eb5f2e60433532dc6d6306835cff07ad9b734289))
+
 ## [0.1.73](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.72...python-openinference-instrumentation-openai-v0.1.73) (2026-11-12)
 
 

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.45...python-openinference-semantic-conventions-v0.1.46) (2026-11-14)
+
+
+### Features
+
+* add explicit name and description for advertised LLM tools ([#3630](https://github.com/Arize-ai/openinference/issues/3630)) ([0101ec1](https://github.com/Arize-ai/openinference/commit/0101ec1661dbdbb80d85b961826e3eae1d45a900))
+* **instrumentation:** apply image masking to input.images and output.images ([#3695](https://github.com/Arize-ai/openinference/issues/3695)) ([b739a63](https://github.com/Arize-ai/openinference/commit/b739a6357839aa2998258381d9c197f35888a136))
+* **langchain:** read LangSmith params for model name, provider and system ([#4274](https://github.com/Arize-ai/openinference/issues/4274)) ([10bb8cc](https://github.com/Arize-ai/openinference/commit/10bb8ccd5a12af36484246ec9095c749926c1780))
+* **ollama:** add Ollama instrumentor ([#3348](https://github.com/Arize-ai/openinference/issues/3348)) ([237ce2b](https://github.com/Arize-ai/openinference/commit/237ce2b413e89782ad93431d39581a1ee44cad95))
+* **semconv:** add audio and video semantic conventions ([#3700](https://github.com/Arize-ai/openinference/issues/3700)) ([6d9f813](https://github.com/Arize-ai/openinference/commit/6d9f81360eaf2ec90e03c43d2f0c617909ee2f4d))
+* **semconv:** add decision model attributes ([#3900](https://github.com/Arize-ai/openinference/issues/3900)) ([53b7a0e](https://github.com/Arize-ai/openinference/commit/53b7a0e2c7b0dd2622a9390a124e737ea7d50759))
+* **semconv:** add DECISION span kind ([#3825](https://github.com/Arize-ai/openinference/issues/3825)) ([a1f276c](https://github.com/Arize-ai/openinference/commit/a1f276cdbe16ceed207973b461074410846a4cfc))
+* **semconv:** add document content semantic conventions ([#4099](https://github.com/Arize-ai/openinference/issues/4099)) ([dc63d01](https://github.com/Arize-ai/openinference/commit/dc63d01d474e0fa14eb379f0d32d9808990e9b23))
+* **semconv:** add doubleword as a well-known llm.provider value ([#4249](https://github.com/Arize-ai/openinference/issues/4249)) ([7f295ae](https://github.com/Arize-ai/openinference/commit/7f295ae26cff766ee6057b50561ce6fa285d2222))
+* **semconv:** add llm.input_model_name and llm.output_model_name ([#3585](https://github.com/Arize-ai/openinference/issues/3585)) ([1fe497f](https://github.com/Arize-ai/openinference/commit/1fe497f1d9f45a07eee55d97fe185e020560f9c7))
+* **semconv:** add meta, zai, and minimax as well-known llm.provider values ([#3671](https://github.com/Arize-ai/openinference/issues/3671)) ([fd01216](https://github.com/Arize-ai/openinference/commit/fd012164266f3e2eec58017e3880aea505667a16))
+* **semconv:** add oracle as a well-known llm.provider value ([#3780](https://github.com/Arize-ai/openinference/issues/3780)) ([a719562](https://github.com/Arize-ai/openinference/commit/a719562e20437d433a2e4cfb599256e22ec04531))
+* **semconv:** add span-kind-independent image attributes ([0ff0af2](https://github.com/Arize-ai/openinference/commit/0ff0af2ee2ad300daddec58099248fb4e397a7aa))
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
 ## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.44...python-openinference-semantic-conventions-v0.1.45) (2026-11-12)
 
 

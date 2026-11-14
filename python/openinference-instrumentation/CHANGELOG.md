@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.1.79](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.78...python-openinference-instrumentation-v0.1.79) (2026-11-14)
+
+
+### Features
+
+* add decision span decorators and attribute helpers (JS + Python) ([#3897](https://github.com/Arize-ai/openinference/issues/3897)) ([0d26a59](https://github.com/Arize-ai/openinference/commit/0d26a5983cd8ba3f9c0afcadd102b15887887795))
+* add explicit name and description for advertised LLM tools ([#3630](https://github.com/Arize-ai/openinference/issues/3630)) ([0101ec1](https://github.com/Arize-ai/openinference/commit/0101ec1661dbdbb80d85b961826e3eae1d45a900))
+* **cohere:** instrument ClientV2.rerank ([#3530](https://github.com/Arize-ai/openinference/issues/3530)) ([4f34a5a](https://github.com/Arize-ai/openinference/commit/4f34a5a69191569c06b893f7f974e1a41de84c86))
+* **instrumentation:** add annotation attribute helpers ([#3476](https://github.com/Arize-ai/openinference/issues/3476)) ([0168198](https://github.com/Arize-ai/openinference/commit/0168198eda399e797b8d0637e8caca4ccd5b148e))
+* **instrumentation:** add hide_retrieval_documents TraceConfig option ([#3829](https://github.com/Arize-ai/openinference/issues/3829)) ([19363a0](https://github.com/Arize-ai/openinference/commit/19363a0a6d978b8200ed5f73a00609f3f6cdf772))
+* **instrumentation:** add request and response model name attributes ([#3613](https://github.com/Arize-ai/openinference/issues/3613)) ([7010ce3](https://github.com/Arize-ai/openinference/commit/7010ce3d08db32ebfced1f50ed586976274b489c))
+* **instrumentation:** apply image masking to input.images and output.images ([#3695](https://github.com/Arize-ai/openinference/issues/3695)) ([b739a63](https://github.com/Arize-ai/openinference/commit/b739a6357839aa2998258381d9c197f35888a136))
+* **instrumentation:** mask document attributes in TraceConfig ([#4155](https://github.com/Arize-ai/openinference/issues/4155)) ([e1902c0](https://github.com/Arize-ai/openinference/commit/e1902c018e1aa30dbbe0c30e20d745328889f5c4))
+* **langchain:** read LangSmith params for model name, provider and system ([#4274](https://github.com/Arize-ai/openinference/issues/4274)) ([10bb8cc](https://github.com/Arize-ai/openinference/commit/10bb8ccd5a12af36484246ec9095c749926c1780))
+* **ollama:** add Ollama instrumentor ([#3348](https://github.com/Arize-ai/openinference/issues/3348)) ([237ce2b](https://github.com/Arize-ai/openinference/commit/237ce2b413e89782ad93431d39581a1ee44cad95))
+* **semconv:** add decision model attributes ([#3900](https://github.com/Arize-ai/openinference/issues/3900)) ([53b7a0e](https://github.com/Arize-ai/openinference/commit/53b7a0e2c7b0dd2622a9390a124e737ea7d50759))
+* **semconv:** add DECISION span kind ([#3825](https://github.com/Arize-ai/openinference/issues/3825)) ([a1f276c](https://github.com/Arize-ai/openinference/commit/a1f276cdbe16ceed207973b461074410846a4cfc))
+* **semconv:** add doubleword as a well-known llm.provider value ([#4249](https://github.com/Arize-ai/openinference/issues/4249)) ([7f295ae](https://github.com/Arize-ai/openinference/commit/7f295ae26cff766ee6057b50561ce6fa285d2222))
+* **semconv:** add meta, zai, and minimax as well-known llm.provider values ([#3671](https://github.com/Arize-ai/openinference/issues/3671)) ([fd01216](https://github.com/Arize-ai/openinference/commit/fd012164266f3e2eec58017e3880aea505667a16))
+* **semconv:** add oracle as a well-known llm.provider value ([#3780](https://github.com/Arize-ai/openinference/issues/3780)) ([a719562](https://github.com/Arize-ai/openinference/commit/a719562e20437d433a2e4cfb599256e22ec04531))
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.41 ([#3907](https://github.com/Arize-ai/openinference/issues/3907)) ([04fe33f](https://github.com/Arize-ai/openinference/commit/04fe33f2b10147ec4481983f725d89a9ca42fc5f))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+* **instrumentation:** make suppress_tracing usable with `async with` ([#3554](https://github.com/Arize-ai/openinference/issues/3554)) ([2045da8](https://github.com/Arize-ai/openinference/commit/2045da8a6f81d94d39130b88840307bcd49559df))
+* **instrumentation:** preserve context attributes in async coroutine decorators ([#3583](https://github.com/Arize-ai/openinference/issues/3583)) ([#3662](https://github.com/Arize-ai/openinference/issues/3662)) ([d818097](https://github.com/Arize-ai/openinference/commit/d818097d43a345474b4b62cf6f207a52671b890d))
+* **instrumentation:** raise a real error for unparsable bool env vars ([215d0de](https://github.com/Arize-ai/openinference/commit/215d0de54177a87e5a7b980d04c6746538ca32f9))
+* **instrumentation:** reject a Windows drive path as a blob uploader reference ([#4107](https://github.com/Arize-ai/openinference/issues/4107)) ([5aa69c6](https://github.com/Arize-ai/openinference/commit/5aa69c6d67519c802ceed47342947c1bebef2159))
+* type-guard llm message role and content attributes ([#4194](https://github.com/Arize-ai/openinference/issues/4194)) ([98aa84b](https://github.com/Arize-ai/openinference/commit/98aa84b5e7f5cd2423bcfccaf61e4645890795db))
+
 ## [0.1.78](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.77...python-openinference-instrumentation-v0.1.78) (2026-11-12)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-together-v0.1.20...python-openinference-instrumentation-together-v0.1.21) (2026-11-14)
+
+
+### Bug Fixes
+
+* **together:** end non-stream spans on cancellation ([#4213](https://github.com/Arize-ai/openinference/issues/4213)) ([f35f8be](https://github.com/Arize-ai/openinference/commit/f35f8bed63bba0aab1db0e3c161189ab56376846))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-together-v0.1.19...python-openinference-instrumentation-together-v0.1.20) (2026-11-12)
 
 
