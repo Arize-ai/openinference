@@ -1,6 +1,7 @@
 import json
 from abc import ABC
 from copy import copy, deepcopy
+from dataclasses import asdict, is_dataclass
 from enum import Enum
 from inspect import signature
 from logging import getLogger
@@ -39,6 +40,8 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
 )
 
 if TYPE_CHECKING:
@@ -308,6 +311,7 @@ class _LMCallWrapper(_WithTracer):
                         **dict(_llm_provider(instance)),
                         **dict(_llm_invocation_parameters(instance, arguments)),
                         **dict(_llm_input_messages(arguments)),
+                        **dict(_llm_tools(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
@@ -321,6 +325,7 @@ class _LMCallWrapper(_WithTracer):
                         {
                             **dict(_output_value_and_mime_type(response)),
                             **dict(_llm_output_messages(response)),
+                            **dict(_llm_token_counts(response)),
                         }
                     )
                 )
@@ -355,6 +360,7 @@ class _LMAcallWrapper(_WithTracer):
                         **dict(_llm_provider(instance)),
                         **dict(_llm_invocation_parameters(instance, arguments)),
                         **dict(_llm_input_messages(arguments)),
+                        **dict(_llm_tools(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
@@ -368,6 +374,7 @@ class _LMAcallWrapper(_WithTracer):
                         {
                             **dict(_output_value_and_mime_type(response)),
                             **dict(_llm_output_messages(response)),
+                            **dict(_llm_token_counts(response)),
                         }
                     )
                 )
@@ -1004,11 +1011,15 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
 
 
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    if _is_lm15_request(request := arguments.get("prompt")):
+        arguments = {**arguments, "prompt": _lm15_request_value(request)}
     yield INPUT_MIME_TYPE, JSON
     yield INPUT_VALUE, safe_json_dumps(arguments)
 
 
 def _output_value_and_mime_type(response: Any) -> Iterator[Tuple[str, Any]]:
+    if _is_lm15_response(response):
+        response = _lm15_response_value(response)
     yield OUTPUT_VALUE, safe_json_dumps(response)
     yield OUTPUT_MIME_TYPE, JSON
 
@@ -1069,7 +1080,9 @@ def _llm_provider(lm: "LM") -> Iterator[Tuple[str, Any]]:
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    if isinstance(prompt := arguments.get("prompt"), str):
+    if _is_lm15_request(prompt := arguments.get("prompt")):
+        yield LLM_INPUT_MESSAGES, _lm15_request_messages(prompt)
+    elif isinstance(prompt, str):
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
     elif isinstance(messages := arguments.get("messages"), list):
@@ -1083,7 +1096,9 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
 
 
 def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
-    if isinstance(response, Iterable):
+    if _is_lm15_response(response):
+        yield LLM_OUTPUT_MESSAGES, [_lm15_message("assistant", response.message.parts)]
+    elif isinstance(response, Iterable):
         for i, message in enumerate(response):
             if isinstance(message, str):
                 yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", "assistant"
@@ -1093,9 +1108,160 @@ def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
 def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
     kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
+    if not kwargs and isinstance(_ := arguments.get("options"), dict):
+        kwargs = _
     combined_kwargs = lm_kwargs | kwargs
+    if _is_lm15_request(request := arguments.get("prompt")):
+        combined_kwargs |= _lm15_config_value(getattr(request, "config", None))
     combined_kwargs.pop("api_key", None)
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(combined_kwargs)
+
+
+def _llm_tools(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    if not _is_lm15_request(request := arguments.get("prompt")):
+        return
+    for index, tool in enumerate(getattr(request, "tools", None) or ()):
+        if getattr(tool, "type", None) != "function":
+            continue
+        schema = {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.parameters,
+            },
+        }
+        yield f"{LLM_TOOLS}.{index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(schema)
+
+
+def _llm_token_counts(response: Any) -> Iterator[Tuple[str, Any]]:
+    if not _is_lm15_response(response):
+        return
+    usage = response.usage
+    for attribute, field_name in (
+        (LLM_TOKEN_COUNT_PROMPT, "input_tokens"),
+        (LLM_TOKEN_COUNT_COMPLETION, "output_tokens"),
+        (LLM_TOKEN_COUNT_TOTAL, "total_tokens"),
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, "cache_read_tokens"),
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, "cache_write_tokens"),
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, "input_audio_tokens"),
+        (LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, "reasoning_tokens"),
+        (LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, "output_audio_tokens"),
+    ):
+        if (count := getattr(usage, field_name, None)) is not None:
+            yield attribute, count
+
+
+# DSPy 3.5 replaced the OpenAI-style `messages`/`list[str]` LM interface with the
+# provider-neutral `dspy.lm15.Request`/`Response` types. They are matched by shape
+# rather than imported so that older DSPy versions keep working.
+def _is_lm15_request(value: Any) -> bool:
+    if isinstance(value, (str, Mapping)):
+        return False
+    return hasattr(value, "messages") and hasattr(value, "config")
+
+
+def _is_lm15_response(value: Any) -> bool:
+    return hasattr(value, "message") and hasattr(value, "usage") and hasattr(value, "finish_reason")
+
+
+def _lm15_part_type(part: Any) -> Optional[str]:
+    return getattr(part, "type", None)
+
+
+def _lm15_text(parts: Any) -> Optional[str]:
+    texts = [part.text for part in parts or () if _lm15_part_type(part) == "text"]
+    return "".join(texts) if texts else None
+
+
+def _lm15_message(role: str, parts: Any) -> Dict[str, Any]:
+    tool_calls = [
+        {
+            TOOL_CALL_ID: part.id,
+            TOOL_CALL_FUNCTION_NAME: part.name,
+            TOOL_CALL_FUNCTION_ARGUMENTS_JSON: safe_json_dumps(part.input),
+        }
+        for part in parts or ()
+        if _lm15_part_type(part) == "tool_call"
+    ]
+    return {
+        MESSAGE_ROLE: role,
+        MESSAGE_CONTENT: _lm15_text(parts),
+        MESSAGE_TOOL_CALLS: tool_calls or None,
+    }
+
+
+def _lm15_request_messages(request: Any) -> List[Dict[str, Any]]:
+    messages = []
+    if system := getattr(request, "system", None):
+        content = system if isinstance(system, str) else _lm15_text(system)
+        messages.append({MESSAGE_ROLE: "system", MESSAGE_CONTENT: content})
+    for message in request.messages:
+        tool_results = [part for part in message.parts if _lm15_part_type(part) == "tool_result"]
+        other_parts = [part for part in message.parts if _lm15_part_type(part) != "tool_result"]
+        if other_parts or not tool_results:
+            messages.append(_lm15_message(message.role, other_parts))
+        for result in tool_results:
+            messages.append(
+                {
+                    MESSAGE_ROLE: "tool",
+                    MESSAGE_TOOL_CALL_ID: result.id,
+                    MESSAGE_NAME: getattr(result, "name", None),
+                    MESSAGE_CONTENT: _lm15_text(result.content),
+                }
+            )
+    return messages
+
+
+def _lm15_part_value(part: Any) -> Dict[str, Any]:
+    part_type = _lm15_part_type(part)
+    if part_type in ("text", "thinking", "refusal"):
+        return {"type": part_type, "text": getattr(part, "text", None)}
+    if part_type == "tool_call":
+        return {"type": part_type, "id": part.id, "name": part.name, "input": part.input}
+    if part_type == "tool_result":
+        return {
+            "type": part_type,
+            "id": part.id,
+            "name": getattr(part, "name", None),
+            "content": [_lm15_part_value(content) for content in part.content],
+        }
+    # Media payloads can be large binary blobs; record only their kind.
+    return {"type": part_type}
+
+
+def _lm15_config_value(config: Any) -> Dict[str, Any]:
+    if not is_dataclass(config) or isinstance(config, type):
+        return {}
+    return {key: value for key, value in asdict(config).items() if value not in (None, (), [], {})}
+
+
+def _lm15_request_value(request: Any) -> Dict[str, Any]:
+    system = getattr(request, "system", None)
+    return {
+        "model": getattr(request, "model", None),
+        "system": system if system is None or isinstance(system, str) else _lm15_text(system),
+        "messages": [
+            {"role": message.role, "parts": [_lm15_part_value(part) for part in message.parts]}
+            for message in request.messages
+        ],
+        "tools": [getattr(tool, "name", None) for tool in getattr(request, "tools", None) or ()],
+        "config": _lm15_config_value(request.config),
+    }
+
+
+def _lm15_response_value(response: Any) -> Dict[str, Any]:
+    usage = response.usage
+    return {
+        "id": getattr(response, "id", None),
+        "model": getattr(response, "model", None),
+        "finish_reason": response.finish_reason,
+        "message": {
+            "role": response.message.role,
+            "parts": [_lm15_part_value(part) for part in response.message.parts],
+        },
+        "usage": asdict(usage) if is_dataclass(usage) and not isinstance(usage, type) else None,
+    }
 
 
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
@@ -1190,3 +1356,23 @@ RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
+MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
+MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
