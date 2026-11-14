@@ -1,0 +1,26 @@
+---
+/**
+ * A dimension line in a construction diagram: the measured span, with a
+ * short tick across each end. Coordinates are the diagram's own units.
+ */
+export interface Props {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  /** Half the length of each end tick. */
+  tick?: number;
+}
+
+const { x1, y1, x2, y2, tick = 12 } = Astro.props;
+const length = Math.hypot(x2 - x1, y2 - y1);
+// The unit normal to the span, for the ticks.
+const nx = (-(y2 - y1) / length) * tick;
+const ny = ((x2 - x1) / length) * tick;
+---
+
+<g class="st">
+  <line {x1} {y1} {x2} {y2} />
+  <line x1={x1 - nx} y1={y1 - ny} x2={x1 + nx} y2={y1 + ny} />
+  <line x1={x2 - nx} y1={y2 - ny} x2={x2 + nx} y2={y2 + ny} />
+</g>

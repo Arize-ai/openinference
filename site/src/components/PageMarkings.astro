@@ -1,0 +1,167 @@
+---
+/**
+ * Page markings: a fixed-pitch dot ground in the margins, plus gutter rulers
+ * drawn over chosen stretches of the page. Ported as-is from the Arize Labs
+ * site (github.com/arize-labs/website, src/components/PageMarkings.astro).
+ *
+ * The rulers stand on the outer frame (--frame-max apart, centred, holding
+ * --frame-edge from a narrower window's edge; see tokens.css), which the
+ * header also aligns to; the dot ground stops at the same lines. Each run is measured from its own start, fades in and out, and marks
+ * the starts of `marks` elements that fall inside it with a registration
+ * cross. Ruler numbers sit outside the line while there is room and flip
+ * inside when there is not. Everything drops out at the phone breakpoint.
+ *
+ * A run edge is [selector, "top" | "middle" | "bottom"] of the first match.
+ * fadeOut below 1 is a fraction of the run's height; otherwise it is pixels.
+ */
+type Edge = [selector: string, side: "top" | "middle" | "bottom"];
+export interface Run {
+  from: Edge;
+  to: Edge;
+  fadeIn?: number;
+  fadeOut?: number;
+}
+export interface Props {
+  runs: Run[];
+  /** Elements whose top edge gets a registration cross. */
+  marks?: string;
+}
+const { runs, marks = "main > section" } = Astro.props;
+---
+
+<div class="page-markings" data-page-markings data-runs={JSON.stringify(runs)} data-marks={marks} aria-hidden="true"></div>
+
+<style>
+  :global(body:has([data-page-markings])) { position: relative; }
+
+  .page-markings {
+    --rule-x: min(var(--frame-max) / 2, 50% - var(--frame-edge));
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  /* The dot ground: only the margins beyond the ruler lines. */
+  .page-markings::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: var(--dot-ground);
+    background-size: var(--dot-pitch) var(--dot-pitch);
+    background-position: center top;
+    mask-image: linear-gradient(
+      to right,
+      #000 calc(50% - var(--rule-x)),
+      transparent calc(50% - var(--rule-x)),
+      transparent calc(50% + var(--rule-x) + 1px),
+      #000 calc(50% + var(--rule-x) + 1px)
+    );
+  }
+  .page-markings :global(canvas) {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    opacity: var(--marking-opacity);
+  }
+
+  @media (max-width: 720px) {
+    .page-markings { display: none; }
+  }
+</style>
+
+<script>
+  type Edge = [selector: string, side: "top" | "middle" | "bottom"];
+  type Run = { from: Edge; to: Edge; fadeIn?: number; fadeOut?: number };
+
+  const MINOR = 16, MID = 80, MAJOR = 320, LABEL_ROOM = 48;
+  const phone = matchMedia("(max-width: 720px)");
+
+  const edgeY = ([selector, side]: Edge) => {
+    const el = document.querySelector(selector);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return scrollY + (side === "top" ? r.top : side === "bottom" ? r.bottom : r.top + r.height / 2);
+  };
+
+  function plus(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
+    ctx.beginPath();
+    ctx.moveTo(x - s, y); ctx.lineTo(x + s, y);
+    ctx.moveTo(x, y - s); ctx.lineTo(x, y + s);
+    ctx.stroke();
+  }
+
+  function draw(host: HTMLElement, run: Run, el: HTMLCanvasElement) {
+    const y0 = edgeY(run.from), y1 = edgeY(run.to);
+    const h = y0 == null || y1 == null ? 0 : Math.round(y1 - y0);
+    el.hidden = h < 40 || phone.matches;
+    if (el.hidden) return;
+
+    const styles = getComputedStyle(document.documentElement);
+    const span = parseFloat(styles.getPropertyValue("--frame-max")) || 1400;
+    const edge = parseFloat(styles.getPropertyValue("--frame-edge")) || 40;
+    const w = document.body.clientWidth;
+    const half = Math.min(span / 2, w / 2 - edge);
+    const l = Math.round(w / 2 - half), r = Math.round(w / 2 + half);
+    const out = l >= LABEL_ROOM ? 1 : -1;
+    const fadeIn = run.fadeIn ?? 96;
+    const fo = run.fadeOut ?? 160;
+    const fadeOut = fo < 1 ? fo * h : fo;
+    Object.assign(el.style, {
+      top: `${y0}px`,
+      height: `${h}px`,
+      maskImage: `linear-gradient(#0000, #000 ${fadeIn}px, #000 calc(100% - ${fadeOut}px), #0000)`,
+    });
+
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    el.width = Math.round(w * dpr);
+    el.height = Math.round(h * dpr);
+    const ctx = el.getContext("2d")!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const fg = styles.getPropertyValue("--fg").trim();
+    const mono = styles.getPropertyValue("--font-mono").trim();
+    ctx.fillStyle = ctx.strokeStyle = fg;
+    ctx.lineWidth = 1;
+    ctx.font = `400 9px ${mono}`;
+    ctx.textBaseline = "alphabetic";
+    if ("letterSpacing" in ctx) ctx.letterSpacing = "0.54px";
+
+    for (const [x, dir] of [[l, -1], [r, 1]]) {
+      ctx.fillRect(x, 0, 1, h);
+      const side = dir * out;
+      ctx.textAlign = side < 0 ? "right" : "left";
+      for (let y = 0; y <= h; y += MINOR) {
+        const len = y % MAJOR === 0 ? 12 : y % MID === 0 ? 7 : 3;
+        ctx.fillRect(dir < 0 ? x - len : x + 1, y, len, 1);
+        if (y % MAJOR === 0) ctx.fillText(String(y).padStart(4, "0"), x + side * 18, y + 3);
+      }
+    }
+    for (const s of document.querySelectorAll(host.dataset.marks!)) {
+      const y = s.getBoundingClientRect().top + scrollY - y0!;
+      if (y <= 0 || y >= h) continue;
+      plus(ctx, l + 0.5, Math.round(y) + 0.5, 6);
+      plus(ctx, r + 0.5, Math.round(y) + 0.5, 6);
+    }
+  }
+
+  for (const host of document.querySelectorAll<HTMLElement>("[data-page-markings]")) {
+    const runs: Run[] = JSON.parse(host.dataset.runs ?? "[]");
+    const canvases = runs.map(() => host.appendChild(document.createElement("canvas")));
+    let pending = false;
+    const redraw = () => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        pending = false;
+        runs.forEach((run, i) => {
+          try { draw(host, run, canvases[i]); } catch (e) { console.error("page markings", e); }
+        });
+      });
+    };
+    new ResizeObserver(redraw).observe(document.querySelector("main")!);
+    addEventListener("resize", redraw);
+    phone.addEventListener("change", redraw);
+    new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    document.fonts.ready.then(redraw);
+    redraw();
+  }
+</script>

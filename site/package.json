@@ -9,16 +9,19 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "brand": "node scripts/build-brand.mjs"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.9",
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource-variable/urbanist": "^5.3.0",
     "@pierre/theme": "^2.0.0",
-    "astro": "^7.4.12",
-    "hast-util-to-html": "^9.0.6"
+    "astro": "^7.4.12"
   },
   "packageManager": "pnpm@10.29.3",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "sharp": "0.34.5"
+  }
 }

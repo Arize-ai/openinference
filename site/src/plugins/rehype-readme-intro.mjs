@@ -1,19 +1,14 @@
 // @ts-check
 /**
- * Lifts the README's opening into the landing page's hero.
+ * Drops the README's GitHub opening from the landing page.
  *
  * The root README and its translations open with a GitHub banner (the logo,
  * the language switcher and two shields.io badges, as centred raw HTML)
- * followed by a one-paragraph introduction. The site draws its own hero and
- * language picker, so this plugin drops the banner and moves the
- * introduction into `remarkPluginFrontmatter.intro` as HTML for the page to
- * place under its title.
- *
- * Run it after rehype-repo-links, so links in the introduction are already
- * rewritten. Other markdown (the spec) is left alone.
+ * followed by a one-paragraph introduction. The site draws its own hero
+ * (the tagline, the calls to action and the language picker), so this
+ * plugin drops the banner and the introduction; they stay in the README
+ * for GitHub. Other markdown (the spec) is left alone.
  */
-import { toHtml } from "hast-util-to-html";
-
 import { repoPathOf } from "./rehype-repo-links.mjs";
 
 const README = /^(?:README|docs\/i18n\/README\.[\w-]+)\.md$/;
@@ -40,12 +35,7 @@ export default function rehypeReadmeIntro() {
       i += 1;
     }
     const intro = children[i];
-    if (intro?.type === "element" && intro.tagName === "p") {
-      file.data.astro ??= {};
-      file.data.astro.frontmatter ??= {};
-      file.data.astro.frontmatter.intro = toHtml(intro.children);
-      i += 1;
-    }
+    if (intro?.type === "element" && intro.tagName === "p") i += 1;
     children.splice(0, i);
   };
 }

@@ -1,5 +1,8 @@
 <p align="center">
-    <img alt="OpenInference" src="https://raw.githubusercontent.com/Arize-ai/phoenix-assets/main/logos/OpenInference/Full%20color/OI-full-horiz.svg" width="40%" height="100%" />
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="../../site/src/assets/brand/openinference-lockup-paper.svg" />
+        <img alt="OpenInference" src="../../site/src/assets/brand/openinference-lockup.svg" width="40%" />
+    </picture>
 </p>
 <p align="center">
     <a href="../../README.md">🇺🇸 English</a> • <a href="README.zh.md">🇨🇳 中文</a> • <a href="README.zh-TW.md">🇹🇼 繁體中文</a> • <a href="README.ja.md">🇯🇵 日本語</a> • <a href="README.pt-PT.md">🇵🇹 Português</a> • <a href="README.pt-BR.md">🇧🇷 Português</a> • <a href="README.ko.md">🇰🇷 한국어</a> • <a href="README.es.md">🇪🇸 Español</a> • <a href="README.de.md">🇩🇪 Deutsch</a> • <a href="README.fr.md">🇫🇷 Français</a> • <a href="README.he.md">🇮🇱 עברית</a> • <a href="README.ar.md">🇸🇦 العربية</a> • <b>🇷🇺 Русский</b> • <a href="README.pl.md">🇵🇱 Polski</a> • <a href="README.cs.md">🇨🇿 Čeština</a> • <a href="README.nl.md">🇳🇱 Nederlands</a> • <a href="README.tr.md">🇹🇷 Türkçe</a> • <a href="README.uk.md">🇺🇦 Українська</a> • <a href="README.vi.md">🇻🇳 Tiếng Việt</a> • <a href="README.tl.md">🇵🇭 Tagalog</a> • <a href="README.id.md">🇮🇩 Indonesia</a> • <a href="README.th.md">🇹🇭 ไทย</a> • <a href="README.hi.md">🇮🇳 हिन्दी</a> • <a href="README.bn.md">🇧🇩 বাংলা</a> • <a href="README.ur.md">🇵🇰 اردو</a> • <a href="README.ro.md">🇷🇴 Română</a> • <a href="README.sv.md">🇸🇪 Svenska</a> • <a href="README.it.md">🇮🇹 Italiano</a> • <a href="README.el.md">🇬🇷 Ελληνικά</a> • <a href="README.hu.md">🇭🇺 Magyar</a> • <a href="README.fi.md">🇫🇮 Suomi</a> • <a href="README.da.md">🇩🇰 Dansk</a> • <a href="README.no.md">🇳🇴 Norsk</a>
@@ -179,19 +182,19 @@ OpenInference предоставляет набор инструментиров
 
 ## Поддерживаемые назначения
 
-OpenInference поддерживает следующие назначения в качестве коллекторов спанов.
+Трейсы OpenInference — это стандартные трейсы OpenTelemetry, поэтому их можно отправлять в любой бэкенд, который принимает OTLP.
 
-- ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
-- ✅ [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
-- ✅ Любой OTEL-совместимый коллектор
+- [Arize Phoenix](https://github.com/Arize-ai/phoenix): с открытым исходным кодом и встроенной поддержкой OpenInference.
+- [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference): встроенная поддержка OpenInference.
+- [Dynatrace](https://docs.dynatrace.com/docs/observe/dynatrace-for-ai-observability/get-started/openinference): поддержка OpenInference в Dynatrace AI Observability.
+- Любой коллектор OpenTelemetry или OTLP-совместимый бэкенд.
 
 ## Сообщество
 
-Присоединяйтесь к нашему сообществу, чтобы общаться с тысячами специалистов по машинному обучению и энтузиастов наблюдаемости LLM!
+Мы рады вопросам, сообщениям об ошибках и идеям.
 
-- 🌍 Присоединяйтесь к нашему [сообществу в Slack](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A).
-- 💡 Задавайте вопросы и оставляйте отзывы в канале _#phoenix-support_.
-- 🌟 Поставьте звезду нашему репозиторию на [GitHub](https://github.com/Arize-ai/openinference).
-- 🐞 Сообщайте об ошибках через [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
-- 𝕏 Подписывайтесь на нас в [X](https://twitter.com/ArizePhoenix).
-- 🗺️ Ознакомьтесь с нашей [дорожной картой](https://github.com/orgs/Arize-ai/projects/45), чтобы узнать, куда мы движемся дальше.
+- Задавайте вопросы в канале `#phoenix-support` [сообщества Arize в Slack](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A).
+- Сообщайте об ошибках и предлагайте новые функции в [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
+- Узнайте о планах из [дорожной карты](https://github.com/orgs/Arize-ai/projects/45).
+- Подписывайтесь на [@ArizePhoenix](https://twitter.com/ArizePhoenix) в X.
+- Поставьте звезду [репозиторию](https://github.com/Arize-ai/openinference) на GitHub.

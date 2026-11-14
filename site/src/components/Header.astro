@@ -1,5 +1,5 @@
 ---
-import Lockup from "../assets/openinference-lockup.svg";
+import BrandArt from "./brand/BrandArt.astro";
 import { base, nav, site } from "../lib/site";
 
 const path = Astro.url.pathname;
@@ -10,18 +10,14 @@ const isCurrent = (href: string) => path.startsWith(href);
   {/* On the wide frame on every page, so it never shifts between pages. */}
   <div class="bar frame">
     <a class="home" href={base} aria-label={`${site.name} home`}>
-      <Lockup class="lockup" aria-hidden="true" />
+      <BrandArt name="lockup" class="lockup" />
     </a>
-    <nav aria-label="Main">
+    <nav class="nav" aria-label="Main">
       <ul>
         {
           nav.map((item) => (
             <li>
-              <a
-                class="eyebrow"
-                href={item.href}
-                aria-current={isCurrent(item.href) ? "page" : undefined}
-              >
+              <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined}>
                 {item.label}
                 {item.external && <span aria-hidden="true">↗</span>}
               </a>
@@ -30,33 +26,83 @@ const isCurrent = (href: string) => path.startsWith(href);
         }
       </ul>
     </nav>
+    {/* Phone menu: a disclosure, so it works without JavaScript. */}
+    <details class="menu">
+      <summary>Menu</summary>
+      <div class="menu-panel">
+        <ul>
+          {
+            nav.map((item) => (
+              <li>
+                <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined}>
+                  {item.label}
+                  {item.external && <span aria-hidden="true">↗</span>}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </details>
   </div>
 </header>
 
 <style>
+  /* As on the Arize Labs site: solid ground, no rule, the lockup at 34px,
+     the nav in mono caps. */
   .site-header {
     position: sticky;
     top: 0;
     z-index: 10;
     background: var(--bg);
-    border-bottom: 1px solid var(--rule);
   }
   .bar {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-5);
     height: var(--header-height);
   }
-  .lockup { width: auto; height: 42px; }
+  .home { color: var(--fg); text-decoration: none; }
+  .home :global(.lockup) { display: block; width: auto; height: 34px; }
 
   ul { display: flex; gap: var(--space-5); padding: 0; list-style: none; }
-  nav a { display: inline-flex; gap: 3px; text-decoration: none; }
-  nav a:hover { color: var(--fg); }
-  nav a[aria-current="page"] { color: var(--fg); text-decoration: underline 1px var(--accent); text-underline-offset: 6px; }
+  .nav a, .menu a {
+    display: inline-flex;
+    gap: 3px;
+    color: var(--dim);
+    font: 500 var(--text-micro) / 1 var(--font-mono);
+    letter-spacing: var(--tracking-micro);
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+  .nav a:hover, .menu a:hover, a[aria-current="page"] { color: var(--fg); }
+
+  .menu { display: none; }
+  .menu summary {
+    list-style: none;
+    cursor: pointer;
+    font: 500 var(--text-micro) / 1 var(--font-mono);
+    letter-spacing: var(--tracking-micro);
+    text-transform: uppercase;
+  }
+  .menu summary::-webkit-details-marker { display: none; }
+  .menu[open] summary { color: var(--dim); }
+  .menu-panel {
+    position: absolute;
+    top: 100%;
+    left: calc(-1 * var(--gutter));
+    right: calc(-1 * var(--gutter));
+    padding: var(--space-5) var(--gutter) var(--space-6);
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+  }
+  .menu-panel ul { flex-direction: column; gap: var(--space-4); }
+  .menu-panel a { font-size: var(--text-small); }
 
   @media (max-width: 720px) {
-    .lockup { height: 32px; }
-    ul { gap: var(--space-4); }
+    .nav { display: none; }
+    .menu { display: block; }
   }
 </style>

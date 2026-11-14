@@ -5,9 +5,9 @@ import ReadmeLayout from "../layouts/ReadmeLayout.astro";
 
 const entry = await getEntry("root", "README");
 if (!entry) throw new Error("README.md not found");
-const { Content, remarkPluginFrontmatter } = await render(entry);
+const { Content } = await render(entry);
 ---
 
-<ReadmeLayout intro={remarkPluginFrontmatter.intro}>
+<ReadmeLayout>
   <Content />
 </ReadmeLayout>

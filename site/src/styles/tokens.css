@@ -14,26 +14,39 @@
  */
 
 :root {
-  /* Brand palette. Use the semantic tokens below, not these. */
+  /* Brand palette. Use the semantic tokens below, not these, except on a
+     ground that stays the same in both themes (the brand page's panels). */
   --color-ink: #231f20;
   --color-paper: #f6f5f2;
   --color-signal: #ff5a1f;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-rule: #d8d5ce;
+  --color-dim: #6f6b66;
+  --color-soft: #4b4745;
 
   /* Semantic colours: light theme */
   --bg: var(--color-paper);
   --fg: var(--color-ink);
-  --surface: #ffffff;
-  --rule: #d8d5ce;
-  --dim: #6f6b66;
-  --soft: #4b4745;
+  --surface: var(--color-white);
+  --rule: var(--color-rule);
+  --dim: var(--color-dim);
+  --soft: var(--color-soft);
   --accent: var(--color-signal);
   /* A faint fill: inline code, the hover on sidebar links. */
   --tint: color-mix(in srgb, var(--fg) 6%, transparent);
 
-  /* The landing hero's dot ground. */
+  /* Page markings (the landing page): the margin dot ground and the gutter
+     rulers, as on the Arize Labs site. */
   --dot: color-mix(in srgb, var(--fg) 16%, transparent);
   --dot-ground: radial-gradient(circle at center, var(--dot) 0 1px, transparent 1.4px);
   --dot-pitch: 24px;
+  --marking-opacity: 0.14;
+
+  /* Contact-sheet cards (the landing pillars): a faint fill framed only by
+     corner ticks, as on the Arize Labs site. */
+  --card: color-mix(in srgb, var(--fg) 3%, transparent);
+  --tick: color-mix(in srgb, var(--fg) 24%, transparent);
 
   /* Type */
   --font-sans: "Urbanist Variable", "Urbanist", system-ui, sans-serif;
@@ -49,17 +62,21 @@
   --text-section: 28px;
   --text-feature: clamp(32px, 3.6vw, 48px);
   --text-h2: clamp(36px, 4.6vw, 56px);
+  --text-display: clamp(38px, 5.4vw, 68px);
 
   --tracking-tight: -0.025em;
+  --tracking-display: -0.035em;
   --tracking-micro: 0.08em;
 
   /* Layout */
-  --content-max: 1084px;
   /* The wide frame: docs pages put the sidebar at its left edge so the page
      beside it gets the rest. 1400px, as on the Arize Labs site. */
   --frame-max: 1400px;
-  --prose-max: 720px;
-  /* A docs page: its text and its tables. */
+  /* The frame's distance from a narrower window's edge: the header's and
+     footer's gutter, where the page markings' rulers stand. */
+  --frame-edge: var(--gutter);
+  /* A page's column, text and tables alike: the landing page's README and
+     each spec page. */
   --page-max: 880px;
   --sidebar-width: 216px;
   --gutter: 48px;
@@ -87,6 +104,7 @@
   --dim: #9b958d;
   --soft: #bdb8b0;
   --dot: color-mix(in srgb, var(--fg) 13%, transparent);
+  --marking-opacity: 0.12;
   color-scheme: dark;
 }
 
@@ -100,6 +118,7 @@
     --dim: #9b958d;
     --soft: #bdb8b0;
     --dot: color-mix(in srgb, var(--fg) 13%, transparent);
+    --marking-opacity: 0.12;
     color-scheme: dark;
   }
 }

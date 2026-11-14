@@ -1,5 +1,8 @@
 <p align="center">
-    <img alt="OpenInference" src="https://raw.githubusercontent.com/Arize-ai/phoenix-assets/main/logos/OpenInference/Full%20color/OI-full-horiz.svg" width="40%" height="100%" />
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="../../site/src/assets/brand/openinference-lockup-paper.svg" />
+        <img alt="OpenInference" src="../../site/src/assets/brand/openinference-lockup.svg" width="40%" />
+    </picture>
 </p>
 <p align="center">
     <a href="../../README.md">🇺🇸 English</a> • <a href="README.zh.md">🇨🇳 中文</a> • <a href="README.zh-TW.md">🇹🇼 繁體中文</a> • <a href="README.ja.md">🇯🇵 日本語</a> • <a href="README.pt-PT.md">🇵🇹 Português</a> • <a href="README.pt-BR.md">🇧🇷 Português</a> • <a href="README.ko.md">🇰🇷 한국어</a> • <a href="README.es.md">🇪🇸 Español</a> • <b>🇩🇪 Deutsch</b> • <a href="README.fr.md">🇫🇷 Français</a> • <a href="README.he.md">🇮🇱 עברית</a> • <a href="README.ar.md">🇸🇦 العربية</a> • <a href="README.ru.md">🇷🇺 Русский</a> • <a href="README.pl.md">🇵🇱 Polski</a> • <a href="README.cs.md">🇨🇿 Čeština</a> • <a href="README.nl.md">🇳🇱 Nederlands</a> • <a href="README.tr.md">🇹🇷 Türkçe</a> • <a href="README.uk.md">🇺🇦 Українська</a> • <a href="README.vi.md">🇻🇳 Tiếng Việt</a> • <a href="README.tl.md">🇵🇭 Tagalog</a> • <a href="README.id.md">🇮🇩 Indonesia</a> • <a href="README.th.md">🇹🇭 ไทย</a> • <a href="README.hi.md">🇮🇳 हिन्दी</a> • <a href="README.bn.md">🇧🇩 বাংলা</a> • <a href="README.ur.md">🇵🇰 اردو</a> • <a href="README.ro.md">🇷🇴 Română</a> • <a href="README.sv.md">🇸🇪 Svenska</a> • <a href="README.it.md">🇮🇹 Italiano</a> • <a href="README.el.md">🇬🇷 Ελληνικά</a> • <a href="README.hu.md">🇭🇺 Magyar</a> • <a href="README.fi.md">🇫🇮 Suomi</a> • <a href="README.da.md">🇩🇰 Dansk</a> • <a href="README.no.md">🇳🇴 Norsk</a>
@@ -179,19 +182,19 @@ Erfordert Go 1.25+. Kombinieren Sie es mit [`arize-otel-go`](https://github.com/
 
 ## Unterstützte Ziele
 
-OpenInference unterstützt die folgenden Ziele als Span-Collector.
+OpenInference-Traces sind standardmäßige OpenTelemetry-Traces und können daher an jedes Backend gesendet werden, das OTLP akzeptiert.
 
-- ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
-- ✅ [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
-- ✅ Jeder OTEL-kompatible Collector
+- [Arize Phoenix](https://github.com/Arize-ai/phoenix): Open Source, mit nativer OpenInference-Unterstützung.
+- [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference): native OpenInference-Unterstützung.
+- [Dynatrace](https://docs.dynatrace.com/docs/observe/dynatrace-for-ai-observability/get-started/openinference): OpenInference-Unterstützung in Dynatrace AI Observability.
+- Jeder OpenTelemetry-Collector und jedes OTLP-kompatible Backend.
 
 ## Community
 
-Treten Sie unserer Community bei und vernetzen Sie sich mit Tausenden von Machine-Learning-Praktikern und LLM-Observability-Begeisterten!
+Fragen, Fehlerberichte und Ideen sind willkommen.
 
-- 🌍 Treten Sie unserer [Slack-Community](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A) bei.
-- 💡 Stellen Sie Fragen und geben Sie Feedback im Kanal _#phoenix-support_.
-- 🌟 Geben Sie uns einen Stern auf [GitHub](https://github.com/Arize-ai/openinference).
-- 🐞 Melden Sie Fehler über [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
-- 𝕏 Folgen Sie uns auf [X](https://twitter.com/ArizePhoenix).
-- 🗺️ Werfen Sie einen Blick auf unsere [Roadmap](https://github.com/orgs/Arize-ai/projects/45), um zu sehen, wohin die Reise geht.
+- Stellen Sie Fragen im Kanal `#phoenix-support` der [Arize-Slack-Community](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A).
+- Melden Sie Fehler und reichen Sie Feature-Wünsche über [GitHub Issues](https://github.com/Arize-ai/openinference/issues) ein.
+- Sehen Sie sich in der [Roadmap](https://github.com/orgs/Arize-ai/projects/45) an, was geplant ist.
+- Folgen Sie [@ArizePhoenix](https://twitter.com/ArizePhoenix) auf X.
+- Geben Sie [dem Repository](https://github.com/Arize-ai/openinference) einen Stern auf GitHub.

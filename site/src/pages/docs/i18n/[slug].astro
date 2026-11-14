@@ -14,9 +14,9 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 const { entry } = Astro.props;
-const { Content, remarkPluginFrontmatter } = await render(entry);
+const { Content } = await render(entry);
 ---
 
-<ReadmeLayout intro={remarkPluginFrontmatter.intro} lang={languageOf(entry.id)}>
+<ReadmeLayout lang={languageOf(entry.id)}>
   <Content />
 </ReadmeLayout>

@@ -1,5 +1,8 @@
 <p align="center">
-    <img alt="OpenInference" src="https://raw.githubusercontent.com/Arize-ai/phoenix-assets/main/logos/OpenInference/Full%20color/OI-full-horiz.svg" width="40%" height="100%" />
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="site/src/assets/brand/openinference-lockup-paper.svg" />
+        <img alt="OpenInference" src="site/src/assets/brand/openinference-lockup.svg" width="40%" />
+    </picture>
 </p>
 <p align="center">
     <b>🇺🇸 English</b> • <a href="docs/i18n/README.zh.md">🇨🇳 中文</a> • <a href="docs/i18n/README.zh-TW.md">🇹🇼 繁體中文</a> • <a href="docs/i18n/README.ja.md">🇯🇵 日本語</a> • <a href="docs/i18n/README.pt-PT.md">🇵🇹 Português</a> • <a href="docs/i18n/README.pt-BR.md">🇧🇷 Português</a> • <a href="docs/i18n/README.ko.md">🇰🇷 한국어</a> • <a href="docs/i18n/README.es.md">🇪🇸 Español</a> • <a href="docs/i18n/README.de.md">🇩🇪 Deutsch</a> • <a href="docs/i18n/README.fr.md">🇫🇷 Français</a> • <a href="docs/i18n/README.he.md">🇮🇱 עברית</a> • <a href="docs/i18n/README.ar.md">🇸🇦 العربية</a> • <a href="docs/i18n/README.ru.md">🇷🇺 Русский</a> • <a href="docs/i18n/README.pl.md">🇵🇱 Polski</a> • <a href="docs/i18n/README.cs.md">🇨🇿 Čeština</a> • <a href="docs/i18n/README.nl.md">🇳🇱 Nederlands</a> • <a href="docs/i18n/README.tr.md">🇹🇷 Türkçe</a> • <a href="docs/i18n/README.uk.md">🇺🇦 Українська</a> • <a href="docs/i18n/README.vi.md">🇻🇳 Tiếng Việt</a> • <a href="docs/i18n/README.tl.md">🇵🇭 Tagalog</a> • <a href="docs/i18n/README.id.md">🇮🇩 Indonesia</a> • <a href="docs/i18n/README.th.md">🇹🇭 ไทย</a> • <a href="docs/i18n/README.hi.md">🇮🇳 हिन्दी</a> • <a href="docs/i18n/README.bn.md">🇧🇩 বাংলা</a> • <a href="docs/i18n/README.ur.md">🇵🇰 اردو</a> • <a href="docs/i18n/README.ro.md">🇷🇴 Română</a> • <a href="docs/i18n/README.sv.md">🇸🇪 Svenska</a> • <a href="docs/i18n/README.it.md">🇮🇹 Italiano</a> • <a href="docs/i18n/README.el.md">🇬🇷 Ελληνικά</a> • <a href="docs/i18n/README.hu.md">🇭🇺 Magyar</a> • <a href="docs/i18n/README.fi.md">🇫🇮 Suomi</a> • <a href="docs/i18n/README.da.md">🇩🇰 Dansk</a> • <a href="docs/i18n/README.no.md">🇳🇴 Norsk</a>
@@ -13,22 +16,22 @@
     </a>
 </p>
 
-OpenInference is a set of conventions and plugins that is complementary to [OpenTelemetry](https://opentelemetry.io/) to
-enable tracing of AI applications. OpenInference is natively supported
-by [Arize Phoenix](https://github.com/Arize-ai/phoenix) and [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), but can be used with any OpenTelemetry-compatible backend as
-well.
+OpenInference builds on [OpenTelemetry](https://opentelemetry.io/) to trace AI agents: their LLM calls, tool use,
+retrieval and reasoning steps. It is natively supported by [Arize Phoenix](https://github.com/Arize-ai/phoenix) and
+[Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), and works with any
+OpenTelemetry-compatible backend.
 
 ## Specification
 
-The OpenInference specification is edited in markdown files found in the [spec directory](./spec/). It's designed to
-provide insight into the invocation of LLMs and the surrounding application context such as retrieval from vector stores
-and the usage of external tools such as search engines or APIs. The specification is transport and file-format agnostic,
-and is intended to be used in conjunction with other specifications such as JSON, ProtoBuf, and DataFrames.
+The [OpenInference specification](./spec/) defines how an AI application is recorded as an OpenTelemetry trace: which
+span kinds mark LLM calls, agents, tools, retrievers and embeddings, and which attributes hold their inputs, outputs,
+token counts and metadata. Every instrumentation follows it, so a trace reads the same whichever framework or language
+produced it.
 
 ## Instrumentation
 
-OpenInference provides a set of instrumentations for popular machine learning SDKs and frameworks in a variety of
-languages.
+Instrumentation libraries trace popular model providers and agent frameworks automatically, following the
+specification. They are available for Python, JavaScript, Java and Go.
 
 ## Python
 
@@ -179,19 +182,19 @@ Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize
 
 ## Supported Destinations
 
-OpenInference supports the following destinations as span collectors.
+OpenInference traces are standard OpenTelemetry traces, so they can be sent to any backend that accepts OTLP.
 
-- ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
-- ✅ [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
-- ✅ Any OTEL-compatible collector
+- [Arize Phoenix](https://github.com/Arize-ai/phoenix): open source, with native OpenInference support.
+- [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference): native OpenInference support.
+- [Dynatrace](https://docs.dynatrace.com/docs/observe/dynatrace-for-ai-observability/get-started/openinference): OpenInference support in Dynatrace AI Observability.
+- Any OpenTelemetry collector or OTLP-compatible backend.
 
 ## Community
 
-Join our community to connect with thousands of machine learning practitioners and LLM observability enthusiasts!
+Questions, bug reports and ideas are welcome.
 
-- 🌍 Join our [Slack community](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A).
-- 💡 Ask questions and provide feedback in the _#phoenix-support_ channel.
-- 🌟 Leave a star on our [GitHub](https://github.com/Arize-ai/openinference).
-- 🐞 Report bugs with [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
-- 𝕏 Follow us on [X](https://twitter.com/ArizePhoenix).
-- 🗺️ Check out our [roadmap](https://github.com/orgs/Arize-ai/projects/45) to see where we're heading next.
+- Ask questions in the `#phoenix-support` channel of the [Arize Slack community](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A).
+- Report bugs and request features in [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
+- See what's planned on the [roadmap](https://github.com/orgs/Arize-ai/projects/45).
+- Follow [@ArizePhoenix](https://twitter.com/ArizePhoenix) on X.
+- Star [the repository](https://github.com/Arize-ai/openinference) on GitHub.
