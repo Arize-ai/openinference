@@ -1117,6 +1117,7 @@ def test_responses(
             OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
             == OpenInferenceMimeTypeValues.JSON
         )
+        assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
         if not is_stream:
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == responses_usage["total_tokens"]
             assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == responses_usage["input_tokens"]

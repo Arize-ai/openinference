@@ -50,6 +50,7 @@ from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
     _finish_tracing,
     _get_decision_type,
+    _get_failed_response_status,
     _io_value_and_type,
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
@@ -337,14 +338,15 @@ class _WithOpenAI(ABC):
                 with_span=with_span,
                 response_accumulator=response_accumulator,
             )
+        response_attributes = _ResponseAttributes(
+            request_parameters=request_parameters,
+            response=response,
+            response_attributes_extractor=self._response_attributes_extractor,
+        )
         _finish_tracing(
-            status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+            status=response_attributes.get_status(),
             with_span=with_span,
-            has_attributes=_ResponseAttributes(
-                request_parameters=request_parameters,
-                response=response,
-                response_attributes_extractor=self._response_attributes_extractor,
-            ),
+            has_attributes=response_attributes,
         )
         return response
 
@@ -547,6 +549,11 @@ class _ResponseAttributes:
         self._request_parameters = request_parameters
         self._response = response
         self._response_attributes_extractor = response_attributes_extractor
+
+    def get_status(self) -> trace_api.Status:
+        return _get_failed_response_status(self._response) or trace_api.Status(
+            status_code=trace_api.StatusCode.OK
+        )
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from _as_output_attributes(

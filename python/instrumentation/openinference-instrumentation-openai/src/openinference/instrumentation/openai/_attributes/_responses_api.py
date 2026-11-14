@@ -23,6 +23,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+# The finish reason of a response, from its status or, when it is incomplete, from the reason
+# why; the same mapping as the openai-agents instrumentation's.
+_STATUS_TO_FINISH_REASON = {
+    "completed": "stop",
+    "failed": "error",
+    "cancelled": "cancelled",
+    "incomplete": "incomplete",
+}
+_INCOMPLETE_REASON_TO_FINISH_REASON = {
+    "max_output_tokens": "length",
+    "content_filter": "content_filter",
+}
+
 
 def stop_on_exception(
     wrapped: Callable[..., Iterator[Tuple[str, Any]]],
@@ -137,6 +150,13 @@ class _ResponsesApiAttributes:
         yield SpanAttributes.LLM_MODEL_NAME, obj.model
         if obj.usage:
             yield from cls._get_attributes_from_response_usage(obj.usage)
+        if obj.incomplete_details is not None and (reason := obj.incomplete_details.reason):
+            yield (
+                SpanAttributes.LLM_FINISH_REASON,
+                _INCOMPLETE_REASON_TO_FINISH_REASON.get(reason, reason),
+            )
+        elif obj.status in _STATUS_TO_FINISH_REASON:
+            yield SpanAttributes.LLM_FINISH_REASON, _STATUS_TO_FINISH_REASON[obj.status]
         if isinstance(obj.output, Iterable):
             image_index = 0
             image_format = cls._get_image_generation_output_format(request_parameters)
