@@ -68,25 +68,21 @@ const isCurrent = (href: string) => path.startsWith(href);
   .home :global(.lockup) { display: block; width: auto; height: 34px; }
 
   ul { display: flex; gap: var(--space-5); padding: 0; list-style: none; }
+  .nav a, .menu a, .menu summary {
+    font: 500 var(--text-micro) / 1 var(--font-mono);
+    letter-spacing: var(--tracking-micro);
+    text-transform: uppercase;
+  }
   .nav a, .menu a {
     display: inline-flex;
     gap: 3px;
     color: var(--dim);
-    font: 500 var(--text-micro) / 1 var(--font-mono);
-    letter-spacing: var(--tracking-micro);
-    text-transform: uppercase;
     text-decoration: none;
   }
   .nav a:hover, .menu a:hover, a[aria-current="page"] { color: var(--fg); }
 
   .menu { display: none; }
-  .menu summary {
-    list-style: none;
-    cursor: pointer;
-    font: 500 var(--text-micro) / 1 var(--font-mono);
-    letter-spacing: var(--tracking-micro);
-    text-transform: uppercase;
-  }
+  .menu summary { list-style: none; cursor: pointer; }
   .menu summary::-webkit-details-marker { display: none; }
   .menu[open] summary { color: var(--dim); }
   .menu-panel {

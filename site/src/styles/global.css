@@ -58,6 +58,11 @@ a { color: inherit; }
   color: var(--dim);
 }
 
+/* A standalone page's title block (the brand and credits pages). */
+.page-head { display: grid; gap: var(--space-4); }
+.page-head h1 { font: 600 var(--text-h2) / 1.05 var(--font-sans); letter-spacing: var(--tracking-tight); }
+.page-head .intro { color: var(--soft); font-size: var(--text-lede); line-height: 1.45; text-wrap: pretty; }
+
 /* A disclosure with a +/− marker instead of the browser's triangle. */
 .disclosure > summary { cursor: pointer; list-style: none; }
 .disclosure > summary::-webkit-details-marker { display: none; }

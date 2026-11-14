@@ -15,7 +15,7 @@ import markUrl from "../assets/brand/openinference-mark.svg?url";
 import wordmarkSvg from "../assets/brand/openinference-wordmark.svg?raw";
 import wordmarkUrl from "../assets/brand/openinference-wordmark.svg?url";
 import iconUrl from "../assets/brand/openinference-icon.svg?url";
-import { CAP_SHARE, hexagon, markGeometry, rules } from "./mark.mjs";
+import { CAP_SHARE, hexagon, markGeometry, palette, rules } from "./mark.mjs";
 
 export interface ViewBox {
   x: number;
@@ -61,21 +61,18 @@ export type ArtworkName = keyof typeof art;
 /** The app icon and avatar file, shown as an image (it has its own ground). */
 export const icon = { file: "openinference-icon.svg", url: iconUrl };
 
-/** The six panels, as one path (each panel is one closed subpath). */
-export const panelsPath = markSvg.match(/<path d="([^"]+)"/)?.[1] ?? "";
-/** The six panels, one path each, clockwise from the top right. */
-export const panelPaths = panelsPath.split(/(?<=Z)/).filter(Boolean);
-if (panelPaths.length !== 6) throw new Error("openinference-mark.svg: expected six panels");
-
 export const colors = {
-  ink: "#231F20",
-  paper: "#F6F5F2",
+  ...palette,
   signal: "#FF5A1F",
-  white: "#FFFFFF",
   black: "#000000",
 } as const;
 
 const geometry = markGeometry();
+/** The six panels, one path each, clockwise from the top right. */
+export const panelPaths = geometry.panels;
+/** The six panels, as one path (each panel is one closed subpath). */
+export const panelsPath = panelPaths.join("");
+
 if (Math.abs(art.mark.viewBox.h - geometry.height) > 0.01 || Math.abs(art.mark.viewBox.w - geometry.width) > 0.01) {
   throw new Error("The brand artwork is out of date with src/lib/mark.mjs: run `pnpm brand`.");
 }
@@ -91,8 +88,6 @@ export const mark = {
   socketApothem: geometry.socket,
   /** Socket circumradius: centre to a socket point. */
   socketPoint: geometry.socketPoint,
-  /** Each inner edge, between two seams. */
-  innerEdge: geometry.innerEdge,
   /** Outer edge to inner edge. */
   depth: geometry.depth,
   /** Bolt radius. */
@@ -104,18 +99,12 @@ export const mark = {
 export { hexagon, rules };
 
 /** Clear space on every side of the mark or lockup: one bolt diameter. */
-export const clearSpace = 2 * geometry.bolt;
+export const clearSpace = geometry.clearSpace;
 
 /* Lockup: the mark, one bolt diameter, then the wordmark, caps on the bolt. */
 
 const markBox = art.mark.viewBox;
 const lockupBox = art.lockup.viewBox;
-/** The wordmark artwork's cap height, in its own units. */
-const CAP_UNITS = 1000;
-/** The cap height as a share of the mark's height (see `mark.mjs`). */
-export const capShare = CAP_SHARE;
-const wordmarkScale = Number(lockupSvg.match(/scale\(([\d.]+)\)/)?.[1]);
-if (!Number.isFinite(wordmarkScale)) throw new Error("openinference-lockup.svg: missing wordmark scale");
 
 export const lockup = {
   /** Mark's right edge to the wordmark: one bolt diameter. */
@@ -123,7 +112,7 @@ export const lockup = {
   markRight: markBox.x + markBox.w,
   wordmarkLeft: markBox.x + markBox.w + clearSpace,
   /** Cap height, flat to flat, centred on the bolt. */
-  capHeight: CAP_UNITS * wordmarkScale,
+  capHeight: CAP_SHARE * geometry.height,
   /** How far the p's descender hangs below the mark. */
   descender: lockupBox.y + lockupBox.h - (markBox.y + markBox.h),
   /** Lockup width over the mark's height. */

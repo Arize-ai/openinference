@@ -11,7 +11,7 @@ import cupola from "../../assets/hero/cupola.jpg";
 import type { PhotoLayout } from "./hero-photo";
 
 // The halftone screen is a few pixels a dot, so the photo needn't be full size.
-const photo = await getImage({ src: cupola, width: 2400, format: "jpg", quality: 80 });
+const photo = await getImage({ src: cupola, width: 2400, format: "webp", quality: 80 });
 
 // The Cupola's round nadir window centred behind the lockup, zoomed out so
 // the ring of windows shows whole; on a wide band the photo is narrower than
@@ -22,7 +22,7 @@ const layout: PhotoLayout = { focusX: 0.51, focusY: 0.5, fitHeight: 0.9, minWidt
 
 <div class="hero-photo" data-hero-photo data-src={photo.src} data-layout={JSON.stringify(layout)} aria-hidden="true">
   <canvas></canvas>
-  <img class="hero-photo-fallback" src={photo.src} alt="" decoding="async" />
+  <img class="hero-photo-fallback" src={photo.src} alt="" decoding="async" style={`object-position: ${layout.focusX * 100}% ${layout.focusY * 100}%`} />
   <noscript><style>.hero-photo-fallback { display: block !important; }</style></noscript>
 </div>
 
@@ -32,7 +32,6 @@ const layout: PhotoLayout = { focusX: 0.51, focusY: 0.5, fitHeight: 0.9, minWidt
   .hero-photo-fallback {
     display: none;
     object-fit: cover;
-    object-position: 51% 50%;
     filter: grayscale(1) contrast(1.1);
     opacity: 0.5;
   }
