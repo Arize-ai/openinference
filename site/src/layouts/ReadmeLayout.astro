@@ -1,0 +1,119 @@
+---
+/**
+ * The landing page: the root README, or one of its translations. A hero
+ * (the lockup, the README's introduction, the calls to action and the
+ * language picker) over the rest of the README in the content column. See
+ * DESIGN.md ("Landing").
+ */
+import Lockup from "../assets/openinference-lockup.svg";
+import LanguagePicker from "../components/LanguagePicker.astro";
+import { base, directionOf, site } from "../lib/site";
+import BaseLayout from "./BaseLayout.astro";
+
+interface Props {
+  /** The README's introduction, as HTML (from rehype-readme-intro). */
+  intro?: string;
+  /** The README's language code. */
+  lang?: string;
+}
+
+const { intro, lang = "en" } = Astro.props;
+const dir = directionOf(lang);
+---
+
+<BaseLayout>
+  <section class="hero bleed page-grid">
+    <div class="hero-inner">
+      <h1>
+        <Lockup class="lockup" aria-hidden="true" />
+        <span class="visually-hidden">{site.name}</span>
+      </h1>
+      {intro && <p class="lede" lang={lang} dir={dir} set:html={intro} />}
+      <div class="actions">
+        <a class="button solid" href={`${base}spec/`}>Read the spec</a>
+        <a class="button" href={site.repo}>View on GitHub</a>
+      </div>
+      <LanguagePicker current={lang} />
+    </div>
+  </section>
+  <article class="prose readme" lang={lang} dir={dir}>
+    <slot />
+  </article>
+</BaseLayout>
+
+<style>
+  /* The one patch of texture on the site: a dot ground behind the hero that
+     fades out before it reaches the edges. */
+  .hero {
+    position: relative;
+    padding-block: var(--space-9) var(--space-8);
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: var(--dot-ground);
+    background-size: var(--dot-pitch) var(--dot-pitch);
+    background-position: center top;
+    mask-image: radial-gradient(ellipse 60% 70% at 50% 45%, #000 20%, transparent 75%);
+  }
+  .hero-inner {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-6);
+    text-align: center;
+  }
+  .lockup { width: auto; height: clamp(120px, 17vw, 200px); }
+  .lede {
+    max-width: 40ch;
+    color: var(--soft);
+    font-size: var(--text-lede);
+    line-height: 1.45;
+    text-wrap: pretty;
+  }
+  /* The underline and hover come from the shared link rule in global.css. */
+  .lede :global(a) { color: var(--fg); }
+  .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-3); }
+
+  /*
+   * The README, on one left edge: the content column's. Running text keeps
+   * the reading measure; tables span the column. Each `##` opens a section,
+   * ruled from the one before.
+   */
+  .readme { padding-bottom: var(--space-8); }
+  .readme > :global(:not(.table-scroll, h2)) { max-width: var(--prose-max); }
+  .readme > :global(* + *) { margin-top: var(--space-4); }
+  .readme > :global(h2) {
+    margin-top: var(--space-8);
+    padding-top: var(--space-8);
+    border-top: 1px solid var(--rule);
+    font-size: var(--text-feature);
+    line-height: 1.1;
+    letter-spacing: var(--tracking-tight);
+  }
+  .readme > :global(h2:first-child) { margin-top: 0; }
+  .readme > :global(h2 + p) { color: var(--soft); }
+  /* `###` (Libraries, Examples) labels the table under it, in mono caps. */
+  .readme > :global(h3) {
+    margin-top: var(--space-7);
+    color: var(--dim);
+    font: 500 var(--text-micro) / 1.4 var(--font-mono);
+    letter-spacing: var(--tracking-micro);
+    text-transform: uppercase;
+  }
+  .readme > :global(h2 + h3) { margin-top: var(--space-6); }
+  .readme > :global(h3 + *) { margin-top: var(--space-3); }
+  /* A note after a table ("Requires Go 1.25+") reads as a footnote. */
+  .readme > :global(.table-scroll + p) { margin-top: var(--space-5); color: var(--soft); font-size: var(--text-small); }
+  /* The README's lists lead with an emoji, which does a bullet's job. */
+  .readme > :global(ul) { padding: 0; list-style: none; }
+  .readme > :global(ul > li + li) { margin-top: var(--space-2); }
+
+  @media (max-width: 720px) {
+    .hero { padding-block: var(--space-8) var(--space-7); }
+    .hero-inner { gap: var(--space-5); }
+    .readme { padding-bottom: var(--space-7); }
+    .readme > :global(h2) { margin-top: var(--space-7); padding-top: var(--space-7); }
+  }
+</style>

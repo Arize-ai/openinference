@@ -1,0 +1,62 @@
+---
+import Lockup from "../assets/openinference-lockup.svg";
+import { base, nav, site } from "../lib/site";
+
+const path = Astro.url.pathname;
+const isCurrent = (href: string) => path.startsWith(href);
+---
+
+<header class="site-header">
+  {/* On the wide frame on every page, so it never shifts between pages. */}
+  <div class="bar frame">
+    <a class="home" href={base} aria-label={`${site.name} home`}>
+      <Lockup class="lockup" aria-hidden="true" />
+    </a>
+    <nav aria-label="Main">
+      <ul>
+        {
+          nav.map((item) => (
+            <li>
+              <a
+                class="eyebrow"
+                href={item.href}
+                aria-current={isCurrent(item.href) ? "page" : undefined}
+              >
+                {item.label}
+                {item.external && <span aria-hidden="true">↗</span>}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+    height: var(--header-height);
+  }
+  .lockup { width: auto; height: 42px; }
+
+  ul { display: flex; gap: var(--space-5); padding: 0; list-style: none; }
+  nav a { display: inline-flex; gap: 3px; text-decoration: none; }
+  nav a:hover { color: var(--fg); }
+  nav a[aria-current="page"] { color: var(--fg); text-decoration: underline 1px var(--accent); text-underline-offset: 6px; }
+
+  @media (max-width: 720px) {
+    .lockup { height: 32px; }
+    ul { gap: var(--space-4); }
+  }
+</style>
