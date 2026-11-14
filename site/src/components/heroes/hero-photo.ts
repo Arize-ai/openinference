@@ -43,7 +43,7 @@ export interface PhotoLayout {
    * How heavily shadow prints on the paper ground, 0–1 (0.42 on the Arize
    * Labs site). Lower it for a photo that is mostly shadow.
    */
-  paperInk?: number;
+  paperInk: number;
 }
 
 const INTRO_MS = 1800;
@@ -94,8 +94,12 @@ float keyAt(vec2 uv, float lod) {
 
 // The photo's UV (y up) at a point of the band (0–1, y up). The focal point
 // sits behind the lockup, as far as the photo's edges allow.
-vec2 photoUv(vec2 band) {
-  float s = max(uRes.y * uFitHeight / uImgSize.y, uRes.x * uMinWidth / uImgSize.x);
+// Device pixels per photo pixel.
+float photoScale() {
+  return max(uRes.y * uFitHeight / uImgSize.y, uRes.x * uMinWidth / uImgSize.x);
+}
+
+vec2 photoUv(vec2 band, float s) {
   vec2 shown = uRes / (uImgSize * s);
   // Keep the photo's edges out of view, with a margin for the drift; where
   // the photo is smaller than the band, centre it instead.
@@ -109,8 +113,8 @@ void main() {
   vec2 frag = gl_FragCoord.xy;
   vec2 band = frag / uRes;
 
-  vec2 uv = photoUv(band);
-  float scale = max(uRes.y * uFitHeight / uImgSize.y, uRes.x * uMinWidth / uImgSize.x);
+  float scale = photoScale();
+  vec2 uv = photoUv(band, scale);
   float lod = max(0.0, log2(1.0 / scale));
   float sharp = keyAt(clamp(uv, 0.0, 1.0), lod);
   float soft = keyAt(clamp(uv, 0.0, 1.0), lod + 3.5);
@@ -177,13 +181,35 @@ function compile(gl: WebGL2RenderingContext) {
 }
 
 /** A CSS colour as 0–1 sRGB channels, via the 2D canvas's colour parser. */
+let colorProbe: CanvasRenderingContext2D | undefined;
 function rgb(css: string, fallback: string): [number, number, number] {
-  const ctx = document.createElement("canvas").getContext("2d")!;
+  const ctx = (colorProbe ??= document.createElement("canvas").getContext("2d", { willReadFrequently: true })!);
   ctx.fillStyle = fallback;
   ctx.fillStyle = css || fallback;
   ctx.fillRect(0, 0, 1, 1);
   const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
   return [r / 255, g / 255, b / 255];
+}
+
+/**
+ * Loads the photo into texture unit 0, mipmapped, and resolves to its size.
+ * A function of its own, so the decoded image isn't held by the render loop.
+ */
+async function uploadPhoto(gl: WebGL2RenderingContext, src: string): Promise<[number, number]> {
+  const img = new Image();
+  img.decoding = "async";
+  img.src = src;
+  await img.decode();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return [img.naturalWidth, img.naturalHeight];
 }
 
 /**
@@ -213,15 +239,17 @@ export function mountHeroPhoto(canvas: HTMLCanvasElement, src: string, layout: P
   gl.uniform1f(u.uFitHeight, layout.fitHeight);
   gl.uniform1f(u.uMinWidth, layout.minWidth);
   gl.uniform1f(u.uFocusY, layout.focusY);
-  gl.uniform1f(u.uPaperInk, layout.paperInk ?? 0.42);
+  gl.uniform1f(u.uPaperInk, layout.paperInk);
   // The lockup's centre, as a fraction of the band from the bottom.
   gl.uniform1f(u.uLockupY, 1 - LOCKUP_Y);
 
   function size() {
     const f = bandFrame(canvas);
     if (!f.w || !f.h) return;
-    canvas.width = f.W;
-    canvas.height = f.H;
+    if (canvas.width !== f.W || canvas.height !== f.H) {
+      canvas.width = f.W;
+      canvas.height = f.H;
+    }
     gl!.viewport(0, 0, f.W, f.H);
     gl!.uniform2f(u.uRes, f.W, f.H);
     gl!.uniform1f(u.uDpr, f.dpr);
@@ -237,25 +265,35 @@ export function mountHeroPhoto(canvas: HTMLCanvasElement, src: string, layout: P
     gl!.uniform3f(u.uInk, ...rgb(style.getPropertyValue("--fg").trim(), "#231f20"));
   }
 
-  const shift = [0, 0], target = [0, 0];
+  const shift = [0, 0], target = [0, 0], drawn = [0, 0];
   function render() {
     gl!.uniform1f(u.uIntro, loaded ? intro : 0);
     gl!.uniform2f(u.uShift, shift[0], shift[1]);
+    drawn[0] = shift[0];
+    drawn[1] = shift[1];
     gl!.drawArrays(gl!.TRIANGLES, 0, 3);
   }
 
-  // Listen on the window: the lockup sits on top of this canvas.
-  const pointer = [0, 0];
-  let hasPointer = false;
+  // Listen on the window: the lockup sits on top of this canvas. The
+  // position is kept in client px and placed on the band once a frame.
+  const client = [0, 0], pointer = [0, 0];
+  let inWindow = false, hasPointer = false;
+  const listening = new AbortController();
   if (!reduced) {
     addEventListener("pointermove", (e) => {
-      const r = canvas.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-      hasPointer = x >= 0 && x <= 1 && y >= 0 && y <= 1;
-      pointer[0] = x - 0.5;
-      pointer[1] = y - 0.5;
-    }, { passive: true });
-    document.documentElement.addEventListener("pointerleave", () => (hasPointer = false));
+      client[0] = e.clientX;
+      client[1] = e.clientY;
+      inWindow = true;
+    }, { passive: true, signal: listening.signal });
+    root.addEventListener("pointerleave", () => (inWindow = false), { signal: listening.signal });
+  }
+  function placePointer() {
+    if (!inWindow) return void (hasPointer = false);
+    const r = canvas.getBoundingClientRect();
+    const x = (client[0] - r.left) / r.width, y = (client[1] - r.top) / r.height;
+    hasPointer = x >= 0 && x <= 1 && y >= 0 && y <= 1;
+    pointer[0] = x - 0.5;
+    pointer[1] = y - 0.5;
   }
 
   let raf = 0, last = 0, time = 0, introStart = -1;
@@ -268,40 +306,48 @@ export function mountHeroPhoto(canvas: HTMLCanvasElement, src: string, layout: P
       if (introStart < 0) introStart = now;
       intro = 1 - Math.pow(1 - Math.min((now - introStart) / INTRO_MS, 1), 3);
     }
+    placePointer();
     target[0] = Math.sin(time * 0.07) * WANDER[0] + (hasPointer ? pointer[0] * PARALLAX[0] : 0);
     target[1] = Math.sin(time * 0.05 + 1.3) * WANDER[1] - (hasPointer ? pointer[1] * PARALLAX[1] : 0);
     const k = 1 - Math.exp(-dt * 2);
     shift[0] += (target[0] - shift[0]) * k;
     shift[1] += (target[1] - shift[1]) * k;
-    render();
+    // Once the intro is done the wander moves under a device pixel a second:
+    // skip frames until the photo has moved a tenth of one.
+    const moved = Math.abs(shift[0] - drawn[0]) * canvas.width + Math.abs(shift[1] - drawn[1]) * canvas.height;
+    if (intro < 1 || moved >= 0.1) render();
   }
-  const start = () => { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } };
+  // The loop runs only while the band is on screen, once the photo is in.
+  let visible = false;
+  const start = () => { if (!raf && visible && loaded) { last = 0; raf = requestAnimationFrame(frame); } };
   const stop = () => { cancelAnimationFrame(raf); raf = 0; };
 
-  const img = new Image();
-  img.decoding = "async";
-  img.src = src;
-  img.decode().then(() => {
-    const tex = gl!.createTexture();
-    gl!.activeTexture(gl!.TEXTURE0);
-    gl!.bindTexture(gl!.TEXTURE_2D, tex);
-    gl!.pixelStorei(gl!.UNPACK_FLIP_Y_WEBGL, true);
-    gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGB, gl!.RGB, gl!.UNSIGNED_BYTE, img);
-    gl!.generateMipmap(gl!.TEXTURE_2D);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, gl!.LINEAR_MIPMAP_LINEAR);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.LINEAR);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
-    gl!.uniform2f(u.uImgSize, img.naturalWidth, img.naturalHeight);
+  uploadPhoto(gl, src).then(([w, h]) => {
+    gl!.uniform2f(u.uImgSize, w, h);
     loaded = true;
     if (reduced) intro = 1;
     render();
+    start();
   }, (e) => console.error("hero photo: failed to load", e));
 
-  new ResizeObserver(() => { size(); render(); }).observe(canvas);
-  new MutationObserver(() => { theme(); render(); }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
-  if (!reduced) new IntersectionObserver(([e]) => (e.isIntersecting ? start() : stop())).observe(canvas);
-  canvas.addEventListener("webglcontextlost", () => { stop(); onLost?.(); });
+  const resized = new ResizeObserver(() => { size(); render(); });
+  resized.observe(canvas);
+  const themed = new MutationObserver(() => { theme(); render(); });
+  themed.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  const seen = new IntersectionObserver(([e]) => {
+    visible = e.isIntersecting;
+    if (visible) start();
+    else stop();
+  });
+  if (!reduced) seen.observe(canvas);
+  canvas.addEventListener("webglcontextlost", () => {
+    stop();
+    resized.disconnect();
+    themed.disconnect();
+    seen.disconnect();
+    listening.abort();
+    onLost?.();
+  }, { once: true });
 
   size();
   theme();

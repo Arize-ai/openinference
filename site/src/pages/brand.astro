@@ -459,7 +459,7 @@ const markFrame = `${fmt(-flank - 13)} ${fmt(-half - 13)} ${fmt(mark.width + 26)
         Altering the artwork makes it read as a different mark. If a layout seems to need one of
         these changes, use the mark alone or a different ground instead.
       </p>
-      <ul class="grid three misuse">
+      <ul class="grid three misuse" style={`--misuse: ${MISUSE}`}>
         <li class="misuse-tile">
           <div class="stage"><svg viewBox={markFrame} class="stretch" aria-hidden="true"><g fill={MISUSE}><path d={panelsPath} /><circle r={mark.bolt} /></g></svg></div>
           <p>Don’t stretch or squash it</p>
@@ -508,9 +508,6 @@ const markFrame = `${fmt(-flank - 13)} ${fmt(-half - 13)} ${fmt(mark.width + 26)
 
 <style>
   .brand { padding-block: var(--space-8) 0; }
-  .page-head { display: grid; gap: var(--space-4); }
-  h1 { font: 600 var(--text-h2) / 1.05 var(--font-sans); letter-spacing: var(--tracking-tight); }
-  .intro { color: var(--soft); font-size: var(--text-lede); line-height: 1.45; text-wrap: pretty; }
   .contents ul { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); padding: 0; list-style: none; }
   .contents a { color: var(--dim); font: 500 var(--text-micro) / 1.4 var(--font-mono); letter-spacing: var(--tracking-micro); text-transform: uppercase; text-decoration: none; }
   .contents a:hover { color: var(--fg); }
@@ -538,7 +535,6 @@ const markFrame = `${fmt(-flank - 13)} ${fmt(-half - 13)} ${fmt(mark.width + 26)
   /* Panels keep a fixed ground in both themes, so artwork always shows as specified. */
   .panel { display: flex; flex-direction: column; margin: 0; border: 1px solid var(--rule); }
   .panel.paper { background: var(--color-white); color: var(--color-ink); border-color: var(--color-rule); }
-  .panel.ink { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
   .stage { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 220px; padding: var(--space-6); }
   .stage.tall { min-height: 380px; padding: var(--space-5); }
   .stage.wide { min-height: 0; padding: var(--space-6) var(--space-5); }
@@ -568,7 +564,7 @@ const markFrame = `${fmt(-flank - 13)} ${fmt(-half - 13)} ${fmt(mark.width + 26)
   .construct { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, 1fr); gap: var(--space-5); align-items: start; }
   .tables { display: grid; gap: var(--space-5); }
   .spec { width: 100%; border-collapse: collapse; font: 13px / 1.3 var(--font-mono); }
-  .spec caption { padding-bottom: var(--space-2); color: var(--fg); text-align: start; }
+  .spec caption, .px-table caption { padding-bottom: var(--space-2); color: var(--fg); text-align: start; }
   .spec th { padding: 10px 0; border-bottom: 1px solid var(--rule); color: var(--dim); font-weight: 400; text-align: start; }
   .spec td { padding: 10px 0 10px var(--space-4); border-bottom: 1px solid var(--rule); text-align: end; font-variant-numeric: tabular-nums; }
   .spec tr:first-child > * { border-top: 1px solid var(--fg); }
@@ -582,7 +578,6 @@ const markFrame = `${fmt(-flank - 13)} ${fmt(-half - 13)} ${fmt(mark.width + 26)
   .ladder span, .lockups span { color: var(--color-dim); }
   .ladder span.min, .lockups span.min, figcaption .min { color: var(--color-signal); }
   .px-table { width: 100%; margin-top: var(--space-4); border-collapse: collapse; font: 13px / 1.3 var(--font-mono); font-variant-numeric: tabular-nums; }
-  .px-table caption { padding-bottom: var(--space-2); color: var(--fg); text-align: start; }
   .px-table th, .px-table td { padding: 10px 0; border-bottom: 1px solid var(--rule); text-align: end; }
   .px-table th:first-child { text-align: start; color: var(--dim); font-weight: 400; }
   .px-table thead th { color: var(--dim); border-bottom-color: var(--fg); }
@@ -636,7 +631,7 @@ const markFrame = `${fmt(-flank - 13)} ${fmt(-half - 13)} ${fmt(mark.width + 26)
   .names li { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) 0; border-top: 1px solid var(--rule); color: var(--dim); font-size: var(--text-h3); }
   .names li:not(.yes) span { text-decoration: line-through; text-decoration-thickness: 1px; }
   .names li::before { content: "✕"; color: var(--dim); font-size: var(--text-small); }
-  .names li.yes { border-top-color: var(--fg); color: var(--fg); font-weight: 600; text-decoration: none; }
+  .names li.yes { border-top-color: var(--fg); color: var(--fg); font-weight: 600; }
   .names li.yes::before { content: "✓"; color: var(--fg); }
 
   /* Misuse */
@@ -646,10 +641,10 @@ const markFrame = `${fmt(-flank - 13)} ${fmt(-half - 13)} ${fmt(mark.width + 26)
   .misuse-tile .stretch { transform: scaleX(1.45); }
   .misuse-tile p { display: flex; gap: var(--space-2); padding: 10px 14px; border-top: 1px solid var(--color-rule); color: var(--color-dim); font-size: var(--text-small); }
   .misuse-tile p::before { content: "✕"; color: var(--color-ink); }
-  .stage.stacked { flex-direction: column; gap: var(--space-3); color: #aaa49c; }
+  .stage.stacked { flex-direction: column; gap: var(--space-3); color: var(--misuse); }
   .stage.stacked > :global(.stack-mark) { width: auto; height: 64px; }
   .stage.stacked > :global(.stack-word) { width: 170px; height: auto; }
-  .stage.retyped { gap: var(--space-3); color: #aaa49c; }
+  .stage.retyped { gap: var(--space-3); color: var(--misuse); }
   .stage.retyped > :global(.retype-mark) { flex: none; width: auto; height: 40px; }
   .stage.retyped span { font: 300 28px / 1 var(--font-sans); letter-spacing: 0.02em; white-space: nowrap; }
   .low-contrast .stage { background: #7d7873; color: #6f6a65; }

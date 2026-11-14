@@ -22,13 +22,10 @@ import { fileURLToPath } from "node:url";
 
 import sharp from "sharp";
 
-import { CAP_SHARE, markGeometry, num } from "../src/lib/mark.mjs";
+import { CAP_SHARE, CAP_UNITS, markGeometry, num, palette } from "../src/lib/mark.mjs";
 
 const root = (/** @type {string} */ path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
-const INK = "#231F20";
-const PAPER = "#F6F5F2";
-/** The wordmark's cap height in its font units. */
-const CAP_UNITS = 1000;
+const { ink: INK, paper: PAPER } = palette;
 
 const mark = markGeometry();
 const body = `<path d="${mark.panels.join("")}"/><circle r="${num(mark.bolt)}"/>`;
@@ -38,7 +35,7 @@ const viewBox = (/** @type {{ x: number, y: number, w: number, h: number }} */ b
 const svg = ({ box: b, inner, style = "" }) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox(b)}"><title>OpenInference</title>${style}<g fill="${INK}">${inner}</g></svg>\n`;
 
-/* The wordmark: one bolt diameter right of the mark, caps centred on the bolt. */
+/* The wordmark: the clear space (one bolt diameter) right of the mark, caps centred on the bolt. */
 const wordmarkSvg = readFileSync(root("src/assets/brand/openinference-wordmark.svg"), "utf8");
 const wordmarkPath = wordmarkSvg.match(/<path d="([^"]+)"/)?.[1];
 const wordmarkBox = wordmarkSvg.match(/viewBox="([^"]+)"/)?.[1].split(/\s+/).map(Number);
@@ -47,7 +44,7 @@ if (!wordmarkPath || !wordmarkBox || wordmarkBox.length !== 4) {
 }
 const [wx, wy, ww, wh] = wordmarkBox;
 const scale = (CAP_SHARE * mark.height) / CAP_UNITS;
-const left = box.x + box.w + 2 * mark.bolt;
+const left = box.x + box.w + mark.clearSpace;
 const top = -(CAP_SHARE * mark.height) / 2;
 const lockupRight = left + (wx + ww) * scale;
 const lockupBottom = Math.max(box.y + box.h, top + (wy + wh) * scale);
@@ -62,7 +59,7 @@ const faviconStyle = `<style>g{fill:${INK}}@media (prefers-color-scheme:dark){g{
 
 /* The app icon and avatar: paper mark on an ink square, one bolt diameter
    clear on every side, so it also survives a circular crop. */
-const iconSide = mark.height + 4 * mark.bolt;
+const iconSide = mark.height + 2 * mark.clearSpace;
 const iconBox = { x: -iconSide / 2, y: -iconSide / 2, w: iconSide, h: iconSide };
 const icon =
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox(iconBox)}"><title>OpenInference</title>` +
@@ -90,8 +87,7 @@ const raster = (/** @type {number} */ px, /** @type {string} */ path) =>
     .flatten({ background: INK })
     .png({ compressionLevel: 9 })
     .toFile(root(path));
-await raster(32, "public/favicon-32.png");
-await raster(180, "public/apple-touch-icon.png");
+await Promise.all([raster(32, "public/favicon-32.png"), raster(180, "public/apple-touch-icon.png")]);
 
 console.log(
   `mark ${num(mark.width)} × ${num(mark.height)}; bolt r ${num(mark.bolt)}, socket ${num(mark.socket)}, ` +

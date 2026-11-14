@@ -32,9 +32,14 @@ export const rules = {
 /** The wordmark's cap height, as a share of the mark's height. */
 export const CAP_SHARE = 0.64;
 
+/** The wordmark artwork's cap height, in its own font units (caps from y 0 to 1000). */
+export const CAP_UNITS = 1000;
+
+/** The brand colours the artwork is drawn in; `src/styles/tokens.css` repeats them as `--color-*`. */
+export const palette = { ink: "#231F20", paper: "#F6F5F2" };
+
 const TAN30 = Math.tan(Math.PI / 6);
 const COS30 = Math.cos(Math.PI / 6);
-const SIN60 = Math.sin(Math.PI / 3);
 
 /** @typedef {[number, number]} Point */
 /** @type {(a: Point, b: Point) => Point} */
@@ -124,9 +129,6 @@ export function markGeometry(r = rules) {
   const panels = Array.from({ length: 6 }, (_, k) =>
     roundedPolygon({ points: panel.map((p) => rotate(p, k * 60)), radius: corner }),
   );
-  const b = num(bolt);
-  const boltPath = `M-${b} 0a${b} ${b} 0 1 1 ${num(2 * bolt)} 0a${b} ${b} 0 1 1 -${num(2 * bolt)} 0Z`;
-
   return {
     height,
     width: 2 * flats,
@@ -139,8 +141,8 @@ export function markGeometry(r = rules) {
     socketPoint,
     /** Outer edge to inner edge. */
     depth: flats - socket,
-    innerEdge: socketPoint - seam / SIN60,
+    /** Clear space on every side of the mark or lockup, and the mark-to-wordmark gap: one bolt diameter. */
+    clearSpace: 2 * bolt,
     panels,
-    boltPath,
   };
 }

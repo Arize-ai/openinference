@@ -30,12 +30,12 @@ const vars = `--lockup-aspect: ${box.w / box.h}; --lockup-y: ${LOCKUP_Y * 100}%`
     position: absolute;
     left: 50%;
     top: var(--lockup-y);
-    width: min(72cqw, 69cqh * var(--lockup-aspect));
+    width: min(var(--lockup-share, 72cqw), 69cqh * var(--lockup-aspect));
     height: auto;
     translate: -50% -50%;
     color: var(--fg);
   }
   @container (max-width: 639.98px) {
-    .hero-lockup :global(.lockup) { width: min(86cqw, 69cqh * var(--lockup-aspect)); }
+    .hero-lockup :global(.lockup) { --lockup-share: 86cqw; }
   }
 </style>
