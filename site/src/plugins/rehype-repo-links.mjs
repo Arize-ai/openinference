@@ -14,10 +14,10 @@ import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-const GITHUB_URL = "https://github.com/Arize-ai/openinference";
+export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+export const GITHUB_URL = "https://github.com/Arize-ai/openinference";
 const RAW_URL = "https://raw.githubusercontent.com/Arize-ai/openinference";
-const BRANCH = "main";
+export const BRANCH = "main";
 
 /** Matches hrefs that are absolute, protocol-relative, or in-page anchors. */
 const NON_RELATIVE = /^(?:[a-z][a-z0-9+.-]*:|\/|#)/i;
@@ -28,7 +28,7 @@ const NON_RELATIVE = /^(?:[a-z][a-z0-9+.-]*:|\/|#)/i;
  * @param {string} repoPath path relative to the repository root, using `/`
  * @param {string} base the site's base path, with a trailing slash
  */
-function siteRoute(repoPath, base) {
+export function siteRoute(repoPath, base) {
   const p = repoPath.replace(/\/$/, "");
   if (p === "" || p === "README.md") return base;
   if (p === "spec" || p === "spec/README.md") return `${base}spec/`;
@@ -37,6 +37,17 @@ function siteRoute(repoPath, base) {
   match = p.match(/^docs\/i18n\/(README\.[^/]+)\.md$/);
   if (match) return `${base}docs/i18n/${match[1]}.html`;
   return undefined;
+}
+
+/**
+ * The path of the markdown file a unified `file` came from, relative to the
+ * repository root with `/` separators, or undefined if it has none.
+ * @param {{ path?: string, history?: string[] }} file
+ */
+export function repoPathOf(file) {
+  const sourceFile = file.path ?? file.history?.[0];
+  if (!sourceFile) return undefined;
+  return path.relative(REPO_ROOT, sourceFile).split(path.sep).join("/");
 }
 
 /**

@@ -1,13 +1,13 @@
 ---
 import { getEntry, render } from "astro:content";
 
-import Layout from "../layouts/Layout.astro";
+import ReadmeLayout from "../layouts/ReadmeLayout.astro";
 
 const entry = await getEntry("root", "README");
 if (!entry) throw new Error("README.md not found");
-const { Content } = await render(entry);
+const { Content, remarkPluginFrontmatter } = await render(entry);
 ---
 
-<Layout title="OpenInference">
+<ReadmeLayout intro={remarkPluginFrontmatter.intro}>
   <Content />
-</Layout>
+</ReadmeLayout>

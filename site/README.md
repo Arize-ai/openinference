@@ -23,6 +23,12 @@ from `js/` and copied into `public/js/` by the
 [`gh-pages` workflow](../.github/workflows/gh-pages.yml) before the Astro
 build.
 
+## Design
+
+Follow [`DESIGN.md`](./DESIGN.md) when changing the site's look or adding a
+page: pick the layout (`ReadmeLayout` or `DocsLayout`) and use the tokens in
+`src/styles/tokens.css` only.
+
 ## Development
 
 Requires Node.js 22.23.4 or newer.
@@ -34,6 +40,11 @@ pnpm dev      # http://localhost:4321/openinference/
 pnpm build    # outputs to dist/
 pnpm preview
 ```
+
+Astro caches rendered markdown and doesn't notice when a plugin in
+`src/plugins/` changes. `pnpm astro sync --force` refreshes the cache that
+`pnpm build` reads (`node_modules/.astro/`), but the dev server reads
+`.astro/data-store.json`: delete that file and restart `pnpm dev`.
 
 To preview the API reference locally, generate it and copy it into `public/js/`:
 

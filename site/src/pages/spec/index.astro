@@ -1,15 +1,15 @@
 ---
 import { getEntry, render } from "astro:content";
 
-import Layout from "../../layouts/Layout.astro";
-import { getSpecSidebar, titleOf } from "../../lib/spec";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { getSpecNav, titleOf } from "../../lib/spec";
 
 const entry = await getEntry("spec", "README");
 if (!entry) throw new Error("spec/README.md not found");
-const { Content } = await render(entry);
-const sidebar = await getSpecSidebar(entry.id);
+const { Content, headings } = await render(entry);
+const nav = await getSpecNav(entry.id);
 ---
 
-<Layout title={titleOf(entry)} sidebar={sidebar}>
+<DocsLayout title={titleOf(entry)} nav={nav} headings={headings}>
   <Content />
-</Layout>
+</DocsLayout>

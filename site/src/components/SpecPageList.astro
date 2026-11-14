@@ -1,0 +1,26 @@
+---
+/**
+ * The spec's pages as a list of links, the current one marked. DocsLayout
+ * shows it twice: in the left rail on wide screens, and in the disclosure
+ * above the page on narrow ones. Markup only; the layout styles each place.
+ */
+import type { SpecNav } from "../lib/spec";
+
+interface Props {
+  items: SpecNav["items"];
+}
+
+const { items } = Astro.props;
+---
+
+<ul>
+  {
+    items.map((item) => (
+      <li>
+        <a href={item.href} aria-current={item.current ? "page" : undefined}>
+          {item.label}
+        </a>
+      </li>
+    ))
+  }
+</ul>

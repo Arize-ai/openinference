@@ -2,9 +2,8 @@
 import type { GetStaticPaths } from "astro";
 import { getCollection, render } from "astro:content";
 
-import Layout from "../../../layouts/Layout.astro";
-
-const RTL_LANGUAGES = new Set(["ar", "he", "ur"]);
+import ReadmeLayout from "../../../layouts/ReadmeLayout.astro";
+import { languageOf } from "../../../lib/site";
 
 export const getStaticPaths = (async () => {
   const entries = await getCollection("i18n");
@@ -15,14 +14,9 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 const { entry } = Astro.props;
-const lang = entry.id.replace(/^README\./, "");
-const { Content } = await render(entry);
+const { Content, remarkPluginFrontmatter } = await render(entry);
 ---
 
-<Layout
-  title="OpenInference"
-  lang={lang}
-  dir={RTL_LANGUAGES.has(lang) ? "rtl" : "ltr"}
->
+<ReadmeLayout intro={remarkPluginFrontmatter.intro} lang={languageOf(entry.id)}>
   <Content />
-</Layout>
+</ReadmeLayout>

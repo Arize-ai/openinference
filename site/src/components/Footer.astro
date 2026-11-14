@@ -1,0 +1,82 @@
+---
+import ArizeLogo from "../assets/arize-logo.svg";
+import { base, routeOf, site } from "../lib/site";
+import ThemeToggle from "./ThemeToggle.astro";
+
+const year = new Date().getFullYear();
+const columns = [
+  [
+    { href: routeOf("spec/README.md"), label: "Specification" },
+    { href: routeOf("spec/semantic_conventions.md"), label: "Semantic conventions" },
+    { href: `${base}js/`, label: "JavaScript API" },
+  ],
+  [
+    { href: site.repo, label: "GitHub" },
+    { href: site.community, label: "Slack community" },
+    { href: site.phoenix, label: "Arize Phoenix" },
+    { href: site.ax, label: "Arize AX" },
+  ],
+];
+---
+
+<footer class="site-footer">
+  {/* On the wide frame on every page, so it never shifts between pages. */}
+  <div class="inner frame">
+    <div class="maker">
+      <a class="arize" href={site.arize} aria-label="Arize AI">
+        <ArizeLogo aria-hidden="true" />
+      </a>
+      <p>OpenInference is open source under the Apache 2.0 license, maintained by Arize AI.</p>
+    </div>
+    {
+      columns.map((links) => (
+        <ul class="links">
+          {links.map((link) => (
+            <li>
+              <a class="eyebrow" href={link.href}>{link.label}</a>
+            </li>
+          ))}
+        </ul>
+      ))
+    }
+    <div class="legal">
+      <p class="eyebrow">© {year} Arize AI</p>
+      <ThemeToggle />
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer { margin-top: auto; padding: var(--space-9) 0 var(--space-7); }
+  .inner {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: var(--space-6) var(--space-8);
+    align-items: start;
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--rule);
+  }
+  .maker { display: grid; gap: var(--space-4); max-width: 34ch; }
+  .maker p { color: var(--soft); font-size: var(--text-small); line-height: 1.5; }
+  /* The Arize lockup in one colour that follows the theme. */
+  .arize { justify-self: start; }
+  .arize svg { width: auto; height: 26px; }
+  .arize :global(path) { fill: currentColor; }
+  .links { display: grid; gap: var(--space-3); padding: 0; list-style: none; }
+  .links a { text-decoration: none; }
+  .links a:hover { color: var(--fg); }
+  .legal {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  @media (max-width: 720px) {
+    .site-footer { padding-top: var(--space-8); }
+    .inner { grid-template-columns: 1fr 1fr; }
+    .maker { grid-column: 1 / -1; }
+  }
+</style>

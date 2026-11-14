@@ -2,8 +2,8 @@
 import type { GetStaticPaths } from "astro";
 import { getCollection, render } from "astro:content";
 
-import Layout from "../../layouts/Layout.astro";
-import { getSpecSidebar, titleOf } from "../../lib/spec";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { getSpecNav, titleOf } from "../../lib/spec";
 
 export const getStaticPaths = (async () => {
   const entries = await getCollection("spec");
@@ -13,10 +13,10 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 const { entry } = Astro.props;
-const { Content } = await render(entry);
-const sidebar = await getSpecSidebar(entry.id);
+const { Content, headings } = await render(entry);
+const nav = await getSpecNav(entry.id);
 ---
 
-<Layout title={titleOf(entry)} sidebar={sidebar}>
+<DocsLayout title={titleOf(entry)} nav={nav} headings={headings}>
   <Content />
-</Layout>
+</DocsLayout>
