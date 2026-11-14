@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.19...python-openinference-instrumentation-strands-agents-v0.1.20) (2026-11-14)
+
+
+### Bug Fixes
+
+* **strands_agents:** preserve all tool arguments alongside text ([#4298](https://github.com/Arize-ai/openinference/issues/4298)) ([aad2573](https://github.com/Arize-ai/openinference/commit/aad25736e40b2ce94ab0617314c938e7679af8e6))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.18...python-openinference-instrumentation-strands-agents-v0.1.19) (2026-11-12)
 
 
