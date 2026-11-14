@@ -1,0 +1,87 @@
+---
+import "../styles/global.css";
+
+interface NavItem {
+  href: string;
+  label: string;
+  current?: boolean;
+}
+
+interface Props {
+  title: string;
+  description?: string;
+  lang?: string;
+  dir?: "ltr" | "rtl";
+  /** Links shown in a sidebar next to the content, e.g. the spec pages. */
+  sidebar?: { heading: string; items: NavItem[] };
+}
+
+const {
+  title,
+  description = "OpenInference is a set of conventions and plugins, complementary to OpenTelemetry, for tracing AI applications.",
+  lang = "en",
+  dir = "ltr",
+  sidebar,
+} = Astro.props;
+
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
+const path = Astro.url.pathname;
+const nav: NavItem[] = [
+  { href: `${base}spec/`, label: "Specification" },
+  { href: `${base}js/`, label: "JavaScript API" },
+  { href: "https://github.com/Arize-ai/openinference", label: "GitHub" },
+];
+---
+
+<!doctype html>
+<html lang={lang} dir={dir}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+    <title>{title === "OpenInference" ? title : `${title} | OpenInference`}</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href={base}>OpenInference</a>
+      <nav aria-label="Main">
+        {
+          nav.map((item) => (
+            <a
+              href={item.href}
+              aria-current={path.startsWith(item.href) ? "page" : undefined}
+            >
+              {item.label}
+            </a>
+          ))
+        }
+      </nav>
+    </header>
+    <div class:list={["page", { "has-sidebar": sidebar }]}>
+      {
+        sidebar && (
+          <aside class="sidebar">
+            <h2>{sidebar.heading}</h2>
+            <ul>
+              {sidebar.items.map((item) => (
+                <li>
+                  <a
+                    href={item.href}
+                    aria-current={item.current ? "page" : undefined}
+                  >
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        )
+      }
+      <main class="markdown" dir={dir}>
+        <slot />
+      </main>
+    </div>
+  </body>
+</html>

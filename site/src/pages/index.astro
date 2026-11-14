@@ -1,0 +1,13 @@
+---
+import { getEntry, render } from "astro:content";
+
+import Layout from "../layouts/Layout.astro";
+
+const entry = await getEntry("root", "README");
+if (!entry) throw new Error("README.md not found");
+const { Content } = await render(entry);
+---
+
+<Layout title="OpenInference">
+  <Content />
+</Layout>

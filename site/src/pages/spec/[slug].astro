@@ -1,0 +1,22 @@
+---
+import type { GetStaticPaths } from "astro";
+import { getCollection, render } from "astro:content";
+
+import Layout from "../../layouts/Layout.astro";
+import { getSpecSidebar, titleOf } from "../../lib/spec";
+
+export const getStaticPaths = (async () => {
+  const entries = await getCollection("spec");
+  return entries
+    .filter((entry) => entry.id !== "README")
+    .map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const sidebar = await getSpecSidebar(entry.id);
+---
+
+<Layout title={titleOf(entry)} sidebar={sidebar}>
+  <Content />
+</Layout>
