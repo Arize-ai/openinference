@@ -1313,3 +1313,35 @@ def test_group_id_sdk_integration() -> None:
     assert attrs.pop("openinference.span.kind") == "AGENT"
     assert attrs.pop("session.id") == "conv-1"
     assert not attrs, f"unexpected attributes: {attrs}"
+
+
+def test_generation_model_name_survives_the_span_attribute_limit() -> None:
+    """Chat-completions generation spans must keep ``llm.model_name`` on long conversations.
+
+    ``_get_attributes_from_generation_span_data`` used to yield the model name before the
+    per-message input attributes, and the OTel SDK evicts the oldest attributes first.
+    """
+    processor, exporter = _make_processor()
+    conversation = [
+        {"role": "user" if index % 2 == 0 else "assistant", "content": f"m{index}"}
+        for index in range(60)
+    ]
+    span = _FakeSpan(
+        "gen",
+        None,
+        GenerationSpanData(
+            input=conversation,
+            output=[{"role": "assistant", "content": "ok"}],
+            model="gpt-4o-mini",
+            model_config={"temperature": 0.2},
+        ),
+    )
+    _run(processor, _FakeTrace(), [span])
+
+    [llm_span] = [
+        s for s in exporter.get_finished_spans() if _attrs(s).get("openinference.span.kind") == "LLM"
+    ]
+    attrs = _attrs(llm_span)
+    assert llm_span.dropped_attributes > 0
+    assert attrs["llm.model_name"] == "gpt-4o-mini"
+    assert "output.value" in attrs

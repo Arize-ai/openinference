@@ -708,8 +708,6 @@ def _get_attributes_from_computer_call_output(
 def _get_attributes_from_generation_span_data(
     obj: GenerationSpanData,
 ) -> Iterator[tuple[str, AttributeValue]]:
-    if isinstance(model := obj.model, str):
-        yield LLM_MODEL_NAME, model
     if isinstance(obj.model_config, dict) and (
         param := {k: v for k, v in obj.model_config.items() if v is not None}
     ):
@@ -720,6 +718,11 @@ def _get_attributes_from_generation_span_data(
             if provider := infer_llm_provider_from_host(host):
                 yield LLM_PROVIDER, provider.value
     yield from _get_attributes_from_chat_completions_input(obj.input)
+    # Yield the model name after the input messages: the OTel SDK keeps at most
+    # OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT attributes per span and evicts the oldest, so a long
+    # conversation would otherwise evict this single fixed-size attribute.
+    if isinstance(model := obj.model, str):
+        yield LLM_MODEL_NAME, model
     yield from _get_attributes_from_chat_completions_output(obj.output)
     yield from _get_attributes_from_chat_completions_usage(obj.usage)
 
