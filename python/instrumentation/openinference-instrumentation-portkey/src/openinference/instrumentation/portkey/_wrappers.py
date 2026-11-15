@@ -155,7 +155,7 @@ class _CompletionsWrapper(_WithTracer):
                 if materialize_error is not None:
                     raise materialize_error
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -226,7 +226,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 if materialize_error is not None:
                     raise materialize_error
                 response = await wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,

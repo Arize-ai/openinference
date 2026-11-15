@@ -176,7 +176,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         except StopIteration:
             self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
             raise
-        except Exception as exception:
+        except BaseException as exception:
             self._finish_error(exception)
             raise
         self._self_accumulator.process_chunk(chunk)
@@ -191,7 +191,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         except StopAsyncIteration:
             self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
             raise
-        except Exception as exception:
+        except BaseException as exception:
             self._finish_error(exception)
             raise
         self._self_accumulator.process_chunk(chunk)
@@ -247,7 +247,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         except BaseException:
             pass
 
-    def _finish_error(self, exception: Exception) -> None:
+    def _finish_error(self, exception: BaseException) -> None:
         self._self_with_span.record_exception(exception)
         self._finish(
             trace_api.Status(

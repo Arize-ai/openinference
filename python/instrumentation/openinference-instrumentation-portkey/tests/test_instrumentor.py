@@ -1,3 +1,4 @@
+import asyncio
 import gc
 import json
 from contextlib import ExitStack
@@ -1478,3 +1479,150 @@ def test_chat_completion_records_anthropic_cache_counts_from_gateway(
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 1920,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: 500,
     }
+
+
+def _assert_interrupted_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    name: str,
+    exception_type: str,
+    description: str,
+) -> None:
+    """The span of a call that was cancelled or interrupted before it returned."""
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == name
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.status.description == description
+    assert [event.name for event in span.events] == ["exception"]
+    assert dict(span.events[0].attributes or {})["exception.type"] == exception_type
+    attributes: Dict[str, Any] = dict(span.attributes or {})
+    assert (
+        attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    )
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert json.loads(attributes.pop(SpanAttributes.INPUT_VALUE)) == {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+    assert json.loads(attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS)) == {
+        "model": "gpt-4o-mini",
+    }
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_CONTENT}") == "hi"
+    assert not attributes
+
+
+def test_chat_completion_interrupted_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    """Ctrl-C while the request is in flight must not leave the span unended."""
+    in_memory_span_exporter.clear()
+    error = KeyboardInterrupt("cancelled")
+
+    def handler(_request: Any) -> Any:
+        raise error
+
+    portkey = import_module("portkey_ai")
+    client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=False) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(side_effect=handler)
+        with pytest.raises(KeyboardInterrupt) as exc_info:
+            client.chat.completions.create(
+                model="gpt-4o-mini", messages=[{"role": "user", "content": "hi"}]
+            )
+    assert exc_info.value is error
+    _assert_interrupted_span(
+        in_memory_span_exporter, "Completions", "KeyboardInterrupt", "KeyboardInterrupt: cancelled"
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_cancelled_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    """A cancelled task must not leave the span unended."""
+    in_memory_span_exporter.clear()
+    error = asyncio.CancelledError("cancelled")
+
+    async def handler(_request: Any) -> Any:
+        raise error
+
+    portkey = import_module("portkey_ai")
+    client = portkey.AsyncPortkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=False) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(side_effect=handler)
+        with pytest.raises(asyncio.CancelledError) as exc_info:
+            await client.chat.completions.create(
+                model="gpt-4o-mini", messages=[{"role": "user", "content": "hi"}]
+            )
+    assert exc_info.value is error
+    _assert_interrupted_span(
+        in_memory_span_exporter,
+        "AsyncCompletions",
+        "asyncio.exceptions.CancelledError",
+        "CancelledError: cancelled",
+    )
+
+
+def test_chat_completion_stream_interrupted(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    """Ctrl-C mid-stream must end the span with the interruption, not as a plain truncation."""
+    in_memory_span_exporter.clear()
+
+    def body() -> Iterator[bytes]:
+        yield _stream_events(_STREAM_CHUNKS[:1]).encode()
+        raise KeyboardInterrupt("cancelled")
+
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            side_effect=lambda request: _failing_stream_response(body())
+        )
+        stream = _create_stream()
+        with pytest.raises(KeyboardInterrupt):
+            for _ in stream:
+                pass
+    _assert_truncated_stream_span(
+        in_memory_span_exporter, "Completions", trace_api.StatusCode.ERROR
+    )
+    events = in_memory_span_exporter.get_finished_spans()[0].events
+    assert [event.name for event in events] == ["exception"]
+    assert dict(events[0].attributes or {})["exception.type"] == "KeyboardInterrupt"
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_stream_cancelled(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    """A stream cancelled mid-read must end the span with the cancellation."""
+    in_memory_span_exporter.clear()
+
+    async def body() -> AsyncIterator[bytes]:
+        yield _stream_events(_STREAM_CHUNKS[:1]).encode()
+        raise asyncio.CancelledError("cancelled")
+
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            side_effect=lambda request: _failing_stream_response(body())
+        )
+        stream = await _create_async_stream()
+        with pytest.raises(asyncio.CancelledError):
+            async for _ in stream:
+                pass
+    _assert_truncated_stream_span(
+        in_memory_span_exporter, "AsyncCompletions", trace_api.StatusCode.ERROR
+    )
+    events = in_memory_span_exporter.get_finished_spans()[0].events
+    assert [event.name for event in events] == ["exception"]
+    assert dict(events[0].attributes or {})["exception.type"] == "asyncio.exceptions.CancelledError"
