@@ -243,6 +243,7 @@ When `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` is set (default: 32000):
 
 When `OPENINFERENCE_HIDE_INPUT_TEXT` is set to true:
 - Text content in multimodal messages will be replaced with `"__REDACTED__"`
+- Tool call arguments (`message.function_call_arguments_json` and `message.tool_calls.*.tool_call.function.arguments_json`) are also replaced with `"__REDACTED__"`; the tool call id and function name stay visible (Python only)
 - This only applies when input messages are not already completely hidden
 
 ## Example: Multimodal Message

@@ -68,11 +68,11 @@ Full env-var table:
 | `OPENINFERENCE_HIDE_OUTPUTS` | Strongest output-side flag. Replaces `output.value` with `__REDACTED__` AND drops `llm.output_messages.*`. |
 | `OPENINFERENCE_HIDE_INPUT_MESSAGES` | Drops `llm.input_messages.*`; `input.value` still set. |
 | `OPENINFERENCE_HIDE_OUTPUT_MESSAGES` | Drops `llm.output_messages.*`; `output.value` still set. |
-| `OPENINFERENCE_HIDE_INPUT_TEXT` / `_OUTPUT_TEXT` | Keeps message structure (role, indices), redacts only `.content` with `__REDACTED__`. |
+| `OPENINFERENCE_HIDE_INPUT_TEXT` / `_OUTPUT_TEXT` | Keeps message structure (role, indices), redacts `.content` with `__REDACTED__`. (Python additionally redacts tool call arguments; Go does not.) |
 | `OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS` | Omits `llm.invocation_parameters`. |
 | `OPENINFERENCE_HIDE_LLM_TOOLS` | Omits the `llm.tools.*` advertised-tools list. (Implied by `HIDE_INPUTS`.) |
 
-Top-level values (`input.value` / `output.value`) are replaced with the `__REDACTED__` sentinel rather than omitted, so downstream consumers can distinguish "hidden" from "never recorded". Structural attribute families are dropped wholesale — the wire-format keys do not appear on the span at all. Token counts, model name, `llm.finish_reason`, and timing are never affected. Matches Python `TraceConfig.mask` behavior exactly.
+Top-level values (`input.value` / `output.value`) are replaced with the `__REDACTED__` sentinel rather than omitted, so downstream consumers can distinguish "hidden" from "never recorded". Structural attribute families are dropped wholesale — the wire-format keys do not appear on the span at all. Token counts, model name, `llm.finish_reason`, and timing are never affected. Go redacts only message `.content`; the Python `TraceConfig.mask` additionally redacts tool call arguments under the same text-hiding flags, so the two runtimes are not identical for tool calls.
 
 ## Send the trace to Arize AX or Phoenix
 
