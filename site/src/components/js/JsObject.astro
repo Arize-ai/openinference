@@ -1,0 +1,179 @@
+---
+/**
+ * One documented TypeScript export, drawn by the shared ApiEntry: its
+ * signatures or declaration, its doc comment and, for a class, interface,
+ * object type or object constant, its members. Properties (and an enum's
+ * members) are a table; constructors and methods are objects of their own,
+ * a heading level down, as are a namespace's exports.
+ */
+import {
+  cellHtml,
+  declarationHtml,
+  linkRefs,
+  resolvePart,
+  signatureHtml,
+  valueHtml,
+  type AccessorMember,
+  type ApiObject,
+  type Member,
+  type MethodMember,
+  type PropertyMember,
+  type Signature,
+} from "../../lib/js-api";
+import ApiEntry from "../api/ApiEntry.astro";
+import Docstring from "../api/Docstring.astro";
+import MemberTable from "../api/MemberTable.astro";
+
+interface Props {
+  object: ApiObject | Member;
+  /** The class or object it belongs to, for a member's signature. */
+  owner?: string;
+  /** 3 for a module's exports, 4 for members. */
+  level?: 3 | 4;
+}
+
+const { object, owner, level = 3 } = Astro.props;
+
+let kind: string = object.kind;
+let signatures: string[] = [];
+/** A function's docs live on its signatures; an overload each has its own. */
+let signatureDocs: Signature[] = [];
+
+switch (object.kind) {
+  case "function":
+  case "method":
+  case "constructor": {
+    const isConstructor = object.kind === "constructor";
+    const prefix = isConstructor
+      ? "new"
+      : object.kind === "function"
+        ? "function"
+        : object.flags.static
+          ? "static"
+          : "";
+    const name = isConstructor ? (owner ?? "constructor") : object.name;
+    signatures = object.signatures.map((signature) => signatureHtml({ prefix, name, signature }));
+    signatureDocs = object.signatures;
+    break;
+  }
+  case "class":
+  case "interface":
+  case "type":
+  case "enum":
+  case "namespace":
+    signatures = [declarationHtml(object)];
+    if (object.kind === "type") kind = "type alias";
+    if (object.kind === "class" && object.flags.abstract) kind = "abstract class";
+    break;
+  case "variable":
+    signatures = [valueHtml(object, { prefix: object.flags.const ? "const" : "let" })];
+    kind = object.flags.const ? "constant" : "variable";
+    break;
+  case "property":
+  case "accessor":
+    signatures = [valueHtml(object)];
+    break;
+  case "reexport":
+    kind = "re-export";
+    break;
+}
+
+// Overloads each have their own docs; one signature's docs are the object's.
+const overloads = signatureDocs.length > 1;
+const docstring =
+  object.docstring && object.docstring.length > 0
+    ? object.docstring
+    : !overloads
+      ? (signatureDocs[0]?.docstring ?? [])
+      : [];
+
+const members: (Member | ApiObject)[] = "members" in object ? object.members : [];
+const values = members.filter(
+  (member): member is PropertyMember | AccessorMember =>
+    member.kind === "property" || member.kind === "accessor",
+);
+const callables = members.filter(
+  (member) => member.kind !== "property" && member.kind !== "accessor",
+) as (MethodMember | ApiObject)[];
+
+const isReadonly = (member: PropertyMember | AccessorMember) =>
+  Boolean(member.flags.readonly || (member.kind === "accessor" && member.readonly));
+// An `as const` object's properties are all readonly; saying so on each is noise.
+const allReadonly = values.length > 0 && values.every(isReadonly);
+const rows = values.map((member) => ({
+  id: member.anchor,
+  name: `${member.flags.static ? "static " : ""}${isReadonly(member) && !allReadonly ? "readonly " : ""}${member.name}${member.flags.optional ? "?" : ""}`,
+  html: cellHtml(member),
+  docstring: member.inherited
+    ? [...member.docstring, { kind: "text" as const, value: `Inherited from \`${member.inherited}\`.` }]
+    : member.docstring,
+}));
+
+const reexport = object.kind === "reexport" ? object.target : undefined;
+const reexportHref = reexport && typeof reexport !== "string" ? resolvePart(reexport) : undefined;
+const reexportText = reexport ? (typeof reexport === "string" ? reexport : reexport.text) : "";
+---
+
+<ApiEntry
+  id={object.anchor}
+  name={object.kind === "constructor" ? `new ${owner ?? ""}` : object.name}
+  kind={kind}
+  source={object.source}
+  signatures={signatures}
+  level={level}
+>
+  {
+    reexport && (
+      <p class="api-note">
+        Re-exports{" "}
+        {reexportHref ? (
+          <a href={reexportHref}>
+            <code>{reexportText}</code>
+          </a>
+        ) : (
+          <code>{reexportText}</code>
+        )}
+        .
+      </p>
+    )
+  }
+
+  {"inherited" in object && object.inherited && <p class="api-note">Inherited from <code>{object.inherited}</code>.</p>}
+
+  {docstring.length > 0 && <Docstring sections={docstring} resolve={resolvePart} markdown={linkRefs} />}
+
+  {
+    overloads &&
+      signatureDocs.map(
+        (signature, index) =>
+          signature.docstring.length > 0 && (
+            <div class="doc-block">
+              <p class="eyebrow">Overload {index + 1}</p>
+              <Docstring sections={signature.docstring} resolve={resolvePart} markdown={linkRefs} />
+            </div>
+          ),
+      )
+  }
+
+  {
+    rows.length > 0 && (
+      <MemberTable
+        label={object.kind === "enum" ? "Members" : "Properties"}
+        column={object.kind === "enum" ? "Value" : "Type"}
+        rows={rows}
+        resolve={resolvePart}
+        markdown={linkRefs}
+      />
+    )
+  }
+
+  {
+    callables.length > 0 && (
+      <div class="api-methods">
+        {callables.map((member) => (
+          <Astro.self object={member} owner={object.name} level={4} />
+        ))}
+      </div>
+    )
+  }
+</ApiEntry>

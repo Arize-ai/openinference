@@ -1,0 +1,46 @@
+---
+/**
+ * One documented object, in either API reference: its heading (name, kind,
+ * a link to its source), its signatures, then whatever the slot holds (its
+ * docs and members). The language's own component (python/ApiObject,
+ * js/JsObject) decides what goes in each. Styles: styles/api.css.
+ */
+import "../../styles/api.css";
+
+interface Props {
+  /** The anchor: unique on the page. */
+  id: string;
+  name: string;
+  /** Shown beside the name, e.g. `class`, `function`. */
+  kind: string;
+  source?: string | null;
+  /** Signatures as HTML for a `<pre>`; most objects have one, overloads more. */
+  signatures?: string[];
+  /** 3 for a module's members, 4 for a class's. */
+  level?: 3 | 4;
+}
+
+const { id, name, kind, source, signatures = [], level = 3 } = Astro.props;
+const Heading = level === 3 ? "h3" : "h4";
+---
+
+<section class:list={["api-object", `level-${level}`]} id={id}>
+  <header class="api-object-head">
+    <Heading>
+      <a href={`#${id}`}><code>{name}</code></a>
+    </Heading>
+    <span class="eyebrow kind">{kind}</span>
+    {
+      source && (
+        <a class="eyebrow source" href={source}>
+          Source ↗
+        </a>
+      )
+    }
+  </header>
+  {
+    // On one line: whitespace inside <pre> would show.
+    signatures.filter(Boolean).map((signature) => <pre class="api-signature"><code set:html={signature} /></pre>)
+  }
+  <slot />
+</section>

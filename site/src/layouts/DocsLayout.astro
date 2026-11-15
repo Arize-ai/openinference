@@ -1,48 +1,54 @@
 ---
 /**
- * A spec page, on the wide frame. See DESIGN.md ("Docs").
+ * A docs page (the spec, the JavaScript and Python API references), on the
+ * wide frame. See DESIGN.md ("Docs").
  *
- * Wide screens get three columns: the spec's pages on the left, the page in
- * the middle, and the page's sections ("On this page") on the right. Both
+ * Wide screens get three columns: the section's pages on the left, the page
+ * in the middle, and the page's sections ("On this page") on the right. Both
  * rails are the same width, so the page sits on the frame's centre line,
  * under the header's. Below 1360px the rails go: the page takes the full
- * width and the spec's pages fold into a disclosure above it.
+ * width and the section's pages fold into a disclosure above it.
  *
  * The page is --page-max wide, centred; text and tables both fill it. The
- * markdown's `# Title` is the title block.
+ * page's own `# Title` is the title block.
  */
-import type { MarkdownHeading } from "astro";
-
-import SpecPageList from "../components/SpecPageList.astro";
-import type { SpecNav } from "../lib/spec";
+import DocsPageList from "../components/DocsPageList.astro";
+import type { Heading } from "../lib/api";
+import type { DocsNav } from "../lib/docs";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Props {
   title: string;
-  nav: SpecNav;
-  /** The page's headings, from `render()`. */
-  headings?: MarkdownHeading[];
+  description?: string;
+  nav: DocsNav;
+  /** The page's headings: from `render()` for markdown, else the page's own. */
+  headings?: Heading[];
+  /**
+   * The deepest heading "On this page" lists: 2 for prose (its `##`
+   * sections); 3 for the API reference (modules, then their members).
+   */
+  tocDepth?: 2 | 3;
 }
 
-const { title, nav, headings = [] } = Astro.props;
-const current = nav.items.find((item) => item.current);
-const sections = headings.filter((heading) => heading.depth === 2);
+const { title, description, nav, headings = [], tocDepth = 2 } = Astro.props;
+const current = nav.groups.flatMap((group) => group.items).find((item) => item.current);
+const sections = headings.filter((heading) => heading.depth >= 2 && heading.depth <= tocDepth);
 ---
 
-<BaseLayout title={title}>
+<BaseLayout title={title} description={description}>
   <div class="docs frame">
-    <aside class="rail pages" aria-label="Specification">
-      <p class="eyebrow">Specification</p>
-      <SpecPageList items={nav.items} />
+    <aside class="rail pages" aria-label={nav.label}>
+      <p class="eyebrow">{nav.label}</p>
+      <DocsPageList groups={nav.groups} />
     </aside>
 
     <div class="page">
       <details class="pages-menu disclosure">
         <summary>
-          <span class="eyebrow">Specification</span>
+          <span class="eyebrow">{nav.label}</span>
           <span class="here">{current?.label}</span>
         </summary>
-        <SpecPageList items={nav.items} />
+        <DocsPageList groups={nav.groups} />
       </details>
 
       <article class="prose">
@@ -50,8 +56,10 @@ const sections = headings.filter((heading) => heading.depth === 2);
       </article>
 
       <footer class="page-footer">
-        <a class="source eyebrow" href={nav.source}>Edit this page on GitHub ↗</a>
-        <nav class="pager" aria-label="Specification pages">
+        <a class="source eyebrow" href={nav.source}>
+          {nav.sourceLabel ?? "Edit this page on GitHub"} ↗
+        </a>
+        <nav class="pager" aria-label={`${nav.label} pages`}>
           {
             nav.previous && (
               <a class="previous" href={nav.previous.href} rel="prev">
@@ -79,8 +87,12 @@ const sections = headings.filter((heading) => heading.depth === 2);
           <p class="eyebrow">On this page</p>
           <ul data-toc>
             {sections.map((heading) => (
-              <li>
-                <a href={`#${heading.slug}`} data-slug={heading.slug}>
+              <li class={heading.depth > 2 ? "sub" : undefined}>
+                <a
+                  href={`#${heading.slug}`}
+                  data-slug={heading.slug}
+                  title={heading.depth > 2 ? heading.text : undefined}
+                >
                   {heading.text}
                 </a>
               </li>
@@ -103,7 +115,7 @@ const sections = headings.filter((heading) => heading.depth === 2);
   .page { width: 100%; max-width: var(--page-max); margin-inline: auto; min-width: 0; }
 
   /* Rails (wide screens only): sticky under the header, quiet type, one rule
-     down the side. The page list is SpecPageList's markup, hence :global. */
+     down the side. The page list is DocsPageList's markup, hence :global. */
   .rail {
     display: none;
     position: sticky;
@@ -114,6 +126,16 @@ const sections = headings.filter((heading) => heading.depth === 2);
     padding-bottom: var(--space-5);
   }
   .rail .eyebrow { margin-bottom: var(--space-4); }
+  /* A group's label over its pages (the API references' Core, Instrumentation). */
+  .rail :global(.group), .pages-menu :global(.group) { margin: var(--space-5) 0 var(--space-2); }
+  .rail > .eyebrow + :global(.group) { margin-top: 0; }
+  .pages-menu :global(.group) { margin-bottom: 0; }
+  /* "On this page" at depth 3: a member under its module, set in. */
+  .toc .sub a { padding-left: var(--space-6); }
+  /* A module path (openinference.instrumentation.openai) is one long word:
+     let it wrap. A member's name is clipped instead; its title has it whole. */
+  .toc a { overflow-wrap: anywhere; }
+  .toc .sub a { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .rail :global(ul), .pages-menu :global(ul) { padding: 0; list-style: none; }
   .rail :global(ul) { border-left: 1px solid var(--rule); }
   .rail :global(a), .pages-menu :global(a) {

@@ -1,0 +1,173 @@
+---
+/**
+ * One documented Python object, drawn by the shared ApiEntry: its
+ * signature, its docstring and, for a class, its members. Attributes (and an
+ * enum's members) are a table; methods and properties are objects of their
+ * own, a heading level down.
+ */
+import {
+  attributeHtml,
+  expressionHtml,
+  hrefOf,
+  instrumentorMethods,
+  resolvePart,
+  signatureHtml,
+  toMarkdown,
+  type ApiObject,
+  type ApiPackage,
+  type AttributeObject,
+  type ClassMember,
+  type NestedClassObject,
+} from "../../lib/python-api";
+import ApiEntry from "../api/ApiEntry.astro";
+import Docstring from "../api/Docstring.astro";
+import MemberTable from "../api/MemberTable.astro";
+
+interface Props {
+  object: ApiObject | ClassMember;
+  pkg: ApiPackage;
+  /** The module it's documented in, for resolving names in its docstring. */
+  module: string;
+  /** 3 for a module's members, 4 for a class's. */
+  level?: 3 | 4;
+}
+
+const { object, pkg, module, level = 3 } = Astro.props;
+const parent = object.path.slice(0, object.path.lastIndexOf("."));
+const scope = [object.path, parent, module, pkg.module, "openinference.instrumentation"];
+
+const labels = "labels" in object ? (object.labels ?? []) : [];
+const isAsync = labels.includes("async");
+
+let kindLabel: string = object.kind;
+let signature = "";
+switch (object.kind) {
+  case "class":
+  case "enum":
+    signature = signatureHtml({
+      keyword: "class",
+      name: object.name,
+      parameters: "parameters" in object ? object.parameters : null,
+      bases: object.bases,
+    });
+    if ("labels" in object && labels.includes("dataclass")) kindLabel = "dataclass";
+    break;
+  case "function":
+  case "method":
+    signature = signatureHtml({
+      keyword: isAsync ? "async def" : "def",
+      name: object.name,
+      parameters: object.parameters,
+      returns: object.returns,
+    });
+    if (labels.includes("classmethod")) kindLabel = "classmethod";
+    if (labels.includes("staticmethod")) kindLabel = "staticmethod";
+    break;
+  case "property":
+    signature = attributeHtml({ name: object.name, annotation: object.annotation });
+    break;
+  case "attribute":
+    signature = attributeHtml(object);
+    if (labels.includes("class-attribute") || labels.includes("instance-attribute")) {
+      kindLabel = "attribute";
+    }
+    break;
+  case "type alias":
+    signature = `<span class="sig-keyword">type</span> ${attributeHtml({ name: object.name, value: object.value })}`;
+    break;
+  case "reexport":
+    kindLabel = "re-export";
+    break;
+}
+
+const isClass = object.kind === "class" || object.kind === "enum";
+const members = isClass && "members" in object ? object.members : [];
+const rows = members.filter(
+  (member): member is AttributeObject | NestedClassObject =>
+    member.kind === "attribute" || member.kind === "class",
+);
+// An instrumentor's `instrument()` and `uninstrument()` come from
+// OpenTelemetry's BaseInstrumentor, which this reference doesn't read; they
+// are what people call, so document them here.
+const isInstrumentor = level === 3 && object.path === pkg.instrumentor?.path;
+const callables = [
+  ...(isInstrumentor ? instrumentorMethods(pkg, object.path) : []),
+  ...members.filter((member) => member.kind !== "attribute" && member.kind !== "class"),
+];
+// Where a re-exported object is defined, when that's a public module too
+// (a private one, `_capture`, isn't somewhere to import it from).
+const definedIn =
+  "canonical" in object && object.canonical
+    ? object.canonical.slice(0, object.canonical.lastIndexOf("."))
+    : undefined;
+const canonical = definedIn && !definedIn.split(".").some((part) => part.startsWith("_")) ? definedIn : undefined;
+const reexported = object.kind === "reexport" ? object.target : undefined;
+const reexportHref = reexported ? hrefOf(reexported) : undefined;
+
+const markdown = (text: string) => toMarkdown(text, scope);
+const attributeRows = rows.map((row) => ({
+  id: row.path,
+  name: row.name,
+  html:
+    row.kind === "attribute"
+      ? [
+          row.annotation?.length ? expressionHtml(row.annotation) : "",
+          row.value?.length ? `${row.annotation?.length ? " = " : ""}${expressionHtml(row.value)}` : "",
+        ].join("")
+      : "class",
+  docstring: row.docstring,
+}));
+---
+
+<ApiEntry id={object.path} name={object.name} kind={kindLabel} source={object.source} signatures={[signature]} level={level}>
+  {
+    reexported && (
+      <p class="api-note">
+        Re-exported from{" "}
+        {reexportHref ? (
+          <a href={reexportHref}>
+            <code>{reexported}</code>
+          </a>
+        ) : (
+          <code>{reexported}</code>
+        )}
+        .
+      </p>
+    )
+  }
+  {
+    canonical && (
+      <p class="api-note">
+        Also importable from <code>{canonical}</code>.
+      </p>
+    )
+  }
+
+  {
+    object.docstring && object.docstring.length > 0 && (
+      <Docstring sections={object.docstring} resolve={resolvePart} markdown={markdown} />
+    )
+  }
+
+  {
+    attributeRows.length > 0 && (
+      <MemberTable
+        label={object.kind === "enum" ? "Members" : "Attributes"}
+        column={object.kind === "enum" ? "Value" : "Type and value"}
+        rows={attributeRows}
+        resolve={resolvePart}
+        markdown={(text, row) => toMarkdown(text, [row.id, object.path, ...scope])}
+      />
+    )
+  }
+
+  {
+    callables.length > 0 && (
+      <div class="api-methods">
+        {callables.map((member) => (
+          <Astro.self object={member} pkg={pkg} module={module} level={4} />
+        ))}
+      </div>
+    )
+  }
+</ApiEntry>
