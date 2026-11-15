@@ -48,6 +48,11 @@ from openai.types.responses.response_file_search_tool_call import Result as File
 from openai.types.responses.response_function_web_search import ActionSearch
 from openai.types.responses.response_input_item_param import ComputerCallOutput
 from openai.types.responses.response_reasoning_item import Summary
+from openai.types.responses.response_usage import (
+    InputTokensDetails,
+    OutputTokensDetails,
+    ResponseUsage,
+)
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -1313,3 +1318,52 @@ def test_group_id_sdk_integration() -> None:
     assert attrs.pop("openinference.span.kind") == "AGENT"
     assert attrs.pop("session.id") == "conv-1"
     assert not attrs, f"unexpected attributes: {attrs}"
+
+
+# --- fixed-size attributes survive the OTel span attribute limit --------------------
+
+
+def _usage() -> ResponseUsage:
+    return ResponseUsage(
+        input_tokens=1000,
+        output_tokens=10,
+        total_tokens=1010,
+        input_tokens_details=InputTokensDetails(cached_tokens=0, cache_write_tokens=0),
+        output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+    )
+
+
+def test_response_attributes_survive_the_span_attribute_limit() -> None:
+    """A long conversation must not evict the token counts, model name or output.
+
+    The OTel SDK keeps at most 128 attributes per span and evicts the oldest, so the order
+    in which ``on_span_end`` sets them decides which ones survive. A response span writes the
+    whole input as one attribute per message, which is what pushes a long conversation over
+    the limit, so the response attributes have to be written last.
+    """
+    processor, exporter = _make_processor()
+    conversation = [
+        EasyInputMessageParam(role="user" if index % 2 == 0 else "assistant", content=f"m{index}")
+        for index in range(80)
+    ]
+    span = _FakeSpan(
+        "resp",
+        None,
+        ResponseSpanData(response=_text_response(usage=_usage()), input=conversation),
+    )
+    _run(processor, _FakeTrace(), [span])
+
+    [llm_span] = [
+        s
+        for s in exporter.get_finished_spans()
+        if _attrs(s).get("openinference.span.kind") == "LLM"
+    ]
+    attrs = _attrs(llm_span)
+    # The limit was actually reached, so this test is exercising eviction and not a short span.
+    assert llm_span.dropped_attributes > 0
+    assert attrs["llm.token_count.prompt"] == 1000
+    assert attrs["llm.token_count.total"] == 1010
+    assert attrs["llm.model_name"] == "gpt-4o-mini"
+    # The span keeps the whole input and output rather than trading them for messages.
+    assert "input.value" in attrs
+    assert "output.value" in attrs
