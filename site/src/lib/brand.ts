@@ -2,12 +2,14 @@
  * The OpenInference mark and wordmark, for the brand page.
  *
  * The artwork in `src/assets/brand/` is the canonical drawing, as outlines,
- * so it needs no font: the mark (six panels around a bolt) and the wordmark
- * (Urbanist SemiBold, outlined). They are used apart: there is no lockup.
+ * so it needs no font: the mark (Keyway: six sides around a nut and bolt,
+ * with one keyway cut at the bottom) and the wordmark (Urbanist SemiBold,
+ * outlined). They are used apart: there is no lockup.
  * `scripts/build-brand.mjs` draws the mark from the rules in `mark.mjs`; this
  * module reads the artwork and quotes the same geometry, so the page and the
  * files agree.
- * Units: the mark is 1000 tall, centred on the bolt, y down.
+ * Units: Labs units (Labs side = 1000); the mark is 757.77 tall, centred on
+ * its ink, y down.
  */
 import markSvg from "../assets/brand/openinference-mark.svg?raw";
 import markUrl from "../assets/brand/openinference-mark.svg?url";
@@ -15,7 +17,9 @@ import wordmarkSvg from "../assets/brand/openinference-wordmark.svg?raw";
 import wordmarkUrl from "../assets/brand/openinference-wordmark.svg?url";
 import wordmarkPaperUrl from "../assets/brand/openinference-wordmark-paper.svg?url";
 import iconUrl from "../assets/brand/openinference-icon.svg?url";
-import { CAP_UNITS, markGeometry, palette } from "./mark.mjs";
+import { CAP_UNITS, MINIMUM_SIZE, markGeometry, num, palette } from "./mark.mjs";
+
+export { num };
 
 export interface ViewBox {
   x: number;
@@ -69,11 +73,15 @@ export const colors = {
   black: "#000000",
 } as const;
 
-const geometry = markGeometry();
+/** Every dimension of the mark, from the rules in `mark.mjs`. */
+export const geometry = markGeometry();
 
-if (Math.abs(art.mark.viewBox.h - geometry.height) > 0.01 || Math.abs(art.mark.viewBox.w - geometry.width) > 0.01) {
+if (!art.mark.body.includes(`d="${geometry.path}"`)) {
   throw new Error("The brand artwork is out of date with src/lib/mark.mjs: run `pnpm brand`.");
 }
 
 /** Clear space on every side: one bolt diameter round the mark, one cap height round the wordmark. */
 export const clearSpace = { mark: geometry.clearSpace, wordmark: CAP_UNITS };
+
+/** The smallest the mark is drawn, in CSS pixels tall. */
+export const minimumSize = { mark: MINIMUM_SIZE };

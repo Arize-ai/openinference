@@ -6,13 +6,11 @@
  */
 import BrandArt from "../components/brand/BrandArt.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { art, clearSpace, colors, icon, wordmarkPaper } from "../lib/brand";
+import { art, clearSpace, colors, geometry as g, icon, minimumSize, num, wordmarkPaper } from "../lib/brand";
 
-/** A number to two decimals at most, without trailing zeros. */
-const fmt = (n: number) => String(Number((n + 1e-9).toFixed(2)));
 type Box = { x: number; y: number; w: number; h: number };
 const viewBoxOf = (box: Box, pad: number) =>
-  `${fmt(box.x - pad)} ${fmt(box.y - pad)} ${fmt(box.w + 2 * pad)} ${fmt(box.h + 2 * pad)}`;
+  `${num(box.x - pad)} ${num(box.y - pad)} ${num(box.w + 2 * pad)} ${num(box.h + 2 * pad)}`;
 /** Where to letter the clear space: the middle of each side's margin. */
 const sidesOf = (box: Box, space: number): [number, number][] => [
   [box.x + box.w / 2, box.y - space / 2],
@@ -25,6 +23,61 @@ const M = art.mark.viewBox;
 const W = art.wordmark.viewBox;
 const markSpace = clearSpace.mark;
 const wordSpace = clearSpace.wordmark;
+
+/* Anatomy: the construction drawing, in the mark's own units (Labs units,
+   y down, centred on the ink). The hexagon and the nut share a centre,
+   g.drop below the ink's. */
+const top = M.y;
+const bottom = M.y + M.h;
+const half = M.w / 2;
+const halfCut = g.cut / 2;
+const TICK = 12;
+/** From the mark to its first dimension line, and between dimension lines. */
+const DIM = 44;
+const ROW = 66;
+/** From a dimension line to its label's baseline: under the line, over it, or beside it (turned). */
+const LABEL = { below: 38, above: -14, beside: 40 };
+/** A dimension line; a horizontal one's label goes `below` it unless set `above`. */
+type Dimension = { from: [number, number]; to: [number, number]; label: string; side?: "below" | "above" };
+const dimensionLines: Dimension[] = [
+  { from: [half + DIM, top], to: [half + DIM, bottom], label: num(g.height) },
+  { from: [-halfCut, bottom + DIM], to: [halfCut, bottom + DIM], label: num(g.cut) },
+  { from: [-half, bottom + DIM + ROW], to: [half, bottom + DIM + ROW], label: num(g.width) },
+  { from: [-g.nut, g.drop], to: [-g.bolt, g.drop], label: num(g.clearance), side: "above" },
+];
+const isVertical = ({ from, to }: Dimension) => from[0] === to[0];
+/** The two ticks across a dimension line's ends. */
+const ticksOf = (d: Dimension) =>
+  [d.from, d.to].map(([x, y]) =>
+    isVertical(d) ? { x1: x - TICK, y1: y, x2: x + TICK, y2: y } : { x1: x, y1: y - TICK, x2: x, y2: y + TICK },
+  );
+/** A label at the middle of its line: under or over a horizontal one, beside a vertical one, turned to read up it. */
+const labelOf = (d: Dimension) => {
+  const x = (d.from[0] + d.to[0]) / 2;
+  const y = (d.from[1] + d.to[1]) / 2;
+  if (isVertical(d)) return { x: x + LABEL.beside, y, transform: `rotate(-90 ${x + LABEL.beside} ${y})` };
+  return { x, y: y + LABEL[d.side ?? "below"] };
+};
+/* Room for the outermost labels: the turned height beside the mark, the
+   radius over the crown, the width under the lowest dimension line. */
+const anatomyPad = { x: DIM + LABEL.beside + 12, top: 62, bottom: DIM + ROW + LABEL.below + 14 };
+const anatomyBox = [-half - anatomyPad.x, top - anatomyPad.top, M.w + 2 * anatomyPad.x, M.h + anatomyPad.top + anatomyPad.bottom]
+  .map(num)
+  .join(" ");
+const u = (n: number) => `${num(n)} u`;
+const dimensions = [
+  { label: "Height", value: u(g.height), note: "the Labs height" },
+  { label: "Width", value: u(g.width), note: "√3 × side" },
+  { label: "Ring thickness", value: u(g.wall), note: "outer flat to window" },
+  { label: "Corner radius", value: u(g.corner) },
+  { label: "Bolt diameter", value: u(2 * g.bolt) },
+  { label: "Keyway", value: u(g.cut), note: "the bolt’s diameter" },
+  { label: "Shoulder radius", value: u(g.shoulder), note: "the Labs outer corner" },
+  { label: "Window across flats", value: u(2 * g.nut) },
+  { label: "Window corner radius", value: u(g.nutCorner) },
+  { label: "Clearance (bolt → nut)", value: u(g.clearance) },
+  { label: "Bolt centre", value: "Hexagon centre", note: `${num(g.drop)} u low` },
+];
 
 const downloads = {
   mark: [
@@ -65,6 +118,68 @@ const swatches = [
       </div>
     </section>
 
+    <section id="anatomy" aria-labelledby="anatomy-heading">
+      <h2 id="anatomy-heading">Anatomy</h2>
+      <div class="grid anatomy">
+        <figure class="panel paper">
+          <div class="stage anatomy-stage">
+            <svg
+              class="diagram"
+              viewBox={anatomyBox}
+              role="img"
+              aria-label="Construction: a hexagon with five corners rounded, the nut cut out as its window with the bolt at its centre, and a keyway as wide as the bolt cut through its bottom"
+            >
+              <line class="g" x1={-half - 40} y1={g.drop} x2={half + 40} y2={g.drop} />
+              <line class="g" x1="0" y1={top - 40} x2="0" y2={bottom + 40} />
+              <path class="st da" d={g.construction.hexagon} />
+              <path class="st da" d={g.construction.nut} />
+              <path class="ghost" d={g.path} />
+              {/* The keyway's walls carry straight on up the bolt's sides. */}
+              <g class="ac da">
+                <line x1={-halfCut} y1={g.drop} x2={-halfCut} y2={bottom + 32} />
+                <line x1={halfCut} y1={g.drop} x2={halfCut} y2={bottom + 32} />
+              </g>
+              {
+                dimensionLines.map((d) => (
+                  <g class="st">
+                    <line x1={d.from[0]} y1={d.from[1]} x2={d.to[0]} y2={d.to[1]} />
+                    {ticksOf(d).map((t) => <line {...t} />)}
+                  </g>
+                ))
+              }
+              <g class="lab" font-size="26">
+                {
+                  dimensionLines.map((d) => (
+                    <text {...labelOf(d)} text-anchor="middle">
+                      {d.label}
+                    </text>
+                  ))
+                }
+                <text x="52" y={top - 22}>r {num(g.corner)} ×5</text>
+                <text x="-14" y={g.drop - 120} text-anchor="end">r {num(g.nutCorner)} ×7</text>
+                <text x="0" y={g.drop - g.bolt - 14} text-anchor="middle">r {num(g.bolt)}</text>
+                <text x={halfCut + 38} y={bottom + 28}>r {num(g.shoulder)}</text>
+              </g>
+            </svg>
+          </div>
+          <figcaption>Construction, in Labs units (Labs side = 1000)</figcaption>
+        </figure>
+        <dl class="dimensions">
+          {
+            dimensions.map((d) => (
+              <div>
+                <dt class="eyebrow">{d.label}</dt>
+                <dd>
+                  {d.value}
+                  {d.note && <span> · {d.note}</span>}
+                </dd>
+              </div>
+            ))
+          }
+        </dl>
+      </div>
+    </section>
+
     <section id="wordmark" aria-labelledby="wordmark-heading">
       <div class="section-head">
         <h2 id="wordmark-heading">Wordmark</h2>
@@ -90,7 +205,7 @@ const swatches = [
               <g class="lab" font-size="84" text-anchor="middle">{sidesOf(M, markSpace).map(([x, y]) => <text {x} y={y + 29}>d</text>)}</g>
             </svg>
           </div>
-          <figcaption><i>d</i> · one bolt diameter</figcaption>
+          <figcaption><i>d</i> · one bolt diameter · {minimumSize.mark} px minimum</figcaption>
         </figure>
         <figure class="panel paper">
           <div class="stage">
@@ -178,6 +293,17 @@ const swatches = [
   .diagram .lab { fill: currentColor; font-family: var(--font-mono); font-weight: 500; }
   .diagram.space-mark { max-width: 200px; }
 
+  /* Anatomy: the drawing beside its dimensions. The accent marks one thing,
+     the keyway's walls running on up the bolt's sides. */
+  .anatomy { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: var(--space-6); align-items: start; }
+  .anatomy-stage { padding: var(--space-4); }
+  .diagram :global(.ghost) { fill: currentColor; fill-opacity: 0.08; stroke: currentColor; stroke-width: 1.5; }
+  .diagram :global(.ac) { fill: none; stroke: var(--color-signal); stroke-width: 1.5; }
+  .dimensions { margin: 0; border-top: 1px solid var(--fg); }
+  .dimensions div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--rule); }
+  .dimensions dd { margin: 0 0 0 auto; text-align: right; font: 500 var(--text-small) / 1.4 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--fg); }
+  .dimensions dd span { color: var(--dim); }
+
   /* Colour */
   .swatch { display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; min-height: 180px; padding: 14px; border: 1px solid var(--rule); }
   .swatch b { margin-bottom: var(--space-1); font: 600 22px / 1.1 var(--font-sans); }
@@ -195,7 +321,7 @@ const swatches = [
   .face-name { margin-top: var(--space-3); color: var(--dim); }
 
   @media (max-width: 840px) {
-    .space-grid { grid-template-columns: minmax(0, 1fr); }
+    .space-grid, .anatomy { grid-template-columns: minmax(0, 1fr); }
     .four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 

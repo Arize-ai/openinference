@@ -16,21 +16,6 @@ export interface Credit {
   changes?: string;
 }
 
-export const photos: Credit[] = [
-  {
-    use: "Home page hero",
-    title: "Cupola Windows (iss038e013587)",
-    url: "https://images.nasa.gov/details/iss038e013587",
-    author: "NASA",
-    license: "Public domain",
-    changes:
-      "The Cupola aboard the International Space Station, photographed on 8 December 2013. Cropped and printed as a halftone screen, with the OpenInference mark drawn over it.",
-  },
-];
-
-/** The hero photo, for its caption. */
-export const heroPhoto = photos[0];
-
 export const typefaces: Credit[] = [
   {
     use: "Headings and body text",
