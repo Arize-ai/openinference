@@ -1,666 +1,209 @@
 ---
 /**
- * Brand guidelines: the OpenInference mark and lockup, the files, and how to
- * use them. Measurements come from src/lib/brand.ts (the rules in
- * src/lib/mark.mjs), and the diagrams are drawn from the same values. See
- * DESIGN.md ("Brand").
+ * Brand guidelines: the OpenInference mark and wordmark, which are used
+ * apart, never locked up together. Artwork and measurements come from
+ * src/lib/brand.ts. See DESIGN.md ("Brand").
  */
 import BrandArt from "../components/brand/BrandArt.astro";
-import Dim from "../components/brand/Dim.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import {
-  art,
-  clearSpace,
-  colors,
-  hexagon,
-  icon,
-  lockup,
-  mark,
-  minimumSize,
-  panelPaths,
-  panelsPath,
-  rules,
-} from "../lib/brand";
-import lockupPaperUrl from "../assets/brand/openinference-lockup-paper.svg?url";
-import { base } from "../lib/site";
+import { art, clearSpace, colors, icon, wordmarkPaper } from "../lib/brand";
 
-/** A number to `digits` decimals at most, without trailing zeros. */
-const fmt = (n: number, digits = 2) => String(Number((n + 1e-9).toFixed(digits)));
-/** A length as a share of the mark's height. */
-const pct = (n: number) => `${fmt((n / mark.height) * 100, 1)}%`;
-const polygon = (points: [number, number][]) =>
-  `M${points.map(([x, y]) => `${fmt(x)} ${fmt(y)}`).join("L")}Z`;
-const polar = ({ radius, deg }: { radius: number; deg: number }): [number, number] => [
-  radius * Math.cos((deg * Math.PI) / 180),
-  radius * Math.sin((deg * Math.PI) / 180),
-];
-const rgb = (hex: string) =>
-  [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(" ");
-
-const contents = [
-  ["files", "Files"],
-  ["logo", "Logo"],
-  ["mark", "Mark"],
-  ["lockup", "Lockup"],
-  ["space", "Clear space"],
-  ["size", "Minimum size"],
-  ["icons", "Icons"],
-  ["colour", "Colour"],
-  ["type", "Typography"],
-  ["name", "Name"],
-  ["misuse", "Misuse"],
+/** A number to two decimals at most, without trailing zeros. */
+const fmt = (n: number) => String(Number((n + 1e-9).toFixed(2)));
+type Box = { x: number; y: number; w: number; h: number };
+const viewBoxOf = (box: Box, pad: number) =>
+  `${fmt(box.x - pad)} ${fmt(box.y - pad)} ${fmt(box.w + 2 * pad)} ${fmt(box.h + 2 * pad)}`;
+/** Where to letter the clear space: the middle of each side's margin. */
+const sidesOf = (box: Box, space: number): [number, number][] => [
+  [box.x + box.w / 2, box.y - space / 2],
+  [box.x + box.w / 2, box.y + box.h + space / 2],
+  [box.x - space / 2, box.y + box.h / 2],
+  [box.x + box.w + space / 2, box.y + box.h / 2],
 ];
 
-const favicon = `${base}favicon.svg`;
-const files = [
-  { name: "Lockup", file: art.lockup.file, url: art.lockup.url, use: "The default: the mark and the wordmark together, in ink." },
-  { name: "Lockup, paper", file: "openinference-lockup-paper.svg", url: lockupPaperUrl, use: "The lockup in paper, for dark grounds where the file can’t be recoloured." },
-  { name: "Mark", file: art.mark.file, url: art.mark.url, use: "Where the wordmark won’t fit, or the name is already given nearby." },
-  { name: "Wordmark", file: art.wordmark.file, url: art.wordmark.url, use: "The name alone, where the mark already appears on the same surface." },
-  { name: "Icon", file: icon.file, url: icon.url, use: "App icons and avatars: the paper mark on an ink square." },
-  { name: "Favicon", file: "favicon.svg", url: favicon, use: "Browser tabs: the mark in ink, or in paper when the browser is dark." },
-  { name: "Favicon, PNG", file: "favicon-32.png", url: `${base}favicon-32.png`, use: "The icon at 32 px, for browsers without SVG favicons." },
-  { name: "Touch icon", file: "apple-touch-icon.png", url: `${base}apple-touch-icon.png`, use: "The icon at 180 px, for iOS home screens." },
-];
-
-/* Mark construction. */
-const half = mark.height / 2;
-const flank = mark.width / 2;
-const seamCentre = polar({ radius: 430, deg: -30 });
-const seamAcross = polar({ radius: mark.seam / 2, deg: 60 });
-const seamLabel = polar({ radius: mark.side + 44, deg: -30 });
-const boltEnd = polar({ radius: mark.bolt, deg: 128 });
-
-const markRules = [
-  ["Height", `${fmt(mark.height)} u`],
-  ["Seam", `${fmt(mark.seam)} u · ${pct(mark.seam)} of height`],
-  ["Corner radius", `${fmt(mark.corner)} u · all 24 corners`],
-  ["Gap round the bolt", `${fmt(rules.gapPerSeam)} × seam · at its narrowest`],
-  ["Bolt diameter", `${fmt(rules.boltPerDepth)} × panel depth`],
-];
-const markResults = [
-  ["Gap round the bolt", `${fmt(mark.gap, 1)} u`],
-  ["Bolt diameter", `${fmt(mark.bolt * 2, 1)} u · ${pct(mark.bolt * 2)} of height`],
-  ["Panel depth", `${fmt(mark.depth, 1)} u`],
-  ["Socket across flats", `${fmt(mark.socketApothem * 2, 1)} u`],
-  ["Hexagon side", `${fmt(mark.side, 1)} u`],
-  ["Width", `${fmt(mark.width, 1)} u · ${pct(mark.width)} of height`],
-];
-
-/* Lockup construction. */
-const L = art.lockup.viewBox;
 const M = art.mark.viewBox;
-const capTop = -lockup.capHeight / 2;
-const lockupFrame = { x: L.x - 130, y: L.y - 160, w: L.w + 1320, h: L.h + 475 };
-const labelX = L.x + L.w + 145;
-const gapDimY = half + 145;
-const lockupSpec = [
-  ["Mark → wordmark", `${fmt(lockup.gap, 1)} u · one bolt diameter`],
-  ["Cap height", `${fmt(lockup.capHeight, 1)} u · ${fmt((lockup.capHeight / mark.height) * 100, 0)}% of mark height`],
-  ["Alignment", "Caps centred on the bolt"],
-  ["Descender", `The “p” hangs ${fmt(lockup.descender, 1)} u below the mark`],
-  ["Wordmark", "Urbanist SemiBold, outlined; one word, one line"],
-  ["Proportion", `${fmt(lockup.aspect, 1)} : 1 · width ÷ mark height`],
-];
+const W = art.wordmark.viewBox;
+const markSpace = clearSpace.mark;
+const wordSpace = clearSpace.wordmark;
 
-/* Clear space, for the mark and for the lockup. */
-const d = clearSpace;
-const frameAround = (box: { x: number; y: number; w: number; h: number }, pad: number) =>
-  `${fmt(box.x - d - pad)} ${fmt(box.y - d - pad)} ${fmt(box.w + 2 * d + 2 * pad)} ${fmt(box.h + 2 * d + 2 * pad)}`;
-const sidesOf = (box: { x: number; y: number; w: number; h: number }): [number, number][] => [
-  [box.x + box.w / 2, box.y - d / 2],
-  [box.x + box.w / 2, box.y + box.h + d / 2],
-  [box.x - d / 2, box.y + box.h / 2],
-  [box.x + box.w + d / 2, box.y + box.h / 2],
-];
-
-/* Minimum size. */
-const markLadder = [16, 20, 24, 32, 48, 64];
-const lockupLadder = [24, 32, 48];
-const lockupHeight = (markPx: number) => (markPx * L.h) / M.h;
-const atPx = (units: number, px: number) => ((units * px) / mark.height).toFixed(1);
-const smallSizes = [16, 24, 32, 48].map((px) => ({
-  px,
-  bolt: atPx(2 * mark.bolt, px),
-  gap: atPx(mark.gap, px),
-  seam: atPx(mark.seam, px),
-}));
+const downloads = {
+  mark: [
+    { label: "Mark", file: art.mark.file, url: art.mark.url },
+    { label: "Icon", file: icon.file, url: icon.url },
+  ],
+  wordmark: [
+    { label: "Wordmark", file: art.wordmark.file, url: art.wordmark.url },
+    { label: "Wordmark, paper", file: wordmarkPaper.file, url: wordmarkPaper.url },
+  ],
+};
 
 const swatches = [
-  { name: "Ink", hex: colors.ink, class: "ink", use: "The mark on light grounds" },
-  { name: "Paper", hex: colors.paper, class: "paper", use: "The mark on dark grounds" },
-  { name: "Signal", hex: colors.signal, class: "signal", use: "The bolt only, on ink, sparingly" },
-  { name: "Black", hex: colors.black, class: "black", use: "One-colour print, on white" },
+  { name: "Ink", hex: colors.ink, class: "ink" },
+  { name: "Paper", hex: colors.paper, class: "paper" },
+  { name: "Signal", hex: colors.signal, class: "signal" },
+  { name: "Black", hex: colors.black, class: "black" },
 ];
-
-const weights = [
-  [100, "Thin"],
-  [200, "ExtraLight"],
-  [300, "Light"],
-  [400, "Regular"],
-  [500, "Medium"],
-  [600, "SemiBold"],
-  [700, "Bold"],
-  [800, "ExtraBold"],
-  [900, "Black"],
-] as const;
-
-/* Misuse is drawn in grey so it never reads as an approved version. */
-const MISUSE = "#AAA49C";
-const PANEL_GREYS = ["#AAA49C", "#6F6B66", "#D8D5CE"];
-const markFrame = `${fmt(-flank - 13)} ${fmt(-half - 13)} ${fmt(mark.width + 26)} ${fmt(mark.height + 26)}`;
 ---
 
-<BaseLayout
-  title="Brand guidelines"
-  description="The OpenInference mark and lockup: files, construction, clear space, minimum sizes, icons, colour, typography, the name and misuse."
->
+<BaseLayout title="Brand guidelines" description="The OpenInference mark and wordmark: files, clear space, colour and typography.">
   <div class="brand">
     <header class="page-head">
-      <h1>Brand guidelines</h1>
-      <p class="intro">
-        The OpenInference identity is a mark and a one-line wordmark. Both are drawn artwork, not
-        type, so always start from the files below rather than recreating them.
-      </p>
-      <nav class="contents" aria-label="On this page">
-        <ul>{contents.map(([id, label]) => <li><a href={`#${id}`}>{label}</a></li>)}</ul>
-      </nav>
+      <h1>Brand</h1>
+      <p class="intro">The mark and the wordmark stand apart. Use the files; never redraw them.</p>
     </header>
 
-    <figure class="hero">
-      <BrandArt name="lockup" label="OpenInference" />
-    </figure>
-
-    <section id="files" aria-labelledby="files-heading">
-      <h2 id="files-heading">Files</h2>
-      <p class="section-intro">
-        The artwork is SVG outlines, so it needs no font and scales to any size; the two PNGs are
-        icons at fixed sizes. The lockup, mark and wordmark are single-colour on a transparent
-        ground; set them in ink or paper.
-      </p>
-      <table class="files">
-        <caption class="visually-hidden">Brand files</caption>
-        <tbody>
-          {
-            files.map((f) => (
-              <tr>
-                <th scope="row">{f.name}</th>
-                <td>{f.use}</td>
-                <td class="get"><a class="button" href={f.url} download={f.file}>Download</a></td>
-              </tr>
-            ))
-          }
-        </tbody>
-      </table>
-    </section>
-
-    <section id="logo" aria-labelledby="logo-heading">
-      <h2 id="logo-heading">Logo</h2>
-      <p class="section-intro">
-        The lockup, the mark beside the wordmark, is the default sign-off. Where there isn’t room
-        for the wordmark, such as avatars, favicons and app icons, the mark stands alone.
-      </p>
-      <div class="grid two">
-        <figure class="panel paper"><div class="stage"><BrandArt name="lockup" label="OpenInference lockup, ink on paper" class="lockup" /></div><figcaption>Lockup in ink, for light grounds</figcaption></figure>
-        <figure class="panel ink"><div class="stage"><BrandArt name="lockup" label="OpenInference lockup, paper on ink" class="lockup" /></div><figcaption>Lockup in paper, for dark grounds</figcaption></figure>
-        <figure class="panel paper"><div class="stage"><BrandArt name="mark" label="OpenInference mark, ink on paper" class="mark-lg" /></div><figcaption>Mark alone, for small or square spaces</figcaption></figure>
-        <figure class="panel ink"><div class="stage"><BrandArt name="mark" label="OpenInference mark, paper on ink" class="mark-lg" /></div><figcaption>Mark alone, on a dark ground</figcaption></figure>
-      </div>
-    </section>
-
     <section id="mark" aria-labelledby="mark-heading">
-      <h2 id="mark-heading">Mark</h2>
-      <p class="section-intro">
-        Six identical panels in a hexagonal ring, cut apart by six seams through the points, around a
-        round bolt. The height and four rules fix every dimension; the hexagon is then sized so the rounded
-        shoulders meet the mark’s height exactly. The measurements are for checking reproductions:
-        use the supplied file rather than redrawing it.
-      </p>
-      <div class="construct">
-        <figure class="panel paper">
-          <div class="stage tall">
-            <svg class="diagram" viewBox="-740 -690 1480 1380" width="1480" height="1380" role="img" aria-label="Mark construction: hexagon, socket, seams and bolt">
-              <line class="g" x1="-715" y1="0" x2="715" y2="0" />
-              <line class="g" x1="0" y1="-660" x2="0" y2="660" />
-              <line class="g" x1={-flank - 80} y1={-half} x2={flank + 185} y2={-half} />
-              <line class="g" x1={-flank - 80} y1={half} x2={flank + 185} y2={half} />
-              <path class="st da" d={polygon(hexagon(mark.side))} />
-              <path class="st da" d={polygon(hexagon(mark.socketPoint))} />
-              <BrandArt name="mark" nested class="ghost" />
-              <Dim x1={flank + 120} y1={-half} x2={flank + 120} y2={half} tick={18} />
-              <text class="lab" x={flank + 145} y="12" font-size="40">{fmt(mark.height)}</text>
-              <Dim x1={-flank} y1={half + 92} x2={flank} y2={half + 92} tick={18} />
-              <text class="lab" x="0" y={half + 150} font-size="40" text-anchor="middle">{fmt(mark.width, 1)}</text>
-              <Dim x1={seamCentre[0] - seamAcross[0]} y1={seamCentre[1] - seamAcross[1]} x2={seamCentre[0] + seamAcross[0]} y2={seamCentre[1] + seamAcross[1]} tick={13} />
-              <text class="lab" x={seamLabel[0]} y={seamLabel[1]} font-size="37">seam {fmt(mark.seam)}</text>
-              <Dim x1={mark.bolt} y1={0} x2={mark.socketApothem} y2={0} tick={13} />
-              <text class="lab" x={(mark.bolt + mark.socketApothem) / 2} y="-22" font-size="37" text-anchor="middle">{fmt(mark.gap)}</text>
-              <Dim x1={mark.socketApothem} y1={0} x2={flank} y2={0} tick={13} />
-              <text class="lab" x={(mark.socketApothem + flank) / 2} y="-22" font-size="37" text-anchor="middle">{fmt(mark.depth, 1)}</text>
-              <line class="st" x1="0" y1="0" x2={boltEnd[0]} y2={boltEnd[1]} />
-              <text class="lab" x="-127" y="156" font-size="37" text-anchor="middle">r {fmt(mark.bolt, 1)}</text>
-            </svg>
-          </div>
-          <figcaption>Construction, on a mark {fmt(mark.height)} units tall</figcaption>
-        </figure>
-        <div class="tables">
-          <table class="spec">
-            <caption>Rules</caption>
-            <tbody>{markRules.map(([name, value]) => <tr><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody>
-          </table>
-          <table class="spec">
-            <caption>What they give</caption>
-            <tbody>{markResults.map(([name, value]) => <tr><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody>
-          </table>
-        </div>
+      <div class="section-head">
+        <h2 id="mark-heading">Mark</h2>
+        <ul class="downloads">
+          {downloads.mark.map((d) => <li><a class="button" href={d.url} download={d.file}>{d.label} ↓</a></li>)}
+        </ul>
+      </div>
+      <div class="grid two">
+        <figure class="panel paper"><div class="stage hero-stage"><BrandArt name="mark" label="OpenInference mark, ink on paper" class="show-mark" /></div></figure>
+        <figure class="panel ink"><div class="stage hero-stage"><BrandArt name="mark" label="OpenInference mark, paper on ink" class="show-mark" /></div></figure>
       </div>
     </section>
 
-    <section id="lockup" aria-labelledby="lockup-heading">
-      <h2 id="lockup-heading">Lockup</h2>
-      <p class="section-intro">
-        The wordmark sits one bolt diameter to the right of the mark, its capitals centred on the
-        bolt. There is one lockup: don’t stack the wordmark under the mark or set it on the left.
-        Scale it as one piece.
-      </p>
-      <figure class="panel paper">
-        <div class="stage wide">
-          <svg class="diagram" viewBox={`${fmt(lockupFrame.x)} ${fmt(lockupFrame.y)} ${fmt(lockupFrame.w)} ${fmt(lockupFrame.h)}`} width={lockupFrame.w} height={lockupFrame.h} role="img" aria-label="Lockup construction: the wordmark one bolt diameter from the mark, its capitals centred on the bolt">
-            <line class="g" x1={L.x - 105} y1={-half} x2={labelX - 40} y2={-half} />
-            <line class="g" x1={L.x - 105} y1={half} x2={labelX - 40} y2={half} />
-            <line class="g" x1={lockup.wordmarkLeft - 80} y1={capTop} x2={labelX - 40} y2={capTop} />
-            <line class="g" x1={lockup.wordmarkLeft - 80} y1={-capTop} x2={labelX - 40} y2={-capTop} />
-            <line class="g" x1={lockup.markRight} y1={-half - 80} x2={lockup.markRight} y2={gapDimY + 26} />
-            <line class="g" x1={lockup.wordmarkLeft} y1={-half - 80} x2={lockup.wordmarkLeft} y2={gapDimY + 26} />
-            <BrandArt name="lockup" nested />
-            <line class="ac" x1={L.x - 105} y1="0" x2={labelX - 40} y2="0" />
-            <Dim x1={lockup.markRight} y1={gapDimY} x2={lockup.wordmarkLeft} y2={gapDimY} tick={29} />
-            <text class="lab" x={(lockup.markRight + lockup.wordmarkLeft) / 2} y={gapDimY + 145} font-size="110" text-anchor="middle">{fmt(lockup.gap, 1)}</text>
-            <text class="lab" x={labelX} y={-half + 37} font-size="105">mark top</text>
-            <text class="lab" x={labelX} y={capTop + 37} font-size="105">cap height</text>
-            <text class="lab accent" x={labelX} y="37" font-size="105">bolt centre</text>
-          </svg>
-        </div>
-        <figcaption>The capitals are centred on the bolt, one bolt diameter from the mark</figcaption>
-      </figure>
-      <table class="spec wide-spec">
-        <caption class="visually-hidden">Lockup dimensions, on a mark {fmt(mark.height)} units tall</caption>
-        <tbody>{lockupSpec.map(([name, value]) => <tr><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody>
-      </table>
+    <section id="wordmark" aria-labelledby="wordmark-heading">
+      <div class="section-head">
+        <h2 id="wordmark-heading">Wordmark</h2>
+        <ul class="downloads">
+          {downloads.wordmark.map((d) => <li><a class="button" href={d.url} download={d.file}>{d.label} ↓</a></li>)}
+        </ul>
+      </div>
+      <div class="grid one">
+        <figure class="panel paper"><div class="stage word-stage"><BrandArt name="wordmark" label="OpenInference wordmark, ink on paper" class="show-word" /></div></figure>
+        <figure class="panel ink"><div class="stage word-stage"><BrandArt name="wordmark" label="OpenInference wordmark, paper on ink" class="show-word" /></div></figure>
+      </div>
     </section>
 
     <section id="space" aria-labelledby="space-heading">
       <h2 id="space-heading">Clear space</h2>
-      <p class="section-intro">
-        Keep at least one bolt diameter (d, {fmt(d, 1)} units on a mark {fmt(mark.height)} tall) clear
-        on every side of the mark or the lockup. Other type, edges and images stay outside it.
-      </p>
       <div class="grid space-grid">
         <figure class="panel paper">
           <div class="stage">
-            <svg class="diagram space-mark" viewBox={frameAround(M, 53)} role="img" aria-label="Clear space of one bolt diameter on every side of the mark">
-              <rect class="st da" x={M.x - d} y={M.y - d} width={M.w + 2 * d} height={M.h + 2 * d} />
+            <svg class="diagram space-mark" viewBox={viewBoxOf(M, markSpace + 53)} role="img" aria-label="One bolt diameter clear on every side of the mark">
+              <rect class="st da" x={M.x - markSpace} y={M.y - markSpace} width={M.w + 2 * markSpace} height={M.h + 2 * markSpace} />
               <rect class="g" x={M.x} y={M.y} width={M.w} height={M.h} />
               <BrandArt name="mark" nested />
-              <g class="lab" font-size="84" text-anchor="middle">{sidesOf(M).map(([x, y]) => <text {x} y={y + 29}>d</text>)}</g>
+              <g class="lab" font-size="84" text-anchor="middle">{sidesOf(M, markSpace).map(([x, y]) => <text {x} y={y + 29}>d</text>)}</g>
             </svg>
           </div>
-          <figcaption>Mark</figcaption>
+          <figcaption><i>d</i> · one bolt diameter</figcaption>
         </figure>
         <figure class="panel paper">
           <div class="stage">
-            <svg class="diagram" viewBox={frameAround(L, 120)} role="img" aria-label="Clear space of one bolt diameter on every side of the lockup">
-              <rect class="st da" x={L.x - d} y={L.y - d} width={L.w + 2 * d} height={L.h + 2 * d} />
-              <rect class="g" x={L.x} y={L.y} width={L.w} height={L.h} />
-              <BrandArt name="lockup" nested />
-              <g class="lab" font-size="210" text-anchor="middle">{sidesOf(L).map(([x, y]) => <text {x} y={y + 72}>d</text>)}</g>
+            <svg class="diagram" viewBox={viewBoxOf(W, wordSpace + 140)} role="img" aria-label="One cap height clear on every side of the wordmark">
+              <rect class="st da" x={W.x - wordSpace} y={W.y - wordSpace} width={W.w + 2 * wordSpace} height={W.h + 2 * wordSpace} />
+              <rect class="g" x={W.x} y={W.y} width={W.w} height={W.h} />
+              <BrandArt name="wordmark" nested />
+              <g class="lab" font-size="420" text-anchor="middle">{sidesOf(W, wordSpace).map(([x, y]) => <text {x} y={y + 145}>c</text>)}</g>
             </svg>
           </div>
-          <figcaption>Lockup</figcaption>
+          <figcaption><i>c</i> · one cap height</figcaption>
         </figure>
-      </div>
-    </section>
-
-    <section id="size" aria-labelledby="size-heading">
-      <h2 id="size-heading">Minimum size</h2>
-      <p class="section-intro">
-        The mark holds down to {minimumSize.mark} px tall and the lockup to a {minimumSize.lockup} px
-        mark height. Below that the seams and the gap round the bolt close up; use the mark alone, or
-        nothing.
-      </p>
-      <div class="grid two">
-        <figure class="panel paper">
-          <div class="stage">
-            <ol class="ladder" aria-label={`The mark at ${markLadder.join(", ")} px tall`}>
-              {
-                markLadder.map((px, i) => (
-                  <li>
-                    <BrandArt name="mark" style={`height:${px}px;width:auto`} />
-                    <span class:list={{ min: i === 0 }}>{px}</span>
-                  </li>
-                ))
-              }
-            </ol>
-          </div>
-          <figcaption>Mark, by height in pixels; <span class="min">{minimumSize.mark}</span> is the minimum</figcaption>
-        </figure>
-        <figure class="panel paper">
-          <div class="stage">
-            <ol class="lockups" aria-label={`The lockup at mark heights of ${lockupLadder.join(", ")} px`}>
-              {
-                lockupLadder.map((px, i) => (
-                  <li>
-                    <BrandArt name="lockup" style={`height:${fmt(lockupHeight(px), 1)}px;width:auto`} />
-                    <span class:list={{ min: i === 0 }}>{px}</span>
-                  </li>
-                ))
-              }
-            </ol>
-          </div>
-          <figcaption>Lockup, by mark height in pixels; <span class="min">{minimumSize.lockup}</span> is the minimum</figcaption>
-        </figure>
-      </div>
-      <table class="px-table">
-        <caption>Widths at small sizes, in pixels</caption>
-        <thead><tr><th scope="col">Mark height</th><th scope="col">Bolt</th><th scope="col">Gap</th><th scope="col">Seam</th></tr></thead>
-        <tbody>
-          {smallSizes.map((row) => <tr><th scope="row">{row.px} px</th><td>{row.bolt}</td><td>{row.gap}</td><td>{row.seam}</td></tr>)}
-        </tbody>
-      </table>
-    </section>
-
-    <section id="icons" aria-labelledby="icons-heading">
-      <h2 id="icons-heading">Icons</h2>
-      <p class="section-intro">
-        App icons and avatars use the icon file: the paper mark on an ink square, with one bolt
-        diameter clear on every side. That margin also survives a circular crop, so the same file
-        works for round avatars. The favicon is the mark alone, which follows the browser’s light or
-        dark theme.
-      </p>
-      <div class="grid four icons">
-        <figure class="panel paper"><div class="stage"><img src={icon.url} width="96" height="96" alt="The OpenInference app icon" /></div><figcaption>App icon</figcaption></figure>
-        <figure class="panel paper"><div class="stage"><img class="round" src={icon.url} width="96" height="96" alt="The OpenInference icon cropped to a circle" /></div><figcaption>Avatar, round crop</figcaption></figure>
-        <figure class="panel tab-light"><div class="stage tab"><span class="tab-chip"><img src={favicon} width="16" height="16" alt="" />OpenInference</span></div><figcaption>Favicon, light browser</figcaption></figure>
-        <figure class="panel tab-dark"><div class="stage tab"><span class="tab-chip"><BrandArt name="mark" style="width:16px;height:auto" />OpenInference</span></div><figcaption>Favicon, dark browser</figcaption></figure>
       </div>
     </section>
 
     <section id="colour" aria-labelledby="colour-heading">
       <h2 id="colour-heading">Colour</h2>
-      <p class="section-intro">
-        The mark is one flat colour: ink on light grounds, paper on dark ones, black on white for
-        one-colour print. Signal orange may fill the bolt alone, on ink, where it is the only orange
-        in view. Never colour the panels individually, use tints, or add gradients.
-      </p>
       <ul class="grid four swatches">
         {
           swatches.map((s) => (
             <li class:list={["swatch", s.class]}>
               <b>{s.name}</b>
               <span>{s.hex}</span>
-              <span>RGB {rgb(s.hex)}</span>
-              <span class="use">{s.use}</span>
             </li>
           ))
         }
       </ul>
-      <div class="grid four tiles">
-        <figure class="tile-fig"><div class="tile paper"><BrandArt name="mark" /></div><figcaption>Ink on paper</figcaption></figure>
-        <figure class="tile-fig"><div class="tile ink"><BrandArt name="mark" /></div><figcaption>Paper on ink</figcaption></figure>
-        <figure class="tile-fig">
-          <div class="tile ink">
-            <svg viewBox={markFrame} aria-hidden="true"><path d={panelsPath} fill="currentColor" /><circle r={mark.bolt} fill="var(--color-signal)" /></svg>
-          </div>
-          <figcaption>Signal bolt on ink</figcaption>
-        </figure>
-        <figure class="tile-fig"><div class="tile white"><BrandArt name="mark" /></div><figcaption>Black on white, print</figcaption></figure>
-      </div>
     </section>
 
     <section id="type" aria-labelledby="type-heading">
       <h2 id="type-heading">Typography</h2>
-      <p class="section-intro">
-        Urbanist sets headings and body text; Geist Mono sets labels, code and specifications. The
-        wordmark is Urbanist SemiBold converted to outlines, so use the artwork rather than typing the
-        name in Urbanist.
-      </p>
-      <div class="specimen">
-        <p class="big" aria-hidden="true">Aa</p>
-        <ul class="weights">
-          {
-            weights.map(([weight, name]) => (
-              <li style={`font-weight:${weight}`}>
-                Aa<small>{weight} · {name}</small>
-              </li>
-            ))
-          }
-        </ul>
-        <p class="mono-sample">Geist Mono · labels, code and specifications</p>
+      <div class="grid two faces">
+        <div class="face">
+          <p class="sample sans" aria-hidden="true">Aa</p>
+          <p class="face-name">Urbanist</p>
+        </div>
+        <div class="face">
+          <p class="sample mono" aria-hidden="true">Aa</p>
+          <p class="face-name">Geist Mono</p>
+        </div>
       </div>
     </section>
 
-    <section id="name" aria-labelledby="name-heading">
-      <h2 id="name-heading">Name</h2>
-      <p class="section-intro">
-        In text, write the name as one word with a capital O and I. It is set in the surrounding
-        type, never in the wordmark artwork.
-      </p>
-      <ul class="names">
-        <li class="yes"><span>OpenInference</span></li>
-        <li><span>Open Inference</span></li>
-        <li><span>Openinference</span></li>
-        <li><span>Open-Inference</span></li>
-      </ul>
-    </section>
-
-    <section id="misuse" aria-labelledby="misuse-heading">
-      <h2 id="misuse-heading">Misuse</h2>
-      <p class="section-intro">
-        Altering the artwork makes it read as a different mark. If a layout seems to need one of
-        these changes, use the mark alone or a different ground instead.
-      </p>
-      <ul class="grid three misuse" style={`--misuse: ${MISUSE}`}>
-        <li class="misuse-tile">
-          <div class="stage"><svg viewBox={markFrame} class="stretch" aria-hidden="true"><g fill={MISUSE}><path d={panelsPath} /><circle r={mark.bolt} /></g></svg></div>
-          <p>Don’t stretch or squash it</p>
-        </li>
-        <li class="misuse-tile">
-          <div class="stage"><svg viewBox={markFrame} aria-hidden="true"><g transform="rotate(30)" fill={MISUSE}><path d={panelsPath} /><circle r={mark.bolt} /></g></svg></div>
-          <p>Don’t rotate it; the points stay vertical</p>
-        </li>
-        <li class="misuse-tile">
-          <div class="stage"><svg viewBox={markFrame} aria-hidden="true"><g fill="#6e8fd6"><path d={panelsPath} /><circle r={mark.bolt} /></g></svg></div>
-          <p>Don’t recolour it</p>
-        </li>
-        <li class="misuse-tile">
-          <div class="stage">
-            <svg viewBox={markFrame} aria-hidden="true">
-              {panelPaths.map((path, i) => <path d={path} fill={PANEL_GREYS[i % PANEL_GREYS.length]} />)}
-              <circle r={mark.bolt} fill={MISUSE} />
-            </svg>
-          </div>
-          <p>Don’t colour the panels individually</p>
-        </li>
-        <li class="misuse-tile">
-          <div class="stage"><svg viewBox={markFrame} aria-hidden="true"><g fill={MISUSE}><path d={panelsPath} /><circle cx="110" cy="80" r="175" /></g></svg></div>
-          <p>Don’t move or resize the bolt</p>
-        </li>
-        <li class="misuse-tile">
-          <div class="stage"><svg viewBox={markFrame} aria-hidden="true"><g fill="none" stroke={MISUSE} stroke-width="16"><path d={panelsPath} /><circle r={mark.bolt} /></g></svg></div>
-          <p>Don’t outline it</p>
-        </li>
-        <li class="misuse-tile">
-          <div class="stage stacked"><BrandArt name="mark" class="stack-mark" /><BrandArt name="wordmark" class="stack-word" /></div>
-          <p>Don’t rearrange the lockup</p>
-        </li>
-        <li class="misuse-tile">
-          <div class="stage retyped"><BrandArt name="mark" class="retype-mark" /><span>OpenInference</span></div>
-          <p>Don’t retype the wordmark</p>
-        </li>
-        <li class="misuse-tile low-contrast">
-          <div class="stage"><BrandArt name="mark" /></div>
-          <p>Don’t place it on low-contrast grounds</p>
-        </li>
-      </ul>
-    </section>
   </div>
 </BaseLayout>
 
 <style>
   .brand { padding-block: var(--space-8) 0; }
-  .contents ul { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); padding: 0; list-style: none; }
-  .contents a { color: var(--dim); font: 500 var(--text-micro) / 1.4 var(--font-mono); letter-spacing: var(--tracking-micro); text-transform: uppercase; text-decoration: none; }
-  .contents a:hover { color: var(--fg); }
 
-  .hero { margin-top: var(--space-7); padding: var(--space-7) 0 0; border-top: 1px solid var(--fg); }
-
-  section { margin-top: var(--space-8); padding-top: var(--space-8); border-top: 1px solid var(--rule); scroll-margin-top: var(--header-height); }
-  h2 { font: 600 var(--text-feature) / 1.1 var(--font-sans); letter-spacing: var(--tracking-tight); }
-  .section-intro { margin-top: var(--space-4); margin-bottom: var(--space-6); color: var(--soft); font-size: var(--text-body-lg); line-height: 1.55; text-wrap: pretty; }
+  section { margin-top: var(--space-8); padding-top: var(--space-5); border-top: 1px solid var(--rule); scroll-margin-top: var(--header-height); }
+  h2 { margin-bottom: var(--space-5); font: 600 var(--text-feature) / 1.1 var(--font-sans); letter-spacing: var(--tracking-tight); }
+  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-5); }
+  .section-head h2 { margin-bottom: 0; }
+  .downloads { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 0; list-style: none; }
 
   .grid { display: grid; gap: var(--space-4); padding: 0; list-style: none; }
+  .one { grid-template-columns: minmax(0, 1fr); }
   .two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .space-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
-
-  /* Files */
-  .files { width: 100%; border-collapse: collapse; }
-  .files th, .files td { padding: var(--space-3) var(--space-4) var(--space-3) 0; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: middle; }
-  .files tr:first-child > * { border-top: 1px solid var(--fg); }
-  .files th { width: 120px; font: 500 var(--text-micro) / 1.4 var(--font-mono); letter-spacing: var(--tracking-micro); text-transform: uppercase; color: var(--fg); }
-  .files td { color: var(--soft); font-size: var(--text-small); }
-  .files .get { width: 1%; padding-right: 0; text-align: end; white-space: nowrap; }
 
   /* Panels keep a fixed ground in both themes, so artwork always shows as specified. */
   .panel { display: flex; flex-direction: column; margin: 0; border: 1px solid var(--rule); }
   .panel.paper { background: var(--color-white); color: var(--color-ink); border-color: var(--color-rule); }
   .stage { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 220px; padding: var(--space-6); }
-  .stage.tall { min-height: 380px; padding: var(--space-5); }
-  .stage.wide { min-height: 0; padding: var(--space-6) var(--space-5); }
-  .stage :global(.lockup) { max-width: 320px; }
-  .stage :global(.mark-lg) { width: 96px; }
+  .hero-stage { aspect-ratio: 1; }
+  .stage :global(.show-mark) { width: auto; height: 38%; max-height: 180px; }
+  .word-stage { min-height: 260px; }
+  .stage :global(.show-word) { width: min(62%, 480px); }
 
-  figcaption, .spec th, .spec caption, .px-table caption, .px-table thead th, .swatch span, .weights small, .mono-sample, .ladder span, .lockups span {
+  figcaption, .swatch span, .face-name {
     font: 500 var(--text-micro) / 1.4 var(--font-mono);
     letter-spacing: var(--tracking-micro);
     text-transform: uppercase;
   }
+  figcaption i { font-style: normal; text-transform: none; }
   .panel figcaption { padding: 10px 14px; border-top: 1px solid var(--color-rule); color: var(--color-dim); }
-  .panel.ink figcaption { border-color: color-mix(in srgb, var(--color-paper) 18%, var(--color-ink)); }
 
-  /* Construction diagrams: guides in the panel's ink at low opacity, one accent. */
+  /* Clear-space diagrams: guides in the panel's ink at low opacity. */
   .diagram { width: 100%; height: auto; overflow: visible; }
   .diagram :global(*) { vector-effect: non-scaling-stroke; }
   .diagram :global(.g) { fill: none; stroke: currentColor; stroke-width: 1; stroke-opacity: 0.35; }
   .diagram :global(.st) { fill: none; stroke: currentColor; stroke-width: 1.25; stroke-opacity: 0.85; }
   .diagram :global(.da) { stroke-dasharray: 5 4; }
-  .diagram :global(.ac) { fill: none; stroke: var(--color-signal); stroke-width: 1.5; }
-  .diagram :global(.ghost g) { fill-opacity: 0.1; stroke: currentColor; stroke-width: 1.5; }
   .diagram .lab { fill: currentColor; font-family: var(--font-mono); font-weight: 500; }
-  .diagram .lab.accent { fill: var(--color-signal); }
-  .diagram.space-mark { max-width: 240px; }
-
-  .construct { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, 1fr); gap: var(--space-5); align-items: start; }
-  .tables { display: grid; gap: var(--space-5); }
-  .spec { width: 100%; border-collapse: collapse; font: 13px / 1.3 var(--font-mono); }
-  .spec caption, .px-table caption { padding-bottom: var(--space-2); color: var(--fg); text-align: start; }
-  .spec th { padding: 10px 0; border-bottom: 1px solid var(--rule); color: var(--dim); font-weight: 400; text-align: start; }
-  .spec td { padding: 10px 0 10px var(--space-4); border-bottom: 1px solid var(--rule); text-align: end; font-variant-numeric: tabular-nums; }
-  .spec tr:first-child > * { border-top: 1px solid var(--fg); }
-  .wide-spec { margin-top: var(--space-4); }
-
-  /* Minimum size */
-  .ladder, .lockups { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
-  .lockups { flex-direction: column; align-items: flex-start; gap: var(--space-4); }
-  .ladder li { display: grid; justify-items: center; gap: var(--space-2); }
-  .lockups li { display: flex; align-items: center; gap: var(--space-4); }
-  .ladder span, .lockups span { color: var(--color-dim); }
-  .ladder span.min, .lockups span.min, figcaption .min { color: var(--color-signal); }
-  .px-table { width: 100%; margin-top: var(--space-4); border-collapse: collapse; font: 13px / 1.3 var(--font-mono); font-variant-numeric: tabular-nums; }
-  .px-table th, .px-table td { padding: 10px 0; border-bottom: 1px solid var(--rule); text-align: end; }
-  .px-table th:first-child { text-align: start; color: var(--dim); font-weight: 400; }
-  .px-table thead th { color: var(--dim); border-bottom-color: var(--fg); }
-
-  /* Icons */
-  .icons img { display: block; }
-  .icons img.round { border-radius: 50%; }
-  .stage.tab { align-items: flex-end; padding-bottom: 0; }
-  .panel.tab-light { background: #dedbd5; color: var(--color-ink); border-color: #dedbd5; }
-  .panel.tab-dark { background: #2b2829; color: #e9e6e1; border-color: #2b2829; }
-  .tab-chip { display: flex; align-items: center; gap: var(--space-2); padding: 9px 14px; border-radius: 8px 8px 0 0; font: 13px / 1 system-ui, sans-serif; }
-  .tab-light .tab-chip { background: var(--color-paper); }
-  .tab-dark .tab-chip { background: #3b3738; }
-  .panel.tab-light figcaption { border-color: #cfcbc4; }
-  .panel.tab-dark figcaption { border-color: #3b3738; color: #9b958d; }
+  .diagram.space-mark { max-width: 200px; }
 
   /* Colour */
   .swatch { display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; min-height: 180px; padding: 14px; border: 1px solid var(--rule); }
   .swatch b { margin-bottom: var(--space-1); font: 600 22px / 1.1 var(--font-sans); }
   .swatch span { opacity: 0.85; }
-  .swatch .use { margin-top: var(--space-2); text-transform: none; letter-spacing: 0; font-family: var(--font-sans); font-size: 13px; }
-  .tiles { margin-top: var(--space-4); }
-  .tile-fig { display: grid; gap: var(--space-2); margin: 0; }
-  .tile-fig figcaption { color: var(--dim); }
-  .tile { display: grid; place-items: center; aspect-ratio: 1; border: 1px solid var(--rule); }
-  .tile :global(svg) { width: 72px; height: auto; }
   .ink { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
   .paper { background: var(--color-paper); color: var(--color-ink); }
   .signal { background: var(--color-signal); color: var(--color-ink); border-color: var(--color-signal); }
-  .white { background: var(--color-white); color: var(--color-black); }
   .black { background: var(--color-black); color: var(--color-white); border-color: var(--color-black); }
 
   /* Typography */
-  .specimen { padding-top: var(--space-5); border-top: 1px solid var(--fg); }
-  .big { font: 600 clamp(120px, 22vw, 240px) / 1 var(--font-sans); }
-  .weights {
-    display: grid;
-    grid-template-columns: repeat(9, minmax(0, 1fr));
-    gap: var(--space-2);
-    margin-top: var(--space-5);
-    padding: var(--space-4) 0 0;
-    border-top: 1px solid var(--rule);
-    list-style: none;
-  }
-  .weights li { padding-bottom: var(--space-2); font-size: clamp(24px, 3vw, 40px); line-height: 1.1; }
-  .weights small { display: block; color: var(--dim); line-height: 1.8; }
-  .mono-sample { margin-top: var(--space-6); color: var(--soft); }
-
-  /* Name */
-  .names { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); padding: 0; list-style: none; }
-  .names li { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) 0; border-top: 1px solid var(--rule); color: var(--dim); font-size: var(--text-h3); }
-  .names li:not(.yes) span { text-decoration: line-through; text-decoration-thickness: 1px; }
-  .names li::before { content: "✕"; color: var(--dim); font-size: var(--text-small); }
-  .names li.yes { border-top-color: var(--fg); color: var(--fg); font-weight: 600; }
-  .names li.yes::before { content: "✓"; color: var(--fg); }
-
-  /* Misuse */
-  .misuse-tile { display: flex; flex-direction: column; border: 1px solid var(--color-rule); background: var(--color-white); color: var(--color-ink); }
-  .misuse-tile .stage { position: relative; min-height: 200px; overflow: hidden; }
-  .misuse-tile .stage:not(.stacked, .retyped) > :global(svg) { width: auto; height: 110px; overflow: visible; }
-  .misuse-tile .stretch { transform: scaleX(1.45); }
-  .misuse-tile p { display: flex; gap: var(--space-2); padding: 10px 14px; border-top: 1px solid var(--color-rule); color: var(--color-dim); font-size: var(--text-small); }
-  .misuse-tile p::before { content: "✕"; color: var(--color-ink); }
-  .stage.stacked { flex-direction: column; gap: var(--space-3); color: var(--misuse); }
-  .stage.stacked > :global(.stack-mark) { width: auto; height: 64px; }
-  .stage.stacked > :global(.stack-word) { width: 170px; height: auto; }
-  .stage.retyped { gap: var(--space-3); color: var(--misuse); }
-  .stage.retyped > :global(.retype-mark) { flex: none; width: auto; height: 40px; }
-  .stage.retyped span { font: 300 28px / 1 var(--font-sans); letter-spacing: 0.02em; white-space: nowrap; }
-  .low-contrast .stage { background: #7d7873; color: #6f6a65; }
+  .face { padding-top: var(--space-4); border-top: 1px solid var(--fg); }
+  .sample { font-size: clamp(96px, 16vw, 180px); line-height: 1; }
+  .sample.sans { font-family: var(--font-sans); font-weight: 600; }
+  .sample.mono { font-family: var(--font-mono); font-weight: 500; }
+  .face-name { margin-top: var(--space-3); color: var(--dim); }
 
   @media (max-width: 840px) {
-    .construct, .two, .three, .space-grid { grid-template-columns: minmax(0, 1fr); }
-    .four, .names { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .weights { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .space-grid { grid-template-columns: minmax(0, 1fr); }
+    .four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
   @media (max-width: 720px) {
     .brand { padding-top: var(--space-7); }
-    section { margin-top: var(--space-7); padding-top: var(--space-7); }
+    section { margin-top: var(--space-7); }
+    .two { grid-template-columns: minmax(0, 1fr); }
     .stage { padding: var(--space-5); }
-    .stage.tall { min-height: 300px; }
-    .files th { width: 84px; }
-    .files .get .button { padding: 9px 10px; }
+    .word-stage { min-height: 180px; }
   }
 </style>

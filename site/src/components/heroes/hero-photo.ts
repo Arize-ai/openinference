@@ -1,17 +1,17 @@
 /**
  * The hero's background art: a photo printed as a 45° halftone, under the
- * lockup (HeroLockup.astro). Ported from the Arize Labs site
+ * mark (HeroMark.astro). Ported from the Arize Labs site
  * (github.com/arize-labs/website, src/components/heroes/hero-photo.ts),
  * without its glass mark; the photo is placed by a focal point held behind
- * the lockup rather than by its top edge. It drifts with the pointer under
+ * the mark rather than by its top edge. It drifts with the pointer under
  * a fixed screen. Raw WebGL2; still under reduced motion.
  */
 
 /**
- * The lockup's layout within the band, shared with HeroLockup.astro: the
- * band fades out from 55% down, so the lockup sits above its centre.
+ * The mark's layout within the band, shared with HeroMark.astro: the
+ * band fades out from 55% down, so the mark sits above its centre.
  */
-export const LOCKUP_Y = 0.44;
+export const MARK_Y = 0.44;
 
 /**
  * A 45° screen's dots repeat every cell/√2 px along each axis. Snapping that
@@ -37,7 +37,7 @@ export interface PhotoLayout {
    * room to drift; below 1 the photo is centred and its edges fade out.
    */
   minWidth: number;
-  /** Point of the photo kept behind the lockup's centre, 0–1 from the top. */
+  /** Point of the photo kept behind the mark's centre, 0–1 from the top. */
   focusY: number;
   /**
    * How heavily shadow prints on the paper ground, 0–1 (0.42 on the Arize
@@ -66,7 +66,7 @@ uniform float uFitHeight;
 uniform float uMinWidth;
 uniform float uFocusY;
 uniform float uPaperInk;
-uniform float uLockupY;
+uniform float uMarkY;
 uniform vec2 uShift;
 uniform float uDpr;
 uniform float uCell;
@@ -93,7 +93,7 @@ float keyAt(vec2 uv, float lod) {
 }
 
 // The photo's UV (y up) at a point of the band (0–1, y up). The focal point
-// sits behind the lockup, as far as the photo's edges allow.
+// sits behind the mark, as far as the photo's edges allow.
 // Device pixels per photo pixel.
 float photoScale() {
   return max(uRes.y * uFitHeight / uImgSize.y, uRes.x * uMinWidth / uImgSize.x);
@@ -104,7 +104,7 @@ vec2 photoUv(vec2 band, float s) {
   // Keep the photo's edges out of view, with a margin for the drift; where
   // the photo is smaller than the band, centre it instead.
   vec2 lo = 0.5 * shown + 0.012;
-  vec2 focus = vec2(uFocusX, 1.0 - uFocusY) - vec2(0.0, uLockupY - 0.5) * shown;
+  vec2 focus = vec2(uFocusX, 1.0 - uFocusY) - vec2(0.0, uMarkY - 0.5) * shown;
   vec2 c = mix(clamp(focus, lo, max(lo, 1.0 - lo)), vec2(0.5), step(vec2(1.0), shown + 0.024));
   return c + (band - 0.5) * shown - uShift * shown;
 }
@@ -150,7 +150,7 @@ void main() {
 }
 `;
 
-const UNIFORMS = ["uPhoto", "uRes", "uImgSize", "uFocusX", "uFitHeight", "uMinWidth", "uFocusY", "uPaperInk", "uLockupY", "uShift", "uDpr", "uCell", "uIntro", "uPaper", "uBg", "uInk"]  as const;
+const UNIFORMS = ["uPhoto", "uRes", "uImgSize", "uFocusX", "uFitHeight", "uMinWidth", "uFocusY", "uPaperInk", "uMarkY", "uShift", "uDpr", "uCell", "uIntro", "uPaper", "uBg", "uInk"]  as const;
 
 function compile(gl: WebGL2RenderingContext) {
   const shader = (type: number, src: string) => {
@@ -240,8 +240,8 @@ export function mountHeroPhoto(canvas: HTMLCanvasElement, src: string, layout: P
   gl.uniform1f(u.uMinWidth, layout.minWidth);
   gl.uniform1f(u.uFocusY, layout.focusY);
   gl.uniform1f(u.uPaperInk, layout.paperInk);
-  // The lockup's centre, as a fraction of the band from the bottom.
-  gl.uniform1f(u.uLockupY, 1 - LOCKUP_Y);
+  // The mark's centre, as a fraction of the band from the bottom.
+  gl.uniform1f(u.uMarkY, 1 - MARK_Y);
 
   function size() {
     const f = bandFrame(canvas);
@@ -274,7 +274,7 @@ export function mountHeroPhoto(canvas: HTMLCanvasElement, src: string, layout: P
     gl!.drawArrays(gl!.TRIANGLES, 0, 3);
   }
 
-  // Listen on the window: the lockup sits on top of this canvas. The
+  // Listen on the window: the mark sits on top of this canvas. The
   // position is kept in client px and placed on the band once a frame.
   const client = [0, 0], pointer = [0, 0];
   let inWindow = false, hasPointer = false;

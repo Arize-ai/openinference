@@ -2,12 +2,12 @@
 /**
  * The landing page: the root README, or one of its translations. Laid out
  * like the Arize Labs site's home page: a full-bleed art band (the Cupola
- * photo as a halftone, under the lockup) over the hero copy (the tagline,
+ * photo as a halftone, under the mark) over the hero copy (the tagline,
  * the calls to action and the language picker), three pillars, then the
  * rest of the README in the content column, with page markings in the
  * margins. See DESIGN.md ("Landing").
  */
-import HeroLockup from "../components/heroes/HeroLockup.astro";
+import HeroMark from "../components/heroes/HeroMark.astro";
 import HeroPhoto from "../components/heroes/HeroPhoto.astro";
 import LanguagePicker from "../components/LanguagePicker.astro";
 import PageMarkings, { type Run } from "../components/PageMarkings.astro";
@@ -59,7 +59,7 @@ const rulerRuns: Run[] = [
     <div class="band bleed">
       <div class="art">
         <HeroPhoto />
-        <HeroLockup />
+        <HeroMark />
       </div>
       <p class="art-credit frame">
         <a href={heroPhoto.url}>Photo: {heroPhoto.author}, ISS Cupola</a>

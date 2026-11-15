@@ -1,0 +1,128 @@
+---
+/**
+ * A Python package's API reference: what it is and how to install it, then
+ * each public module and the objects it exports. See lib/python-api.ts.
+ */
+import type { GetStaticPaths } from "astro";
+
+import Docstring from "../../components/api/Docstring.astro";
+import PackageHead from "../../components/api/PackageHead.astro";
+import ApiObject from "../../components/python/ApiObject.astro";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { renderMarkdown, type Fact } from "../../lib/api";
+import {
+  getPythonNav,
+  packages,
+  resolvePart,
+  toMarkdown,
+  type ApiPackage,
+} from "../../lib/python-api";
+
+export const getStaticPaths = (() =>
+  packages.map((pkg) => ({ params: { package: pkg.name }, props: { pkg } }))) satisfies GetStaticPaths;
+
+const { pkg } = Astro.props as { pkg: ApiPackage };
+const nav = getPythonNav(pkg);
+
+const install = await renderMarkdown(["```sh", `pip install ${pkg.name}`, "```"].join("\n"));
+
+const instrumentor = pkg.instrumentor;
+const usage = instrumentor
+  ? await renderMarkdown(
+      [
+        "```python",
+        "from opentelemetry.sdk.trace import TracerProvider",
+        ...(instrumentor.acceptsConfig ? ["from openinference.instrumentation import TraceConfig"] : []),
+        `from ${pkg.module} import ${instrumentor.name}`,
+        "",
+        "tracer_provider = TracerProvider()",
+        "# ...add a span processor that exports to Phoenix or any OTLP backend.",
+        "",
+        instrumentor.acceptsConfig
+          ? `${instrumentor.name}().instrument(\n    tracer_provider=tracer_provider,\n    config=TraceConfig(hide_inputs=True),  # optional\n)`
+          : `${instrumentor.name}().instrument(tracer_provider=tracer_provider)`,
+        "```",
+      ].join("\n"),
+    )
+  : undefined;
+
+const facts: Fact[] = [
+  { label: "Module", value: pkg.module, code: true },
+  { label: "Version", value: pkg.version },
+  { label: "Python", value: pkg.requiresPython },
+  { label: "Instruments", value: pkg.instruments.join(", "), code: true },
+];
+
+// The top-level module of a package whose API is all in submodules (the
+// semantic conventions) has nothing to show.
+const modules = pkg.modules.filter(
+  (module, index) => module.members.length > 0 || module.docstring.length > 0 || pkg.modules.length === 1 && index === 0,
+);
+
+const headings = [
+  { depth: 2, slug: "install", text: "Install" },
+  ...(usage ? [{ depth: 2, slug: "usage", text: "Usage" }] : []),
+  ...modules.flatMap((module) => [
+    { depth: 2, slug: module.path, text: module.path },
+    ...module.members.map((member) => ({ depth: 3, slug: member.path, text: member.name })),
+  ]),
+];
+---
+
+<DocsLayout title={pkg.name} description={pkg.description} nav={nav} headings={headings} tocDepth={3}>
+  <PackageHead
+    eyebrow={pkg.group === "core" ? "Python · Core" : "Python · Instrumentation"}
+    name={pkg.name}
+    description={pkg.description}
+    facts={facts}
+    links={[
+      { label: "PyPI", href: pkg.pypi },
+      { label: "README", href: pkg.readme },
+      { label: "Source", href: pkg.source },
+    ]}
+  />
+
+  <h2 id="install">Install</h2>
+  <Fragment set:html={install} />
+
+  {
+    usage && (
+      <>
+        <h2 id="usage">Usage</h2>
+        <p>
+          Instrument once, at startup, before the library is used. The{" "}
+          <a href={`#${instrumentor!.path}`}>
+            <code>{instrumentor!.name}</code>
+          </a>{" "}
+          reference below lists the options.
+        </p>
+        <Fragment set:html={usage} />
+      </>
+    )
+  }
+
+  {
+    modules.map((module) => (
+      <section class="api-module">
+        <h2 id={module.path}>
+          <a href={`#${module.path}`}>
+            <code>{module.path}</code>
+          </a>
+        </h2>
+        {module.docstring.length > 0 && (
+          <div class="api-module-doc">
+            <Docstring
+              sections={module.docstring}
+              resolve={resolvePart}
+              markdown={(text) => toMarkdown(text, [module.path, pkg.module])}
+            />
+          </div>
+        )}
+        {module.members.length === 0 && <p class="api-note">This module exports nothing of its own.</p>}
+        {module.members.map((member) => (
+          <ApiObject object={member} pkg={pkg} module={module.path} />
+        ))}
+      </section>
+    ))
+  }
+</DocsLayout>

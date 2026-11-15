@@ -23,5 +23,6 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 
-# TypeDoc output copied in by the GitHub Pages workflow
-public/js/
+
+# API reference data written by `pnpm js-api` and `pnpm python-api`
+src/generated/

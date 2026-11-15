@@ -1,6 +1,7 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 
 import { BRANCH, GITHUB_URL } from "../plugins/rehype-repo-links.mjs";
+import { pagerOf, type DocsNav } from "./docs";
 import { routeOf } from "./site";
 
 type SpecEntry = CollectionEntry<"spec">;
@@ -29,32 +30,19 @@ async function getSpecPages(): Promise<SpecEntry[]> {
   return entries.sort((a, b) => rank(a.id) - rank(b.id) || a.id.localeCompare(b.id));
 }
 
-interface SpecLink {
-  href: string;
-  label: string;
-}
-
-export interface SpecNav {
-  items: (SpecLink & { current: boolean })[];
-  previous?: SpecLink;
-  next?: SpecLink;
-  /** The page's markdown on GitHub. */
-  source: string;
-}
-
 /** The sidebar, the previous and next pages, and the source link for a spec page. */
-export async function getSpecNav(currentId: string): Promise<SpecNav> {
+export async function getSpecNav(currentId: string): Promise<DocsNav> {
   const pages = await getSpecPages();
   const items = pages.map((entry) => ({
     href: routeOf(`spec/${entry.id}.md`),
     label: entry.id === "README" ? "Overview" : titleOf(entry),
     current: entry.id === currentId,
   }));
-  const index = items.findIndex((item) => item.current);
+  const groups = [{ items }];
   return {
-    items,
-    previous: index > 0 ? items[index - 1] : undefined,
-    next: index >= 0 && index < items.length - 1 ? items[index + 1] : undefined,
+    label: "Specification",
+    groups,
+    ...pagerOf(groups),
     source: `${GITHUB_URL}/blob/${BRANCH}/spec/${currentId}.md`,
   };
 }

@@ -1,0 +1,165 @@
+/*
+ * The API references (/python/, /js/): package heads, modules, objects,
+ * signatures, docstrings and the overview's search. See DESIGN.md ("API
+ * reference"). Imported by the components in src/components/api/; every
+ * class here starts `api-` or `doc-`, so nothing else on the site picks it up.
+ */
+
+/* --- Package head ---------------------------------------------------------- */
+
+.api-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+.api-head h1 { margin: 0; overflow-wrap: anywhere; }
+.api-lede { color: var(--soft); font-size: var(--text-lede); line-height: 1.45; text-wrap: pretty; }
+.api-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-4) 0;
+  border-block: 1px solid var(--rule);
+}
+.api-facts div { display: grid; gap: var(--space-1); min-width: 0; }
+.api-facts dd { margin: 0; font-size: var(--text-small); overflow-wrap: anywhere; }
+.prose .api-facts dd code { padding: 0; background: none; }
+.api-links { display: flex; flex-wrap: wrap; gap: var(--space-5); }
+.api-links a { text-decoration: none; }
+.api-links a:hover { color: var(--fg); }
+
+/* --- Modules --------------------------------------------------------------- */
+
+.api-module {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  margin-top: var(--space-8);
+}
+.api-module > h2 { margin: 0; overflow-wrap: anywhere; }
+.api-module > h2 a { color: inherit; text-decoration: none; }
+.api-module > h2 a:hover { color: var(--accent); }
+.prose .api-module > h2 code { padding: 0; background: none; font-size: 0.8em; font-weight: 600; }
+.api-module-doc { color: var(--soft); }
+/* The module's heading already opens the section; no rule over its first object. */
+.api-module > h2 + .api-object, .api-module-doc + .api-object { padding-top: 0; border-top: 0; }
+.api-module-doc .doc-text > * + *, .api-module-doc .doc-block { margin-top: 1.1em; }
+
+/* --- Objects --------------------------------------------------------------- */
+
+.api-object {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+}
+/* No scroll-margin on anchors here: html's scroll-padding-top (global.css)
+   already clears the header, and the two would add up. */
+.api-object.level-3 { padding-top: var(--space-7); border-top: 1px solid var(--rule); }
+.api-object.level-4 { padding-top: var(--space-5); }
+/* Grid items: min-width 0, so a wide table scrolls in its box rather than
+   widening the page. */
+.api-object > * { margin-top: 0; min-width: 0; }
+
+.api-object-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+}
+.api-object-head :is(h3, h4) { margin: 0; }
+.api-object-head :is(h3, h4) a { color: inherit; text-decoration: none; }
+.api-object-head :is(h3, h4) a:hover { color: var(--accent); }
+/* Names in headings are type, not chips: .prose code would tint them. */
+.prose .api-object-head code {
+  padding: 0;
+  background: none;
+  font-size: 0.92em;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.api-object-head .source { margin-left: auto; text-decoration: none; }
+.api-object-head .source:hover { color: var(--fg); }
+
+/* The signature: mono on the card fill, framed like a code block, and like
+   one, scrolling sideways when it's too wide (global.css). */
+.prose .api-signature { margin: 0; background: var(--card); }
+.api-signature + .api-signature { margin-top: calc(var(--space-2) - var(--space-4)); }
+/* Highlighted with the code blocks' Shiki themes (lib/api.ts,
+   highlightSignature): each token carries its light colour inline and its
+   dark one as --shiki-dark, which the dark theme switches to, as global.css
+   does for .astro-code. */
+:root[data-theme="dark"] .api-signature span[style] { color: var(--shiki-dark) !important; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .api-signature span[style] { color: var(--shiki-dark) !important; }
+}
+.api-signature .sig-name { font-weight: 600; }
+.api-signature a { text-decoration-color: color-mix(in srgb, var(--fg) 35%, transparent); }
+:root .api-signature a:hover span[style] { color: var(--accent) !important; }
+
+.api-note { color: var(--soft); font-size: var(--text-body); }
+
+.api-members > .eyebrow { margin-bottom: var(--space-3); }
+.api-attributes tr:target td { background: var(--tint); }
+/* Names stay whole (SPAN_KIND, not SPAN_KI-ND); values wrap. */
+.prose .api-attributes td:first-child { white-space: nowrap; }
+.prose .api-attributes td + td code { white-space: normal; overflow-wrap: anywhere; }
+.api-attributes td:first-child a { text-decoration: none; }
+.api-row-doc { margin-top: var(--space-2); color: var(--soft); }
+.api-row-doc .doc-block { margin-top: var(--space-3); }
+
+.api-methods {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  padding-left: var(--space-5);
+  border-left: 1px solid var(--rule);
+}
+
+/* --- Docstrings ------------------------------------------------------------ */
+
+.doc-text > * { margin-top: 0; }
+.doc-text > * + * { margin-top: 0.9em; }
+.doc-block > .eyebrow, .doc-note > .eyebrow { margin-bottom: var(--space-3); }
+.doc-note {
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--rule);
+  color: var(--soft);
+}
+.doc-note > * + * { margin-top: 0.8em; }
+/* Type columns hold code that can be long (a Union of four types). */
+/* ...that breaks between words, not inside a name (overflow-wrap: anywhere
+   would let the column shrink to a letter). */
+.prose .doc-table td:not(:first-child) code { white-space: normal; overflow-wrap: break-word; }
+.doc-table a { text-decoration-color: color-mix(in srgb, var(--fg) 35%, transparent); }
+.doc-description p + p { margin-top: 0.6em; }
+
+/* --- Overview search ------------------------------------------------------- */
+
+.api-search { display: grid; gap: var(--space-3); }
+.api-search input {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--fg);
+  font: var(--text-body) var(--font-mono);
+}
+.api-search input::placeholder { color: var(--dim); }
+.api-search input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.api-search .status { color: var(--dim); font-size: var(--text-small); }
+.api-search .status:empty { display: none; }
+.api-search .results { padding: 0; list-style: none; }
+.api-search .results li { margin: 0; border-bottom: 1px solid var(--rule); }
+.api-search .results a {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  text-decoration: none;
+}
+.api-search .results a:hover .name, .api-search .results a:focus-visible .name { color: var(--accent); }
+.api-search .results .name { font: 600 var(--text-small) var(--font-mono); overflow-wrap: anywhere; }
+.api-search .results .meta { color: var(--dim); }
+.api-search .results .summary { color: var(--soft); font-size: var(--text-small); line-height: 1.45; }
+
+@media (max-width: 720px) {
+  .api-methods { padding-left: var(--space-4); }
+}

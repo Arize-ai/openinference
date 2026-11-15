@@ -10,7 +10,7 @@ const isCurrent = (href: string) => path.startsWith(href);
   {/* On the wide frame on every page, so it never shifts between pages. */}
   <div class="bar frame">
     <a class="home" href={base} aria-label={`${site.name} home`}>
-      <BrandArt name="lockup" class="lockup" />
+      <BrandArt name="wordmark" class="wordmark" />
     </a>
     <nav class="nav" aria-label="Main">
       <ul>
@@ -48,8 +48,8 @@ const isCurrent = (href: string) => path.startsWith(href);
 </header>
 
 <style>
-  /* As on the Arize Labs site: solid ground, no rule, the lockup at 34px,
-     the nav in mono caps. */
+  /* Solid ground, no rule, the wordmark alone (caps 15px tall), the nav in
+     mono caps. */
   .site-header {
     position: sticky;
     top: 0;
@@ -65,7 +65,7 @@ const isCurrent = (href: string) => path.startsWith(href);
     height: var(--header-height);
   }
   .home { color: var(--fg); text-decoration: none; }
-  .home :global(.lockup) { display: block; width: auto; height: 34px; }
+  .home :global(.wordmark) { display: block; width: auto; height: 22px; }
 
   ul { display: flex; gap: var(--space-5); padding: 0; list-style: none; }
   .nav a, .menu a, .menu summary {

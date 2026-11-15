@@ -12,7 +12,7 @@ export const routeOf = (repoPath: string): string => {
   return route;
 };
 
-const TAGLINE = "Open conventions and instrumentation for observing AI agents with OpenTelemetry.";
+const TAGLINE = "Open Standard for Agent Observability using OpenTelemetry";
 
 export const site = {
   name: "OpenInference",
@@ -30,7 +30,8 @@ export const site = {
 /** The header nav. Keep labels short enough to fit beside the logo at 390px. */
 export const nav: { href: string; label: string; external?: boolean }[] = [
   { href: routeOf("spec/README.md"), label: "Spec" },
-  { href: `${base}js/`, label: "JS API" },
+  { href: `${base}js/`, label: "JavaScript" },
+  { href: `${base}python/`, label: "Python" },
   { href: site.repo, label: "GitHub", external: true },
 ];
 
