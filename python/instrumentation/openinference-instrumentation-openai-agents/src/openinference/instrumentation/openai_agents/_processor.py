@@ -259,23 +259,29 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         otel_span.update_name(_get_span_name(span))
         data = span.span_data
         if isinstance(data, ResponseSpanData):
-            if isinstance(response := data.response, Response):
-                otel_span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-                otel_span.set_attribute(OUTPUT_VALUE, response.model_dump_json())
-                for k, v in _get_attributes_from_response(response):
-                    otel_span.set_attribute(k, v)
+            # Input messages come first on purpose: the OTel SDK keeps at most
+            # OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT attributes per span and evicts the oldest, so a long
+            # conversation would otherwise evict the fixed-size response attributes (token counts,
+            # model name, output) before the variable-length input messages.
             if input := data.input:
                 if isinstance(input, str):
                     otel_span.set_attribute(INPUT_VALUE, input)
                 elif isinstance(input, list):
                     otel_span.set_attribute(INPUT_MIME_TYPE, JSON)
+                    for k, v in _get_attributes_from_input(input):
+                        otel_span.set_attribute(k, v)
+                    # Set after the per-message attributes so that eviction under the OTel
+                    # attribute limit drops individual messages before the whole input.
                     otel_span.set_attribute(
                         INPUT_VALUE, safe_json_dumps(_without_computer_screenshot_urls(input))
                     )
-                    for k, v in _get_attributes_from_input(input):
-                        otel_span.set_attribute(k, v)
                 elif TYPE_CHECKING:
                     assert_never(input)
+            if isinstance(response := data.response, Response):
+                otel_span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                otel_span.set_attribute(OUTPUT_VALUE, response.model_dump_json())
+                for k, v in _get_attributes_from_response(response):
+                    otel_span.set_attribute(k, v)
         elif isinstance(data, GenerationSpanData):
             for k, v in _get_attributes_from_generation_span_data(data):
                 otel_span.set_attribute(k, v)
