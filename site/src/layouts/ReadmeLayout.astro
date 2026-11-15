@@ -1,17 +1,12 @@
 ---
 /**
- * The landing page: the root README, or one of its translations. Laid out
- * like the Arize Labs site's home page: a full-bleed art band (the Cupola
- * photo as a halftone, under the mark) over the hero copy (the tagline,
- * the calls to action and the language picker), three pillars, then the
- * rest of the README in the content column, with page markings in the
- * margins. See DESIGN.md ("Landing").
+ * The landing page: the root README, or one of its translations. The hero
+ * (the tagline, big, over the calls to action, centred, in the first
+ * screen), three pillars, then the rest of the README
+ * in the content column, with page markings in the margins. See DESIGN.md
+ * ("Landing").
  */
-import HeroMark from "../components/heroes/HeroMark.astro";
-import HeroPhoto from "../components/heroes/HeroPhoto.astro";
-import LanguagePicker from "../components/LanguagePicker.astro";
 import PageMarkings, { type Run } from "../components/PageMarkings.astro";
-import { heroPhoto } from "../lib/credits";
 import { base, directionOf, site } from "../lib/site";
 import BaseLayout from "./BaseLayout.astro";
 
@@ -45,33 +40,21 @@ const pillars = [
   },
 ];
 
-// Gutter rulers: from under the art band to the README, and alongside the
+// Gutter rulers: from under the hero's tagline to the README, and alongside the
 // packages. Each README section gets a registration cross.
 const rulerRuns: Run[] = [
-  { from: [".hero .art", "bottom"], to: ["#specification", "top"] },
+  { from: [".hero h1", "bottom"], to: ["#specification", "top"] },
   { from: ["#instrumentation", "top"], to: ["#supported-destinations", "top"], fadeOut: 0.2 },
 ];
 ---
 
 <BaseLayout>
   <PageMarkings runs={rulerRuns} marks=".readme > h2" />
-  <section class="hero bleed page-grid" aria-labelledby="hero-heading">
-    <div class="band bleed">
-      <div class="art">
-        <HeroPhoto />
-        <HeroMark />
-      </div>
-      <p class="art-credit frame">
-        <a href={heroPhoto.url}>Photo: {heroPhoto.author}, ISS Cupola</a>
-      </p>
-    </div>
-    <div class="copy">
-      <h1 id="hero-heading">{site.tagline}</h1>
-      <div class="actions">
-        <a class="button solid" href={`${base}spec/`}>Read the spec</a>
-        <a class="button" href={site.repo}>View on GitHub</a>
-      </div>
-      <LanguagePicker current={lang} />
+  <section class="hero" aria-labelledby="hero-heading">
+    <h1 id="hero-heading">{site.tagline}</h1>
+    <div class="actions">
+      <a class="button solid" href={`${base}spec/`}>Read the spec</a>
+      <a class="button" href={site.repo}>View on GitHub</a>
     </div>
   </section>
   <ul class="pillars" aria-label={`What ${site.name} is`}>
@@ -94,41 +77,19 @@ const rulerRuns: Run[] = [
 
 <style>
   /*
-   * The hero, as on the Arize Labs home page: a full-bleed art band that
-   * fades into the page, then the copy, centred under it.
+   * The hero: the tagline, big, then the calls to action, all in the first
+   * screen. The header carries the wordmark, so the hero doesn't repeat it.
    */
-  .band { position: relative; }
-  .art {
-    position: relative;
-    height: min(78vh, 720px);
-    overflow: hidden;
-    mask-image: linear-gradient(to bottom, #000 55%, transparent);
-  }
-  .art > :global(*) { width: 100%; height: 100%; object-fit: cover; }
-  /* The photo's credit, small, at the band's foot on the frame's right edge. */
-  .art-credit {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: var(--space-3);
-    color: var(--dim);
-    font: 500 var(--text-micro) / 1.4 var(--font-mono);
-    letter-spacing: var(--tracking-micro);
-    text-align: end;
-    text-transform: uppercase;
-  }
-  .art-credit a { color: inherit; text-decoration: none; }
-  .art-credit a:hover, .art-credit a:focus-visible { color: var(--fg); }
-  .copy {
+  .hero {
     display: grid;
     justify-items: center;
-    gap: var(--space-6);
-    padding-top: var(--space-8);
+    gap: var(--space-7);
+    padding-top: var(--space-9);
     text-align: center;
   }
   h1 {
-    max-width: 22ch;
-    font: 600 var(--text-display) / 1.02 var(--font-sans);
+    max-width: 18ch;
+    font: 600 var(--text-display) / 1 var(--font-sans);
     letter-spacing: var(--tracking-display);
     text-wrap: balance;
   }
@@ -184,8 +145,7 @@ const rulerRuns: Run[] = [
   .readme > :global(ul > li) { padding-block: var(--space-3); border-bottom: 1px solid var(--rule); }
 
   @media (max-width: 720px) {
-    .art { height: auto; aspect-ratio: 4 / 5; }
-    .copy { gap: var(--space-5); padding-top: var(--space-6); }
+    .hero { gap: var(--space-6); padding-top: var(--space-8); }
     .pillars { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); margin-block: var(--space-8) var(--space-7); }
     .readme { padding-bottom: var(--space-7); }
     .readme > :global(h2) { margin-top: var(--space-7); padding-top: var(--space-7); }

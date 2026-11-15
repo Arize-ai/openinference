@@ -28,16 +28,16 @@ const root = (/** @type {string} */ path) => fileURLToPath(new URL(`../${path}`,
 const { ink: INK, paper: PAPER } = palette;
 
 const mark = markGeometry();
-const body = `<path d="${mark.panels.join("")}"/><circle r="${num(mark.bolt)}"/>`;
+const body = `<path d="${mark.path}"/>`;
 const box = { x: -mark.width / 2, y: -mark.height / 2, w: mark.width, h: mark.height };
 const viewBox = (/** @type {{ x: number, y: number, w: number, h: number }} */ b) =>
   [b.x, b.y, b.w, b.h].map(num).join(" ");
 const svg = ({ box: b, inner, style = "" }) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox(b)}"><title>OpenInference</title>${style}<g fill="${INK}">${inner}</g></svg>\n`;
 
-/* The favicon: a square, the mark centred with a little room so the
-   antialiased points aren't clipped. */
-const faviconSide = Math.max(box.w, box.h) * 1.04;
+/* The favicon: a square the mark's height, the mark centred in it, so a
+   16 px favicon draws the mark at its minimum size (MINIMUM_SIZE in mark.mjs). */
+const faviconSide = mark.height;
 const faviconBox = { x: -faviconSide / 2, y: -faviconSide / 2, w: faviconSide, h: faviconSide };
 const faviconStyle = `<style>g{fill:${INK}}@media (prefers-color-scheme:dark){g{fill:${PAPER}}}</style>`;
 
@@ -76,6 +76,6 @@ const raster = (/** @type {number} */ px, /** @type {string} */ path) =>
 await Promise.all([raster(32, "public/favicon-32.png"), raster(180, "public/apple-touch-icon.png")]);
 
 console.log(
-  `mark ${num(mark.width)} × ${num(mark.height)}; bolt r ${num(mark.bolt)}, socket ${num(mark.socket)}, ` +
-    `panels ${num(mark.depth)} deep`,
+  `mark ${num(mark.width)} × ${num(mark.height)}; hexagon side ${num(mark.side)}, ${num(mark.drop)} below centre; ` +
+    `overshoot ${num(mark.overshoot.top)} top, ${num(mark.overshoot.bottom)} bottom`,
 );

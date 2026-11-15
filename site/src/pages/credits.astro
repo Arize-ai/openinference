@@ -5,12 +5,9 @@
  * site's credits page, on the page column.
  */
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { photos, typefaces, type Credit } from "../lib/credits";
+import { typefaces, type Credit } from "../lib/credits";
 
-const groups: [string, Credit[]][] = [
-  ["Photography", photos],
-  ["Typefaces", typefaces],
-];
+const groups: [string, Credit[]][] = [["Typefaces", typefaces]];
 ---
 
 <BaseLayout title="Credits" description="Work by others that this site is built with, and the licences it is used under.">

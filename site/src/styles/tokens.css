@@ -62,10 +62,10 @@
   --text-section: 28px;
   --text-feature: clamp(32px, 3.6vw, 48px);
   --text-h2: clamp(36px, 4.6vw, 56px);
-  --text-display: clamp(38px, 5.4vw, 68px);
+  --text-display: clamp(42px, 6.6vw, 88px);
 
   --tracking-tight: -0.025em;
-  --tracking-display: -0.035em;
+  --tracking-display: -0.04em;
   --tracking-micro: 0.08em;
 
   /* Layout */

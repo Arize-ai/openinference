@@ -21,7 +21,7 @@ there, change it here.
   needs chrome (a hero, a sidebar), the layout draws it.
 - **Centre the column, not the text.** Columns are centred in the page; text
   inside them is left-aligned, titles included. The one exception is the
-  landing hero, which centres its mark, lede and actions.
+  landing hero, which centres its tagline and actions.
 - **Two measures, no others.** The 880px page (`--page-max`), whose text
   and tables both fill it, on the landing page and every spec page; and the
   1400px wide frame (`--frame-max`, as on the Arize Labs site) that holds the
@@ -38,8 +38,8 @@ there, change it here.
 - **One accent.** Signal orange (`--accent`) marks one thing at a time: a
   hover, the current page, a quote rule, the focus ring. It is never a fill
   behind text, and never a second brand colour.
-- **Texture once.** Texture (the halftone hero, the dot ground and the
-  gutter rulers) appears only on the landing page.
+- **Texture once.** Texture (the dot ground and the gutter rulers)
+  appears only on the landing page.
   Everywhere else the page is flat paper or ink.
 
 ## Page types
@@ -49,7 +49,7 @@ below the header.
 
 | Type | Layout | Width | Pages |
 |---|---|---|---|
-| Landing | `ReadmeLayout` | Hero full bleed; README on the 880px page, centred | `/`, `/docs/i18n/README.*.html` |
+| Landing | `ReadmeLayout` | Hero and README on the 880px page, centred | `/`, `/docs/i18n/README.*.html` |
 | Docs | `DocsLayout` | Wide frame: pages rail, the page, an "On this page" rail | `/spec/`, `/spec/*.html`, `/js/`, `/js/*.html`, `/python/`, `/python/*.html` |
 
 Both wrap [`BaseLayout`](./src/layouts/BaseLayout.astro), which owns
@@ -64,23 +64,18 @@ The API references at `/js/` and `/python/` are docs pages too: see
 
 The root README and its translations. Top to bottom:
 
-The layout, hero and page markings are ported from the Arize Labs home
-page (github.com/arize-labs/website: `components/sections/Hero.astro`,
-`components/heroes/hero-photo.ts`, `components/PageMarkings.astro`),
-without its glass mark.
+The layout and page markings are ported from the Arize Labs home page
+(github.com/arize-labs/website: `components/sections/Hero.astro`,
+`components/PageMarkings.astro`), without its glass mark or its art band.
 
-1. **Hero.** A full-bleed art band, `min(78vh, 720px)` tall (4:5 on
-   phones), fading into the page from 55% down. In it, NASA's photo of the
-   ISS Cupola (iss038e013587) printed as a 45° halftone (`HeroPhoto`,
-   `hero-photo.ts`: raw WebGL2, drawn only on screen, still under reduced
-   motion, a greyscale photo without WebGL2 or JavaScript), its round
-   window centred under the solid mark (`HeroMark`) at 46% of the
-   band's height (40% of its width on narrow bands). No effects on the
-   mark: it is the logo, plainly. The photo's credit sits at the band's foot, on the frame's
-   right edge, in mono caps `--dim`. Under the band, centred: the tagline (`site.tagline`) as the
-   `h1` at `--text-display`, weight 600, `--tracking-display`, balanced, at
-   most 22ch; two buttons (**Read the spec**, solid; **View on GitHub**,
-   outline) and the language picker. No lede: the tagline says it.
+1. **Hero.** Centred, on the page column, and all in the first screen:
+   the tagline (`site.tagline`, "The Open Standard for Agent
+   Observability") as the `h1`, `--space-9` under the header, at
+   `--text-display`, weight 600, `--tracking-display`, balanced, at most
+   18ch; then, `--space-7` under it, two buttons (**Read the spec**, solid;
+   **View on GitHub**, outline). No wordmark or mark: the header carries
+   the wordmark, and the hero doesn't repeat it. No lede and no art: the
+   tagline says it. The language picker is off the landing page for now.
 2. **Pillars.** Three `.tick-card`s on the page column, one per part of
    the project: Specification, Instrumentation, Any backend. Each has a
    title, a sentence in `--soft` and a mono caps link to where to read
@@ -102,11 +97,11 @@ without its glass mark.
    off centre.
 4. **Page markings.** A dot ground in the margins beyond the frame's edges
    (`--frame-max`, holding `--frame-edge` from a narrower window), and
-   gutter rulers on those edges from under the art band to the README, and
+   gutter rulers on those edges from under the hero's tagline to the README, and
    alongside the packages, with a registration cross at each `##`
    (`--marking-opacity`). None on phones.
 
-Third-party work (the hero photo, the typefaces) is listed in
+Third-party work (the typefaces) is listed in
 `src/lib/credits.ts` and shown on `/credits.html`, linked from the footer.
 
 The README's GitHub opening (banner, language links, badges and the
@@ -225,7 +220,7 @@ All rendered markdown sits in `.prose`, styled in
 | Token | Size | Use |
 |---|---|---|
 | `--text-h2` | 36 to 56px | Spec page titles |
-| `--text-display` | 38 to 68px | The landing hero's tagline |
+| `--text-display` | 42 to 88px | The landing hero's tagline |
 | `--text-feature` | 32 to 48px | Landing section headings (README `##`) |
 | `--text-section` | 28px | Prose `##` on spec pages |
 | `--text-lede` | 19 to 24px | Page intros (the brand and credits pages) |
@@ -266,18 +261,24 @@ JavaScript the `prefers-color-scheme` block in `tokens.css` applies.
 
 ## Brand
 
-The OpenInference mark is six panels in a hexagonal ring around a bolt; the
-wordmark is Urbanist SemiBold, outlined. The two are used apart, never
-locked up side by side: the header carries the wordmark, the landing hero
-the mark. The canonical artwork is in
+The OpenInference mark, Keyway, is six sides around a nut and bolt, with
+one keyway cut at the bottom: from a distance the O of
+OpenInference, closer the bolt over its slot is the i. The wordmark is
+Urbanist SemiBold, outlined. The two are used apart, never
+locked up side by side: the header carries the wordmark; the mark is the
+icon, the favicon and the avatar. The canonical artwork is in
 [`src/assets/brand/`](./src/assets/brand/), as single-colour outlines.
 Never redraw the mark or retype the wordmark.
 
-Four rules fix the mark, on a mark 1000 units tall: a seam of 96, corners
-rounded at 28, a gap round the bolt of 1.5 seams (at its narrowest, the
-middle of each panel's inner edge), and a bolt 1.2 times as wide as a panel
-is deep. The hexagon is solved so the rounded shoulders meet the height
-exactly. The rules live in [`src/lib/mark.mjs`](./src/lib/mark.mjs);
+Six rules fix the mark, in Labs units (Labs side = 1000): the Labs height
+(757.77), a ring 135.5 thick (outer flat to window flat), a bolt of r 70.5,
+outer corners of r 123, window corners of r 70.5 (the keyway's mouth too)
+and the Labs outer corner, r 25, at the keyway's shoulders. The keyway is as
+wide as the bolt (141): its walls run straight down from the bolt's sides,
+so the bolt sits over its slot edge on edge, the dot of the i. The hexagon
+is solved so the rounded crown and shoulders meet the height exactly, and
+the window is the hexagon brought in by the ring's thickness. The rules live in
+[`src/lib/mark.mjs`](./src/lib/mark.mjs);
 `pnpm brand` ([`scripts/build-brand.mjs`](./scripts/build-brand.mjs)) draws
 the mark, the wordmark in paper (for the README banner's dark mode), the
 icon, the SVG favicon and its PNG fallbacks (`favicon-32.png`,
@@ -285,21 +286,32 @@ icon, the SVG favicon and its PNG fallbacks (`favicon-32.png`,
 and rerun it, never edit the SVGs by hand. The wordmark is the one drawn
 file the script recolours but doesn't draw.
 
+The mark is one colour, always: the bolt is never picked out in another.
+It is never rotated (the keyway stays at the bottom), its keyway is never
+closed, and its bolt is never moved or resized. Clear space is one bolt
+diameter (141) on every side, and the mark is never drawn under 16px tall.
+
 [`src/lib/brand.ts`](./src/lib/brand.ts) reads the artwork and quotes the
 same geometry (the build fails if the files are out of date);
 [`src/pages/brand.astro`](./src/pages/brand.astro), the brand guidelines
-(Mark, Wordmark, Clear space, Colour, Typography), draws from it,
+(Mark, Anatomy, Wordmark, Clear space, Colour, Typography), draws from it,
 so the page can't drift from the files. Like the
 [OpenAI brand page](https://openai.com/brand/), it is mostly artwork: a
 heading and a download per section, captions only where a rule needs one.
+Anatomy is the one exception: the construction drawing beside a table of
+every dimension and where it comes from, both computed from the geometry,
+with the accent on the keyway's walls running up the bolt's sides.
 It sits on the 880px page, like the README and the spec; its panels keep a
 fixed white or ink ground in both themes (the `--color-*` palette tokens),
 so the artwork always shows as specified.
 
 [`BrandArt`](./src/components/brand/BrandArt.astro) inlines a piece of
-artwork in `currentColor`, so it follows the theme: the header and the
-landing hero use it for the wordmark and the mark. The favicon (`public/favicon.svg`) is
-the mark, ink on light browser chrome and paper on dark.
+artwork in `currentColor`, so it follows the theme: the header uses it for
+the wordmark. The favicon (`public/favicon.svg`) is
+the mark, ink on light browser chrome and paper on dark, as tall as its
+square so that at 16px it is the mark's minimum size. The icon (the PNG
+favicon, the iOS home screen icon, and the avatar) is the mark in paper on
+an ink square, one bolt diameter clear on every side.
 
 ## Spacing and breakpoints
 
