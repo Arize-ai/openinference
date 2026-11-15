@@ -434,7 +434,8 @@ class TraceConfig:
         elif _is_image_url(key):
             # Resolve lazy values before the size check so an oversized image
             # cannot bypass the budget by arriving as a callable.
-            value = value() if callable(value) else value
+            if callable(value) and not isinstance(value, str):
+                value = value()
             if (
                 is_base64_url(value) and len(value) > self.base64_image_max_length  # type:ignore
             ):
@@ -444,7 +445,8 @@ class TraceConfig:
         elif self.hide_outputs and _is_within(key, SpanAttributes.OUTPUT_DOCUMENTS):
             return None
         elif _is_document_url(key):
-            value = value() if callable(value) else value
+            if callable(value) and not isinstance(value, str):
+                value = value()
             if (
                 _is_base64_data_uri(value) and len(value) > self.base64_image_max_length  # type: ignore[operator]
             ):
@@ -461,7 +463,9 @@ class TraceConfig:
             and EmbeddingAttributes.EMBEDDING_TEXT in key
         ):
             value = REDACTED_VALUE
-        return value() if callable(value) else value
+        if callable(value) and not isinstance(value, str):
+            return value()
+        return value
 
     def _externalize_or_redact(self, key: str, value: str) -> AttributeValue:
         """
