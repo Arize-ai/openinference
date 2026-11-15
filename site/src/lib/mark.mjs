@@ -29,9 +29,6 @@ export const rules = {
   boltPerDepth: 1.2,
 };
 
-/** The wordmark's cap height, as a share of the mark's height. */
-export const CAP_SHARE = 0.64;
-
 /** The wordmark artwork's cap height, in its own font units (caps from y 0 to 1000). */
 export const CAP_UNITS = 1000;
 
@@ -141,7 +138,7 @@ export function markGeometry(r = rules) {
     socketPoint,
     /** Outer edge to inner edge. */
     depth: flats - socket,
-    /** Clear space on every side of the mark or lockup, and the mark-to-wordmark gap: one bolt diameter. */
+    /** Clear space on every side of the mark: one bolt diameter. */
     clearSpace: 2 * bolt,
     panels,
   };

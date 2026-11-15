@@ -2,18 +2,18 @@
 /**
  * Draws the brand artwork from the mark's rules (src/lib/mark.mjs):
  *
- *   src/assets/brand/openinference-mark.svg     the mark
- *   src/assets/brand/openinference-lockup.svg        the mark and wordmark, in ink
- *   src/assets/brand/openinference-lockup-paper.svg  the same in paper, for dark grounds
- *                                                    (the README banner's dark mode)
- *   src/assets/brand/openinference-icon.svg          app icon and avatar
+ *   src/assets/brand/openinference-mark.svg            the mark
+ *   src/assets/brand/openinference-wordmark-paper.svg  the wordmark in paper, for dark grounds
+ *                                                      (the README banner's dark mode)
+ *   src/assets/brand/openinference-icon.svg            app icon and avatar
  *   public/favicon.svg                               the mark, ink or paper by theme
  *   public/favicon-32.png                            the icon, for browsers without SVG favicons
  *   public/apple-touch-icon.png                      the icon at 180 px, for iOS home screens
  *
  * The wordmark (src/assets/brand/openinference-wordmark.svg) is drawn
  * artwork, Urbanist SemiBold outlined, in its own font units with caps from
- * y 0 to 1000; this script places it but never redraws it.
+ * y 0 to 1000; this script recolours it but never redraws it. The mark and
+ * the wordmark are used apart: there is no lockup.
  *
  * Run it after changing the rules: `pnpm brand`.
  */
@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import sharp from "sharp";
 
-import { CAP_SHARE, CAP_UNITS, markGeometry, num, palette } from "../src/lib/mark.mjs";
+import { markGeometry, num, palette } from "../src/lib/mark.mjs";
 
 const root = (/** @type {string} */ path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const { ink: INK, paper: PAPER } = palette;
@@ -34,22 +34,6 @@ const viewBox = (/** @type {{ x: number, y: number, w: number, h: number }} */ b
   [b.x, b.y, b.w, b.h].map(num).join(" ");
 const svg = ({ box: b, inner, style = "" }) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox(b)}"><title>OpenInference</title>${style}<g fill="${INK}">${inner}</g></svg>\n`;
-
-/* The wordmark: the clear space (one bolt diameter) right of the mark, caps centred on the bolt. */
-const wordmarkSvg = readFileSync(root("src/assets/brand/openinference-wordmark.svg"), "utf8");
-const wordmarkPath = wordmarkSvg.match(/<path d="([^"]+)"/)?.[1];
-const wordmarkBox = wordmarkSvg.match(/viewBox="([^"]+)"/)?.[1].split(/\s+/).map(Number);
-if (!wordmarkPath || !wordmarkBox || wordmarkBox.length !== 4) {
-  throw new Error("openinference-wordmark.svg: expected one path and a viewBox");
-}
-const [wx, wy, ww, wh] = wordmarkBox;
-const scale = (CAP_SHARE * mark.height) / CAP_UNITS;
-const left = box.x + box.w + mark.clearSpace;
-const top = -(CAP_SHARE * mark.height) / 2;
-const lockupRight = left + (wx + ww) * scale;
-const lockupBottom = Math.max(box.y + box.h, top + (wy + wh) * scale);
-const lockupBox = { x: box.x, y: box.y, w: lockupRight - box.x, h: lockupBottom - box.y };
-const wordmark = `<path transform="translate(${num(left)} ${num(top)}) scale(${num(scale * 10000) / 10000})" d="${wordmarkPath}"/>`;
 
 /* The favicon: a square, the mark centred with a little room so the
    antialiased points aren't clipped. */
@@ -68,11 +52,13 @@ const icon =
 
 writeFileSync(root("src/assets/brand/openinference-mark.svg"), svg({ box, inner: body }));
 writeFileSync(root("src/assets/brand/openinference-icon.svg"), icon);
-const lockupSvg = svg({ box: lockupBox, inner: body + wordmark });
-writeFileSync(root("src/assets/brand/openinference-lockup.svg"), lockupSvg);
+const wordmarkSvg = readFileSync(root("src/assets/brand/openinference-wordmark.svg"), "utf8");
+if (!wordmarkSvg.includes(`<g fill="${INK}">`)) {
+  throw new Error(`openinference-wordmark.svg: expected one <g fill="${INK}">`);
+}
 writeFileSync(
-  root("src/assets/brand/openinference-lockup-paper.svg"),
-  lockupSvg.replace(`<g fill="${INK}">`, `<g fill="${PAPER}">`),
+  root("src/assets/brand/openinference-wordmark-paper.svg"),
+  wordmarkSvg.replace(`<g fill="${INK}">`, `<g fill="${PAPER}">`),
 );
 writeFileSync(
   root("public/favicon.svg"),
@@ -91,5 +77,5 @@ await Promise.all([raster(32, "public/favicon-32.png"), raster(180, "public/appl
 
 console.log(
   `mark ${num(mark.width)} × ${num(mark.height)}; bolt r ${num(mark.bolt)}, socket ${num(mark.socket)}, ` +
-    `panels ${num(mark.depth)} deep; lockup ${num(lockupBox.w)} × ${num(lockupBox.h)}`,
+    `panels ${num(mark.depth)} deep`,
 );

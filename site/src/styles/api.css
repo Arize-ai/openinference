@@ -82,11 +82,17 @@
    one, scrolling sideways when it's too wide (global.css). */
 .prose .api-signature { margin: 0; background: var(--card); }
 .api-signature + .api-signature { margin-top: calc(var(--space-2) - var(--space-4)); }
-.api-signature .sig-keyword { color: var(--dim); }
+/* Highlighted with the code blocks' Shiki themes (lib/api.ts,
+   highlightSignature): each token carries its light colour inline and its
+   dark one as --shiki-dark, which the dark theme switches to, as global.css
+   does for .astro-code. */
+:root[data-theme="dark"] .api-signature span[style] { color: var(--shiki-dark) !important; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .api-signature span[style] { color: var(--shiki-dark) !important; }
+}
 .api-signature .sig-name { font-weight: 600; }
-.api-signature .sig-default { color: var(--soft); }
 .api-signature a { text-decoration-color: color-mix(in srgb, var(--fg) 35%, transparent); }
-.api-signature a:hover { color: var(--accent); }
+:root .api-signature a:hover span[style] { color: var(--accent) !important; }
 
 .api-note { color: var(--soft); font-size: var(--text-body); }
 

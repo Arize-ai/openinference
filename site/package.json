@@ -19,7 +19,8 @@
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource-variable/urbanist": "^5.3.0",
     "@pierre/theme": "^2.0.0",
-    "astro": "^7.4.12"
+    "astro": "^7.4.12",
+    "shiki": "4.6.0"
   },
   "packageManager": "pnpm@10.29.3",
   "private": true,

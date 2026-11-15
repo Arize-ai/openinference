@@ -23,6 +23,9 @@ importers:
       astro:
         specifier: ^7.4.12
         version: 7.4.12(@astrojs/markdown-remark@7.3.9)(yaml@2.9.1)
+      shiki:
+        specifier: 4.6.0
+        version: 4.6.0
     devDependencies:
       sharp:
         specifier: 0.34.5

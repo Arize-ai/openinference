@@ -119,7 +119,7 @@ const attributeRows = rows.map((row) => ({
 }));
 ---
 
-<ApiEntry id={object.path} name={object.name} kind={kindLabel} source={object.source} signatures={[signature]} level={level}>
+<ApiEntry id={object.path} name={object.name} kind={kindLabel} source={object.source} signatures={[signature]} lang="python" level={level}>
   {
     reexported && (
       <p class="api-note">

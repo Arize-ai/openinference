@@ -12,7 +12,7 @@ export const routeOf = (repoPath: string): string => {
   return route;
 };
 
-const TAGLINE = "Open conventions and instrumentation for observing AI agents with OpenTelemetry.";
+const TAGLINE = "Open Standard for Agent Observability using OpenTelemetry";
 
 export const site = {
   name: "OpenInference",

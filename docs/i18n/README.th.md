@@ -1,8 +1,8 @@
 <p align="center">
     <br />
     <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="../../site/src/assets/brand/openinference-lockup-paper.svg" />
-        <img alt="OpenInference" src="../../site/src/assets/brand/openinference-lockup.svg" width="60%" />
+        <source media="(prefers-color-scheme: dark)" srcset="../../site/src/assets/brand/openinference-wordmark-paper.svg" />
+        <img alt="OpenInference" src="../../site/src/assets/brand/openinference-wordmark.svg" width="50%" />
     </picture>
     <br />
     <br />

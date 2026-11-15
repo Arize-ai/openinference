@@ -21,7 +21,7 @@ there, change it here.
   needs chrome (a hero, a sidebar), the layout draws it.
 - **Centre the column, not the text.** Columns are centred in the page; text
   inside them is left-aligned, titles included. The one exception is the
-  landing hero, which centres its lockup, lede and actions.
+  landing hero, which centres its mark, lede and actions.
 - **Two measures, no others.** The 880px page (`--page-max`), whose text
   and tables both fill it, on the landing page and every spec page; and the
   1400px wide frame (`--frame-max`, as on the Arize Labs site) that holds the
@@ -74,9 +74,9 @@ without its glass mark.
    ISS Cupola (iss038e013587) printed as a 45° halftone (`HeroPhoto`,
    `hero-photo.ts`: raw WebGL2, drawn only on screen, still under reduced
    motion, a greyscale photo without WebGL2 or JavaScript), its round
-   window centred under the solid lockup (`HeroLockup`) at 72% of the
-   band's width (86% on phones). No effects on the lockup: it is the logo,
-   plainly. The photo's credit sits at the band's foot, on the frame's
+   window centred under the solid mark (`HeroMark`) at 46% of the
+   band's height (40% of its width on narrow bands). No effects on the
+   mark: it is the logo, plainly. The photo's credit sits at the band's foot, on the frame's
    right edge, in mono caps `--dim`. Under the band, centred: the tagline (`site.tagline`) as the
    `h1` at `--text-display`, weight 600, `--tracking-display`, balanced, at
    most 22ch; two buttons (**Read the spec**, solid; **View on GitHub**,
@@ -171,8 +171,8 @@ clipped rather than wrapped.
 - **Objects.** Each member is an `h3` in mono with its kind (mono caps,
   `--dim`) and a **Source ↗** link at the right edge, ruled from the one
   before with a 1px `--rule`. Under it the signature, mono on the `--card`
-  fill in a code block's frame (names linked to where they're documented),
-  one per overload; a long one puts a parameter per line, and an options
+  fill in a code block's frame, highlighted with the code blocks' Pierre
+  theme (names linked to where they're documented), one per overload; a long one puts a parameter per line, and an options
   object a property per line. Then the docs. A class's constructor, methods
   and properties are `h4` objects, set in behind a 1px `--rule`; its
   attributes or properties, and an enum's members, are one table, as are a
@@ -187,7 +187,7 @@ clipped rather than wrapped.
 
 **Header.** As on the Arize Labs site, on the wide frame on every page.
 Sticky, `--header-height` tall, on solid `--bg` with no rule underneath.
-The lockup (34px tall) on the left; the nav on the right in mono caps,
+The wordmark alone (22px tall) on the left; the nav on the right in mono caps,
 `--dim`, `--fg` on hover and for the current section. Links off the site
 carry `↗`. Under 720px the nav folds into a **Menu** disclosure that opens
 a panel under the bar, so it works without JavaScript.
@@ -267,11 +267,11 @@ JavaScript the `prefers-color-scheme` block in `tokens.css` applies.
 ## Brand
 
 The OpenInference mark is six panels in a hexagonal ring around a bolt; the
-lockup sets the wordmark (Urbanist SemiBold, outlined) one bolt diameter to
-its right. The canonical artwork is in
-[`src/assets/brand/`](./src/assets/brand/): the mark, the wordmark and the
-lockup, as single-colour outlines. Never redraw the mark or retype the
-wordmark.
+wordmark is Urbanist SemiBold, outlined. The two are used apart, never
+locked up side by side: the header carries the wordmark, the landing hero
+the mark. The canonical artwork is in
+[`src/assets/brand/`](./src/assets/brand/), as single-colour outlines.
+Never redraw the mark or retype the wordmark.
 
 Four rules fix the mark, on a mark 1000 units tall: a seam of 96, corners
 rounded at 28, a gap round the bolt of 1.5 seams (at its narrowest, the
@@ -279,25 +279,26 @@ middle of each panel's inner edge), and a bolt 1.2 times as wide as a panel
 is deep. The hexagon is solved so the rounded shoulders meet the height
 exactly. The rules live in [`src/lib/mark.mjs`](./src/lib/mark.mjs);
 `pnpm brand` ([`scripts/build-brand.mjs`](./scripts/build-brand.mjs)) draws
-the mark, the lockup (in ink, and in paper for the README banner's dark mode),
-the icon, the SVG favicon and its PNG fallbacks (`favicon-32.png`,
+the mark, the wordmark in paper (for the README banner's dark mode), the
+icon, the SVG favicon and its PNG fallbacks (`favicon-32.png`,
 `apple-touch-icon.png`, rasterised with `sharp`) from them, so change the rules there
 and rerun it, never edit the SVGs by hand. The wordmark is the one drawn
-file the script places but doesn't draw.
+file the script recolours but doesn't draw.
 
 [`src/lib/brand.ts`](./src/lib/brand.ts) reads the artwork and quotes the
 same geometry (the build fails if the files are out of date);
 [`src/pages/brand.astro`](./src/pages/brand.astro), the brand guidelines
-(Logo, Mark, Lockup, Clear space & minimum size, Colour, Typography,
-Misuse), draws from it, so the page can't drift from the files. It follows the
-[Arize Labs brand page](https://github.com/arize-labs/website/blob/main/src/pages/brand.astro).
+(Mark, Wordmark, Clear space, Colour, Typography), draws from it,
+so the page can't drift from the files. Like the
+[OpenAI brand page](https://openai.com/brand/), it is mostly artwork: a
+heading and a download per section, captions only where a rule needs one.
 It sits on the 880px page, like the README and the spec; its panels keep a
 fixed white or ink ground in both themes (the `--color-*` palette tokens),
 so the artwork always shows as specified.
 
 [`BrandArt`](./src/components/brand/BrandArt.astro) inlines a piece of
 artwork in `currentColor`, so it follows the theme: the header and the
-landing hero use it for the lockup. The favicon (`public/favicon.svg`) is
+landing hero use it for the wordmark and the mark. The favicon (`public/favicon.svg`) is
 the mark, ink on light browser chrome and paper on dark.
 
 ## Spacing and breakpoints

@@ -24,7 +24,7 @@ export const photos: Credit[] = [
     author: "NASA",
     license: "Public domain",
     changes:
-      "The Cupola aboard the International Space Station, photographed on 8 December 2013. Cropped and printed as a halftone screen, with the OpenInference lockup drawn over it.",
+      "The Cupola aboard the International Space Station, photographed on 8 December 2013. Cropped and printed as a halftone screen, with the OpenInference mark drawn over it.",
   },
 ];
 
