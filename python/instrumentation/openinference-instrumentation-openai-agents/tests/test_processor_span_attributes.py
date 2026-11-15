@@ -1339,7 +1339,9 @@ def test_generation_model_name_survives_the_span_attribute_limit() -> None:
     _run(processor, _FakeTrace(), [span])
 
     [llm_span] = [
-        s for s in exporter.get_finished_spans() if _attrs(s).get("openinference.span.kind") == "LLM"
+        s
+        for s in exporter.get_finished_spans()
+        if _attrs(s).get("openinference.span.kind") == "LLM"
     ]
     attrs = _attrs(llm_span)
     assert llm_span.dropped_attributes > 0
