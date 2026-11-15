@@ -48,11 +48,7 @@ from openai.types.responses.response_file_search_tool_call import Result as File
 from openai.types.responses.response_function_web_search import ActionSearch
 from openai.types.responses.response_input_item_param import ComputerCallOutput
 from openai.types.responses.response_reasoning_item import Summary
-from openai.types.responses.response_usage import (
-    InputTokensDetails,
-    OutputTokensDetails,
-    ResponseUsage,
-)
+from openai.types.responses.response_usage import ResponseUsage
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -1324,12 +1320,14 @@ def test_group_id_sdk_integration() -> None:
 
 
 def _usage() -> ResponseUsage:
-    return ResponseUsage(
-        input_tokens=1000,
-        output_tokens=10,
-        total_tokens=1010,
-        input_tokens_details=InputTokensDetails(cached_tokens=0, cache_write_tokens=0),
-        output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+    return ResponseUsage.model_validate(
+        {
+            "input_tokens": 1000,
+            "output_tokens": 10,
+            "total_tokens": 1010,
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+            "output_tokens_details": {"reasoning_tokens": 0},
+        }
     )
 
 
@@ -1342,7 +1340,7 @@ def test_response_attributes_survive_the_span_attribute_limit() -> None:
     the limit, so the response attributes have to be written last.
     """
     processor, exporter = _make_processor()
-    conversation = [
+    conversation: list[ResponseInputItemParam] = [
         EasyInputMessageParam(role="user" if index % 2 == 0 else "assistant", content=f"m{index}")
         for index in range(80)
     ]
