@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.8.3...python-openinference-instrumentation-openai-agents-v2.8.4) (2026-11-16)
+
+
+### Documentation
+
+* **spec:** organize the spec into sections modeled on OpenTelemetry ([#4325](https://github.com/Arize-ai/openinference/issues/4325)) ([46e8ae6](https://github.com/Arize-ai/openinference/commit/46e8ae60d4ec58eec6e4bd72084865c87ecb2993))
+
 ## [2.8.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.8.2...python-openinference-instrumentation-openai-agents-v2.8.3) (2026-11-12)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.3.5...python-openinference-instrumentation-anthropic-v3.3.6) (2026-11-16)
+
+
+### Bug Fixes
+
+* **anthropic:** emit llm.tools tool.name and tool.description per spec ([#3783](https://github.com/Arize-ai/openinference/issues/3783)) ([194ca8d](https://github.com/Arize-ai/openinference/commit/194ca8d1b97e17d4898f0e6b59040b5b3ed95da8))
+
 ## [3.3.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v3.3.4...python-openinference-instrumentation-anthropic-v3.3.5) (2026-11-12)
 
 

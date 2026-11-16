@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.3.5...python-openinference-instrumentation-mistralai-v2.3.6) (2026-11-16)
+
+
+### Bug Fixes
+
+* **mistralai:** record input messages passed as SDK model objects ([#4263](https://github.com/Arize-ai/openinference/issues/4263)) ([b9949ac](https://github.com/Arize-ai/openinference/commit/b9949acdf1bf80bed61919e0580e636dd2608d20))
+
 ## [2.3.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.3.4...python-openinference-instrumentation-mistralai-v2.3.5) (2026-11-12)
 
 
