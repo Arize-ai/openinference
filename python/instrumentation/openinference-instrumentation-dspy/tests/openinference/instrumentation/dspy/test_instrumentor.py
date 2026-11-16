@@ -330,7 +330,8 @@ class TestLM:
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         input_value = json.loads(str(attributes.pop(INPUT_VALUE)))
         assert input_value["prompt"]["system"] == "Be terse."
-        assert input_value["prompt"]["tools"] == ["lookup"]
+        assert [tool["name"] for tool in input_value["prompt"]["tools"]] == ["lookup"]
+        assert "sk-call-key" not in json.dumps(input_value)
         assert input_value["prompt"]["config"] == {"max_tokens": 50, "temperature": 0.2}
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         output_value = json.loads(str(attributes.pop(OUTPUT_VALUE)))
