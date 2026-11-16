@@ -1,7 +1,10 @@
 import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 
-/** Keep the file name (minus `.md`) as the entry id, e.g. `README.zh-TW`. */
+/**
+ * Keep the path (minus `.md`) as the entry id, e.g. `README.zh-TW` or, in the
+ * spec's subdirectories, `spans/llm`.
+ */
 const fileNameId = ({ entry }: { entry: string }) =>
   entry.replace(/\.md$/, "");
 
@@ -10,9 +13,9 @@ const root = defineCollection({
   loader: glob({ pattern: "README.md", base: "..", generateId: fileNameId }),
 });
 
-/** The OpenInference specification. */
+/** The OpenInference specification, including its section directories. */
 const spec = defineCollection({
-  loader: glob({ pattern: "*.md", base: "../spec", generateId: fileNameId }),
+  loader: glob({ pattern: "**/*.md", base: "../spec", generateId: fileNameId }),
 });
 
 /** Translations of the root README. */

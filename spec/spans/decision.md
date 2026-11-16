@@ -15,27 +15,25 @@ Representative decision model families:
 
 OpenInference models these calls as `DECISION` spans rather than `LLM` spans because the semantics differ in ways that matter to observability tooling: there are no input or output messages, output tokens are often absent or free, model names and pricing live in a separate catalogue from language models, and the interesting output is a distribution over caller-supplied options rather than generated text. The design discussion is in [Arize-ai/openinference#3808](https://github.com/Arize-ai/openinference/issues/3808) and [Arize-ai/openinference#3894](https://github.com/Arize-ai/openinference/issues/3894).
 
-## Required Attributes
+## Attributes
 
-All decision spans MUST include:
+[Requirement levels](../attributes/conventions.md#requirement-levels) follow the OpenTelemetry definitions.
 
-- `openinference.span.kind`: Set to `"DECISION"`
-- `decision.system`: The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks (e.g., "typesafe" for the System One / Jev API, "openai" for the OpenAI Decisions API)
-
-## Common Attributes
-
-Decision spans typically include:
-
-- `decision.model_name`: The decision model used (e.g., "jev-1.13.0")
-- `decision.request.model_name`: The model requested by the caller, when it can differ from the model that served the response (e.g., an alias such as "jev-latest")
-- `decision.response.model_name`: The model that actually produced the decision, as reported by the provider (e.g., "jev-1.13.0")
-- `decision.provider`: Who hosts the model that answered, when it differs from the system (e.g., a self-hosted vLLM deployment serving a Jev-compatible API)
-- `input.value`: The raw request as a JSON string, including the candidate options
-- `input.mime_type`: Usually "application/json"
-- `output.value`: The raw response as a JSON string, including the selection or scores
-- `output.mime_type`: Usually "application/json"
-- `decision.token_count.input`: Number of input tokens consumed (state, questions, and candidate options)
-- `decision.token_count.output`: Number of output tokens produced; typically small because the answers are typed values, not text
+| Attribute | Requirement level | Notes |
+| --- | --- | --- |
+| `openinference.span.kind` | Required | `"DECISION"` |
+| `decision.system` | Required | The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks (e.g. `"typesafe"` for the System One / Jev API, `"openai"` for the OpenAI Decisions API) |
+| `decision.model_name` | Recommended | The decision model used, e.g. `"jev-1.13.0"` |
+| `decision.request.model_name` | Recommended | The model requested by the caller, when it can differ from the model that served the response (e.g. an alias such as `"jev-latest"`) |
+| `decision.response.model_name` | Recommended | The model that actually produced the decision, as reported by the provider, e.g. `"jev-1.13.0"` |
+| `decision.provider` | Recommended | Who hosts the model that answered, when it differs from the system (e.g. a self-hosted vLLM deployment serving a Jev-compatible API) |
+| `input.value` | Recommended | The raw request as a JSON string, including the candidate options |
+| `input.mime_type` | Recommended | Usually `"application/json"` |
+| `output.value` | Recommended | The raw response as a JSON string, including the selection or scores |
+| `output.mime_type` | Recommended | Usually `"application/json"` |
+| `decision.token_count.input` | Recommended | Number of input tokens consumed (state, questions, and candidate options) |
+| `decision.token_count.output` | Recommended | Number of output tokens produced; typically small because the answers are typed values, not text |
+| `llm.*` identification and token counts | Not used | See [Attributes Not Used in Decision Spans](#attributes-not-used-in-decision-spans) |
 
 ## Model Identification
 
@@ -49,7 +47,7 @@ The `decision.*` identification attributes mirror their `llm.*` counterparts and
 | `decision.request.model_name`  | `llm.request.model_name`  |
 | `decision.response.model_name` | `llm.response.model_name` |
 
-- `decision.system` and `decision.provider` MUST use the [well-known decision values](./semantic_conventions.md#decision-system-and-provider-values) when one applies; otherwise a custom value MAY be used. Those values are aliases of the matching `llm.system` and `llm.provider` values, so the same string names the same vendor whether a span is an `LLM` span or a `DECISION` span. Today the canonical list is `typesafe` and `openai`.
+- `decision.system` and `decision.provider` MUST use the [well-known decision values](../attributes/semantic-conventions.md#decision-system-and-provider-values) when one applies; otherwise a custom value MAY be used. Those values are aliases of the matching `llm.system` and `llm.provider` values, so the same string names the same vendor whether a span is an `LLM` span or a `DECISION` span. Today the canonical list is `typesafe` and `openai`.
 
 ### System versus Provider
 
@@ -88,11 +86,11 @@ Decision spans SHOULD NOT set `llm.system`, `llm.provider`, `llm.model_name`, `l
 
 ### Transition Note
 
-This section is not yet normative. Instrumentations written before the `DECISION` span kind and the `decision.*` attributes existed recorded decision model calls with `llm.*` attributes (`llm.provider`, the `llm.*model_name` attributes, `llm.token_count.*`, and in JavaScript `llm.system`). The OpenInference TypeSafe instrumentors for [Python](../python/instrumentation/openinference-instrumentation-typesafe) and [JavaScript](../js/packages/openinference-instrumentation-typesafe) have migrated to `decision.*`, but spans from their earlier releases still carry the `llm.*` attributes. Consumers SHOULD accept both representations, and the `SHOULD NOT` above is guidance for new instrumentations rather than a conformance requirement for existing ones.
+This section is not yet normative. Instrumentations written before the `DECISION` span kind and the `decision.*` attributes existed recorded decision model calls with `llm.*` attributes (`llm.provider`, the `llm.*model_name` attributes, `llm.token_count.*`, and in JavaScript `llm.system`). The OpenInference TypeSafe instrumentors for [Python](../../python/instrumentation/openinference-instrumentation-typesafe) and [JavaScript](../../js/packages/openinference-instrumentation-typesafe) have migrated to `decision.*`, but spans from their earlier releases still carry the `llm.*` attributes. Consumers SHOULD accept both representations, and the `SHOULD NOT` above is guidance for new instrumentations rather than a conformance requirement for existing ones.
 
 ## Context Attributes
 
-Decision spans inherit the same context attributes as every other OpenInference span (`session.id`, `user.id`, `metadata`, `tag.tags`) when they are set via the instrumentation context API. See [Configuration](./configuration.md) for details.
+Decision spans inherit the same context attributes as every other OpenInference span (`session.id`, `user.id`, `metadata`, `tag.tags`) when they are set via the instrumentation context API. See [Context Attributes](../attributes/context.md).
 
 ## Example
 
@@ -123,4 +121,4 @@ output.value = "{\"model\": \"jev-1.13.0\", \"answers\": {\"cites_source\": {\"a
 - vLLM, [RFC: /v1/decisions](https://github.com/vllm-project/vllm/issues/59365): the proposal for a first-class typed decision endpoint in the vLLM API server, and [vllm-project/vllm#59299](https://github.com/vllm-project/vllm/pull/59299), the `/v1/systemone` structured decisions endpoint.
 - vLLM Semantic Router, [Introducing Decision 1.0: Open Decision Foundation Models](https://vllm-sr.ai/blog/decision-models/): an open-weight decision model family with the same Choice, Noul, and Score interface.
 - OpenInference, [Arize-ai/openinference#3808](https://github.com/Arize-ai/openinference/issues/3808) (decision model semantics) and [Arize-ai/openinference#3894](https://github.com/Arize-ai/openinference/issues/3894) (decision attributes): the discussions behind these conventions.
-- OpenInference TypeSafe instrumentors for [Python](../python/instrumentation/openinference-instrumentation-typesafe) and [JavaScript](../js/packages/openinference-instrumentation-typesafe).
+- OpenInference TypeSafe instrumentors for [Python](../../python/instrumentation/openinference-instrumentation-typesafe) and [JavaScript](../../js/packages/openinference-instrumentation-typesafe).
