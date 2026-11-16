@@ -119,8 +119,8 @@ The layout and page markings are ported from the Arize Labs home page
      duration beside it; a span still running is only
      its dashed outline, and fills in when it ends. Rows ease in as their
      spans start. The agent is the outline alone, the envelope around the
-     work. The failed request is hatched in the accent, with a dashed leader
-     to its retry. Gridlines are dotted. No
+     work. The failed request is hatched in the accent; the retry is simply
+     the next row. Gridlines are dotted. No
      boxes, gradients or glows.
    - **The detail.** What OpenInference recorded on the span in view, and
      nothing it hasn't: inputs from the start, outputs, token counts and the

@@ -76,7 +76,7 @@ export function mount(root: HTMLElement) {
   const rows = all("[data-row]").map((row) => ({
     row,
     duration: row.querySelector<HTMLElement>("[data-duration]")!,
-    /** Marks that appear partway through the run: hierarchy lines, the retry leader. */
+    /** Marks that appear partway through the run: the hierarchy lines. */
     reveals: [...row.querySelectorAll<HTMLElement>("[data-after]")].map((mark) => ({ mark, after: Number(mark.dataset.after) })),
   }));
   const playhead = one("[data-playhead]");

@@ -25,7 +25,6 @@ import {
   LABEL_FLIP,
   PRE_ROLL,
   QUESTION,
-  RETRY,
   SPANS,
   statusOf,
   STEP_SPANS,
@@ -141,9 +140,6 @@ const glyph = (kind: keyof typeof GLYPHS) => `<svg viewBox="0 0 16 16" aria-hidd
                       {span.note && <span class="code-tag">{span.note}</span>}
                     </span>
                     <span class="lane">
-                      {index === RETRY.row && (
-                        <span class="retry" data-after={RETRY.after} style={`left:${pct(RETRY.from)};width:${pct(RETRY.to - RETRY.from)}`} />
-                      )}
                       <span class="bar" />
                       <span
                         class="bar-label"
@@ -527,19 +523,9 @@ const glyph = (kind: keyof typeof GLYPHS) => `<svg viewBox="0 0 16 16" aria-hidd
   /* The root spans the whole timeline; its duration is in the detail. */
   .bar-label[hidden] { display: none; }
   .row.error[data-state="done"] .bar-label { color: var(--accent); }
-  /* The retry: from the failed request's end, down to the next attempt. */
-  .retry {
-    position: absolute;
-    bottom: 50%;
-    height: var(--row);
-    border-left: 1px dashed var(--accent);
-    border-bottom: 1px dashed var(--accent);
-    opacity: 0.8;
-  }
-  .retry[hidden] { display: none; }
 
   /* While something is hovered, everything else steps back. */
-  .waterfall.dim .row:not(.on) :is(.bar, .glyph, .bar-label, .retry) { opacity: 0.3; }
+  .waterfall.dim .row:not(.on) :is(.bar, .glyph, .bar-label) { opacity: 0.3; }
   .waterfall.dim .row:not(.on) .name { opacity: 0.45; }
 
   /* --- The span in view: what OpenInference recorded on it -------------- */

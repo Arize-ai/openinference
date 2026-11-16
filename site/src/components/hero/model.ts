@@ -300,13 +300,6 @@ export const GUIDES: Guide[][] = SPANS.map((span, index) => {
 /** Bars ending this close to the right edge (in %) put their duration before the bar. */
 export const LABEL_FLIP = 86;
 
-/** The retry: from the failed request's end to the next attempt's start, a row below. */
-export const RETRY = (() => {
-  const failed = SPANS.findIndex((span) => span.error);
-  const retry = failed + 1;
-  return { row: retry, from: xAt(SPANS[failed]!.end), to: xAt(SPANS[retry]!.start), after: SPANS[retry]!.start };
-})();
-
 export const TICKS = Array.from({ length: T / 1000 + 1 }, (_, second) => ({ label: `${second}s`, x: xAt(second * 1000) }));
 
 // --- State at time t -----------------------------------------------------------
