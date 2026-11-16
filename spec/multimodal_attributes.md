@@ -27,6 +27,7 @@ Each content item has a `type` attribute that identifies its kind:
 - `"document"` - Document content such as a PDF (URL or base64), an uploaded file, or inline text
 - `"reasoning"` - Reasoning or thinking content, including visible summaries and Anthropic `redacted_thinking`
 - `"tool_use"` - Provider-native tool-use part when a tool call must remain ordered relative to adjacent content items
+- `"tool_result"` - Provider-native tool-result part: the result of a tool the provider ran, in order among the message's other content items
 
 Reasoning-specific fields such as `message_content.id`, `message_content.signature`, `message_content.data`, and `message_content.encrypted_content` are defined in [LLM Spans](./llm_spans.md#reasoning-content).
 

@@ -78,6 +78,25 @@ Some providers return tool calls as ordered content parts interleaved with reaso
 
 The `message.tool_calls` array remains the conventional location for generated tool calls. The ordered `message.contents` representation is additive and is used when consumers need to reconstruct the provider's original part sequence.
 
+### Ordered Tool-Result Content Items
+
+Some providers run a tool themselves, for example a call to a remote MCP server, and return its result as a content part of the same message, after the call. Represent that part in `message.contents` with `message_content.type = "tool_result"`, `tool_call.id` naming the call it answers, and the result as `message_content.text`:
+
+```json
+{
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.output_messages.0.message.contents.0.message_content.type": "tool_use",
+  "llm.output_messages.0.message.contents.0.tool_call.id": "mcptoolu_01",
+  "llm.output_messages.0.message.contents.0.tool_call.function.name": "search_docs",
+  "llm.output_messages.0.message.contents.0.tool_call.function.arguments": "{\"query\": \"spans\"}",
+  "llm.output_messages.0.message.contents.1.message_content.type": "tool_result",
+  "llm.output_messages.0.message.contents.1.tool_call.id": "mcptoolu_01",
+  "llm.output_messages.0.message.contents.1.message_content.text": "[{\"type\": \"text\", \"text\": \"3 results\"}]"
+}
+```
+
+A tool result that the application returns to the model is still an input message with role `"tool"` (see [Tool Results](#tool-results)).
+
 ## Multiple Tool Calls
 
 When an LLM makes multiple tool calls in a single response:
