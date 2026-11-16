@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.0...python-openinference-instrumentation-agno-v1.2.1) (2026-11-16)
+
+
+### Documentation
+
+* **spec:** organize the spec into sections modeled on OpenTelemetry ([#4325](https://github.com/Arize-ai/openinference/issues/4325)) ([46e8ae6](https://github.com/Arize-ai/openinference/commit/46e8ae60d4ec58eec6e4bd72084865c87ecb2993))
+
 ## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.5...python-openinference-instrumentation-agno-v1.2.0) (2026-11-12)
 
 

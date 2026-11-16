@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.55](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.54...python-openinference-instrumentation-dspy-v0.1.55) (2026-11-16)
+
+
+### Features
+
+* **dspy:** record messages, tools, and token counts for DSPy 3.5 LM calls ([#4300](https://github.com/Arize-ai/openinference/issues/4300)) ([83ed13f](https://github.com/Arize-ai/openinference/commit/83ed13f304fbb5bf085eaf556006ec12bb4fb5db))
+
+
+### Bug Fixes
+
+* **dspy:** support DSPy 3.5 normalized LM API ([#4306](https://github.com/Arize-ai/openinference/issues/4306)) ([f29caff](https://github.com/Arize-ai/openinference/commit/f29caffbfe4a303da5208cf9ca5cd0038701f69f))
+
 ## [0.1.54](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.53...python-openinference-instrumentation-dspy-v0.1.54) (2026-11-12)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.87](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.86...python-openinference-instrumentation-langchain-v0.1.87) (2026-11-16)
+
+
+### Bug Fixes
+
+* **langchain:** record document id on retriever spans ([#4297](https://github.com/Arize-ai/openinference/issues/4297)) ([f21535d](https://github.com/Arize-ai/openinference/commit/f21535d4a4720da3c6814a351781fcf7d2ec378f))
+
 ## [0.1.86](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.85...python-openinference-instrumentation-langchain-v0.1.86) (2026-11-12)
 
 

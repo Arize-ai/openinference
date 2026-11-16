@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.36...python-openinference-instrumentation-vertexai-v0.1.37) (2026-11-16)
+
+
+### Bug Fixes
+
+* **vertexai:** import and proxy without wrapt's C extension ([#4246](https://github.com/Arize-ai/openinference/issues/4246)) ([bf06aa2](https://github.com/Arize-ai/openinference/commit/bf06aa24ae4f92f565213c0032ef1cad01ff618e))
+
 ## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.35...python-openinference-instrumentation-vertexai-v0.1.36) (2026-11-12)
 
 

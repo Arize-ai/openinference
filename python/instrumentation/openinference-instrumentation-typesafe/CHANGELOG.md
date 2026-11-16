@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-typesafe-v0.1.12...python-openinference-instrumentation-typesafe-v0.1.13) (2026-11-16)
+
+
+### Documentation
+
+* **spec:** organize the spec into sections modeled on OpenTelemetry ([#4325](https://github.com/Arize-ai/openinference/issues/4325)) ([46e8ae6](https://github.com/Arize-ai/openinference/commit/46e8ae60d4ec58eec6e4bd72084865c87ecb2993))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-typesafe-v0.1.11...python-openinference-instrumentation-typesafe-v0.1.12) (2026-11-12)
 
 
