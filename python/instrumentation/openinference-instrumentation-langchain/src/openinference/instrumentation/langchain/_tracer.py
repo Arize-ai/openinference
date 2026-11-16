@@ -1472,6 +1472,8 @@ def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
 
 @stop_on_exception
 def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
+    if document_id := getattr(document, "id", None):
+        yield DOCUMENT_ID, str(document_id)
     if page_content := getattr(document, "page_content", None):
         assert isinstance(page_content, str), f"expected str, found {type(page_content)}"
         yield DOCUMENT_CONTENT, page_content
