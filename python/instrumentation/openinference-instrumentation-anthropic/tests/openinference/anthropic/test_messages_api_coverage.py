@@ -564,6 +564,53 @@ def test_tool_changes_are_applied_to_tools(
     assert recorded == [tool_h, tool_f, inline_tool]
 
 
+def test_tool_names_and_descriptions_are_recorded(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    custom_tool = {"name": "f", "description": "Does f.", "input_schema": {"type": "object"}}
+    no_description_tool = {"name": "g", "input_schema": {"type": "object"}}
+    server_tool = {"type": "web_search_20250305", "name": "web_search"}
+    toolset = {"type": "mcp_toolset", "mcp_server_name": "echo-server"}
+    inline_tool = {"name": "h", "description": "Does h.", "input_schema": {"type": "object"}}
+    client = _mock_anthropic_client(
+        lambda request: httpx2.Response(200, json=_message_json([{"type": "text", "text": "ok"}]))
+    )
+    messages: Any = [
+        {"role": "user", "content": "hi"},
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_addition",
+                    "tool": {"type": "tool_definition", "definition": inline_tool},
+                }
+            ],
+        },
+    ]
+    tools: Any = [custom_tool, no_description_tool, server_tool, toolset]
+    client.beta.messages.create(model=MODEL, max_tokens=100, tools=tools, messages=messages)
+    attributes = dict(_get_span(in_memory_span_exporter).attributes or {})
+    llm_tools = SpanAttributes.LLM_TOOLS
+    name = ToolAttributes.TOOL_NAME
+    description = ToolAttributes.TOOL_DESCRIPTION
+    recorded = {
+        key: value
+        for key, value in attributes.items()
+        if key.startswith(f"{llm_tools}.") and not key.endswith(ToolAttributes.TOOL_JSON_SCHEMA)
+    }
+    # a server tool has a name but no description, and a toolset has neither
+    assert recorded == {
+        f"{llm_tools}.0.{name}": "f",
+        f"{llm_tools}.0.{description}": "Does f.",
+        f"{llm_tools}.1.{name}": "g",
+        f"{llm_tools}.2.{name}": "web_search",
+        f"{llm_tools}.4.{name}": "h",
+        f"{llm_tools}.4.{description}": "Does h.",
+    }
+
+
 _CITATION = {
     "type": "web_search_result_location",
     "cited_text": "Sunny.",
@@ -909,6 +956,8 @@ def _assert_count_tokens_span(span: ReadableSpan, name: str, provider: str = "an
     assert json.loads(
         str(attributes.pop(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"))
     ) == {"name": "f", "input_schema": {"type": "object"}}
+    # count_tokens accepts tools too, so the tool name is recorded beside the schema
+    assert attributes.pop(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_NAME}") == "f"
     assert json.loads(str(attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS))) == {
         "tool_choice": {"type": "auto"}
     }
