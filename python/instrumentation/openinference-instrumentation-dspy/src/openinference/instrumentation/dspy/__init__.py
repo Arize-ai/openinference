@@ -1033,7 +1033,7 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
 
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     arguments = {
-        key: _without_client_settings(value) if key in ("kwargs", "options") else value
+        key: _without_client_settings(value) if key == "kwargs" else value
         for key, value in arguments.items()
     }
     if _is_lm15_request(request := arguments.get("prompt")):
@@ -1137,8 +1137,7 @@ def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterat
         # DSPy sends only the Request's config; LM defaults and call options are not merged.
         parameters = _lm15_value(request.config)
     else:
-        call_options = arguments.get("kwargs") or arguments.get("options") or {}
-        parameters = {**(getattr(lm, "kwargs", None) or {}), **call_options}
+        parameters = {**(getattr(lm, "kwargs", None) or {}), **(arguments.get("kwargs") or {})}
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(_without_client_settings(parameters))
 
 
@@ -1271,8 +1270,11 @@ def _normalize_lm_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
     DSPy 3.3.0 changed the signature from `(prompt=None, messages=None, **kwargs)`
     to `(*items, prompt=None, messages=None, request=None, **kwargs)`, so a
     positionally-passed prompt string now arrives in `items` instead of `prompt`.
-    Map that shape back to the legacy `prompt` argument so span attributes are
-    stable across DSPy versions, and drop the new parameters when unused.
+    DSPy 3.5.0 changed it again to `(prompt=None, *, cache=None, rollout_id=None,
+    **options)`, renaming the generation options from `kwargs` to `options`.
+    Map these shapes back to the legacy `prompt` and `kwargs` arguments so span
+    attributes are stable across DSPy versions, and drop the new parameters when
+    unused.
     """
     arguments = dict(arguments)
     items: Tuple[Any, ...] = tuple(arguments.pop("items", None) or ())
@@ -1280,8 +1282,11 @@ def _normalize_lm_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
         arguments["prompt"] = items[0]
     elif items:
         arguments["items"] = list(items)
-    if arguments.get("request", None) is None:
-        arguments.pop("request", None)
+    if "options" in arguments and "kwargs" not in arguments:
+        arguments["kwargs"] = arguments.pop("options")
+    for name in ("request", "cache", "rollout_id"):
+        if arguments.get(name, None) is None:
+            arguments.pop(name, None)
     return arguments
 
 
