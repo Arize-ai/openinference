@@ -1,0 +1,6 @@
+mem0ai
+qdrant-client
+openinference-instrumentation-mem0
+openinference-instrumentation-openai
+opentelemetry-sdk
+opentelemetry-exporter-otlp

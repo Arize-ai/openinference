@@ -1,0 +1,4 @@
+mem0ai==2.2.1
+opentelemetry-sdk
+pytest-asyncio
+httpx
