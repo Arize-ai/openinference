@@ -1021,6 +1021,36 @@ def test_get_attributes_from_chat_completions_output(
             id="multiple_messages_with_tool_calls",
         ),
         pytest.param(
+            [
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {"id": "123", "function": {"name": "test_func1"}},
+                        {"id": "456", "function": {"name": "test_func2"}},
+                    ],
+                },
+                {"role": "tool", "content": "result", "tool_call_id": "123"},
+                {
+                    "role": "assistant",
+                    "tool_calls": [{"id": "789", "function": {"name": "test_func3"}}],
+                },
+            ],
+            {
+                "llm.input_messages.0.message.role": "assistant",
+                "llm.input_messages.0.message.tool_calls.0.tool_call.id": "123",
+                "llm.input_messages.0.message.tool_calls.0.tool_call.function.name": "test_func1",
+                "llm.input_messages.0.message.tool_calls.1.tool_call.id": "456",
+                "llm.input_messages.0.message.tool_calls.1.tool_call.function.name": "test_func2",
+                "llm.input_messages.1.message.role": "tool",
+                "llm.input_messages.1.message.content": "result",
+                "llm.input_messages.1.message.tool_call_id": "123",
+                "llm.input_messages.2.message.role": "assistant",
+                "llm.input_messages.2.message.tool_calls.0.tool_call.id": "789",
+                "llm.input_messages.2.message.tool_calls.0.tool_call.function.name": "test_func3",
+            },
+            id="tool_call_indices_restart_for_each_message",
+        ),
+        pytest.param(
             [{"role": "user"}],
             {
                 "llm.input_messages.0.message.role": "user",
