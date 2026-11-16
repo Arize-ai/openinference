@@ -5,7 +5,7 @@
  *
  * The markdown rendered by this site (the root README, `spec/`, and
  * `docs/i18n/`) is written for GitHub, so it links to other files with
- * repository-relative paths such as `./llm_spans.md` or
+ * repository-relative paths such as `./spans/llm.md` or
  * `../../python/openinference-instrumentation`. This plugin maps links to
  * files the site publishes onto their site routes and sends everything else
  * to the file on GitHub.
@@ -32,7 +32,7 @@ export function siteRoute(repoPath, base) {
   const p = repoPath.replace(/\/$/, "");
   if (p === "" || p === "README.md") return base;
   if (p === "spec" || p === "spec/README.md") return `${base}spec/`;
-  let match = p.match(/^spec\/([^/]+)\.md$/);
+  let match = p.match(/^spec\/(.+)\.md$/);
   if (match) return `${base}spec/${match[1]}.html`;
   match = p.match(/^docs\/i18n\/(README\.[^/]+)\.md$/);
   if (match) return `${base}docs/i18n/${match[1]}.html`;

@@ -1,5 +1,5 @@
 """Anthropic's ``usage.input_tokens`` excludes cache reads and writes, so
-``llm.token_count.prompt`` must fold them back in (spec/semantic_conventions.md)."""
+``llm.token_count.prompt`` must fold them back in (spec/spans/llm.md)."""
 
 import json
 from typing import Any, Dict, Iterator

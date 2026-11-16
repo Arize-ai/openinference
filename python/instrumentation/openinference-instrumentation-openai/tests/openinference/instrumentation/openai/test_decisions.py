@@ -2,7 +2,7 @@
 
 Decision calls are recorded as DECISION spans: the model is identified under `decision.*`
 rather than `llm.*`, the request and response bodies are recorded as `input.value` and
-`output.value`, and no `llm.*` attribute is emitted. See spec/decision_spans.md.
+`output.value`, and no `llm.*` attribute is emitted. See spec/spans/decision.md.
 
 The Decisions API was added in openai 3.26.0; on older SDKs this module is skipped.
 """

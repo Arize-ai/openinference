@@ -1,8 +1,6 @@
-# Multimodal Attributes
+# Multimodal Content
 
 This document describes how message content arrays represent multimodal content (text, images, audio, video, and documents such as PDFs or inline text) in OpenInference spans. The same `message.contents` structure is also used for reasoning and provider-native tool-use parts when item ordering must be preserved.
-
-Vendor mappings live in [`internal_docs/specs/audio_video/`](../internal_docs/specs/audio_video/vendor_comparison.md). openai-agents realtime still emits instrumentor-local `input.audio.*` and `output.audio.*` strings. Those keys are not published `SpanAttributes` yet.
 
 ## Message Content Arrays
 
@@ -28,7 +26,7 @@ Each content item has a `type` attribute that identifies its kind:
 - `"reasoning"` - Reasoning or thinking content, including visible summaries and Anthropic `redacted_thinking`
 - `"tool_use"` - Provider-native tool-use part when a tool call must remain ordered relative to adjacent content items
 
-Reasoning-specific fields such as `message_content.id`, `message_content.signature`, `message_content.data`, and `message_content.encrypted_content` are defined in [LLM Spans](./llm_spans.md#reasoning-content).
+Reasoning-specific fields such as `message_content.id`, `message_content.signature`, `message_content.data`, and `message_content.encrypted_content` are defined in [Reasoning Content](./messages.md#reasoning-content). A message that contains only text can use `message.content` instead; see [Text Messages](./messages.md#text-messages).
 
 ### Text Content
 
@@ -118,28 +116,6 @@ Provider mappings:
 
 The doubled prefix (`message_content.document.document.url`) matches `message_content.image.image.url`.
 
-## External Storage for Large Media
-
-Inline base64 payloads can exceed OTLP message limits and inflate backend storage. As an **experimental** capability, instrumentations MAY externalize oversized images and documents at capture time: upload the decoded bytes to configured blob storage and record the destination URI in the same `image.image.url` or `document.url` attribute where the data URI would have been recorded.
-
-```
-llm.input_messages.0.message.contents.1.message_content.type = "image"
-llm.input_messages.0.message.contents.1.message_content.image.image.url = "s3://my-bucket/oi-media/3a7bd3e2....png"
-llm.input_messages.0.message.contents.2.message_content.document.document.url = "s3://my-bucket/oi-media/9f86d081....pdf"
-```
-
-The same applies to output-message images (`llm.output_messages.*.message.contents.*.message_content.image.image.url`), to output-message documents, and to `input.documents` / `output.documents`.
-
-Semantics:
-- Externalization applies only to base64 data URIs exceeding `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH`. Small payloads stay inline.
-- The recorded value MUST be a valid absolute URI (a scheme is required), and SHOULD be the most consumer-resolvable form available — an `https://` or signed URL where possible; storage-scheme URIs (`gs://`, `s3://`) are valid canonical references but require viewer-side resolution. Invalid values are replaced with `"__REDACTED__"`.
-- The destination URI SHOULD be content-addressed (e.g. keyed by the SHA-256 of the decoded bytes) with a mime-derived file extension, so identical content deduplicates and the URI can be computed before the upload completes.
-- If no uploader is configured or the upload cannot be accepted, the existing redaction behavior applies (`"__REDACTED__"`).
-- Hide settings (for example `OPENINFERENCE_HIDE_INPUTS`, `OPENINFERENCE_HIDE_INPUT_MESSAGES`, `OPENINFERENCE_HIDE_INPUT_IMAGES`) take precedence over externalization: hidden content is never uploaded.
-- Consumers are responsible for dereferencing: URIs are not guaranteed to be publicly resolvable, and a consumer without access SHOULD treat the value as it would `"__REDACTED__"`.
-
-This maps directly onto the OTel GenAI semantic conventions message model: an inline data URI corresponds to a `blob` part, while an externalized reference corresponds to a `uri` part. The same blob/uri split will apply to `message_content.audio.audio.url` and `message_content.video.video.url` (`modality` `audio` or `video`) when GenAI dual-write covers those parts. Shared `TraceConfig.mask()` does not yet hide or size-gate audio or video.
-
 ## Span-Kind-Independent Images
 
 `llm.input_messages` / `llm.output_messages` carry a full chat-message structure, so they only make
@@ -189,20 +165,8 @@ input.images.1.image.url = "https://example.com/page-2.png"
 
 ### Redaction and Size Limits
 
-The image privacy controls apply to these attributes the same way they apply to message-content
-images:
-
-- `OPENINFERENCE_HIDE_INPUT_IMAGES` removes all `input.images.*` attributes.
-- `OPENINFERENCE_HIDE_INPUTS` removes `input.images.*` and `OPENINFERENCE_HIDE_OUTPUTS` removes
-  `output.images.*`, just as they hide `input.value` / `output.value`.
-- `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` and a configured blob uploader apply to
-  `<input|output>.images.<i>.image.url` (see
-  [External Storage for Large Media](#external-storage-for-large-media)). A hidden image is never
-  uploaded.
-
-Support matches what each SDK already does for message-content images: Python enforces the size
-limit and can externalize to a blob uploader; JavaScript enforces the size limit and redacts
-oversized images to `"__REDACTED__"`; Java and Go apply the hide flags only.
+The image privacy controls and size limit apply to these attributes the same way they apply to message-content images.
+See [Data Masking](../configuration/data-masking.md#images-and-documents).
 
 ## Span-Kind-Independent Documents
 
@@ -223,51 +187,12 @@ Spans other than `LLM` record documents with `input.documents` / `output.documen
 
 An `LLM` span records its documents in `message.contents` and SHOULD NOT repeat them here.
 
-## Privacy Considerations
+## Privacy and Size Limits
 
-### Hiding Images
+The `OPENINFERENCE_HIDE_*` settings hide content items, and `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` limits the size of
+inline base64 images and documents. See [Data Masking](../configuration/data-masking.md). Oversized images and
+documents can instead be uploaded to external storage; see [Blob Upload](../configuration/blob-upload.md).
 
-When `OPENINFERENCE_HIDE_INPUT_IMAGES` is set to true:
-- Image URLs in input messages will be replaced with `"__REDACTED__"`
-- This only applies when input messages are not already completely hidden
+## Vendor Mappings
 
-### Base64 Image Truncation
-
-When `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` is set (default: 32000):
-- Base64-encoded images longer than this limit will be truncated
-- The truncation preserves the data URL prefix (e.g., `data:image/png;base64,`)
-- Only the base64 content portion is subject to the length limit
-- If a blob uploader is configured, over-limit images are externalized instead and the attribute records the destination URI (see [External Storage for Large Media](#external-storage-for-large-media))
-
-### Hiding Text Content
-
-When `OPENINFERENCE_HIDE_INPUT_TEXT` is set to true:
-- Text content in multimodal messages will be replaced with `"__REDACTED__"`
-- This only applies when input messages are not already completely hidden
-
-## Example: Multimodal Message
-
-A user message with both text and image content:
-
-```json
-{
-  "llm.input_messages.0.message.role": "user",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
-  "llm.input_messages.0.message.contents.0.message_content.text": "What objects do you see in this image?",
-  "llm.input_messages.0.message.contents.1.message_content.type": "image",
-  "llm.input_messages.0.message.contents.1.message_content.image.image.url": "https://example.com/photo.jpg"
-}
-```
-
-## Fallback for Simple Messages
-
-When a message contains only text content (no multimodal content), it can use the simpler format:
-
-```json
-{
-  "llm.input_messages.0.message.role": "user",
-  "llm.input_messages.0.message.content": "Hello, how are you?"
-}
-```
-
-The `message.content` attribute is used for simple text-only messages, while `message.contents` is used for multimodal messages.
+Per-provider mappings for audio and video live in [`internal_docs/specs/audio_video/`](../../internal_docs/specs/audio_video/vendor_comparison.md). openai-agents realtime still emits instrumentor-local `input.audio.*` and `output.audio.*` strings. Those keys are not published `SpanAttributes` yet.

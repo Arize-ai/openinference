@@ -231,7 +231,7 @@ Generates attributes for DECISION operations: calls to a decision model that
 scores or selects among candidate options supplied in the request rather than
 generating free-form text (route selection, yes/no judgements, rubric scoring).
 Decision spans identify the model under the `decision.*` namespace instead of
-`llm.*`; see the [decision spans specification](../../../../spec/decision_spans.md).
+`llm.*`; see the [decision spans specification](../../../../spec/spans/decision.md).
 
 ### Signature
 

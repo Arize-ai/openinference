@@ -69,7 +69,7 @@ const safelyRecord = withSafety({
  * Automatic patching covers CommonJS `require` loads. For ESM, bundlers, or
  * late imports, call {@link TypeSafeInstrumentation.manuallyInstrument}.
  *
- * @see {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md | OpenInference semantic conventions}
+ * @see {@link https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md | OpenInference semantic conventions}
  */
 export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule> {
   private oiTracer: OITracer;

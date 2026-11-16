@@ -1,6 +1,8 @@
 # Tool and Function Calling
 
-This document describes how tool/function calling is represented in OpenInference spans.
+This page describes how tool and function calling is represented in OpenInference spans: the tools advertised to an
+[LLM span](../spans/llm.md), the tool calls the model generates, and the results sent back. The execution of a tool is
+itself recorded as a [`TOOL` span](../general/span-kinds.md#tool).
 
 ## Tool Definitions
 

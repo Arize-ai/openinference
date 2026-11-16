@@ -182,7 +182,7 @@ class _WithOpenAI(ABC):
             # DECISION spans identify the model under `decision.*` rather than `llm.*`, so
             # decision model usage is not counted as LLM usage. The well-known values are
             # shared between the two namespaces, so the inferred value carries over as is.
-            # See https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+            # See https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md
             if self._is_decision(cast_to):
                 yield SpanAttributes.DECISION_PROVIDER, provider.value
             else:

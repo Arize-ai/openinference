@@ -6,24 +6,26 @@ Embedding spans capture operations that convert text or token IDs into dense flo
 
 The span name MUST be `"CreateEmbeddings"` for embedding operations.
 
-## Required Attributes
+## Attributes
 
-All embedding spans MUST include:
-- `openinference.span.kind`: Set to `"EMBEDDING"`
+[Requirement levels](../attributes/conventions.md#requirement-levels) follow the OpenTelemetry definitions.
 
-## Common Attributes
+| Attribute | Requirement level | Notes |
+| --- | --- | --- |
+| `openinference.span.kind` | Required | `"EMBEDDING"` |
+| `embedding.model_name` | Recommended | Name of the embedding model, e.g. `"text-embedding-3-small"` |
+| `embedding.embeddings` | Recommended | Flattened list of embedding objects, one per input. See [Text](#text-attributes) and [Vector](#vector-attributes) attributes |
+| `embedding.invocation_parameters` | Recommended | JSON string of parameters sent to the model (excluding input) |
+| `input.value` | Recommended | The raw input as a JSON string (text strings or token ID arrays) |
+| `input.mime_type` | Recommended | Usually `"application/json"` |
+| `output.value` | Recommended | The raw output (embedding vectors as JSON or base64-encoded) |
+| `output.mime_type` | Recommended | Usually `"application/json"` |
+| `llm.token_count.prompt` | Recommended | Number of tokens in the input |
+| `llm.token_count.total` | Recommended | Total number of tokens used |
+| `llm.system` | Not used | See [Attributes Not Used in Embedding Spans](#attributes-not-used-in-embedding-spans) |
+| `llm.provider` | Not used | See [Attributes Not Used in Embedding Spans](#attributes-not-used-in-embedding-spans) |
 
-Embedding spans typically include:
-
-- `embedding.model_name`: Name of the embedding model (e.g., "text-embedding-3-small")
-- `embedding.embeddings`: Nested structure for embedding objects in batch operations
-- `embedding.invocation_parameters`: JSON string of parameters sent to the model (excluding input)
-- `input.value`: The raw input as a JSON string (text strings or token ID arrays)
-- `input.mime_type`: Usually "application/json"
-- `output.value`: The raw output (embedding vectors as JSON or base64-encoded)
-- `output.mime_type`: Usually "application/json"
-- `llm.token_count.prompt`: Number of tokens in the input
-- `llm.token_count.total`: Total number of tokens used
+Embedding spans also carry the [context attributes](../attributes/context.md) in scope when they are created.
 
 ### Text Attributes
 
@@ -66,13 +68,9 @@ Therefore, to avoid ambiguity and maintain clear semantic conventions, embedding
 
 ## Privacy Considerations
 
-When `OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS` is set to true:
-- The `embedding.embeddings.N.embedding.vector` attribute will contain `"__REDACTED__"`
-- The actual vector data will not be included in traces
-
-When `OPENINFERENCE_HIDE_EMBEDDINGS_TEXT` is set to true:
-- The `embedding.embeddings.N.embedding.text` attribute will contain `"__REDACTED__"`
-- The input text will not be included in traces
+`OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS` replaces each `embedding.embeddings.N.embedding.vector` value with
+`"__REDACTED__"`, and `OPENINFERENCE_HIDE_EMBEDDINGS_TEXT` does the same for `embedding.embeddings.N.embedding.text`.
+See [Data Masking](../configuration/data-masking.md#embeddings).
 
 ## Input/Output Structure
 

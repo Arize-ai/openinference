@@ -74,7 +74,7 @@ Never hand-spell semantic-convention attribute keys — build them from `SpanAtt
 
 - **Layout**: source in `src/openinference/instrumentation/<name>/`, tests mirror the namespace at `tests/openinference/instrumentation/<name>/`.
 - **Span names**: name spans after the wrapped resource class (e.g. `Completions` / `AsyncCompletions`), consistent with sibling instrumentors — never ad-hoc lowercase names, which break cross-provider span-name queries.
-- **Provider**: set `llm.provider` to its well-known value from `spec/semantic_conventions.md`; set `llm.system` only if a well-known value applies.
+- **Provider**: set `llm.provider` to its well-known value from `spec/attributes/semantic-conventions.md`; set `llm.system` only if a well-known value applies.
 - **Request parameters**: filter out the SDK's "not given" sentinels (e.g. `Omit` / `NotGiven` in Stainless-generated SDKs) so unset defaults don't pollute `input.value` and `llm.invocation_parameters`.
 - **Streaming**: when `create(stream=True)` returns a stream object, do not end the span — wrap the stream in a `wrapt.ObjectProxy` that accumulates chunks and finishes the span when iteration completes (see `openai/_stream.py`, `together/_stream.py`).
 

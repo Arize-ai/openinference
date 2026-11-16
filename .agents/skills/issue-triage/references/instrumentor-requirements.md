@@ -13,7 +13,7 @@ The requirements are defined for each language in:
 - JS — `js/CLAUDE.md` → *Every instrumentor must*
 - Java — the `java-code-reviewer` skill (§2 required test coverage, §3
   TraceConfig hide flags, §4 `OITracer`)
-- Masking flags — `spec/configuration.md`
+- Masking flags — `spec/configuration/data-masking.md`
 
 Triage reads those documents; it does not run their procedures.
 
@@ -55,7 +55,7 @@ async / streaming path", "decorator detaches before the coroutine runs".
 ### 3. TraceConfig masking — `c/trace-config`
 
 `TraceConfig` (and the `OPENINFERENCE_HIDE_*` environment variables in
-`spec/configuration.md`) lets a deployment keep prompts, completions, images,
+`spec/configuration/data-masking.md`) lets a deployment keep prompts, completions, images,
 embeddings, tool definitions and invocation parameters out of spans, replacing
 them with `__REDACTED__`, and caps base64 images at
 `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` (optionally handing them to a
@@ -116,7 +116,7 @@ For stage 6 pointers and the already-shipped `Grep`.
 | Changelog | `CHANGELOG.md` at the package root (release-please) | same | same |
 | Core | `python/openinference-instrumentation/src/openinference/instrumentation/` (`config.py` = TraceConfig, `context_attributes.py`, `_tracers.py` = OITracer) | `js/packages/openinference-core/src/trace/` (`contextAttributes.ts`, `trace-config/`) | `java/openinference-instrumentation/src/main/java/com/arize/instrumentation/` (`TraceConfig.java`, `ContextAttributes.java`, `OITracer.java`) |
 | Conventions | `python/openinference-semantic-conventions/` | `js/packages/openinference-semantic-conventions/` | `java/openinference-semantic-conventions/` |
-| Spec | `spec/semantic_conventions.md`, `llm_spans.md`, `tool_calling.md`, `embedding_spans.md`, `multimodal_attributes.md`, `configuration.md`, `annotations.md` | | |
+| Spec | `spec/attributes/semantic-conventions.md`, `spec/spans/*.md`, `spec/content/*.md`, `spec/configuration/*.md`, `spec/feedback/annotations.md` | | |
 
 ## The Requirements checklist
 
@@ -135,7 +135,7 @@ suffice, plus the masking row if the attribute could carry user content.
 
 - [ ] **Suppress tracing** — no spans while `suppress_tracing()` is active; `uninstrument()` removes the patch
 - [ ] **Context attributes** — `session.id`, `user.id`, `metadata`, `tag.tags`, prompt template from `using_attributes` (Python) / `setSession` etc. (JS) appear on the new spans
-- [ ] **TraceConfig masking** — new content attributes go through `OITracer` so `hide_inputs` / `hide_outputs` / `OPENINFERENCE_HIDE_*` redact them (`spec/configuration.md`)
+- [ ] **TraceConfig masking** — new content attributes go through `OITracer` so `hide_inputs` / `hide_outputs` / `OPENINFERENCE_HIDE_*` redact them (`spec/configuration/data-masking.md`)
 - [ ] **Semantic conventions** — attribute names and span kind from the `openinference-semantic-conventions` package, MIME types set on `input.value` / `output.value`
 - [ ] **Tests** — exhaustive attribute assertions, plus a case each for suppression, context attributes and masking; recorded fixtures under `tests/cassettes/` (Python)
 ```
