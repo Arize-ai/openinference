@@ -52,6 +52,26 @@ logger = getLogger(__name__)
 
 _DSPY_MODULE = "dspy"
 
+# Client settings (credentials, headers, endpoints) that LM calls accept alongside generation
+# options. They can carry secrets, so they are never recorded as invocation parameters.
+# Mirrors CLIENT_KEYS in dspy/clients/backend_selection.py.
+_CLIENT_SETTING_KEYS = frozenset(
+    {
+        "api_key",
+        "api_base",
+        "api_version",
+        "azure_ad_token_provider",
+        "base_url",
+        "custom_llm_provider",
+        "extra_headers",
+        "extra_query",
+        "headers",
+        "organization",
+        "project",
+        "timeout",
+    }
+)
+
 
 class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
     """
@@ -1106,15 +1126,19 @@ def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
 
 
 def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
-    kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
-    if not kwargs and isinstance(_ := arguments.get("options"), dict):
-        kwargs = _
-    combined_kwargs = lm_kwargs | kwargs
     if _is_lm15_request(request := arguments.get("prompt")):
-        combined_kwargs |= _lm15_config_value(getattr(request, "config", None))
-    combined_kwargs.pop("api_key", None)
-    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(combined_kwargs)
+        # DSPy sends only the Request's config; LM defaults and call options are not merged.
+        parameters = _lm15_config_value(getattr(request, "config", None))
+    else:
+        lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
+        kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
+        if not kwargs and isinstance(_ := arguments.get("options"), dict):
+            kwargs = _
+        parameters = lm_kwargs | kwargs
+    parameters = {
+        key: value for key, value in parameters.items() if key not in _CLIENT_SETTING_KEYS
+    }
+    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(parameters)
 
 
 def _llm_tools(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:

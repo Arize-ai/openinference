@@ -2,7 +2,7 @@ import inspect
 import json
 from importlib import import_module
 from importlib.metadata import version
-from typing import Any, Dict, Generator, List, Mapping, Tuple, cast
+from typing import Any, AsyncIterator, Dict, Generator, List, Mapping, Tuple, cast
 
 import dspy
 import pytest
@@ -49,8 +49,7 @@ def _mock_chat_completion(
     usage: Dict[str, Any],
 ) -> None:
     # lm15 is typed but DSPy is not; static imports make mypy lose DSPy's exports.
-    transport = import_module("dspy._vendor.lm15.transports._sync").StdlibTransport
-    transport_response = import_module("dspy._vendor.lm15.transports._types").TransportResponse
+    transports = import_module("dspy._vendor.lm15.transports._types")
     body = {
         "id": "chatcmpl-local",
         "object": "chat.completion",
@@ -60,17 +59,35 @@ def _mock_chat_completion(
         "usage": usage,
     }
 
+    head: Dict[str, Any] = {
+        "status": 200,
+        "reason": "OK",
+        "headers": [("content-type", "application/json")],
+        "http_version": "HTTP/1.1",
+    }
+
     def respond(_: Any, __: Any) -> Any:
-        return transport_response(
-            status=200,
-            reason="OK",
-            headers=[("content-type", "application/json")],
-            http_version="HTTP/1.1",
-            chunks=iter([json.dumps(body).encode()]),
-            release=lambda consumed: None,
+        return transports.TransportResponse(
+            **head, chunks=iter([json.dumps(body).encode()]), release=lambda consumed: None
         )
 
-    monkeypatch.setattr(transport, "stream", respond)
+    async def arespond(_: Any, __: Any) -> Any:
+        async def chunks() -> AsyncIterator[bytes]:
+            yield json.dumps(body).encode()
+
+        async def release(consumed: bool) -> None:
+            pass
+
+        return transports.AsyncTransportResponse(**head, chunks=chunks(), release=release)
+
+    monkeypatch.setattr(
+        import_module("dspy._vendor.lm15.transports._sync").StdlibTransport, "stream", respond
+    )
+    monkeypatch.setattr(
+        import_module("dspy._vendor.lm15.transports._async").StdlibAsyncTransport,
+        "_do_stream",
+        arespond,
+    )
 
 
 def _span_attributes(span: trace_sdk.ReadableSpan) -> Dict[str, AttributeValue]:
@@ -193,11 +210,14 @@ class TestLM:
     @pytest.mark.skipif(
         VERSION < (3, 5, 0), reason="lm15 Request/Response LM API requires DSPy 3.5"
     )
-    @pytest.mark.disable_socket
-    def test_lm15_request_and_response_are_recorded(
+    # The event loop needs a local socketpair, so block outbound connections instead of sockets.
+    @pytest.mark.allow_hosts([])
+    @pytest.mark.parametrize("is_async", [False, True])
+    async def test_lm15_request_and_response_are_recorded(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
         monkeypatch: MonkeyPatch,
+        is_async: bool,
     ) -> None:
         lm15 = import_module("dspy.lm15")
         _mock_chat_completion(
@@ -222,7 +242,9 @@ class TestLM:
                 "completion_tokens_details": {"reasoning_tokens": 3},
             },
         )
-        lm = dspy.LM("openai/gpt-4o", model_type="chat", cache=False, api_key="sk-fake-key")
+        lm = dspy.LM(
+            "openai/gpt-4o", model_type="chat", cache=False, api_key="sk-fake-key", top_p=0.5
+        )
         request = lm15.Request(
             model="openai/gpt-4o",
             system="Be terse.",
@@ -248,30 +270,43 @@ class TestLM:
                     parameters={"type": "object", "properties": {"city": {"type": "string"}}},
                 ),
             ),
+            config=lm15.Config(max_tokens=50, temperature=0.2),
         )
+        # Per-call client settings can carry secrets and must not reach invocation parameters.
+        client_settings = {"api_base": "https://gateway.invalid/v1", "api_key": "sk-call-key"}
 
-        lm(request)
+        if is_async:
+            await lm.acall(request, **client_settings)
+        else:
+            lm(request, **client_settings)
 
         (span,) = in_memory_span_exporter.get_finished_spans()
-        assert span.name == "LM.__call__"
+        assert span.name == ("LM.acall" if is_async else "LM.__call__")
         attributes = _span_attributes(span)
-        assert attributes[LLM_MODEL_NAME] == "gpt-4o"
-        assert attributes[LLM_PROVIDER] == "openai"
-        assert attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}"] == "system"
-        assert attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "Be terse."
-        assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}"] == "user"
-        assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}"] == "Weather in Paris?"
-        assert attributes[f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}"] == "assistant"
-        prior_call = f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0"
-        assert attributes[f"{prior_call}.{TOOL_CALL_ID}"] == "call_1"
-        assert attributes[f"{prior_call}.{TOOL_CALL_FUNCTION_NAME}"] == "lookup"
-        assert json.loads(str(attributes[f"{prior_call}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"])) == {
-            "city": "Paris"
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert attributes.pop(LLM_PROVIDER) == "openai"
+        # Only the Request's config is sent; LM defaults (top_p=0.5) are not merged.
+        assert json.loads(str(attributes.pop(LLM_INVOCATION_PARAMETERS))) == {
+            "max_tokens": 50,
+            "temperature": 0.2,
         }
-        assert attributes[f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}"] == "tool"
-        assert attributes[f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_TOOL_CALL_ID}"] == "call_1"
-        assert attributes[f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}"] == "Sunny"
-        assert json.loads(str(attributes[f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"])) == {
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "Be terse."
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "Weather in Paris?"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "assistant"
+        prior_call = f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0"
+        assert attributes.pop(f"{prior_call}.{TOOL_CALL_ID}") == "call_1"
+        assert attributes.pop(f"{prior_call}.{TOOL_CALL_FUNCTION_NAME}") == "lookup"
+        assert json.loads(
+            str(attributes.pop(f"{prior_call}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"))
+        ) == {"city": "Paris"}
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}") == "tool"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_NAME}") == "lookup"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_TOOL_CALL_ID}") == "call_1"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "Sunny"
+        assert json.loads(str(attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"))) == {
             "type": "function",
             "function": {
                 "name": "lookup",
@@ -279,22 +314,62 @@ class TestLM:
                 "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
             },
         }
-        assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}"] == "assistant"
-        assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "Checking again."
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "Checking again."
         new_call = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0"
-        assert attributes[f"{new_call}.{TOOL_CALL_ID}"] == "call_2"
-        assert attributes[f"{new_call}.{TOOL_CALL_FUNCTION_NAME}"] == "lookup"
-        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 20
-        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 7
-        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 27
-        assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 4
-        assert attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] == 3
-        input_value = json.loads(str(attributes[INPUT_VALUE]))
+        assert attributes.pop(f"{new_call}.{TOOL_CALL_ID}") == "call_2"
+        assert attributes.pop(f"{new_call}.{TOOL_CALL_FUNCTION_NAME}") == "lookup"
+        assert json.loads(
+            str(attributes.pop(f"{new_call}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"))
+        ) == {"city": "Lyon"}
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 20
+        assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 7
+        assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 27
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 4
+        assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 3
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        input_value = json.loads(str(attributes.pop(INPUT_VALUE)))
         assert input_value["prompt"]["system"] == "Be terse."
         assert input_value["prompt"]["tools"] == ["lookup"]
-        output_value = json.loads(str(attributes[OUTPUT_VALUE]))
+        assert input_value["prompt"]["config"] == {"max_tokens": 50, "temperature": 0.2}
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        output_value = json.loads(str(attributes.pop(OUTPUT_VALUE)))
         assert output_value["finish_reason"] == "tool_call"
         assert output_value["usage"]["input_tokens"] == 20
+        assert not attributes
+
+    @pytest.mark.skipif(
+        VERSION < (3, 5, 0), reason="lm15 Request/Response LM API requires DSPy 3.5"
+    )
+    @pytest.mark.disable_socket
+    def test_string_prompt_invocation_parameters_exclude_client_settings(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        _mock_chat_completion(
+            monkeypatch,
+            message={"role": "assistant", "content": "Paris"},
+            finish_reason="stop",
+            usage={"prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6},
+        )
+        lm = dspy.LM(
+            "openai/gpt-4o", model_type="chat", cache=False, api_key="sk-fake-key", temperature=0.9
+        )
+
+        lm(
+            "Capital of France?",
+            max_tokens=10,
+            api_base="https://gateway.invalid/v1",
+            api_key="sk-call-key",
+            timeout=30,
+        )
+
+        (span,) = in_memory_span_exporter.get_finished_spans()
+        invocation_parameters = json.loads(str(_span_attributes(span)[LLM_INVOCATION_PARAMETERS]))
+        assert invocation_parameters.pop("temperature") == 0.9
+        assert invocation_parameters.pop("max_tokens") == 10
+        assert not invocation_parameters
 
     @pytest.mark.skipif(
         VERSION < (3, 5, 0), reason="lm15 Request/Response LM API requires DSPy 3.5"
