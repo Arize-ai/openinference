@@ -860,9 +860,9 @@ def _get_outputs(response: "BaseModel") -> Iterator[Tuple[str, Any]]:
 def _get_llm_tools(tools: Iterable[ToolUnionParam]) -> Iterator[Tuple[str, Any]]:
     for tool_index, tool_schema in enumerate(tools):
         yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool_schema)
-        # Anthropic tools require a name; custom tools may also have a description.
-        # Emit these as separate spec attributes (spec/tool_calling.md) when present
-        # so consumers do not have to parse the schema blob to get them.
+        # Custom and server tools carry a name and only custom tools carry a description,
+        # while toolsets such as mcp_toolset carry neither. Emit each one present as its own
+        # spec attribute (spec/tool_calling.md) so consumers need not parse the schema blob.
         if not isinstance(tool_schema, Mapping):
             continue
         if isinstance(name := tool_schema.get("name"), str) and name:
