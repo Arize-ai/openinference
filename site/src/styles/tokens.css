@@ -48,6 +48,19 @@
   --card: color-mix(in srgb, var(--fg) 3%, transparent);
   --tick: color-mix(in srgb, var(--fg) 24%, transparent);
 
+  /* Span kinds (the landing page's trace hero): Phoenix's hue for each kind
+     (spanKindColor.ts) at full chroma, L 56 on paper and L 74 on the dark
+     ground. They colour glyphs, tiles and bars, never text. HTTP isn't an
+     OpenInference kind, so it stays in --dim. */
+  --kind-agent: var(--soft);
+  --kind-llm: #c57200;
+  --kind-tool: #b58e00;
+  --kind-retriever: #049690;
+  --kind-embedding: #647cf6;
+  --kind-reranker: #019c23;
+  --kind-guardrail: #d23fd6;
+  --kind-http: var(--dim);
+
   /* Type */
   --font-sans: "Urbanist Variable", "Urbanist", system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -78,6 +91,9 @@
   /* A page's column, text and tables alike: the landing page's README and
      each spec page. */
   --page-max: 880px;
+  /* The landing hero, split between the words and the trace demo: wider than
+     the page so the demo has room, inside the frame so it has margins. */
+  --hero-max: 1240px;
   --sidebar-width: 216px;
   --gutter: 48px;
   --header-height: 64px;
@@ -105,6 +121,12 @@
   --soft: #bdb8b0;
   --dot: color-mix(in srgb, var(--fg) 13%, transparent);
   --marking-opacity: 0.12;
+  --kind-llm: #ffa038;
+  --kind-tool: #e5bf12;
+  --kind-retriever: #22cfc6;
+  --kind-embedding: #a2a6ff;
+  --kind-reranker: #3fd453;
+  --kind-guardrail: #ff8bfe;
   color-scheme: dark;
 }
 
@@ -119,6 +141,12 @@
     --soft: #bdb8b0;
     --dot: color-mix(in srgb, var(--fg) 13%, transparent);
     --marking-opacity: 0.12;
+    --kind-llm: #ffa038;
+    --kind-tool: #e5bf12;
+    --kind-retriever: #22cfc6;
+    --kind-embedding: #a2a6ff;
+    --kind-reranker: #3fd453;
+    --kind-guardrail: #ff8bfe;
     color-scheme: dark;
   }
 }
