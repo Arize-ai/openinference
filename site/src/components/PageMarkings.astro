@@ -1,12 +1,12 @@
 ---
 /**
- * Page markings: a fixed-pitch dot ground in the margins, plus gutter rulers
+ * Page markings: gutter rulers
  * drawn over chosen stretches of the page. Ported as-is from the Arize Labs
  * site (github.com/arize-labs/website, src/components/PageMarkings.astro).
  *
  * The rulers stand on the outer frame (--frame-max apart, centred, holding
  * --frame-edge from a narrower window's edge; see tokens.css), which the
- * header also aligns to; the dot ground stops at the same lines. Each run is measured from its own start, fades in and out, and marks
+ * header also aligns to. Each run is measured from its own start, fades in and out, and marks
  * the starts of `marks` elements that fall inside it with a registration
  * cross. Ruler numbers sit outside the line while there is room and flip
  * inside when there is not. Everything drops out at the phone breakpoint.
@@ -35,29 +35,12 @@ const { runs, marks = "main > section" } = Astro.props;
   :global(body:has([data-page-markings])) { position: relative; }
 
   .page-markings {
-    --rule-x: min(var(--frame-max) / 2, 50% - var(--frame-edge));
     position: absolute;
     inset: 0;
     z-index: -1;
     pointer-events: none;
     /* A ruler's canvas reaches past the window's edge on narrow windows. */
     overflow: clip;
-  }
-  /* The dot ground: only the margins beyond the ruler lines. */
-  .page-markings::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-image: var(--dot-ground);
-    background-size: var(--dot-pitch) var(--dot-pitch);
-    background-position: center top;
-    mask-image: linear-gradient(
-      to right,
-      #000 calc(50% - var(--rule-x)),
-      transparent calc(50% - var(--rule-x)),
-      transparent calc(50% + var(--rule-x) + 1px),
-      #000 calc(50% + var(--rule-x) + 1px)
-    );
   }
   /* Each ruler is its own narrow canvas, placed by the script. */
   .page-markings :global(canvas) {

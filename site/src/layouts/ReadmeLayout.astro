@@ -1,10 +1,10 @@
 ---
 /**
  * The landing page: the root README, or one of its translations. The hero,
- * split on the wide frame and all in the first screen: the tagline, the calls
- * to action and three pillars on the left, the trace hero (an agent run
- * replayed beside its trace) on the right. Then the rest of the README
- * in the content column, with page markings in the margins. See DESIGN.md
+ * on the wide frame and all in the first screen: the tagline and the calls
+ * to action beside the trace hero (an agent run replayed beside its trace),
+ * then the three pillars in a row under both. Then the rest of the README in
+ * the content column, with gutter rulers beside the packages. See DESIGN.md
  * ("Landing").
  */
 import PageMarkings, { type Run } from "../components/PageMarkings.astro";
@@ -20,26 +20,17 @@ interface Props {
 const { lang = "en" } = Astro.props;
 const dir = directionOf(lang);
 
+/** The tagline in two lines that never break: "The Open Standard" / "for Agent Observability". */
+const [taglineHead, taglineTail] = (() => {
+  const at = site.tagline.indexOf(" for ");
+  return at < 0 ? [site.tagline, ""] : [site.tagline.slice(0, at), site.tagline.slice(at + 1)];
+})();
+
 /** What OpenInference is made of, each pointing at where to read more. */
 const pillars = [
-  {
-    name: "Specification",
-    body: "Semantic conventions for how LLM calls, tools, retrievals and agent steps are recorded as spans.",
-    href: `${base}spec/`,
-    cta: "Read the spec",
-  },
-  {
-    name: "Instrumentation",
-    body: "Libraries that trace popular model providers and agent frameworks in Python, JavaScript, Java and Go.",
-    href: "#instrumentation",
-    cta: "Browse packages",
-  },
-  {
-    name: "Vendor agnostic",
-    body: "Every trace is plain OpenTelemetry. Send it to Arize Phoenix, Arize AX, Dynatrace or any OTLP collector.",
-    href: "#supported-destinations",
-    cta: "See destinations",
-  },
+  { name: "Specification", body: "Semantic conventions for agent steps and operations.", href: `${base}spec/` },
+  { name: "Instrumentation", body: "Tracing for Python, JavaScript, Java and Go.", href: "#instrumentation" },
+  { name: "Vendor agnostic", body: "Plain OpenTelemetry, for any OTLP backend.", href: "#supported-destinations" },
 ];
 
 // Gutter rulers: alongside the packages, not beside the hero, where they
@@ -54,32 +45,31 @@ const rulerRuns: Run[] = [
   <PageMarkings runs={rulerRuns} marks=".readme > h2" />
   <section class="hero" aria-labelledby="hero-heading">
     <div class="hero-text">
-      <div>
-        <h1 id="hero-heading">{site.tagline}</h1>
-        <p class="lede">
-          Trace every model call, tool call, retrieval and agent step with OpenTelemetry, and see what your agent
-          actually did.
-        </p>
-        <div class="actions">
-          <a class="button solid" href={`${base}spec/`}>Read the spec</a>
-          <a class="button" href={site.repo}>View on GitHub</a>
-        </div>
+      <h1 id="hero-heading">
+        <span class="keep">{taglineHead}</span>{" "}<span class="keep">{taglineTail}</span>
+      </h1>
+      <p class="lede">Trace critical agent steps with OpenTelemetry.</p>
+      <div class="actions">
+        <a class="button solid" href={`${base}spec/`}>Read the spec</a>
+        <a class="button" href={site.repo}>View on GitHub</a>
       </div>
-      <ul class="pillars" aria-label={`What ${site.name} is`}>
-        {
-          pillars.map((pillar) => (
-            <li>
-              <h2>{pillar.name}</h2>
-              <a class="eyebrow" href={pillar.href}>
-                {pillar.cta} →
-              </a>
-              <p>{pillar.body}</p>
-            </li>
-          ))
-        }
-      </ul>
     </div>
     <TraceHero />
+    <ul class="pillars" aria-label={`What ${site.name} is`}>
+      {
+        pillars.map((pillar) => (
+          <li>
+            <h2>
+              <a href={pillar.href}>
+                {pillar.name}
+                <span class="arrow" aria-hidden="true">→</span>
+              </a>
+            </h2>
+            <p>{pillar.body}</p>
+          </li>
+        ))
+      }
+    </ul>
   </section>
   <article class="prose readme" lang={lang} dir={dir}>
     <slot />
@@ -88,56 +78,61 @@ const rulerRuns: Run[] = [
 
 <style>
   /*
-   * The hero, split on the wide frame and all in the first screen: the
-   * tagline, the calls to action and the three pillars down the left, the
-   * trace hero on the right.
+   * The hero, on the wide frame and all in the first screen: the tagline and
+   * the calls to action beside the trace demo, then the three pillars in a
+   * row under both.
    */
   section.hero {
     grid-column: full;
     display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    column-gap: var(--space-8);
-    /* Inset from the frame's edges (and its rulers) at every width. */
-    width: min(var(--hero-max), 100% - 2 * (var(--gutter) + var(--space-7)));
+    /* The demo takes most of the frame: the trace is the point. */
+    grid-template-columns: minmax(0, 6fr) minmax(0, 11fr);
+    grid-template-areas: "text demo" "pillars pillars";
+    column-gap: var(--space-7);
+    row-gap: var(--space-8);
+    /* On the wide frame, like the header: the tagline starts under the
+       wordmark and the demo ends under the nav. */
+    position: relative;
+    width: min(var(--frame-max), 100% - 2 * var(--gutter));
     margin-inline: auto;
     padding-block: var(--space-8) var(--space-9);
   }
-  /* The words at the top, the pillars at the bottom, level with the demo's end. */
-  .hero-text { display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-7); }
+  /* The words, centred on the demo beside them. */
+  .hero-text { grid-area: text; align-self: center; container-type: inline-size; }
+  section.hero > :global(.trace-hero) { grid-area: demo; }
   h1 {
-    font: 600 clamp(40px, 3.9vw, 56px) / 1.04 var(--font-sans);
+    /* Sized to its column, so each of its two lines holds whole. */
+    font: 600 var(--text-hero) / 1.04 var(--font-sans);
     letter-spacing: var(--tracking-display);
     text-wrap: balance;
   }
+  h1 .keep { white-space: nowrap; }
+  h1 .keep:first-child::after { content: "\A"; white-space: pre; }
   /* One sentence that ties the tagline to the run beside it. */
-  .lede { max-width: 36ch; margin-top: var(--space-5); color: var(--soft); font-size: var(--text-body-lg); line-height: 1.5; text-wrap: pretty; }
-  .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-6); }
+  .lede { max-width: 32ch; margin-top: var(--space-6); color: var(--soft); font-size: var(--text-hero-lede); line-height: 1.45; text-wrap: pretty; }
+  .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-7); }
 
   /* What the project is made of, set off by type and space alone: each
      pointing at where to read more. */
-  .pillars { display: grid; gap: var(--space-6); padding: 0; list-style: none; }
-  .pillars li {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: baseline;
-    gap: var(--space-1) var(--space-4);
-  }
-  .pillars h2 { font: 600 20px / 1.2 var(--font-sans); letter-spacing: -0.01em; }
-  .pillars p { grid-column: 1 / -1; color: var(--soft); font-size: var(--text-small); line-height: 1.5; text-wrap: pretty; }
-  .pillars a { color: var(--fg); text-decoration: none; white-space: nowrap; }
-  .pillars a:hover, .pillars a:focus-visible { color: var(--accent); }
+  .pillars { grid-area: pillars; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--space-7); padding: 0; list-style: none; }
+  .pillars li { display: grid; gap: var(--space-1); }
+  /* The title is the link; the sentence under it stays quiet. */
+  .pillars h2 { font: 600 var(--text-title) / 1.25 var(--font-sans); letter-spacing: -0.01em; }
+  .pillars h2 a { display: inline-flex; align-items: baseline; gap: var(--space-2); color: var(--fg); text-decoration: none; }
+  .pillars .arrow { color: var(--dim); font-weight: 400; transition: transform 0.15s, color 0.15s; }
+  .pillars h2 a:hover .arrow, .pillars h2 a:focus-visible .arrow { color: var(--accent); transform: translateX(3px); }
+  .pillars p { color: var(--dim); font-size: var(--text-small); line-height: 1.5; text-wrap: pretty; }
 
   /*
    * The README fills the page column, text and tables alike, so it has one
    * left edge and one right edge and sits on the hero's centre line. Each
-   * `##` opens a section, ruled from the one before.
+   * `##` opens a section, set apart by space alone.
    */
   .readme { padding-bottom: var(--space-8); }
   .readme > :global(* + *) { margin-top: var(--space-4); }
+  /* Sections are set apart by type and space alone: no rules between them. */
   .readme > :global(h2) {
-    margin-top: var(--space-8);
-    padding-top: var(--space-8);
-    border-top: 1px solid var(--rule);
+    margin-top: calc(var(--space-9) + var(--space-6));
     font-size: var(--text-feature);
     line-height: 1.1;
     letter-spacing: var(--tracking-tight);
@@ -156,29 +151,34 @@ const rulerRuns: Run[] = [
   .readme > :global(h3 + *) { margin-top: var(--space-3); }
   /* A note after a table ("Requires Go 1.25+") reads as a footnote. */
   .readme > :global(.table-scroll + p) { margin-top: var(--space-5); color: var(--soft); font-size: var(--text-small); }
-  /* The README's lists (destinations, community links) are ruled rows. */
-  .readme > :global(ul) { padding: 0; list-style: none; border-top: 1px solid var(--rule); }
-  .readme > :global(ul > li) { padding-block: var(--space-3); border-bottom: 1px solid var(--rule); }
+  /* The README's lists (destinations, community links): rows without bullets or rules. */
+  .readme > :global(ul) { display: grid; gap: var(--space-3); padding: 0; list-style: none; }
 
+  /* A narrow laptop: the demo keeps enough room to set the session beside the trace. */
+  @media (max-width: 1360px) {
+    section.hero { grid-template-columns: minmax(0, 5fr) minmax(0, 12fr); }
+  }
   /*
    * Narrower: the text and pillars, then the demo under them, on the page
    * column so the hero and the README share one left edge.
    */
-  @media (max-width: 1100px) {
-    section.hero { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-8); width: 100%; grid-column: content; }
-    .hero-text { justify-content: flex-start; gap: var(--space-8); }
-    h1 { max-width: 18ch; }
-    /* Side by side, each pillar its title, its sentence, then its link. */
-    .pillars { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
-    .pillars li { grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--space-2); }
-    .pillars p { order: 1; }
-    .pillars a { order: 2; margin-top: var(--space-1); }
+  @media (max-width: 1240px) {
+    section.hero {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "text" "pillars" "demo";
+      row-gap: var(--space-8);
+      width: auto;
+      margin-inline: 0;
+      grid-column: content;
+    }
+    .hero-text { align-self: start; }
+    .pillars { column-gap: var(--space-6); }
   }
   /*
    * While the page markings show (above the phone breakpoint), keep every
    * column clear of their rulers: the gutter's width again inside them.
    */
-  @media (min-width: 721px) and (max-width: 1100px) {
+  @media (min-width: 721px) and (max-width: 1240px) {
     :global(main.page-grid) {
       --landing-margin: calc(var(--gutter) + var(--space-6));
       grid-template-columns:
@@ -190,9 +190,8 @@ const rulerRuns: Run[] = [
   }
   @media (max-width: 720px) {
     section.hero { row-gap: var(--space-7); padding-block: var(--space-7) var(--space-8); }
-    .hero-text { gap: var(--space-7); }
-    .pillars { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+    .pillars { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-5); }
     .readme { padding-bottom: var(--space-7); }
-    .readme > :global(h2) { margin-top: var(--space-7); padding-top: var(--space-7); }
+    .readme > :global(h2) { margin-top: var(--space-9); }
   }
 </style>

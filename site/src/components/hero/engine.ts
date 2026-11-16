@@ -15,6 +15,7 @@ import {
   formatClock,
   formatDuration,
   PRE_ROLL,
+  SETUP_LINES,
   progressOf,
   SPANS,
   stateOf,
@@ -31,6 +32,8 @@ const RATE = 0.75;
 const HOLD = 5000;
 /** The detail keeps a span at least this long (real ms) before following the run to the next. */
 const DWELL = 2000;
+/** The code's program counter holds a line at least this long (real ms). */
+const LINE_DWELL = 260;
 /** The loop pauses when less than this much of the hero is on screen. */
 const VISIBLE_RATIO = 0.2;
 
@@ -59,7 +62,11 @@ export function mount(root: HTMLElement) {
   const question = one(".question");
   const agent = one("[data-agent]");
   const summary = one<HTMLButtonElement>("[data-summary]");
-  const steps = all("[data-step]");
+  const steps = all("[data-step]").map((step) => ({
+    step,
+    text: step.querySelector(".step-text")!,
+    meta: step.querySelector("[data-step-meta]")!,
+  }));
   const answer = one("[data-answer]");
   const answerText = one("[data-answer-text]");
   const summaryText = one("[data-summary-text]");
@@ -143,6 +150,90 @@ export function mount(root: HTMLElement) {
     });
   }
 
+  // --- Code: a program counter that glides, and a view that rarely moves ---
+  const counter = one("[data-counter]");
+  /** The line the counter is on, and when (real time) it got there. */
+  let countedLine = 0;
+  let countedAt = 0;
+  let scrollAnimation = 0;
+
+  /** Glides the code view to `top` with one eased motion, replacing any glide in progress. */
+  function glideTo(top: number, instant: boolean) {
+    cancelAnimationFrame(scrollAnimation);
+    const from = codeBody.scrollTop;
+    const to = Math.max(0, Math.min(top, codeBody.scrollHeight - codeBody.clientHeight));
+    if (instant || Math.abs(to - from) < 1) {
+      codeBody.scrollTop = to;
+      return;
+    }
+    const start = performance.now();
+    const duration = 700;
+    const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - start) / duration);
+      codeBody.scrollTop = from + (to - from) * ease(progress);
+      if (progress < 1) scrollAnimation = requestAnimationFrame(step);
+    };
+    scrollAnimation = requestAnimationFrame(step);
+  }
+
+  /** Sets the counter over the line it is on (lines move when the lens's width rewraps them). */
+  function placeCounter() {
+    if (!countedLine || code.hidden) return;
+    const line = lines[countedLine - 1]!;
+    setStyle(counter, "transform", `translateY(${line.offsetTop}px)`);
+    setStyle(counter, "height", `${line.offsetHeight}px`);
+  }
+  // While paused nothing repaints, so follow the lines when they reflow.
+  new ResizeObserver(placeCounter).observe(codeBody);
+
+  /** Where the code rests: on the agent's first function, so the agent leads and every line that runs shows. */
+  const restTop = () => lines[SETUP_LINES + 1]!.offsetTop - 20;
+
+  function paintCode(now: number, immediate: boolean) {
+    const codeState = codeAt(t);
+    const { running } = codeState;
+    // Between its steps only the agent itself is open: the counter stays on
+    // the last line that ran rather than jumping back to the agent's def.
+    // A scrub lands where it lands: the line it stays on may be from
+    // anywhere in the run.
+    const rootLine = SPANS[0]!.line;
+    const active = !immediate && codeState.active === rootLine && countedLine && t < T ? countedLine : codeState.active;
+    // A line holds the counter a moment, so a span of a few milliseconds
+    // doesn't flicker it; scrubbing moves it at once.
+    if (active !== countedLine && (immediate || now - countedAt >= LINE_DWELL || !countedLine || !active)) {
+      countedLine = active;
+      countedAt = now;
+    }
+    const shown = countedLine;
+    codeBody.classList.toggle("is-running", shown > 0);
+    lines.forEach((line, index) => {
+      line.classList.toggle("act", index + 1 === shown);
+      line.classList.toggle("run", running.has(index + 1));
+    });
+    counter.hidden = !shown;
+    if (code.hidden) return;
+    const instant = immediate || reducedMotion.matches;
+    if (!shown) {
+      if (followed !== -1) {
+        followed = -1;
+        glideTo(restTop(), instant);
+      }
+      return;
+    }
+    const line = lines[shown - 1]!;
+    placeCounter();
+    if (shown === followed) return;
+    followed = shown;
+    const view = codeBody.clientHeight;
+    const top = codeBody.scrollTop;
+    // Scroll as little as it can: bring the line just inside the edge it
+    // left, with two lines of context, never back into the setup.
+    const margin = 2 * line.offsetHeight;
+    if (line.offsetTop < top + margin) glideTo(Math.max(restTop(), line.offsetTop - margin), instant);
+    else if (line.offsetTop + line.offsetHeight > top + view - margin) glideTo(line.offsetTop + line.offsetHeight - view + margin, instant);
+  }
+
   function paint(now = performance.now(), immediate = false) {
     const done = t >= T;
 
@@ -152,13 +243,14 @@ export function mount(root: HTMLElement) {
     agent.hidden = t < 0;
     question.classList.toggle("lit", group === "root");
     let live = -1;
-    steps.forEach((step, index) => {
+    steps.forEach(({ step, text, meta }, index) => {
       const extent = STEP_SPANS[index]!;
       const state = t < extent.start ? "pending" : t < extent.end ? "open" : "done";
       if (state === "open") live = index;
       setData(step, "state", state);
-      const meta = state === "done" ? [STEPS[index]!.note, formatDuration(extent.end - extent.start)].filter(Boolean).join(" · ") : "";
-      setText(step.querySelector("[data-step-meta]")!, meta);
+      setText(meta, state === "done" ? [STEPS[index]!.note, formatDuration(extent.end - extent.start)].filter(Boolean).join(" · ") : "");
+      // A step reads as it runs ("Searching…"), then as done ("Searched").
+      setText(text, state === "open" ? STEPS[index]!.live : STEPS[index]!.text);
       step.classList.toggle("lit", group === STEPS[index]!.group);
     });
     setData(chat, "steps", stepsOpen ? "open" : "closed");
@@ -176,21 +268,7 @@ export function mount(root: HTMLElement) {
     answer.classList.toggle("lit", group === "answer");
 
     // Code: the line that is running, and the lines that called it
-    const { active, running } = codeAt(t);
-    codeBody.classList.toggle("is-running", active > 0);
-    lines.forEach((line, index) => {
-      line.classList.toggle("act", index + 1 === active);
-      line.classList.toggle("run", running.has(index + 1));
-    });
-    // The lens shows a few lines at a time: keep the running one in view.
-    if (active && active !== followed && !code.hidden) {
-      followed = active;
-      const line = lines[active - 1]!;
-      codeBody.scrollTo({
-        top: line.offsetTop - codeBody.clientHeight / 2 + line.offsetHeight / 2,
-        behavior: reducedMotion.matches || immediate ? "auto" : "smooth",
-      });
-    }
+    paintCode(now, immediate);
 
     // Trace
     waterfall.classList.toggle("dim", group !== null);

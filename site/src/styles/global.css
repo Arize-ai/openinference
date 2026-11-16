@@ -83,22 +83,6 @@ a { color: inherit; }
 .button.solid { background: var(--fg); color: var(--bg); }
 .button.solid:hover, .button.solid:focus-visible { background: transparent; color: var(--fg); }
 
-/*
- * Contact-sheet card: a faint fill framed only by 10px corner ticks, drawn
- * as background layers so it needs no extra markup.
- */
-.tick-card {
-  --tick-len: 10px;
-  --t: linear-gradient(var(--tick), var(--tick));
-  background:
-    var(--t) top left / var(--tick-len) 1px, var(--t) top left / 1px var(--tick-len),
-    var(--t) top right / var(--tick-len) 1px, var(--t) top right / 1px var(--tick-len),
-    var(--t) bottom left / var(--tick-len) 1px, var(--t) bottom left / 1px var(--tick-len),
-    var(--t) bottom right / var(--tick-len) 1px, var(--t) bottom right / 1px var(--tick-len),
-    var(--card);
-  background-repeat: no-repeat;
-}
-
 .visually-hidden {
   position: absolute !important;
   width: 1px; height: 1px;

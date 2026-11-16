@@ -79,29 +79,79 @@ const http = (method: string, status: number, url: string): Attribute[] => [
   { key: "http.url", value: url },
 ];
 
+/** The agent, as the Code view shows it. Spans find their lines in it by content (`lineOf`). */
+export const CODE = `from openai import OpenAI
+from openinference.instrumentation import TracerProvider
+from openinference.instrumentation.openai import OpenAIInstrumentor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))  # any OTLP backend
+OpenAIInstrumentor().instrument(tracer_provider=provider)
+RequestsInstrumentor().instrument(tracer_provider=provider)
+tracer = provider.get_tracer(__name__)
+client = OpenAI()
+
+@tracer.tool
+def load_skill(name: str) -> str:
+    return SKILLS[name].read_text()
+
+@tracer.tool
+def search_help_center(query: str) -> list[str]:
+    emb = client.embeddings.create(
+        model=EMBED, input=query)
+    hits = vector_search(emb)  # @tracer.retriever
+    return rerank(query, hits)  # @tracer.reranker
+
+@tracer.tool
+def execute_code(code: str) -> str:
+    return sandbox.run(code, billing)
+
+@tracer.agent
+def support_agent(question: str) -> str:
+    input_guard(question)  # @tracer.guardrail
+    messages = [user_message(question)]
+    while True:
+        response = client.responses.create(
+            model=MODEL, tools=TOOLS,
+            input=messages)
+        if not (calls := tool_calls(response)):
+            return output_guard(response)
+        messages += response.output
+        messages += run_tools(calls)`;
+
+/** The 1-based line of the code that contains `text`. */
+const lineOf = (text: string) => {
+  const index = CODE.split("\n").findIndex((line) => line.includes(text));
+  if (index < 0) throw new Error(`No code line contains ${text}`);
+  return index + 1;
+};
+
 export const SPANS: Span[] = [
   {
-    name: "support_agent", kind: "AGENT", depth: 0, start: 0, end: T, group: "root", line: 30,
+    name: "support_agent", kind: "AGENT", depth: 0, start: 0, end: T, group: "root", line: lineOf("def support_agent"),
     attributes: [kind("AGENT"), { key: "input.value", value: QUESTION }, { key: "output.value", value: ANSWER, end: true }],
   },
   {
-    name: "input_guard", kind: "GUARDRAIL", depth: 1, start: 30, end: 210, group: "guard", line: 31,
+    name: "input_guard", kind: "GUARDRAIL", depth: 1, start: 30, end: 210, group: "guard", line: lineOf("input_guard(question)"),
     attributes: [kind("GUARDRAIL"), { key: "input.value", value: QUESTION }, { key: "output.value", value: "pass", end: true }],
   },
   {
-    name: "Response", kind: "LLM", depth: 1, start: 250, end: 1180, group: "plan", line: 34,
+    name: "Response", kind: "LLM", depth: 1, start: 250, end: 1180, group: "plan", line: lineOf("client.responses.create("),
     attributes: llm(1480, 64, 'load_skill(name="billing-disputes")  search_help_center(query="charged twice for March")'),
   },
   {
-    name: "load_skill", kind: "TOOL", depth: 1, start: 1220, end: 1340, group: "skill", line: 17, call: 37,
+    name: "load_skill", kind: "TOOL", depth: 1, start: 1220, end: 1340, group: "skill", line: lineOf("read_text()"), call: lineOf("run_tools"),
     attributes: tool("load_skill", '{"name": "billing-disputes"}', "# Billing disputes\nRefund a duplicate charge once you have found both payments…"),
   },
   {
-    name: "search_help_center", kind: "TOOL", depth: 1, start: 1220, end: 2480, group: "search", line: 20, call: 37,
+    name: "search_help_center", kind: "TOOL", depth: 1, start: 1220, end: 2480, group: "search", line: lineOf("def search_help_center"), call: lineOf("run_tools"),
     attributes: tool("search_help_center", '{"query": "charged twice for March"}', '["Why was I charged twice?", "Refund timelines", "Duplicate payments"]'),
   },
   {
-    name: "CreateEmbeddings", kind: "EMBEDDING", depth: 2, start: 1250, end: 1490, group: "search", line: 21,
+    name: "CreateEmbeddings", kind: "EMBEDDING", depth: 2, start: 1250, end: 1490, group: "search", line: lineOf("client.embeddings.create("),
     attributes: [
       kind("EMBEDDING"),
       { key: "embedding.model_name", value: "text-embedding-3-small" },
@@ -110,7 +160,7 @@ export const SPANS: Span[] = [
     ],
   },
   {
-    name: "vector_search", kind: "RETRIEVER", depth: 2, start: 1520, end: 1890, group: "search", line: 22,
+    name: "vector_search", kind: "RETRIEVER", depth: 2, start: 1520, end: 1890, group: "search", line: lineOf("vector_search(emb)"),
     attributes: [
       kind("RETRIEVER"),
       { key: "input.value", value: '{"embedding": [0.0132, -0.0207, 0.0041, …], "k": 20}' },
@@ -118,7 +168,7 @@ export const SPANS: Span[] = [
     ],
   },
   {
-    name: "rerank", kind: "RERANKER", depth: 2, start: 1920, end: 2440, group: "search", line: 23,
+    name: "rerank", kind: "RERANKER", depth: 2, start: 1920, end: 2440, group: "search", line: lineOf("return rerank"),
     attributes: [
       kind("RERANKER"),
       { key: "input.value", value: '{"query": "charged twice for March", "hits": [20 items], "top_n": 3}' },
@@ -126,39 +176,39 @@ export const SPANS: Span[] = [
     ],
   },
   {
-    name: "Response", kind: "LLM", depth: 1, start: 2530, end: 3980, group: "code", line: 34,
+    name: "Response", kind: "LLM", depth: 1, start: 2530, end: 3980, group: "code", line: lineOf("client.responses.create("),
     attributes: llm(4210, 236, `execute_code(code=${JSON.stringify(GENERATED_CODE)})`),
   },
   {
-    name: "execute_code", kind: "TOOL", depth: 1, start: 4020, end: 5960, group: "code", line: 27, call: 37,
+    name: "execute_code", kind: "TOOL", depth: 1, start: 4020, end: 5960, group: "code", line: lineOf("sandbox.run"), call: lineOf("run_tools"),
     attributes: tool("execute_code", GENERATED_CODE, '{"refund": "re_3Pq9", "amount": 49.00}'),
   },
   {
-    name: "get_invoice", kind: "TOOL", depth: 2, start: 4100, end: 4980, group: "code", line: 27,
+    name: "get_invoice", kind: "TOOL", depth: 2, start: 4100, end: 4980, group: "code", line: lineOf("sandbox.run"),
     attributes: tool("get_invoice", '{"month": "2026-03"}', '{"id": "INV-2291", "payments": [49.00, 49.00]}'),
   },
   {
-    name: "GET", kind: "HTTP", depth: 3, start: 4130, end: 4420, group: "code", line: 27, note: "500", error: true,
+    name: "GET", kind: "HTTP", depth: 3, start: 4130, end: 4420, group: "code", line: lineOf("sandbox.run"), note: "500", error: true,
     attributes: http("GET", 500, "https://billing.internal/v1/invoices?month=2026-03"),
   },
   {
-    name: "GET", kind: "HTTP", depth: 3, start: 4700, end: 4950, group: "code", line: 27, note: "200",
+    name: "GET", kind: "HTTP", depth: 3, start: 4700, end: 4950, group: "code", line: lineOf("sandbox.run"), note: "200",
     attributes: http("GET", 200, "https://billing.internal/v1/invoices?month=2026-03"),
   },
   {
-    name: "refund_payment", kind: "TOOL", depth: 2, start: 5020, end: 5900, group: "code", line: 27,
+    name: "refund_payment", kind: "TOOL", depth: 2, start: 5020, end: 5900, group: "code", line: lineOf("sandbox.run"),
     attributes: tool("refund_payment", '{"payment": "pay_8Qx2"}', '{"refund": "re_3Pq9", "status": "succeeded"}'),
   },
   {
-    name: "POST", kind: "HTTP", depth: 3, start: 5050, end: 5870, group: "code", line: 27, note: "200",
+    name: "POST", kind: "HTTP", depth: 3, start: 5050, end: 5870, group: "code", line: lineOf("sandbox.run"), note: "200",
     attributes: http("POST", 200, "https://billing.internal/v1/refunds"),
   },
   {
-    name: "Response", kind: "LLM", depth: 1, start: 6000, end: 7880, group: "answer", line: 34,
+    name: "Response", kind: "LLM", depth: 1, start: 6000, end: 7880, group: "answer", line: lineOf("client.responses.create("),
     attributes: llm(4630, 118, ANSWER),
   },
   {
-    name: "output_guard", kind: "GUARDRAIL", depth: 1, start: 7910, end: 8120, group: "answer", line: 36,
+    name: "output_guard", kind: "GUARDRAIL", depth: 1, start: 7910, end: 8120, group: "answer", line: lineOf("output_guard("),
     attributes: [kind("GUARDRAIL"), { key: "input.value", value: ANSWER }, { key: "output.value", value: "pass", end: true }],
   },
 ];
@@ -192,44 +242,8 @@ export const STEPS = [
   { group: "code", text: "Checked your invoice", live: "Checking your invoice…", note: "refund issued" },
 ]
 
-/** The agent, as the Code view shows it. Line numbers in `SPANS` are 1-based. */
-export const CODE = `from openai import OpenAI
-from openinference.instrumentation import TracerProvider
-from openinference.instrumentation.openai import OpenAIInstrumentor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))  # any OTLP backend
-OpenAIInstrumentor().instrument(tracer_provider=provider)
-RequestsInstrumentor().instrument(tracer_provider=provider)
-tracer = provider.get_tracer(__name__)
-client = OpenAI()
-
-@tracer.tool
-def load_skill(name: str) -> str:
-    return (SKILLS / name / "SKILL.md").read_text()
-
-@tracer.tool
-def search_help_center(query: str) -> list[str]:
-    emb = client.embeddings.create(model=EMBED, input=query)
-    hits = vector_search(emb.data[0].embedding, k=20)  # @tracer.retriever
-    return rerank(query, hits, top_n=3)  # @tracer.reranker
-
-@tracer.tool
-def execute_code(code: str) -> str:
-    return sandbox.run(code, api=billing)  # billing.* are @tracer.tool
-
-@tracer.agent
-def support_agent(question: str) -> str:
-    input_guard(question)  # @tracer.guardrail
-    messages = [{"role": "user", "content": question}]
-    while True:
-        response = client.responses.create(model=MODEL, input=messages, tools=TOOLS)
-        if not (calls := tool_calls(response)):
-            return output_guard(response.output_text)  # @tracer.guardrail
-        messages += response.output + run_parallel(calls)`;
+/** The setup at the top of the code (imports, provider, instrumentors, through the client): the Code view rests just past it. */
+export const SETUP_LINES = lineOf("client = OpenAI()");
 
 // --- Geometry -----------------------------------------------------------------
 
