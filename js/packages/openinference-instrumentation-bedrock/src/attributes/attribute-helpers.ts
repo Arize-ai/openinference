@@ -262,31 +262,49 @@ export function processMessages({
 
 /**
  * Extracts clean model name from full Bedrock model ID
- * Removes vendor prefix, optional region prefix, and version suffixes to get the base model name.
+ * Removes the optional region prefix and vendor prefix, preserving the remaining
+ * model string (which may itself contain dots, e.g. "deepseek.v3.2" -> "v3.2").
  *
- * Handles both standard and cross-region inference model IDs:
- *   - Standard:     "anthropic.claude-3-sonnet-20240229-v1:0"
- *   - Cross-region: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+ * Handles both standard and cross-region inference model IDs, plus ARNs:
+ *   - Standard:      "anthropic.claude-3-sonnet-20240229-v1:0"
+ *   - Cross-region:  "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+ *   - ARN:           "arn:aws:bedrock:...:inference-profile/us.anthropic.claude-3-5-sonnet-20240620-v1:0"
+ *   - Dotted model:  "deepseek.v3.2" -> "v3.2"
  *
  * @param modelId The full Bedrock model identifier
  * @returns {string} The cleaned model name (e.g., "claude-3-sonnet-20240229" from "anthropic.claude-3-sonnet-20240229-v1:0")
  */
 export function extractModelName(modelId: string): string {
-  const parts = modelId.split(".");
-  if (parts.length > 1) {
-    // The model name is always the last dot-separated segment.
-    // Standard IDs:     vendor.model-v1:0        (2 parts)
-    // Cross-region IDs: region.vendor.model-v1:0  (3+ parts)
-    // Assumes the model segment itself never contains a '.', which holds for
-    // all current Bedrock model IDs.
-    const modelPart = parts[parts.length - 1];
-    if (modelId.includes("anthropic")) {
-      const versionIndex = modelPart.indexOf("-v");
-      if (versionIndex > 0) {
-        return modelPart.substring(0, versionIndex);
-      }
-    }
-    return modelPart;
+  // For ARNs, use only the resource portion after the last "/".
+  const slashIndex = modelId.lastIndexOf("/");
+  const id = slashIndex >= 0 ? modelId.substring(slashIndex + 1) : modelId;
+
+  const parts = id.split(".");
+  if (parts.length <= 1) {
+    return modelId;
   }
-  return modelId;
+
+  // Known region prefixes used by cross-region inference profiles.
+  const regionPrefixes = new Set(["us", "eu", "ap", "global", "apac"]);
+
+  let startIndex = 0;
+  // Strip the optional region prefix.
+  if (regionPrefixes.has(parts[0])) {
+    startIndex = 1;
+  }
+  // Strip the vendor prefix, leaving the remaining model string (dots included).
+  if (startIndex + 1 < parts.length) {
+    startIndex += 1;
+  }
+
+  const modelPart = parts.slice(startIndex).join(".");
+
+  // Anthropic model IDs carry a "-vN:0" version suffix that we strip for readability.
+  if (id.includes("anthropic")) {
+    const versionIndex = modelPart.indexOf("-v");
+    if (versionIndex > 0) {
+      return modelPart.substring(0, versionIndex);
+    }
+  }
+  return modelPart;
 }

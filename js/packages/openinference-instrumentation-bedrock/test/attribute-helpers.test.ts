@@ -76,6 +76,15 @@ describe("extractModelName", () => {
     expect(extractModelName("us.amazon.nova-lite-v1:0")).toBe("nova-lite-v1:0");
   });
 
+  // Model names that themselves contain dots (e.g. deepseek.v3.2)
+  it("preserves dots within the model name from standard ID", () => {
+    expect(extractModelName("deepseek.v3.2")).toBe("v3.2");
+  });
+
+  it("preserves dots within the model name from cross-region ID", () => {
+    expect(extractModelName("us.deepseek.v3.2")).toBe("v3.2");
+  });
+
   // Edge cases
   it("returns input unchanged when no dot separator", () => {
     expect(extractModelName("invalid-model-id")).toBe("invalid-model-id");
