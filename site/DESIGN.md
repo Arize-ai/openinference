@@ -20,12 +20,12 @@ there, change it here.
   it produces; never add classes to it or fork it for the site. If a page
   needs chrome (a hero, a sidebar), the layout draws it.
 - **Centre the column, not the text.** Columns are centred in the page; text
-  inside them is left-aligned, titles included. The one exception is the
-  landing hero, which centres its tagline and actions.
-- **Two measures, no others.** The 880px page (`--page-max`), whose text
-  and tables both fill it, on the landing page and every spec page; and the
+  inside them is left-aligned, titles included.
+- **Two measures, no others.** The 880px page (`--page-max`), whose text and
+  tables both fill it, on the landing page and every spec page; and the
   1400px wide frame (`--frame-max`, as on the Arize Labs site) that holds the
-  header, the footer and the docs rails. Don't invent a third.
+  header, the footer, the docs rails and the landing page's split hero. Don't
+  invent a third.
 - **One left edge.** Within a page, text and tables start at the same left
   edge.
 - **Balance.** Pages are symmetric about the centre line. When something
@@ -33,13 +33,16 @@ there, change it here.
   or neither does.
 - **Tokens only.** Colours, type sizes, spacing and widths come from
   `tokens.css`. A literal pixel value in a component is a bug unless it is a
-  breakpoint (CSS can't read custom properties in media queries) or a
-  hairline (1px rules, 2px accent bars).
+  breakpoint (CSS can't read custom properties in media queries), a
+  hairline (1px rules, 2px accent bars), or part of a component's own
+  geometry block: one set of named custom properties at the top of the
+  component (the trace hero's `.stage`), which its layouts change and its
+  rules only read.
 - **One accent.** Signal orange (`--accent`) marks one thing at a time: a
   hover, the current page, a quote rule, the focus ring. It is never a fill
   behind text, and never a second brand colour.
-- **Texture once.** Texture (the dot ground and the gutter rulers)
-  appears only on the landing page.
+- **Texture once.** Texture (the gutter rulers) appears only on the
+  landing page, beside the packages; there is no dot ground.
   Everywhere else the page is flat paper or ink.
 
 ## Page types
@@ -49,7 +52,7 @@ below the header.
 
 | Type | Layout | Width | Pages |
 |---|---|---|---|
-| Landing | `ReadmeLayout` | Hero and README on the 880px page, centred | `/`, `/docs/i18n/README.*.html` |
+| Landing | `ReadmeLayout` | A split hero on the wide frame, then the README on the 880px page, centred | `/`, `/docs/i18n/README.*.html` |
 | Docs | `DocsLayout` | Wide frame: pages rail, the page, an "On this page" rail | `/spec/`, `/spec/*.html`, `/js/`, `/js/*.html`, `/python/`, `/python/*.html` |
 
 Both wrap [`BaseLayout`](./src/layouts/BaseLayout.astro), which owns
@@ -68,26 +71,104 @@ The layout and page markings are ported from the Arize Labs home page
 (github.com/arize-labs/website: `components/sections/Hero.astro`,
 `components/PageMarkings.astro`), without its glass mark or its art band.
 
-1. **Hero.** Centred, on the page column, and all in the first screen:
-   the tagline (`site.tagline`, "The Open Standard for Agent
-   Observability") as the `h1`, `--space-9` under the header, at
-   `--text-display`, weight 600, `--tracking-display`, balanced, at most
-   18ch; then, `--space-7` under it, two buttons (**Read the spec**, solid;
-   **View on GitHub**, outline). No wordmark or mark: the header carries
-   the wordmark, and the hero doesn't repeat it. No lede and no art: the
-   tagline says it. The language picker is off the landing page for now.
-2. **Pillars.** Three `.tick-card`s on the page column, one per part of
-   the project: Specification, Instrumentation, Any backend. Each has a
-   title, a sentence in `--soft` and a mono caps link to where to read
-   more (the spec, the README's `#instrumentation`,
-   `#supported-destinations`). One column on phones.
+1. **Hero.** On the wide frame like the header (the tagline starts under
+   the wordmark, the demo ends under the nav), all in the first screen at
+   1280 × 800 and up, `--space-8` under the header. The words sit beside the
+   trace hero (6 : 11, 5 : 12 under 1360px; the same at every width past the frame's 1400px, so a wider window never shrinks the demo), centred on it: the tagline
+   (`site.tagline`) as the `h1`, weight 600, `--tracking-display`, in two
+   whole lines, "The Open Standard" over "for Agent Observability", sized
+   to its column (up to 64px) so neither ever breaks; one short sentence of
+   lede in `--soft` at `--text-hero-lede`; two buttons (**Read the spec**, solid; **View on
+   GitHub**, outline). Under both, the three pillars in a row, one per part
+   of the project (Specification, Instrumentation, Vendor agnostic), set
+   off by type and space alone: each title is the link (to the spec, the
+   README's `#instrumentation`, `#supported-destinations`), with an arrow
+   that moves on hover, over one short sentence in `--dim`. No wordmark or
+   mark: the header carries the wordmark. The language picker is off the
+   landing page for now. Under 1240px the hero stacks on the 880px page,
+   one left edge with the README: the words, the pillars, then the demo;
+   while the page markings show (721 to 1240px) the landing page keeps a
+   gutter and `--space-6` from the window's edge; on a phone the pillars
+   stack.
+2. **Trace hero.** The hero's right half: one support-agent run replayed on
+   a single clock. A lens at the top shows what the person sees (the
+   session) or what runs (the agent's code, scrolled to the running line);
+   under it, the OpenInference trace it records and the span in view. It is a component, not markdown
+   ([`TraceHero.astro`](./src/components/hero/TraceHero.astro)); every value
+   it shows is in [`model.ts`](./src/components/hero/model.ts).
+   - **The run is real-shaped.** The code is the agent, instrumented with
+     the OpenAI and requests instrumentors and the `@tracer` decorators, and
+     the spans are the tree it emits: names, kinds, nesting and attribute
+     keys as the instrumentors write them. Change the code and the spans
+     together, and check them by running the sample.
+   - **The stage.** No card or frame: one column whose structure is
+     spacing and one hairline, under the tabs. No
+     chrome the story doesn't need: no status readout, no file header, no
+     composer, no message actions, no speed control.
+   - **The session.** Quiet, like a real chat: the question, then one
+     line that glimmers with what the agent is doing now ("Searching the
+     help center…"), its steps collapsed under it (a click opens them), then
+     the answer streaming in token by token, as a model writes it: plain
+     text, no fade or caret. When the
+     answer starts, the line settles into "Worked for 6.0s".
+   - **The trace.** Drawn like the rest of the site, as a wireframe, and as
+     plainly as it can be: a span tree beside a timeline. The tree is the
+     kind's glyph and the span's name, set in by depth, with hairline
+     hierarchy lines that grow with the trace; nothing frames it. Each span
+     is a solid square rectangle in its kind's full colour, with its
+     duration beside it; a span still running is only
+     its dashed outline, and fills in when it ends. Rows ease in as their
+     spans start. The agent is the outline alone, the envelope around the
+     work. The failed request is hatched in the accent; the retry is simply
+     the next row. Gridlines are dotted. No
+     boxes, gradients or glows.
+   - **The detail.** What OpenInference recorded on the span in view, and
+     nothing it hasn't: inputs from the start, outputs, token counts and the
+     status (OK, ERROR, or UNSET for a plain HTTP success) only once the
+     span ends. It follows the agent's own steps, not every short call inside
+     them, holding each at least two seconds, and holds the failed request
+     just after it fails; hovering a row shows any span.
+   - **Colour.** Span kinds take the `--kind-*` tokens on their glyph and
+     line, never on text; the accent marks only the request that failed, the
+     one thing the person never saw.
+   - **Glyphs.** [`glyphs.ts`](./src/components/hero/glyphs.ts): Phoenix's
+     span-kind shapes redrawn as bare strokes on a 16px grid, in the kind's
+     colour, so the hero and Phoenix read as one system.
+   - **Motion.** Everything is a function of trace time; one frame loop,
+     paused off screen and in a hidden tab. With reduced motion it shows the
+     finished trace, still, until someone presses play. Without JavaScript
+     the server's finished trace stands.
+   - **Its geometry is named once**, at the top of `.stage`: the lens's
+     height, the tree's width and indent, the row pitch, the glyph, bar,
+     icon, control and attribute sizes. The wide and phone layouts change
+     only these, never the rules that read them, and every offset derives
+     from them (a tree line sits at half a glyph).
+   - **It lays itself out by its own width** (a container query), wherever
+     the page puts it. 760px and wider, the trace takes the right 60% and
+     the full height, with larger names and bars: it is the hero's
+     highlight. Beside it, the session (or the code) and, at its foot, the
+     span in view, level with the trace's last row. The code rests just past
+     its 13 lines of setup (a scroll up shows them) and never scrolls back
+     into them while it follows the running line; the agent's lines are
+     written short enough never to wrap (a long setup import wraps under
+     itself, out of view), and spans find their code lines by content
+     (`lineOf` in model.ts), so the code can change freely. Switching
+     between Session and Code never moves anything: the trace sets the
+     height and the lens fills it. Narrower, the lens sits over the trace,
+     and the span in view under it. A short timeline labels every other
+     second.
+   - **The span in view** sits in a faint well (`--well`), so it
+     reads as that span's record.
+   - **Narrow.** On a phone everything fits the screen, never scrolling
+     sideways: a narrower tree in a 10px face, every other tick, and each
+     attribute's value under its key.
 3. **README.** The rest of the README on the 880px page, centred under
-   the hero. Each `##` is a section, ruled from the one before with a 1px
-   `--rule` and `--space-8` above and below:
+   the hero. Each `##` is a section, set apart by type and space alone (no
+   rules), `--space-9` plus `--space-6` above it:
    - the `##` heading at `--text-feature`, weight 600, `--tracking-tight`;
    - the paragraph under it in `--soft`;
    - `###` (Libraries, Examples) as a mono caps label in `--dim`;
-   - lists as ruled rows (a 1px `--rule` between items), without bullets;
+   - lists as rows without bullets or rules;
    - a note after a table (such as the Go version) at `--text-small`.
 
    Text and tables both fill the page, as on spec pages, so there is one
@@ -95,10 +176,9 @@ The layout and page markings are ported from the Arize Labs home page
    line. Don't narrow the text inside it: a 720px measure pinned to the
    left of a wider column leaves the right side empty and pulls the page
    off centre.
-4. **Page markings.** A dot ground in the margins beyond the frame's edges
-   (`--frame-max`, holding `--frame-edge` from a narrower window), and
-   gutter rulers on those edges from under the hero's tagline to the README, and
-   alongside the packages, with a registration cross at each `##`
+4. **Page markings.** Gutter rulers on the frame's edges (`--frame-max`,
+   holding `--frame-edge` from a narrower window), alongside the packages (never beside the hero,
+   where they would compete with the demo), with a registration cross at each `##`
    (`--marking-opacity`). None on phones.
 
 Third-party work (the typefaces) is listed in
@@ -220,16 +300,20 @@ All rendered markdown sits in `.prose`, styled in
 | Token | Size | Use |
 |---|---|---|
 | `--text-h2` | 36 to 56px | Spec page titles |
-| `--text-display` | 42 to 88px | The landing hero's tagline |
+| `--text-hero` | 18 to 64px, by its column | The landing hero's tagline: a share of its own column (a container query), so its two lines hold whole at any width |
 | `--text-feature` | 32 to 48px | Landing section headings (README `##`) |
 | `--text-section` | 28px | Prose `##` on spec pages |
 | `--text-lede` | 19 to 24px | Page intros (the brand and credits pages) |
 | `--text-h3` | 22px | Prose `###` |
 | `--text-body-lg` | 18px | Prose |
+| `--text-hero-lede` | 15 to 24px, by its column | The sentence under the tagline, from the same column, so the two keep their ratio |
+| `--text-title` | 20px | Short titles in a row: the landing pillars |
 | `--text-h4` | 17px | Prose `####`, pager titles |
 | `--text-body` | 16px | UI text, prose on phones |
 | `--text-small` | 14px | Sidebar links, tables, footer note |
+| `--text-label` | 12px | Span names in the trace hero's wide layout |
 | `--text-micro` | 11px | Eyebrows, nav, table headers, buttons (mono caps) |
+| `--text-nano` | 10px | The trace hero's code, ticks and time chip; its span names on phones |
 
 Urbanist (`--font-sans`) for everything people read; Geist Mono
 (`--font-mono`) for code, and in uppercase, tracked `--tracking-micro`, for
@@ -247,9 +331,10 @@ Fontsource, so the site makes no third-party font requests.
 | `--dim` | `#6f6b66` | `#9b958d` | Labels, nav, metadata |
 | `--rule` | `#d8d5ce` | `#3a3637` | Every 1px line |
 | `--tint` | `--fg` at 6% | same | Inline code chips |
-| `--card` | `--fg` at 3% | same | The fill of a `.tick-card` |
-| `--tick` | `--fg` at 24% | same | A `.tick-card`'s corner ticks |
+| `--card` | `--fg` at 3% | same | The fill behind an API signature |
+| `--well` | `--fg` at 2.5% | same | The well that holds the trace hero's span in view |
 | `--accent` | signal `#ff5a1f` | same | The one highlighted thing |
+| `--kind-*` | Phoenix's kind hue, full chroma, L 56 | L 74 | Span kinds in the trace hero (agent, llm, tool, retriever, embedding, reranker, guardrail, http) |
 
 Use the semantic tokens, never the palette (`--color-*`) directly. Every
 token has a dark value; if something needs a colour that has no token, add
@@ -325,6 +410,16 @@ Breakpoints, as literals in media queries:
   disclosure.
 - **720px:** prose drops to 16px, the hero tightens, the footer and pager
   stack.
+- **1360px:** below it, the landing hero gives the demo more of the frame
+  (5 : 12 instead of 6 : 11), so it keeps the session beside the trace.
+- **1240px:** below it, the landing hero stacks: the words, the pillars,
+  then the demo.
+- **560px:** the trace hero fits a phone (a narrower tree, values under
+  their keys).
+
+The trace hero also lays itself out by its own width, a container query
+rather than a breakpoint: from 760px wide it sets the session beside the
+trace, and a trace narrower than 520px labels every other second.
 
 ## Checklist for a change
 

@@ -36,33 +36,53 @@
   /* A faint fill: inline code, the hover on sidebar links. */
   --tint: color-mix(in srgb, var(--fg) 6%, transparent);
 
-  /* Page markings (the landing page): the margin dot ground and the gutter
-     rulers, as on the Arize Labs site. */
-  --dot: color-mix(in srgb, var(--fg) 16%, transparent);
-  --dot-ground: radial-gradient(circle at center, var(--dot) 0 1px, transparent 1.4px);
-  --dot-pitch: 24px;
+  /* Page markings (the landing page): the gutter rulers, as on the Arize
+     Labs site. */
   --marking-opacity: 0.14;
 
-  /* Contact-sheet cards (the landing pillars): a faint fill framed only by
-     corner ticks, as on the Arize Labs site. */
+  /* A faint fill: the API references' signatures. */
   --card: color-mix(in srgb, var(--fg) 3%, transparent);
-  --tick: color-mix(in srgb, var(--fg) 24%, transparent);
+  /* Fainter still: the well that holds the trace hero's span in view. */
+  --well: color-mix(in srgb, var(--fg) 2.5%, transparent);
+
+  /* Span kinds (the landing page's trace hero): Phoenix's hue for each kind
+     (spanKindColor.ts) at full chroma, L 56 on paper and L 74 on the dark
+     ground. They colour glyphs, tiles and bars, never text. HTTP isn't an
+     OpenInference kind, so it stays in --dim. */
+  --kind-agent: var(--soft);
+  --kind-llm: #c57200;
+  --kind-tool: #b58e00;
+  --kind-retriever: #049690;
+  --kind-embedding: #647cf6;
+  --kind-reranker: #019c23;
+  --kind-guardrail: #d23fd6;
+  --kind-http: var(--dim);
 
   /* Type */
   --font-sans: "Urbanist Variable", "Urbanist", system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
+  /* Below the micro size: the trace hero's ticks, code and time chip. */
+  --text-nano: 10px;
   --text-micro: 11px;
+  /* Labels a size up from micro: span names in the trace hero's wide layout. */
+  --text-label: 12px;
   --text-small: 14px;
   --text-body: 16px;
   --text-body-lg: 18px;
   --text-lede: clamp(19px, 1.9vw, 24px);
   --text-h4: 17px;
+  /* Short titles in a row: the landing pillars. */
+  --text-title: 20px;
   --text-h3: 22px;
   --text-section: 28px;
   --text-feature: clamp(32px, 3.6vw, 48px);
   --text-h2: clamp(36px, 4.6vw, 56px);
-  --text-display: clamp(42px, 6.6vw, 88px);
+  /* The landing tagline, sized to its own column (a container), so its two
+     lines, "The Open Standard" and "for Agent Observability", hold whole. */
+  --text-hero: clamp(18px, 9.4cqi, 64px);
+  /* The sentence under it, from the same column, so the two keep their ratio. */
+  --text-hero-lede: clamp(15px, 5cqi, 24px);
 
   --tracking-tight: -0.025em;
   --tracking-display: -0.04em;
@@ -103,8 +123,13 @@
   --rule: #3a3637;
   --dim: #9b958d;
   --soft: #bdb8b0;
-  --dot: color-mix(in srgb, var(--fg) 13%, transparent);
   --marking-opacity: 0.12;
+  --kind-llm: #ffa038;
+  --kind-tool: #e5bf12;
+  --kind-retriever: #22cfc6;
+  --kind-embedding: #a2a6ff;
+  --kind-reranker: #3fd453;
+  --kind-guardrail: #ff8bfe;
   color-scheme: dark;
 }
 
@@ -117,8 +142,13 @@
     --rule: #3a3637;
     --dim: #9b958d;
     --soft: #bdb8b0;
-    --dot: color-mix(in srgb, var(--fg) 13%, transparent);
     --marking-opacity: 0.12;
+    --kind-llm: #ffa038;
+    --kind-tool: #e5bf12;
+    --kind-retriever: #22cfc6;
+    --kind-embedding: #a2a6ff;
+    --kind-reranker: #3fd453;
+    --kind-guardrail: #ff8bfe;
     color-scheme: dark;
   }
 }
