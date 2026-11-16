@@ -1,0 +1,262 @@
+---
+/**
+ * A docs page (the spec, the JavaScript and Python API references), on the
+ * wide frame. See DESIGN.md ("Docs").
+ *
+ * Wide screens get three columns: the section's pages on the left, the page
+ * in the middle, and the page's sections ("On this page") on the right. Both
+ * rails are the same width, so the page sits on the frame's centre line,
+ * under the header's. Below 1360px the rails go: the page takes the full
+ * width and the section's pages fold into a disclosure above it.
+ *
+ * The page is --page-max wide, centred; text and tables both fill it. The
+ * page's own `# Title` is the title block.
+ */
+import DocsPageList from "../components/DocsPageList.astro";
+import type { Heading } from "../lib/api";
+import type { DocsNav } from "../lib/docs";
+import BaseLayout from "./BaseLayout.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+  nav: DocsNav;
+  /** The page's headings: from `render()` for markdown, else the page's own. */
+  headings?: Heading[];
+  /**
+   * The deepest heading "On this page" lists: 2 for prose (its `##`
+   * sections); 3 for the API reference (modules, then their members).
+   */
+  tocDepth?: 2 | 3;
+}
+
+const { title, description, nav, headings = [], tocDepth = 2 } = Astro.props;
+const current = nav.groups.flatMap((group) => group.items).find((item) => item.current);
+const sections = headings.filter((heading) => heading.depth >= 2 && heading.depth <= tocDepth);
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="docs frame">
+    <aside class="rail pages" aria-label={nav.label}>
+      <p class="eyebrow">{nav.label}</p>
+      <DocsPageList groups={nav.groups} />
+    </aside>
+
+    <div class="page">
+      <details class="pages-menu disclosure">
+        <summary>
+          <span class="eyebrow">{nav.label}</span>
+          <span class="here">{current?.label}</span>
+        </summary>
+        <DocsPageList groups={nav.groups} />
+      </details>
+
+      <article class="prose">
+        <slot />
+      </article>
+
+      <footer class="page-footer">
+        <a class="source eyebrow" href={nav.source}>
+          {nav.sourceLabel ?? "Edit this page on GitHub"} ↗
+        </a>
+        <nav class="pager" aria-label={`${nav.label} pages`}>
+          {
+            nav.previous && (
+              <a class="previous" href={nav.previous.href} rel="prev">
+                <span class="eyebrow">← Previous</span>
+                <span class="label">{nav.previous.label}</span>
+              </a>
+            )
+          }
+          {
+            nav.next && (
+              <a class="next" href={nav.next.href} rel="next">
+                <span class="eyebrow">Next →</span>
+                <span class="label">{nav.next.label}</span>
+              </a>
+            )
+          }
+        </nav>
+      </footer>
+    </div>
+
+    {/* No sections, no rail: the grid's third track keeps the page centred. */}
+    {
+      sections.length > 1 && (
+        <aside class="rail toc" aria-label="On this page">
+          <p class="eyebrow">On this page</p>
+          <ul data-toc>
+            {sections.map((heading) => (
+              <li class={heading.depth > 2 ? "sub" : undefined}>
+                <a
+                  href={`#${heading.slug}`}
+                  data-slug={heading.slug}
+                  title={heading.depth > 2 ? heading.text : undefined}
+                >
+                  {heading.text}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .docs {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: var(--space-6);
+  }
+
+  /* The page: one 880px column, centred. Text and tables both fill it. */
+  .page { width: 100%; max-width: var(--page-max); margin-inline: auto; min-width: 0; }
+
+  /* Rails (wide screens only): sticky under the header, quiet type, one rule
+     down the side. The page list is DocsPageList's markup, hence :global. */
+  .rail {
+    display: none;
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-7));
+    align-self: start;
+    max-height: calc(100dvh - var(--header-height) - var(--space-7));
+    overflow-y: auto;
+    padding-bottom: var(--space-5);
+  }
+  .rail .eyebrow { margin-bottom: var(--space-4); }
+  /* A group's label over its pages (the API references' Core, Instrumentation). */
+  .rail :global(.group), .pages-menu :global(.group) { margin: var(--space-5) 0 var(--space-2); }
+  .rail > .eyebrow + :global(.group) { margin-top: 0; }
+  .pages-menu :global(.group) { margin-bottom: 0; }
+  /* "On this page" at depth 3: a member under its module, set in. */
+  .toc .sub a { padding-left: var(--space-6); }
+  /* A module path (openinference.instrumentation.openai) is one long word:
+     let it wrap. A member's name is clipped instead; its title has it whole. */
+  .toc a { overflow-wrap: anywhere; }
+  .toc .sub a { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .rail :global(ul), .pages-menu :global(ul) { padding: 0; list-style: none; }
+  .rail :global(ul) { border-left: 1px solid var(--rule); }
+  .rail :global(a), .pages-menu :global(a) {
+    display: block;
+    padding: 5px var(--space-4);
+    color: var(--dim);
+    font-size: var(--text-small);
+    line-height: 1.4;
+    text-decoration: none;
+    text-wrap: pretty;
+  }
+  .rail :global(a) { margin-left: -1px; border-left: 1px solid transparent; }
+  .rail :global(a:hover), .pages-menu :global(a:hover) { color: var(--fg); }
+  /* The current page takes the accent; the current section only the ink,
+     so there is one accent on screen. */
+  .pages :global(a[aria-current="page"]) {
+    color: var(--fg);
+    font-weight: 600;
+    border-left: 2px solid var(--accent);
+    padding-left: calc(var(--space-4) - 1px);
+  }
+  .toc a[aria-current="true"] { color: var(--fg); border-left-color: var(--fg); }
+
+  /* Narrow: the spec's pages as a disclosure above the title. */
+  .pages-menu { margin-bottom: var(--space-7); }
+  .pages-menu summary {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .pages-menu summary::after { margin-left: auto; color: var(--dim); font-family: var(--font-mono); }
+  .pages-menu .here { font-size: var(--text-small); font-weight: 600; }
+  .pages-menu :global(ul) { padding: var(--space-2) 0; border-bottom: 1px solid var(--rule); }
+  .pages-menu :global(a) { padding-inline: 0; }
+  .pages-menu :global(a[aria-current="page"]) { color: var(--fg); font-weight: 600; }
+
+  .page-footer {
+    display: grid;
+    gap: var(--space-6);
+    margin-top: var(--space-9);
+  }
+  .source { justify-self: start; text-decoration: none; }
+  .source:hover { color: var(--fg); }
+  .pager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-5);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--rule);
+  }
+  .pager a { display: grid; gap: var(--space-2); text-decoration: none; }
+  .pager .next { grid-column: 2; text-align: end; }
+  .pager .label { font-size: var(--text-h4); font-weight: 600; line-height: 1.3; }
+  .pager a:hover .label { color: var(--accent); }
+
+  /* Wide: both rails, the page between them on the frame's centre line. */
+  @media (min-width: 1360px) {
+    .docs {
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--sidebar-width);
+      column-gap: var(--space-7);
+      padding-top: var(--space-8);
+    }
+    .rail { display: block; }
+    .pages-menu { display: none; }
+  }
+
+  @media (max-width: 720px) {
+    .docs { padding-top: var(--space-4); }
+    .pager { grid-template-columns: 1fr; }
+    .pager .next { grid-column: 1; }
+  }
+</style>
+
+<script>
+  // "On this page": mark the section being read. Without JS the list is
+  // still a plain set of links.
+  const links = [...document.querySelectorAll<HTMLAnchorElement>("[data-toc] a")];
+  const targets = links
+    .map((link) => document.getElementById(link.dataset.slug ?? ""))
+    .filter((el): el is HTMLElement => el !== null);
+
+  // The rail only shows on wide screens; elsewhere there is nothing to mark.
+  const wide = matchMedia("(min-width: 1360px)");
+  let marked: HTMLElement | undefined;
+
+  const mark = () => {
+    if (!wide.matches) return;
+    const line = window.innerHeight * 0.25;
+    let active = targets[0];
+    for (const target of targets) {
+      if (target.getBoundingClientRect().top <= line) active = target;
+    }
+    // A short last section never reaches the line: at the bottom, it's the one.
+    const atBottom =
+      window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+    if (atBottom) active = targets[targets.length - 1];
+    if (active === marked) return;
+    marked = active;
+    for (const link of links) {
+      if (link.dataset.slug === active?.id) link.setAttribute("aria-current", "true");
+      else link.removeAttribute("aria-current");
+    }
+  };
+
+  if (targets.length > 0) {
+    let pending = false;
+    addEventListener(
+      "scroll",
+      () => {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(() => {
+          pending = false;
+          mark();
+        });
+      },
+      { passive: true },
+    );
+    wide.addEventListener("change", mark);
+    mark();
+  }
+</script>

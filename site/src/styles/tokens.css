@@ -1,0 +1,130 @@
+/*
+ * Design tokens. Everything visual reads from these; see DESIGN.md for which
+ * token to use where.
+ *
+ * The palette and type pairing come from the Arize Labs site
+ * (github.com/arize-labs/website, src/styles/tokens.css): ink, paper and
+ * signal orange, set in Urbanist and Geist Mono. Keep the two in step.
+ *
+ * Breakpoints (CSS can't read custom properties in media queries, so these
+ * are documented here and used as literals):
+ *   1100px  gutters shrink
+ *   1360px  below it, the docs rails go; the spec's pages fold into a disclosure
+ *    720px  phone: prose drops to 16px, tables become scroll boxes
+ */
+
+:root {
+  /* Brand palette. Use the semantic tokens below, not these, except on a
+     ground that stays the same in both themes (the brand page's panels). */
+  --color-ink: #231f20;
+  --color-paper: #f6f5f2;
+  --color-signal: #ff5a1f;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-rule: #d8d5ce;
+  --color-dim: #6f6b66;
+  --color-soft: #4b4745;
+
+  /* Semantic colours: light theme */
+  --bg: var(--color-paper);
+  --fg: var(--color-ink);
+  --surface: var(--color-white);
+  --rule: var(--color-rule);
+  --dim: var(--color-dim);
+  --soft: var(--color-soft);
+  --accent: var(--color-signal);
+  /* A faint fill: inline code, the hover on sidebar links. */
+  --tint: color-mix(in srgb, var(--fg) 6%, transparent);
+
+  /* Page markings (the landing page): the margin dot ground and the gutter
+     rulers, as on the Arize Labs site. */
+  --dot: color-mix(in srgb, var(--fg) 16%, transparent);
+  --dot-ground: radial-gradient(circle at center, var(--dot) 0 1px, transparent 1.4px);
+  --dot-pitch: 24px;
+  --marking-opacity: 0.14;
+
+  /* Contact-sheet cards (the landing pillars): a faint fill framed only by
+     corner ticks, as on the Arize Labs site. */
+  --card: color-mix(in srgb, var(--fg) 3%, transparent);
+  --tick: color-mix(in srgb, var(--fg) 24%, transparent);
+
+  /* Type */
+  --font-sans: "Urbanist Variable", "Urbanist", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --text-micro: 11px;
+  --text-small: 14px;
+  --text-body: 16px;
+  --text-body-lg: 18px;
+  --text-lede: clamp(19px, 1.9vw, 24px);
+  --text-h4: 17px;
+  --text-h3: 22px;
+  --text-section: 28px;
+  --text-feature: clamp(32px, 3.6vw, 48px);
+  --text-h2: clamp(36px, 4.6vw, 56px);
+  --text-display: clamp(42px, 6.6vw, 88px);
+
+  --tracking-tight: -0.025em;
+  --tracking-display: -0.04em;
+  --tracking-micro: 0.08em;
+
+  /* Layout */
+  /* The wide frame: docs pages put the sidebar at its left edge so the page
+     beside it gets the rest. 1400px, as on the Arize Labs site. */
+  --frame-max: 1400px;
+  /* The frame's distance from a narrower window's edge: the header's and
+     footer's gutter, where the page markings' rulers stand. */
+  --frame-edge: var(--gutter);
+  /* A page's column, text and tables alike: the landing page's README and
+     each spec page. */
+  --page-max: 880px;
+  --sidebar-width: 216px;
+  --gutter: 48px;
+  --header-height: 64px;
+
+  /* Vertical rhythm */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+  --space-9: 96px;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #141213;
+  --fg: var(--color-paper);
+  --surface: #1c1a1b;
+  --rule: #3a3637;
+  --dim: #9b958d;
+  --soft: #bdb8b0;
+  --dot: color-mix(in srgb, var(--fg) 13%, transparent);
+  --marking-opacity: 0.12;
+  color-scheme: dark;
+}
+
+/* Without JS, follow the system preference. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #141213;
+    --fg: var(--color-paper);
+    --surface: #1c1a1b;
+    --rule: #3a3637;
+    --dim: #9b958d;
+    --soft: #bdb8b0;
+    --dot: color-mix(in srgb, var(--fg) 13%, transparent);
+    --marking-opacity: 0.12;
+    color-scheme: dark;
+  }
+}
+
+@media (max-width: 1100px) {
+  :root {
+    --gutter: 20px;
+  }
+}

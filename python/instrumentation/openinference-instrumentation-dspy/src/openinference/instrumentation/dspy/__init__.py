@@ -1,8 +1,8 @@
 import json
 from abc import ABC
 from copy import copy, deepcopy
-from dataclasses import asdict
 from enum import Enum
+from importlib import import_module
 from inspect import signature
 from logging import getLogger
 from typing import (
@@ -17,7 +17,6 @@ from typing import (
     Mapping,
     Optional,
     Tuple,
-    TypeGuard,
 )
 
 import opentelemetry.context as context_api
@@ -340,13 +339,14 @@ class _LMCallWrapper(_WithTracer):
         ) as span:
             response = wrapped(*args, **kwargs)
             span.set_status(StatusCode.OK)
+            output = _normalize_lm_response(response)
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            **dict(_output_value_and_mime_type(response)),
-                            **dict(_llm_output_messages(response)),
-                            **dict(_llm_token_counts(response)),
+                            **dict(_output_value_and_mime_type(output)),
+                            **dict(_llm_output_messages(output)),
+                            **dict(_llm_token_counts(output)),
                         }
                     )
                 )
@@ -389,13 +389,14 @@ class _LMAcallWrapper(_WithTracer):
         ) as span:
             response = await wrapped(*args, **kwargs)
             span.set_status(StatusCode.OK)
+            output = _normalize_lm_response(response)
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            **dict(_output_value_and_mime_type(response)),
-                            **dict(_llm_output_messages(response)),
-                            **dict(_llm_token_counts(response)),
+                            **dict(_output_value_and_mime_type(output)),
+                            **dict(_llm_output_messages(output)),
+                            **dict(_llm_token_counts(output)),
                         }
                     )
                 )
@@ -1032,21 +1033,13 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
 
 
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    arguments = {
-        key: _without_client_settings(value) if key == "kwargs" else value
-        for key, value in arguments.items()
-    }
-    if _is_lm15_request(request := arguments.get("prompt")):
-        arguments["prompt"] = _lm15_value(request)
+    if "kwargs" in arguments:
+        arguments = {**arguments, "kwargs": _without_client_settings(arguments["kwargs"])}
     yield INPUT_MIME_TYPE, JSON
     yield INPUT_VALUE, safe_json_dumps(arguments)
 
 
 def _output_value_and_mime_type(response: Any) -> Iterator[Tuple[str, Any]]:
-    if _is_lm15_response(response):
-        response = _lm15_value(response)
-        # provider_data is the raw provider payload, which repeats the rest of the response.
-        response.pop("provider_data", None)
     yield OUTPUT_VALUE, safe_json_dumps(response)
     yield OUTPUT_MIME_TYPE, JSON
 
@@ -1107,11 +1100,13 @@ def _llm_provider(lm: "LM") -> Iterator[Tuple[str, Any]]:
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    if _is_lm15_request(prompt := arguments.get("prompt")):
-        yield LLM_INPUT_MESSAGES, _lm15_request_messages(prompt)
-    elif isinstance(prompt, str):
+    prompt = arguments.get("prompt")
+    if isinstance(prompt, str):
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
+    elif isinstance(prompt, Mapping):  # serialized lm15 request
+        if lm15_messages := list(_lm15_request_messages(prompt)):
+            yield LLM_INPUT_MESSAGES, lm15_messages
     elif isinstance(messages := arguments.get("messages"), list):
         for i, message in enumerate(messages):
             if not isinstance(message, dict):
@@ -1122,9 +1117,94 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
 
 
+def _lm15_to_dict(value: Any) -> Optional[Dict[str, Any]]:
+    """
+    Serializes a DSPy >= 3.5 `dspy.lm15.Request` or `Response` to its canonical
+    lm15 JSON form. Returns None for any other value.
+    """
+    # lm15 is typed but DSPy is not; static imports make mypy lose DSPy's exports.
+    try:
+        lm15 = import_module("dspy._vendor.lm15")
+        serde = import_module("dspy._vendor.lm15.serde")
+    except ImportError:
+        return None
+    try:
+        if isinstance(value, lm15.Request):
+            return dict(serde.request_to_dict(value))
+        if isinstance(value, lm15.Response):
+            return dict(serde.response_to_dict(value))
+    except Exception:
+        logger.exception("Failed to serialize lm15 object")
+    return None
+
+
+def _lm15_parts(parts: Any) -> List[Mapping[str, Any]]:
+    return [part for part in parts if isinstance(part, Mapping)] if isinstance(parts, list) else []
+
+
+def _lm15_text(parts: Any) -> Optional[str]:
+    if isinstance(parts, str):
+        return parts
+    texts = [
+        text
+        for part in _lm15_parts(parts)
+        if part.get("type") == "text" and isinstance(text := part.get("text"), str)
+    ]
+    return "".join(texts) if texts else None
+
+
+def _lm15_message(role: Any, parts: List[Mapping[str, Any]]) -> Dict[str, Any]:
+    tool_calls = [
+        {
+            TOOL_CALL_ID: part.get("id"),
+            TOOL_CALL_FUNCTION_NAME: part.get("name"),
+            TOOL_CALL_FUNCTION_ARGUMENTS_JSON: safe_json_dumps(part.get("input")),
+        }
+        for part in parts
+        if part.get("type") == "tool_call"
+    ]
+    return {
+        MESSAGE_ROLE: role,
+        MESSAGE_CONTENT: _lm15_text(parts),
+        MESSAGE_TOOL_CALLS: tool_calls or None,
+    }
+
+
+def _lm15_request_messages(request: Mapping[str, Any]) -> Iterator[Dict[str, Any]]:
+    """
+    Converts a serialized lm15 request into OpenInference messages.
+    """
+    if (system := _lm15_text(request.get("system"))) is not None:
+        yield {MESSAGE_ROLE: "system", MESSAGE_CONTENT: system}
+    for message in request.get("messages") or ():
+        if not isinstance(message, Mapping):
+            continue
+        parts = _lm15_parts(message.get("parts"))
+        # lm15 carries tool results as parts of a message; OpenInference expects one
+        # `tool` message per result, so split them out of the message they arrive in.
+        tool_results = [part for part in parts if part.get("type") == "tool_result"]
+        other_parts = [part for part in parts if part.get("type") != "tool_result"]
+        if other_parts or not tool_results:
+            yield _lm15_message(message.get("role"), other_parts)
+        for result in tool_results:
+            yield {
+                MESSAGE_ROLE: "tool",
+                MESSAGE_TOOL_CALL_ID: result.get("id"),
+                MESSAGE_NAME: result.get("name"),
+                MESSAGE_CONTENT: _lm15_text(result.get("content")),
+            }
+
+
+def _normalize_lm_response(response: Any) -> Any:
+    lm15_response = _lm15_to_dict(response)
+    return response if lm15_response is None else lm15_response
+
+
 def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
-    if _is_lm15_response(response):
-        yield LLM_OUTPUT_MESSAGES, [_lm15_message("assistant", response.message.parts)]
+    if isinstance(response, Mapping):  # serialized lm15 response
+        if isinstance(message := response.get("message"), Mapping):
+            role = message.get("role", "assistant")
+            yield LLM_OUTPUT_MESSAGES, [_lm15_message(role, _lm15_parts(message.get("parts")))]
     elif isinstance(response, Iterable):
         for i, message in enumerate(response):
             if isinstance(message, str):
@@ -1133,11 +1213,14 @@ def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
 
 
 def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    if _is_lm15_request(request := arguments.get("prompt")):
+    prompt = arguments.get("prompt")
+    if isinstance(prompt, Mapping):  # serialized lm15 request
         # DSPy sends only the Request's config; LM defaults and call options are not merged.
-        parameters = _lm15_value(request.config)
+        parameters = _ if isinstance(_ := prompt.get("config"), dict) else {}
     else:
-        parameters = {**(getattr(lm, "kwargs", None) or {}), **(arguments.get("kwargs") or {})}
+        lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
+        kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
+        parameters = lm_kwargs | kwargs
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(_without_client_settings(parameters))
 
 
@@ -1148,26 +1231,24 @@ def _without_client_settings(options: Any) -> Any:
 
 
 def _llm_tools(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    if not _is_lm15_request(request := arguments.get("prompt")):
+    if not isinstance(prompt := arguments.get("prompt"), Mapping):
         return
-    for index, tool in enumerate(request.tools):
-        if tool.type != "function":
-            continue
+    tools = [tool for tool in prompt.get("tools") or () if isinstance(tool, Mapping)]
+    for index, tool in enumerate(tool for tool in tools if tool.get("type") == "function"):
         schema = {
             "type": "function",
             "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.parameters,
+                "name": tool.get("name"),
+                "description": tool.get("description"),
+                "parameters": tool.get("parameters"),
             },
         }
         yield f"{LLM_TOOLS}.{index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(schema)
 
 
 def _llm_token_counts(response: Any) -> Iterator[Tuple[str, Any]]:
-    if not _is_lm15_response(response):
+    if not isinstance(response, Mapping) or not isinstance(usage := response.get("usage"), Mapping):
         return
-    usage = response.usage
     for attribute, field_name in (
         (LLM_TOKEN_COUNT_PROMPT, "input_tokens"),
         (LLM_TOKEN_COUNT_COMPLETION, "output_tokens"),
@@ -1178,82 +1259,8 @@ def _llm_token_counts(response: Any) -> Iterator[Tuple[str, Any]]:
         (LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, "reasoning_tokens"),
         (LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, "output_audio_tokens"),
     ):
-        if (count := getattr(usage, field_name)) is not None:
+        if isinstance(count := usage.get(field_name), int):
             yield attribute, count
-
-
-# DSPy 3.5 replaced the OpenAI-style `messages`/`list[str]` LM interface with the
-# provider-neutral `dspy.lm15.Request`/`Response` types. They are matched by shape
-# rather than imported so that older DSPy versions keep working.
-def _is_lm15_request(value: Any) -> TypeGuard[Any]:
-    return hasattr(value, "messages") and hasattr(value, "config")
-
-
-def _is_lm15_response(value: Any) -> bool:
-    return hasattr(value, "message") and hasattr(value, "usage") and hasattr(value, "finish_reason")
-
-
-def _lm15_value(obj: Any) -> Any:
-    """An lm15 dataclass as plain data, without its empty fields."""
-    return _without_empty_fields(asdict(obj))
-
-
-def _without_empty_fields(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: _without_empty_fields(item)
-            for key, item in value.items()
-            if item not in (None, (), [], {})
-        }
-    if isinstance(value, (list, tuple)):
-        return [_without_empty_fields(item) for item in value]
-    return value
-
-
-def _lm15_text(parts: Any) -> Optional[str]:
-    texts = [part.text for part in parts if part.type == "text"]
-    return "".join(texts) if texts else None
-
-
-def _lm15_message(role: str, parts: Any) -> Dict[str, Any]:
-    tool_calls = [
-        {
-            TOOL_CALL_ID: part.id,
-            TOOL_CALL_FUNCTION_NAME: part.name,
-            TOOL_CALL_FUNCTION_ARGUMENTS_JSON: safe_json_dumps(part.input),
-        }
-        for part in parts
-        if part.type == "tool_call"
-    ]
-    return {
-        MESSAGE_ROLE: role,
-        MESSAGE_CONTENT: _lm15_text(parts),
-        MESSAGE_TOOL_CALLS: tool_calls or None,
-    }
-
-
-def _lm15_request_messages(request: Any) -> List[Dict[str, Any]]:
-    messages = []
-    if system := request.system:
-        content = system if isinstance(system, str) else _lm15_text(system)
-        messages.append({MESSAGE_ROLE: "system", MESSAGE_CONTENT: content})
-    for message in request.messages:
-        # lm15 carries tool results as parts of a message; OpenInference expects one
-        # `tool` message per result, so split them out of the message they arrive in.
-        tool_results = [part for part in message.parts if part.type == "tool_result"]
-        other_parts = [part for part in message.parts if part.type != "tool_result"]
-        if other_parts or not tool_results:
-            messages.append(_lm15_message(message.role, other_parts))
-        for result in tool_results:
-            messages.append(
-                {
-                    MESSAGE_ROLE: "tool",
-                    MESSAGE_TOOL_CALL_ID: result.id,
-                    MESSAGE_NAME: result.name,
-                    MESSAGE_CONTENT: _lm15_text(result.content),
-                }
-            )
-    return messages
 
 
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
@@ -1271,10 +1278,11 @@ def _normalize_lm_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
     to `(*items, prompt=None, messages=None, request=None, **kwargs)`, so a
     positionally-passed prompt string now arrives in `items` instead of `prompt`.
     DSPy 3.5.0 changed it again to `(prompt=None, *, cache=None, rollout_id=None,
-    **options)`, renaming the generation options from `kwargs` to `options`.
-    Map these shapes back to the legacy `prompt` and `kwargs` arguments so span
-    attributes are stable across DSPy versions, and drop the new parameters when
-    unused.
+    **options)`, renaming the generation options from `kwargs` to `options`,
+    and adapters now pass a `dspy.lm15.Request` as the prompt. Map these shapes
+    back to the legacy `prompt` and `kwargs` arguments so span attributes are
+    stable across DSPy versions, serialize lm15 requests, and drop the new
+    parameters when unused.
     """
     arguments = dict(arguments)
     items: Tuple[Any, ...] = tuple(arguments.pop("items", None) or ())
@@ -1282,6 +1290,8 @@ def _normalize_lm_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
         arguments["prompt"] = items[0]
     elif items:
         arguments["items"] = list(items)
+    if (request := _lm15_to_dict(arguments.get("prompt"))) is not None:
+        arguments["prompt"] = request
     if "options" in arguments and "kwargs" not in arguments:
         arguments["kwargs"] = arguments.pop("options")
     for name in ("request", "cache", "rollout_id"):

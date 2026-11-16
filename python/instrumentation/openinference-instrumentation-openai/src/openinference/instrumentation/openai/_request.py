@@ -19,6 +19,7 @@ import anyio
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.semconv.attributes.server_attributes import SERVER_ADDRESS, SERVER_PORT
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
@@ -171,6 +172,12 @@ class _WithOpenAI(ABC):
             or not isinstance(host, str)
         ):
             return
+        # The host is recorded for every call, so a span shows which endpoint it went to
+        # (e.g. a gateway or self-hosted proxy) even when no provider can be inferred from it.
+        # Only the host and port are recorded: the path and query can carry tenant identifiers.
+        yield SERVER_ADDRESS, host
+        if port := _get_port(base_url):
+            yield SERVER_PORT, port
         if provider := infer_llm_provider_from_host(host):
             # DECISION spans identify the model under `decision.*` rather than `llm.*`, so
             # decision model usage is not counted as LLM usage. The well-known values are
@@ -481,6 +488,18 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 logger.exception(f"Failed to finalize response of type {type(response)}")
                 with_span.finish_tracing()
         return response
+
+
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _get_port(base_url: Any) -> Optional[int]:
+    """The base URL's port, or its scheme's default port when the URL leaves it out."""
+    port = getattr(base_url, "port", None)
+    if isinstance(port, int):
+        return port
+    scheme = getattr(base_url, "scheme", None)
+    return _DEFAULT_PORTS.get(scheme) if isinstance(scheme, str) else None
 
 
 def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any], Any]:

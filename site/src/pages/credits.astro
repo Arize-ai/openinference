@@ -1,0 +1,66 @@
+---
+/**
+ * Credits: work by others that the site uses, with what each licence asks
+ * for. The entries live in src/lib/credits.ts. Laid out like the Arize Labs
+ * site's credits page, on the page column.
+ */
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { typefaces, type Credit } from "../lib/credits";
+
+const groups: [string, Credit[]][] = [["Typefaces", typefaces]];
+---
+
+<BaseLayout title="Credits" description="Work by others that this site is built with, and the licences it is used under.">
+  <div class="credits">
+    <header class="page-head">
+      <h1>Credits</h1>
+      <p class="intro">Work by others that this site is built with, and the licences it is used under.</p>
+    </header>
+    {
+      groups.map(([heading, items]) => (
+        <section aria-labelledby={`credits-${heading.toLowerCase()}`}>
+          <h2 id={`credits-${heading.toLowerCase()}`} class="eyebrow">
+            {heading}
+          </h2>
+          <ul>
+            {items.map((credit) => (
+              <li>
+                <p class="eyebrow">{credit.use}</p>
+                <p class="title">
+                  <a href={credit.url}>{credit.title}</a>
+                </p>
+                <p>
+                  by {credit.authorUrl ? <a href={credit.authorUrl}>{credit.author}</a> : credit.author},{" "}
+                  {credit.licenseUrl ? (
+                    <>
+                      licensed under{" "}
+                      <a href={credit.licenseUrl} rel="license">
+                        {credit.license}
+                      </a>
+                    </>
+                  ) : (
+                    credit.license.toLowerCase()
+                  )}
+                  .
+                </p>
+                {credit.changes && <p class="changes">{credit.changes}</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .credits { display: grid; gap: var(--space-8); padding-block: var(--space-8); }
+  h2 { margin-bottom: var(--space-4); }
+  ul { display: grid; padding: 0; list-style: none; }
+  li { display: grid; gap: var(--space-1); padding: var(--space-5) 0; border-top: 1px solid var(--rule); }
+  li > .eyebrow { margin-bottom: var(--space-2); }
+  .title { font: 600 var(--text-h3) / 1.25 var(--font-sans); }
+  .changes { color: var(--soft); }
+  a { text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  a:hover { color: var(--accent); }
+</style>
