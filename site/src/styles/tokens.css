@@ -47,11 +47,13 @@
 
   /* Span kinds (the landing page's trace hero): Phoenix's hue for each kind
      (spanKindColor.ts) at full chroma, L 56 on paper and L 74 on the dark
-     ground. They colour glyphs, tiles and bars, never text. HTTP isn't an
+     ground; on paper the LLM's amber and the tool's gold are lifted to L 72
+     and L 80, since warm hues at L 56 go brown and olive. They colour
+     glyphs, tiles and bars, never text. HTTP isn't an
      OpenInference kind, so it stays in --dim. */
   --kind-agent: var(--soft);
-  --kind-llm: #c57200;
-  --kind-tool: #b58e00;
+  --kind-llm: #ee8700;
+  --kind-tool: #e7b700;
   --kind-retriever: #049690;
   --kind-embedding: #647cf6;
   --kind-reranker: #019c23;

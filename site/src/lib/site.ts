@@ -16,6 +16,8 @@ export const site = {
   name: "OpenInference",
   /** The landing hero's heading. */
   tagline: "The Open Standard for Agent Observability",
+  /** The sentence under it. */
+  lede: "Trace critical agent steps with OpenTelemetry.",
   /** The site's meta description. */
   description: "Open Standard for Agent Observability using OpenTelemetry",
   repo: GITHUB_URL,
@@ -24,6 +26,31 @@ export const site = {
   phoenix: "https://github.com/Arize-ai/phoenix",
   ax: "https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference",
   arize: "https://arize.com",
+};
+
+/**
+ * Pages drawn by the site rather than from markdown or the API data: their
+ * titles and descriptions, shared by the page's <head> and its social card.
+ */
+export const pages = {
+  js: {
+    title: "JavaScript API",
+    description:
+      "API reference for the OpenInference JavaScript packages: the core tracing utilities, the semantic conventions, every instrumentation, and the integrations.",
+  },
+  python: {
+    title: "Python API",
+    description:
+      "API reference for the OpenInference Python packages: the core instrumentation utilities, the semantic conventions, and every instrumentor.",
+  },
+  brand: {
+    title: "Brand guidelines",
+    description: "The OpenInference mark and wordmark: files, clear space, colour and typography.",
+  },
+  credits: {
+    title: "Credits",
+    description: "Work by others that this site is built with, and the licences it is used under.",
+  },
 };
 
 /** The header nav. Keep labels short enough to fit beside the logo at 390px. */

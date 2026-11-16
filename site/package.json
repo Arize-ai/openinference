@@ -25,6 +25,9 @@
   "packageManager": "pnpm@10.29.3",
   "private": true,
   "devDependencies": {
+    "@fontsource/geist-mono": "5.3.0",
+    "@fontsource/urbanist": "5.3.0",
+    "satori": "0.63.2",
     "sharp": "0.34.5"
   }
 }

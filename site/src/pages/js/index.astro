@@ -14,7 +14,7 @@ import {
   searchEntries,
   shortName,
 } from "../../lib/js-api";
-import { routeOf } from "../../lib/site";
+import { pages, routeOf } from "../../lib/site";
 
 const nav = getJsNav();
 const entries = searchEntries();
@@ -43,8 +43,8 @@ const headings = [
 ---
 
 <DocsLayout
-  title="JavaScript API"
-  description="API reference for the OpenInference JavaScript packages: the core tracing utilities, the semantic conventions, every instrumentation, and the integrations."
+  title={pages.js.title}
+  description={pages.js.description}
   nav={nav}
   headings={headings}
 >

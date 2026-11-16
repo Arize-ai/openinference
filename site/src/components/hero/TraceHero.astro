@@ -512,8 +512,6 @@ const glyph = (kind: keyof typeof GLYPHS) => `<svg viewBox="0 0 16 16" aria-hidd
     transition: opacity 0.2s, background-color 0.3s ease-out;
   }
   .row[data-state="open"] .bar { border-style: dashed; background: transparent; }
-  /* An agent is the envelope around the work: the outline alone. */
-  .kind-agent .bar { background: none; border-color: color-mix(in srgb, var(--c) 60%, transparent); }
   /* A failure is hatched, so it reads without colour too. */
   .row.error[data-state="done"] .bar {
     background: repeating-linear-gradient(-45deg, var(--c) 0 2px, color-mix(in srgb, var(--c) 45%, var(--bg)) 2px 4px);
