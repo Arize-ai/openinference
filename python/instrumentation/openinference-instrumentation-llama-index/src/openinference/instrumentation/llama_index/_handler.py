@@ -411,8 +411,9 @@ class _Span(BaseSpan):
 
     def end_stream(self, exception: Optional[BaseException] = None) -> None:
         # The stamp taken when the call returned its generator only marks the span as
-        # waiting for the stream; the span ends when the stream does.
-        self._end_time = time_ns()
+        # waiting for the stream; the span ends when the stream does. Clearing it lets the
+        # SDK stamp the end after end() records the exception, so that event stays inside.
+        self._end_time = None
         self.end(exception)
 
     @property
