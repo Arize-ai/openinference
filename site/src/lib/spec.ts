@@ -12,6 +12,22 @@ export function titleOf(entry: { id: string; body?: string }): string {
   return match ? match[1].trim() : entry.id;
 }
 
+/**
+ * The first sentence of a markdown page's introduction: its first plain
+ * paragraph after the title (not a note in bold, a quote, a list or a
+ * table), with the inline markdown taken out.
+ */
+export function ledeOf(body: string | undefined): string | undefined {
+  const paragraphs = (body ?? "").replace(/^#\s+.+$/m, "").split(/\n\s*\n/).map((block) => block.trim());
+  const paragraph = paragraphs.find((block) => /^[A-Za-z`[]/.test(block));
+  if (!paragraph) return undefined;
+  const text = paragraph
+    .replace(/\s*\n\s*/g, " ")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|\*|`)(.+?)\1/g, "$2");
+  return text.match(/^.+?[.!?](?=\s+[A-Z(`]|$)/)?.[0] ?? text;
+}
+
 /** The section directory of a spec page, e.g. `spans` for `spans/llm`. */
 const sectionOf = (id: string) => (id.includes("/") ? id.slice(0, id.indexOf("/")) : "");
 

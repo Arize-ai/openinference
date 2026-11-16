@@ -6,11 +6,12 @@
  */
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { typefaces, type Credit } from "../lib/credits";
+import { pages } from "../lib/site";
 
 const groups: [string, Credit[]][] = [["Typefaces", typefaces]];
 ---
 
-<BaseLayout title="Credits" description="Work by others that this site is built with, and the licences it is used under.">
+<BaseLayout title={pages.credits.title} description={pages.credits.description}>
   <div class="credits">
     <header class="page-head">
       <h1>Credits</h1>

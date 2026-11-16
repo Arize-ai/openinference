@@ -14,7 +14,7 @@ import {
   searchEntries,
   shortName,
 } from "../../lib/python-api";
-import { routeOf } from "../../lib/site";
+import { pages, routeOf } from "../../lib/site";
 
 const nav = getPythonNav();
 const entries = searchEntries();
@@ -41,8 +41,8 @@ const headings = [
 ---
 
 <DocsLayout
-  title="Python API"
-  description="API reference for the OpenInference Python packages: the core instrumentation utilities, the semantic conventions, and every instrumentor."
+  title={pages.python.title}
+  description={pages.python.description}
   nav={nav}
   headings={headings}
 >

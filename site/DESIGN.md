@@ -118,8 +118,9 @@ The layout and page markings are ported from the Arize Labs home page
      is a solid square rectangle in its kind's full colour, with its
      duration beside it; a span still running is only
      its dashed outline, and fills in when it ends. Rows ease in as their
-     spans start. The agent is the outline alone, the envelope around the
-     work. The failed request is hatched in the accent; the retry is simply
+     spans start. The agent is no exception: its dashed outline is the
+     envelope around the work while it runs, and it fills in when the run
+     ends. The failed request is hatched in the accent; the retry is simply
      the next row. Gridlines are dotted. No
      boxes, gradients or glows.
    - **The detail.** What OpenInference recorded on the span in view, and
@@ -334,7 +335,7 @@ Fontsource, so the site makes no third-party font requests.
 | `--card` | `--fg` at 3% | same | The fill behind an API signature |
 | `--well` | `--fg` at 2.5% | same | The well that holds the trace hero's span in view |
 | `--accent` | signal `#ff5a1f` | same | The one highlighted thing |
-| `--kind-*` | Phoenix's kind hue, full chroma, L 56 | L 74 | Span kinds in the trace hero (agent, llm, tool, retriever, embedding, reranker, guardrail, http) |
+| `--kind-*` | Phoenix's kind hue, full chroma, L 56 (the LLM's amber L 72, the tool's gold L 80) | L 74 | Span kinds in the trace hero (agent, llm, tool, retriever, embedding, reranker, guardrail, http) |
 
 Use the semantic tokens, never the palette (`--color-*`) directly. Every
 token has a dark value; if something needs a colour that has no token, add
@@ -384,8 +385,13 @@ so the page can't drift from the files. Like the
 [OpenAI brand page](https://openai.com/brand/), it is mostly artwork: a
 heading and a download per section, captions only where a rule needs one.
 Anatomy is the one exception: the construction drawing beside a table of
-every dimension and where it comes from, both computed from the geometry,
-with the accent on the keyway's walls running up the bolt's sides.
+every dimension, both computed from the geometry. The accent marks the
+i: the bolt (its dot) and the keyway (its stem, drawn on up through the
+window to just under the dot, as a lowercase i leaves a gap), filled and
+called out. The keyway's walls run on up the bolt's sides as plain
+construction lines. The page says nothing of
+the Arize Labs mark the rules descend from (its "Labs units"): to a reader
+they are the drawing's units, `u`.
 It sits on the 880px page, like the README and the spec; its panels keep a
 fixed white or ink ground in both themes (the `--color-*` palette tokens),
 so the artwork always shows as specified.
@@ -397,6 +403,51 @@ the mark, ink on light browser chrome and paper on dark, as tall as its
 square so that at 16px it is the mark's minimum size. The icon (the PNG
 favicon, the iOS home screen icon, and the avatar) is the mark in paper on
 an ink square, one bolt diameter clear on every side.
+
+## Social cards
+
+Every page has a social card: a 1200 × 630 PNG at `og/<page>.png` (the
+page's route, `index` for a directory), named in the page's `og:image` and
+`twitter:image` (`summary_large_image`) by `BaseLayout`. The cards are drawn
+at build time, from the same data as the pages, so a card can't disagree
+with its page:
+
+- [`src/lib/og/cards.ts`](./src/lib/og/cards.ts) lists the cards: the
+  landing page, each spec page (its `# Title`, and the first sentence of
+  its introduction, which is also the page's meta description), each API
+  reference overview and package, the brand page and credits. A page
+  without a card of its own (a README translation, whose chrome is English)
+  shares the landing card.
+- [`src/lib/og/render.ts`](./src/lib/og/render.ts) draws them: satori lays
+  out the type in Urbanist and Geist Mono as outlines (Fontsource's static
+  WOFF files, since satori reads neither WOFF2 nor variable fonts), and
+  sharp rasterises it.
+- [`src/pages/og/[...card].png.ts`](./src/pages/og/[...card].png.ts)
+  publishes them.
+
+The cards are the site in miniature: flat paper, ink, one accent, and type
+and space doing the work. Always the light theme, since a card can't follow
+the reader's.
+
+- **Frame.** The wordmark in ink, 40px tall, top left, and the mark in
+  ink, 56px tall, top right, on the same centre line: the width of the
+  card apart, never locked up. At the foot, a hairline `--rule` and the
+  page's address in Geist Mono, `--dim`. 72px either side, 64px top and
+  bottom.
+- **Page card.** Centred between the two: the eyebrow (mono caps, `--dim`);
+  the page title in
+  Urbanist SemiBold, `--tracking-display`, as large as two lines allow (92px
+  down to 48px); the description in `--soft`, at most two lines. A package
+  name's shared start (`@arizeai/openinference-instrumentation-`) is set back
+  in a fainter tone, so the part that names the package reads first.
+- **Landing card.** The tagline in its two whole lines and the lede, beside
+  the trace hero's run, finished, drawn as the hero draws it: kind glyphs and
+  hairline tree lines, solid bars in each kind's colour (`--kind-*`, light),
+  the failed request hatched in the accent, dotted
+  gridlines a second apart. The trace ends on the foot's hairline. The
+  failed request is the card's one accent.
+
+To see a card, run `pnpm dev` and open `/openinference/og/<page>.png`.
 
 ## Spacing and breakpoints
 
@@ -433,5 +484,7 @@ trace, and a trace narrower than 520px labels every other second.
       time.
 - [ ] Checked at 1440px and 390px wide, in light and dark: no sideways
       scroll, and no table wider than its column.
+- [ ] A new page has a social card (`src/lib/og/cards.ts`); open it at
+      `/openinference/og/<page>.png`.
 - [ ] Checked a right-to-left translation (`README.ar.html`) if the change
       touches the landing page.
