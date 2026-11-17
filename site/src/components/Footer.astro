@@ -6,6 +6,7 @@ import ThemeToggle from "./ThemeToggle.astro";
 const year = new Date().getFullYear();
 const columns = [
   [
+    { href: routeOf("MISSION.md"), label: "Mission" },
     { href: routeOf("spec/README.md"), label: "Specification" },
     { href: routeOf("spec/attributes/semantic-conventions.md"), label: "Semantic conventions" },
     { href: `${base}js/`, label: "JavaScript API" },

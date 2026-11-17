@@ -8,6 +8,7 @@
  * ("Landing").
  */
 import PageMarkings, { type Run } from "../components/PageMarkings.astro";
+import Statement from "../components/Statement.astro";
 import TraceHero from "../components/hero/TraceHero.astro";
 import { base, directionOf, site } from "../lib/site";
 import BaseLayout from "./BaseLayout.astro";
@@ -71,6 +72,7 @@ const rulerRuns: Run[] = [
       }
     </ul>
   </section>
+  <Statement />
   <article class="prose readme" lang={lang} dir={dir}>
     <slot />
   </article>

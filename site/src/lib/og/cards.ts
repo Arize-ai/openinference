@@ -101,6 +101,7 @@ export function getCards(): Promise<Card[]> {
       landing,
       ...spec,
       ...api,
+      page({ id: "mission", eyebrow: "Mission", ...pages.mission }),
       page({ id: "brand", eyebrow: "Brand", ...pages.brand }),
       page({ id: "credits", eyebrow: "Credits", ...pages.credits }),
     ];

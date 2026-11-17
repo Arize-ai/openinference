@@ -18,6 +18,9 @@ export const site = {
   tagline: "Telemetry for the AI Frontier",
   /** The sentence under it. */
   lede: "Trace critical agent steps with OpenTelemetry.",
+  /** The mission in one paragraph: the landing page's statement, under the hero. */
+  statement:
+    "OpenInference strives to trace the frontier. We make agents observable now, not someday, and bring what we learn to OpenTelemetry.",
   /** The site's meta description. */
   description: "Telemetry for the AI frontier, built on OpenTelemetry",
   repo: GITHUB_URL,
@@ -33,6 +36,11 @@ export const site = {
  * titles and descriptions, shared by the page's <head> and its social card.
  */
 export const pages = {
+  mission: {
+    title: "Mission",
+    description:
+      "Trace the frontier and inform the future of agent telemetry: OpenInference instruments agents now, and takes what it learns to OpenTelemetry.",
+  },
   js: {
     title: "JavaScript API",
     description:
