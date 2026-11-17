@@ -13,6 +13,11 @@ const root = defineCollection({
   loader: glob({ pattern: "README.md", base: "..", generateId: fileNameId }),
 });
 
+/** The project's mission statement, rendered at /mission.html. */
+const mission = defineCollection({
+  loader: glob({ pattern: "MISSION.md", base: "..", generateId: fileNameId }),
+});
+
 /** The OpenInference specification, including its section directories. */
 const spec = defineCollection({
   loader: glob({ pattern: "**/*.md", base: "../spec", generateId: fileNameId }),
@@ -27,4 +32,4 @@ const i18n = defineCollection({
   }),
 });
 
-export const collections = { root, spec, i18n };
+export const collections = { root, mission, spec, i18n };

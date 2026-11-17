@@ -76,7 +76,7 @@ The layout and page markings are ported from the Arize Labs home page
    1280 × 800 and up, `--space-8` under the header. The words sit beside the
    trace hero (6 : 11, 5 : 12 under 1360px; the same at every width past the frame's 1400px, so a wider window never shrinks the demo), centred on it: the tagline
    (`site.tagline`) as the `h1`, weight 600, `--tracking-display`, in two
-   whole lines, "The Open Standard" over "for Agent Observability", sized
+   whole lines, "Telemetry" over "for the AI Frontier", sized
    to its column (up to 64px) so neither ever breaks; one short sentence of
    lede in `--soft` at `--text-hero-lede`; two buttons (**Read the spec**, solid; **View on
    GitHub**, outline). Under both, the three pillars in a row, one per part
@@ -163,7 +163,15 @@ The layout and page markings are ported from the Arize Labs home page
    - **Narrow.** On a phone everything fits the screen, never scrolling
      sideways: a narrower tree in a 10px face, every other tick, and each
      attribute's value under its key.
-3. **README.** The rest of the README on the 880px page, centred under
+3. **Statement.** The mission in one paragraph (`site.statement`), on the
+   880px page under the hero, one left edge with the README: display type
+   at `--text-h2`, weight 500, `--tracking-tight`. Its words light from
+   `--unlit` to `--fg` in reading order as it scrolls through the window,
+   as on the Vercel Labs home page; without JavaScript, or with reduced
+   motion, every word is lit. Under it, **Read the mission →**, set like a
+   pillar's link, to `/mission.html`. No heading: the statement is the
+   heading ([`Statement.astro`](./src/components/Statement.astro)).
+4. **README.** The rest of the README on the 880px page, centred under
    the hero. Each `##` is a section, set apart by type and space alone (no
    rules), `--space-9` plus `--space-6` above it:
    - the `##` heading at `--text-feature`, weight 600, `--tracking-tight`;
@@ -177,13 +185,18 @@ The layout and page markings are ported from the Arize Labs home page
    line. Don't narrow the text inside it: a 720px measure pinned to the
    left of a wider column leaves the right side empty and pulls the page
    off centre.
-4. **Page markings.** Gutter rulers on the frame's edges (`--frame-max`,
+5. **Page markings.** Gutter rulers on the frame's edges (`--frame-max`,
    holding `--frame-edge` from a narrower window), alongside the packages (never beside the hero,
    where they would compete with the demo), with a registration cross at each `##`
    (`--marking-opacity`). None on phones.
 
 Third-party work (the typefaces) is listed in
 `src/lib/credits.ts` and shown on `/credits.html`, linked from the footer.
+
+The mission is the repository's [`MISSION.md`](../MISSION.md), rendered on
+`/mission.html` as plain `.prose` on the 880px page, linked from the
+landing statement and the footer.
+The line under its title is the page's lede (`--text-lede`, in `--soft`).
 
 The README's GitHub opening (banner, language links, badges and the
 introduction paragraph) is for GitHub: `rehype-readme-intro` drops it, so

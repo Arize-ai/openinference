@@ -3,7 +3,7 @@
  * Rewrites relative links in repository markdown so they work on the
  * published site.
  *
- * The markdown rendered by this site (the root README, `spec/`, and
+ * The markdown rendered by this site (the root README, `MISSION.md`, `spec/`, and
  * `docs/i18n/`) is written for GitHub, so it links to other files with
  * repository-relative paths such as `./spans/llm.md` or
  * `../../python/openinference-instrumentation`. This plugin maps links to
@@ -31,6 +31,7 @@ const NON_RELATIVE = /^(?:[a-z][a-z0-9+.-]*:|\/|#)/i;
 export function siteRoute(repoPath, base) {
   const p = repoPath.replace(/\/$/, "");
   if (p === "" || p === "README.md") return base;
+  if (p === "MISSION.md") return `${base}mission.html`;
   if (p === "spec" || p === "spec/README.md") return `${base}spec/`;
   let match = p.match(/^spec\/(.+)\.md$/);
   if (match) return `${base}spec/${match[1]}.html`;

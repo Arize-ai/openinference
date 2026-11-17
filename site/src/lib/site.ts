@@ -15,11 +15,14 @@ export const routeOf = (repoPath: string): string => {
 export const site = {
   name: "OpenInference",
   /** The landing hero's heading. */
-  tagline: "The Open Standard for Agent Observability",
+  tagline: "Telemetry for the AI Frontier",
   /** The sentence under it. */
   lede: "Trace critical agent steps with OpenTelemetry.",
+  /** The mission in one paragraph: the landing page's statement, under the hero. */
+  statement:
+    "OpenInference strives to trace the frontier. We make agents observable now, not someday, and bring what we learn to OpenTelemetry.",
   /** The site's meta description. */
-  description: "Open Standard for Agent Observability using OpenTelemetry",
+  description: "Telemetry for the AI frontier, built on OpenTelemetry",
   repo: GITHUB_URL,
   community:
     "https://join.slack.com/t/arize-ai/shared_invite/zt-1px8dcmlf-fmThhDFD_V_48oU7ALan4Q",
@@ -33,6 +36,11 @@ export const site = {
  * titles and descriptions, shared by the page's <head> and its social card.
  */
 export const pages = {
+  mission: {
+    title: "Mission",
+    description:
+      "Trace the frontier and inform the future of agent telemetry: OpenInference instruments agents now, and takes what it learns to OpenTelemetry.",
+  },
   js: {
     title: "JavaScript API",
     description:

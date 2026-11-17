@@ -22,7 +22,7 @@
 OpenInference builds on [OpenTelemetry](https://opentelemetry.io/) to trace AI agents: their LLM calls, tool use,
 retrieval and reasoning steps. It is natively supported by [Arize Phoenix](https://github.com/Arize-ai/phoenix) and
 [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), and works with any
-OpenTelemetry-compatible backend.
+OpenTelemetry-compatible backend. Read [the mission](./MISSION.md).
 
 ## Specification
 

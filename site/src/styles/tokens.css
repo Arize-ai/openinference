@@ -42,6 +42,8 @@
 
   /* A faint fill: the API references' signatures. */
   --card: color-mix(in srgb, var(--fg) 3%, transparent);
+  /* The landing statement's words before the scroll reaches them. */
+  --unlit: color-mix(in srgb, var(--fg) 22%, transparent);
   /* Fainter still: the well that holds the trace hero's span in view. */
   --well: color-mix(in srgb, var(--fg) 2.5%, transparent);
 
@@ -81,8 +83,10 @@
   --text-feature: clamp(32px, 3.6vw, 48px);
   --text-h2: clamp(36px, 4.6vw, 56px);
   /* The landing tagline, sized to its own column (a container), so its two
-     lines, "The Open Standard" and "for Agent Observability", hold whole. */
-  --text-hero: clamp(18px, 9.4cqi, 64px);
+     lines, "Telemetry" and "for the AI Frontier", hold whole. The longer line
+     is about 7.0em wide, so 13.5cqi fills ~95% of the column. Retune this if
+     the tagline changes. */
+  --text-hero: clamp(18px, 13.5cqi, 64px);
   /* The sentence under it, from the same column, so the two keep their ratio. */
   --text-hero-lede: clamp(15px, 5cqi, 24px);
 
