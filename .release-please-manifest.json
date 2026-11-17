@@ -39,6 +39,7 @@
     "java/instrumentation/openinference-instrumentation-springAI": "0.1.10",
     "java/instrumentation/openinference-instrumentation-annotation": "0.1.2",
     "java/instrumentation/openinference-instrumentation-adk-java": "0.1.2",
+    "java/instrumentation/openinference-instrumentation-embabel": "0.1.0",
     "python/instrumentation/openinference-instrumentation-pipecat": "2.0.13",
     "python/instrumentation/openinference-instrumentation-agentspec": "0.1.22",
     "python/instrumentation/openinference-instrumentation-strands-agents": "0.1.20",
