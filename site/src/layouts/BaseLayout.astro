@@ -6,6 +6,7 @@
  */
 import "../styles/global.css";
 
+import CodeCopy from "../components/CodeCopy.astro";
 import Footer from "../components/Footer.astro";
 import Header from "../components/Header.astro";
 import { CARD_SIZE, cardFor, imagePathOf } from "../lib/og/cards";
@@ -83,6 +84,7 @@ const imageAlt = `${card.eyebrow === site.name ? site.name : `${site.name} ${car
       <slot />
     </main>
     <Footer />
+    <CodeCopy />
   </body>
 </html>
 
