@@ -1,0 +1,155 @@
+name: Bump Python openinference minimum versions
+
+# Raises the `openinference-instrumentation` and `openinference-semantic-conventions`
+# floors across the Python packages whenever either one is released.
+#
+# Both floors are handled by this one workflow, on one fixed branch, because
+# release-please often publishes both packages from a single merge. Two separate
+# bump PRs cut from the same `main` edit adjacent lines of the same
+# `dependencies` arrays, so whichever merges second always conflicts. Here every
+# run reads both versions from the release-please manifest on the latest `main`
+# and writes both floors, so a second run just refreshes the open PR.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Serialize runs so two releases from one release-please merge cannot push the
+# shared branch at the same time. Never cancel: the queued run carries the
+# newer manifest.
+concurrency:
+  group: bump-python-openinference-floors
+  cancel-in-progress: false
+
+jobs:
+  bump-version:
+    if: >-
+      startsWith(github.event.release.tag_name, 'python-openinference-instrumentation-v') ||
+      startsWith(github.event.release.tag_name, 'python-openinference-semantic-conventions-v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint factory app token
+        id: factory-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.FACTORY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      # Check out `main`, not the release tag, so the bump is cut from the
+      # latest tree, including any bump PR that merged since the release.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Read versions from the release-please manifest
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          INSTRUMENTATION=$(jq -r '."python/openinference-instrumentation"' .release-please-manifest.json)
+          SEMCONV=$(jq -r '."python/openinference-semantic-conventions"' .release-please-manifest.json)
+          # Require bare semver so a bad manifest entry cannot send the PyPI
+          # wait below spinning until it times out.
+          for v in "$INSTRUMENTATION" "$SEMCONV"; do
+            if [[ ! "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Unexpected version '$v' in .release-please-manifest.json (release $RELEASE_TAG)."
+              exit 1
+            fi
+          done
+          echo "instrumentation=$INSTRUMENTATION" >> "$GITHUB_OUTPUT"
+          echo "semconv=$SEMCONV" >> "$GITHUB_OUTPUT"
+
+      # The `release: published` event fires as soon as release-please creates the
+      # GitHub release, which is minutes ahead of the publish workflow uploading the
+      # sdist/wheel to PyPI. Opening the bump PR before then makes every instrumentor
+      # CI job fail to resolve the new floor, so hold until PyPI can serve both.
+      - name: Wait for openinference-semantic-conventions on PyPI
+        uses: ./.github/actions/wait-for-pypi-version
+        with:
+          package: openinference-semantic-conventions
+          version: ${{ steps.version.outputs.semconv }}
+
+      - name: Wait for openinference-instrumentation on PyPI
+        uses: ./.github/actions/wait-for-pypi-version
+        with:
+          package: openinference-instrumentation
+          version: ${{ steps.version.outputs.instrumentation }}
+
+      - name: Update pyproject.toml files
+        id: update
+        env:
+          INSTRUMENTATION: ${{ steps.version.outputs.instrumentation }}
+          SEMCONV: ${{ steps.version.outputs.semconv }}
+        run: |
+          set -euo pipefail
+          # Match the quoted dependency string exactly to avoid touching
+          # similarly-prefixed packages (e.g. openinference-instrumentation-openai).
+          find python/instrumentation -name 'pyproject.toml' -exec \
+            sed -i 's/"openinference-instrumentation>=.*"/"openinference-instrumentation>='"$INSTRUMENTATION"'"/' {} +
+          # The semantic-conventions floor also lives in the core package.
+          find python/openinference-instrumentation/pyproject.toml python/instrumentation -name 'pyproject.toml' -exec \
+            sed -i 's/"openinference-semantic-conventions>=.*"/"openinference-semantic-conventions>='"$SEMCONV"'"/' {} +
+
+          # Name only the floors that actually moved in the PR title.
+          # Capture the diff first: piping `git diff` into `grep -q` under
+          # pipefail can fail the pipeline when grep exits early (SIGPIPE).
+          diff=$(git diff -U0)
+          bumped=()
+          if grep -q '^+.*"openinference-instrumentation>=' <<< "$diff"; then
+            bumped+=("openinference-instrumentation minimum to >=$INSTRUMENTATION")
+          fi
+          if grep -q '^+.*"openinference-semantic-conventions>=' <<< "$diff"; then
+            bumped+=("openinference-semantic-conventions minimum to >=$SEMCONV")
+          fi
+          if [ ${#bumped[@]} -eq 0 ]; then
+            echo "::notice::Both floors are already current on main; nothing to bump."
+            exit 0
+          fi
+          summary="${bumped[0]}"
+          if [ ${#bumped[@]} -eq 2 ]; then
+            summary="${bumped[0]} and ${bumped[1]}"
+          fi
+          echo "title=fix: bump $summary" >> "$GITHUB_OUTPUT"
+
+      - name: Create pull request
+        id: cpr
+        if: steps.update.outputs.title
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ steps.factory-token.outputs.token }}
+          commit-message: ${{ steps.update.outputs.title }}
+          title: ${{ steps.update.outputs.title }}
+          body: |
+            Automatically raises the minimum versions of the core OpenInference Python
+            packages to their latest releases, across `openinference-instrumentation`
+            and all Python instrumentor packages:
+
+            - `openinference-instrumentation>=${{ steps.version.outputs.instrumentation }}`
+            - `openinference-semantic-conventions>=${{ steps.version.outputs.semconv }}`
+
+            Last refreshed by release [`${{ github.event.release.tag_name }}`](${{ github.event.release.html_url }}).
+          # One fixed branch for both floors: a later release updates this PR
+          # instead of opening a second one that conflicts with it.
+          branch: bump-python-openinference-floors
+          base: main
+
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ steps.factory-token.outputs.token }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+        # Lets a reviewer merge with a single approval; a failure here should
+        # not fail the run since the PR itself was opened successfully.
+        # Block scalar: in a plain YAML scalar the " #" below would start a
+        # comment and truncate the command mid-string.
+        run: |
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash \
+            || echo "::warning::Could not enable auto-merge on #$PR_NUMBER"
