@@ -2,7 +2,7 @@
 
 We want to trace the frontier of AI, and use what we learn there to help shape where agent telemetry goes next.
 
-Agents move fast. A new framework or model API comes out and people are running it in production a week later. If
+AI moves fast. A new framework or model API comes out and people are running it in production a week later. If
 you're the one responsible for that agent, you need to see what it's doing now. Waiting a year for a spec to catch up
 isn't an option.
 
