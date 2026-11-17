@@ -230,28 +230,42 @@ class _WorkflowWrapper:
         result = None
         try:
             with self._activation.use_span(span):
-                workflow_token = _setup_node_context(node_id, self._activation)
-                result = wrapped(*args, **kwargs)
+                try:
+                    workflow_token = _setup_node_context(node_id, self._activation)
+                    result = wrapped(*args, **kwargs)
 
-                # Check if result is an iterator (streaming)
-                is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
+                    # Check if result is an iterator (streaming)
+                    is_streaming = hasattr(result, "__iter__") and not isinstance(
+                        result, (str, bytes)
+                    )
 
-                if is_streaming:
+                    if is_streaming:
+                        if workflow_token:
+                            try:
+                                self._activation.detach(workflow_token)
+                                workflow_token = None
+                            except Exception:
+                                pass
+                        return self._run_stream_continue(result, span, node_id, instance)
+
+                    # Non-streaming mode - detach token immediately while still in span context
                     if workflow_token:
                         try:
                             self._activation.detach(workflow_token)
                             workflow_token = None
                         except Exception:
                             pass
-                    return self._run_stream_continue(result, span, node_id, instance)
-
-                # Non-streaming mode - detach token immediately while still in span context
-                if workflow_token:
-                    try:
-                        self._activation.detach(workflow_token)
+                finally:
+                    # The node context token was attached while this span was
+                    # current. It must be detached before use_span restores the
+                    # caller's context, otherwise an exception would leave the
+                    # ended workflow span as the current span.
+                    if workflow_token:
+                        try:
+                            self._activation.detach(workflow_token)
+                        except Exception:
+                            pass
                         workflow_token = None
-                    except Exception:
-                        pass
 
             # Set output and workflow ID (outside use_span but token already detached)
             span.set_status(trace_api.StatusCode.OK)
