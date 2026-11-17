@@ -76,7 +76,7 @@ The layout and page markings are ported from the Arize Labs home page
    1280 × 800 and up, `--space-8` under the header. The words sit beside the
    trace hero (6 : 11, 5 : 12 under 1360px; the same at every width past the frame's 1400px, so a wider window never shrinks the demo), centred on it: the tagline
    (`site.tagline`) as the `h1`, weight 600, `--tracking-display`, in two
-   whole lines, "The Open Standard" over "for Agent Observability", sized
+   whole lines, "Telemetry" over "for the AI Frontier", sized
    to its column (up to 64px) so neither ever breaks; one short sentence of
    lede in `--soft` at `--text-hero-lede`; two buttons (**Read the spec**, solid; **View on
    GitHub**, outline). Under both, the three pillars in a row, one per part

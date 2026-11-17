@@ -81,7 +81,7 @@
   --text-feature: clamp(32px, 3.6vw, 48px);
   --text-h2: clamp(36px, 4.6vw, 56px);
   /* The landing tagline, sized to its own column (a container), so its two
-     lines, "The Open Standard" and "for Agent Observability", hold whole. */
+     lines, "Telemetry" and "for the AI Frontier", hold whole. */
   --text-hero: clamp(18px, 9.4cqi, 64px);
   /* The sentence under it, from the same column, so the two keep their ratio. */
   --text-hero-lede: clamp(15px, 5cqi, 24px);

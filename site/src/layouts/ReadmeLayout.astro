@@ -20,7 +20,7 @@ interface Props {
 const { lang = "en" } = Astro.props;
 const dir = directionOf(lang);
 
-/** The tagline in two lines that never break: "The Open Standard" / "for Agent Observability". */
+/** The tagline in two lines that never break: "Telemetry" / "for the AI Frontier". */
 const [taglineHead, taglineTail] = (() => {
   const at = site.tagline.indexOf(" for ");
   return at < 0 ? [site.tagline, ""] : [site.tagline.slice(0, at), site.tagline.slice(at + 1)];
