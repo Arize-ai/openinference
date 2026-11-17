@@ -287,7 +287,9 @@ All rendered markdown sits in `.prose`, styled in
 - **Inline code.** Geist Mono at 0.84em on a `--tint` chip. Package names in
   the first column of a table drop the chip: a column of chips is noise.
 - **Code blocks.** Fenced blocks are highlighted with the Pierre theme, in
-  light and dark, framed with a 1px `--rule`.
+  light and dark, framed with a 1px `--rule`. Each has a Copy button in its top
+  corner ([`CodeCopy`](./src/components/CodeCopy.astro)), shown
+  on hover or focus and always on touch screens. API signatures don't.
 - **Tables.** Ruled rows, mono caps headers over a `--fg` rule, figures in
   tabular numerals. `rehype-table-scroll` puts every table in a
   `.table-scroll` box, so a wide table scrolls inside itself and the page

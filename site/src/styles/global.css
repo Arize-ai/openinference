@@ -148,6 +148,31 @@ a { color: inherit; }
   border: 1px solid var(--rule);
 }
 .prose pre code { font-size: inherit; }
+/* Copy button on code blocks (added by CodeCopy.astro). It sits in the
+   wrapper, not the pre, so it stays in the corner while the code scrolls,
+   at the end of the lines in either text direction. With a mouse it shows on
+   hover, or when the block or button has focus; on touch screens, always. */
+.prose .code-block { position: relative; }
+.code-copy {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--dim);
+  font: 500 var(--text-micro) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.code-block:hover .code-copy, .code-block:focus-within .code-copy, .code-copy[data-state] { opacity: 1; }
+@media (hover: none) { .code-copy { opacity: 1; } }
+.code-copy:hover { color: var(--fg); border-color: var(--fg); }
+.code-copy:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.code-copy[data-state="copied"] { color: var(--accent); border-color: var(--accent); }
 /* Code blocks: Pierre's dark colours with the site's dark theme (an explicit
    choice, or the system preference when none is set). */
 :root[data-theme="dark"] .astro-code,
