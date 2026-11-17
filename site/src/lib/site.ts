@@ -39,7 +39,7 @@ export const pages = {
   mission: {
     title: "Mission",
     description:
-      "Trace the frontier and inform the future of agent telemetry: OpenInference instruments agents now, and takes what it learns to OpenTelemetry.",
+      "Why OpenInference exists: we instrument agents as soon as they matter, and bring what works back to OpenTelemetry.",
   },
   js: {
     title: "JavaScript API",
