@@ -807,28 +807,42 @@ class _StepWrapper:
         result = None
         try:
             with self._activation.use_span(span):
-                step_token = _setup_node_context(node_id, self._activation)
-                result = wrapped(*args, **kwargs)
+                try:
+                    step_token = _setup_node_context(node_id, self._activation)
+                    result = wrapped(*args, **kwargs)
 
-                # Check if result is an iterator (streaming)
-                is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
+                    # Check if result is an iterator (streaming)
+                    is_streaming = hasattr(result, "__iter__") and not isinstance(
+                        result, (str, bytes)
+                    )
 
-                if is_streaming:
+                    if is_streaming:
+                        if step_token:
+                            try:
+                                self._activation.detach(step_token)
+                                step_token = None
+                            except Exception:
+                                pass
+                        return self._run_stream_continue(result, span, node_id)
+
+                    # Non-streaming mode - detach token immediately while still in span context
                     if step_token:
                         try:
                             self._activation.detach(step_token)
                             step_token = None
                         except Exception:
                             pass
-                    return self._run_stream_continue(result, span, node_id)
-
-                # Non-streaming mode - detach token immediately while still in span context
-                if step_token:
-                    try:
-                        self._activation.detach(step_token)
+                finally:
+                    # The node context token was attached while this span was
+                    # current. It must be detached before use_span restores the
+                    # caller's context, otherwise an exception would leave the
+                    # ended step span as the current span.
+                    if step_token:
+                        try:
+                            self._activation.detach(step_token)
+                        except Exception:
+                            pass
                         step_token = None
-                    except Exception:
-                        pass
 
             # Set output and return (outside use_span but token already detached)
             span.set_status(trace_api.StatusCode.OK)
@@ -1112,30 +1126,44 @@ class _ParallelWrapper:
         result = None
         try:
             with self._activation.use_span(span):
-                parallel_token = _setup_node_context(node_id, self._activation)
+                try:
+                    parallel_token = _setup_node_context(node_id, self._activation)
 
-                # Context propagation is now handled by Agno's copy_context().run
-                result = wrapped(*args, **kwargs)
+                    # Context propagation is now handled by Agno's copy_context().run
+                    result = wrapped(*args, **kwargs)
 
-                # Check if result is a sync iterator (streaming mode)
-                is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
+                    # Check if result is a sync iterator (streaming mode)
+                    is_streaming = hasattr(result, "__iter__") and not isinstance(
+                        result, (str, bytes)
+                    )
 
-                if is_streaming:
+                    if is_streaming:
+                        if parallel_token:
+                            try:
+                                self._activation.detach(parallel_token)
+                                parallel_token = None
+                            except Exception:
+                                pass
+                        return self._execute_stream_continue(result, span, node_id)
+
+                    # Non-streaming mode - detach token immediately
                     if parallel_token:
                         try:
                             self._activation.detach(parallel_token)
                             parallel_token = None
                         except Exception:
                             pass
-                    return self._execute_stream_continue(result, span, node_id)
-
-                # Non-streaming mode - detach token immediately
-                if parallel_token:
-                    try:
-                        self._activation.detach(parallel_token)
+                finally:
+                    # The node context token was attached while this span was
+                    # current. It must be detached before use_span restores the
+                    # caller's context, otherwise an exception would leave the
+                    # ended parallel span as the current span.
+                    if parallel_token:
+                        try:
+                            self._activation.detach(parallel_token)
+                        except Exception:
+                            pass
                         parallel_token = None
-                    except Exception:
-                        pass
 
             # Set output
             span.set_status(trace_api.StatusCode.OK)
