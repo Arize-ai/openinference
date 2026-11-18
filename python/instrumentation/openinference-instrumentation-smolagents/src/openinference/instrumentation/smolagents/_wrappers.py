@@ -152,6 +152,8 @@ class _RunWrapper:
         except Exception as e:
             span.record_exception(e)
             span.set_status(trace_api.StatusCode.ERROR)
+            span.end()
+            context_api.detach(token)
             raise
 
         is_generator = isinstance(agent_output, Generator)
@@ -170,6 +172,8 @@ class _RunWrapper:
                     span.record_exception(e)
                     span.set_status(trace_api.StatusCode.ERROR)
                     raise
+                else:
+                    span.set_status(trace_api.StatusCode.OK)
                 finally:
                     # Set output value from the last observation
                     steps = getattr(agent.monitor, "steps", [])
@@ -199,7 +203,6 @@ class _RunWrapper:
                         + agent.monitor.total_output_token_count,
                     )
 
-                    span.set_status(trace_api.StatusCode.OK)
                     span.end()
                     context_api.detach(token)
 
@@ -219,6 +222,7 @@ class _RunWrapper:
                     LLM_TOKEN_COUNT_TOTAL,
                     agent.monitor.total_input_token_count + agent.monitor.total_output_token_count,
                 )
+                span.set_status(trace_api.StatusCode.OK)
                 return agent_output
 
             except Exception as e:
@@ -227,7 +231,6 @@ class _RunWrapper:
                 raise
 
             finally:
-                span.set_status(trace_api.StatusCode.OK)
                 span.end()
                 context_api.detach(token)
 
