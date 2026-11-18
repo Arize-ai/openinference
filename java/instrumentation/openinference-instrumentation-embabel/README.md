@@ -95,3 +95,10 @@ Hidden content is removed from the exported span, including the copies Embabel r
 own and the GenAI keys (`gen_ai.input.messages`, `gen_ai.tool.call.arguments`,
 `embabel.agent.result`, ...). On LLM spans the message flags also hide `input.value` /
 `output.value`, which hold the prompt and completion text.
+
+## Suppressing tracing
+
+Spans started inside `SuppressTracing.begin()` are exported unchanged, without OpenInference
+attributes. The exporter cannot see the context a span started in, so this needs
+`OpenInferenceEmbabelSpanProcessor` registered as shown above. `TraceConfig.suppressTracing(true)`
+turns off the mapping for every span.

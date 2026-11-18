@@ -23,13 +23,17 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Content that a {@link TraceConfig} hide flag covers is removed from the exported span,
  * including the copies Embabel writes under its own and the GenAI keys.
+ *
+ * <p>Spans are exported unmapped while {@link TraceConfig#isSuppressTracing()} is set, and so are
+ * spans that {@link OpenInferenceEmbabelSpanProcessor} saw start inside
+ * {@link com.arize.instrumentation.SuppressTracing#begin()}. An exporter cannot see the context a
+ * span started in, so the processor must be registered for {@code SuppressTracing} to apply.
  */
 public final class OpenInferenceEmbabelSpanExporter implements SpanExporter {
 
     private static final Logger log = LoggerFactory.getLogger(OpenInferenceEmbabelSpanExporter.class);
 
     private final SpanExporter delegate;
-    private final TraceConfig config;
     private final EmbabelSpanMapper mapper;
 
     public OpenInferenceEmbabelSpanExporter(SpanExporter delegate) {
@@ -38,15 +42,11 @@ public final class OpenInferenceEmbabelSpanExporter implements SpanExporter {
 
     public OpenInferenceEmbabelSpanExporter(SpanExporter delegate, TraceConfig config) {
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
-        this.config = Objects.requireNonNull(config, "config must not be null");
-        this.mapper = new EmbabelSpanMapper(config);
+        this.mapper = new EmbabelSpanMapper(Objects.requireNonNull(config, "config must not be null"));
     }
 
     @Override
     public CompletableResultCode export(Collection<SpanData> spans) {
-        if (config.isSuppressTracing()) {
-            return delegate.export(spans);
-        }
         List<SpanData> mapped = new ArrayList<>(spans.size());
         for (SpanData span : spans) {
             mapped.add(mapSafely(span));

@@ -11,6 +11,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -42,7 +43,7 @@ class OpenInferenceEmbabelSpanExporterTest {
 
     @Test
     void agentRunBecomesAgentSpanWithSession() {
-        SpanData span = export(
+        Map<String, Object> attributes = attributes(export(
                 TraceConfig.getDefault(),
                 "agent TravelAgent",
                 Map.of(
@@ -52,79 +53,85 @@ class OpenInferenceEmbabelSpanExporterTest {
                         "gen_ai.conversation.id", "conv-42",
                         "user.id", "alice",
                         "input.value", "Plan a weekend in Rome",
-                        "output.value", "{\"hotel\":\"Roma\"}"));
+                        "output.value", "{\"hotel\":\"Roma\"}")));
 
-        Attributes attributes = span.getAttributes();
-        assertThat(string(attributes, OPENINFERENCE_SPAN_KIND)).isEqualTo("AGENT");
-        assertThat(string(attributes, AGENT_NAME)).isEqualTo("TravelAgent");
-        assertThat(string(attributes, SESSION_ID)).isEqualTo("conv-42");
-        assertThat(string(attributes, USER_ID)).isEqualTo("alice");
-        assertThat(string(attributes, INPUT_VALUE)).isEqualTo("Plan a weekend in Rome");
-        assertThat(string(attributes, INPUT_MIME_TYPE)).isEqualTo("text/plain");
-        assertThat(string(attributes, OUTPUT_MIME_TYPE)).isEqualTo("application/json");
+        assertThat(attributes.remove(OPENINFERENCE_SPAN_KIND)).isEqualTo("AGENT");
+        assertThat(attributes.remove(AGENT_NAME)).isEqualTo("TravelAgent");
+        assertThat(attributes.remove(SESSION_ID)).isEqualTo("conv-42");
+        assertThat(attributes.remove(USER_ID)).isEqualTo("alice");
+        assertThat(attributes.remove(INPUT_VALUE)).isEqualTo("Plan a weekend in Rome");
+        assertThat(attributes.remove(INPUT_MIME_TYPE)).isEqualTo("text/plain");
+        assertThat(attributes.remove(OUTPUT_VALUE)).isEqualTo("{\"hotel\":\"Roma\"}");
+        assertThat(attributes.remove(OUTPUT_MIME_TYPE)).isEqualTo("application/json");
         // Embabel's own attributes are kept alongside the OpenInference ones.
-        assertThat(string(attributes, "embabel.agent.name")).isEqualTo("TravelAgent");
+        assertThat(attributes.remove("embabel.event.type")).isEqualTo("agent_process");
+        assertThat(attributes.remove("gen_ai.operation.name")).isEqualTo("agent");
+        assertThat(attributes.remove("embabel.agent.name")).isEqualTo("TravelAgent");
+        assertThat(attributes.remove("gen_ai.conversation.id")).isEqualTo("conv-42");
+        assertThat(attributes).isEmpty();
     }
 
     @Test
     void chatModelSpanBecomesLlmSpan() {
-        SpanData span = export(TraceConfig.getDefault(), "chat gpt-4o", chatAttributes());
+        Map<String, Object> attributes = attributes(export(TraceConfig.getDefault(), "chat gpt-4o", chatAttributes()));
 
-        Attributes attributes = span.getAttributes();
-        assertThat(string(attributes, OPENINFERENCE_SPAN_KIND)).isEqualTo("LLM");
-        assertThat(string(attributes, LLM_MODEL_NAME)).isEqualTo("gpt-4o-2024-08-06");
-        assertThat(string(attributes, LLM_PROVIDER)).isEqualTo("openai");
-        assertThat(attributes.get(AttributeKey.longKey(LLM_TOKEN_COUNT_PROMPT))).isEqualTo(120L);
-        assertThat(attributes.get(AttributeKey.longKey(LLM_TOKEN_COUNT_COMPLETION)))
-                .isEqualTo(30L);
-        assertThat(attributes.get(AttributeKey.longKey(LLM_TOKEN_COUNT_TOTAL))).isEqualTo(150L);
-        assertThat(string(attributes, LLM_INVOCATION_PARAMETERS)).isEqualTo("{\"temperature\":0.2,\"max_tokens\":512}");
+        assertThat(attributes.remove(OPENINFERENCE_SPAN_KIND)).isEqualTo("LLM");
+        assertThat(attributes.remove(LLM_MODEL_NAME)).isEqualTo("gpt-4o-2024-08-06");
+        assertThat(attributes.remove(LLM_PROVIDER)).isEqualTo("openai");
+        assertThat(attributes.remove(LLM_TOKEN_COUNT_PROMPT)).isEqualTo(120L);
+        assertThat(attributes.remove(LLM_TOKEN_COUNT_COMPLETION)).isEqualTo(30L);
+        assertThat(attributes.remove(LLM_TOKEN_COUNT_TOTAL)).isEqualTo(150L);
+        assertThat(attributes.remove(LLM_INVOCATION_PARAMETERS)).isEqualTo("{\"temperature\":0.2,\"max_tokens\":512}");
 
-        assertThat(string(attributes, LLM_INPUT_MESSAGES + ".0." + MESSAGE_ROLE))
-                .isEqualTo("system");
-        assertThat(string(attributes, LLM_INPUT_MESSAGES + ".1." + MESSAGE_CONTENT))
-                .isEqualTo("Find a hotel in Rome");
-        assertThat(string(attributes, LLM_INPUT_MESSAGES + ".2." + MESSAGE_ROLE))
-                .isEqualTo("tool");
-        assertThat(string(attributes, LLM_INPUT_MESSAGES + ".2." + MESSAGE_TOOL_CALL_ID))
-                .isEqualTo("call_1");
-        assertThat(string(attributes, LLM_INPUT_MESSAGES + ".2." + MESSAGE_CONTENT))
-                .isEqualTo("{\"hotels\":2}");
+        String input = LLM_INPUT_MESSAGES + ".";
+        assertThat(attributes.remove(input + "0." + MESSAGE_ROLE)).isEqualTo("system");
+        assertThat(attributes.remove(input + "0." + MESSAGE_CONTENT)).isEqualTo("You are a travel agent.");
+        assertThat(attributes.remove(input + "1." + MESSAGE_ROLE)).isEqualTo("user");
+        assertThat(attributes.remove(input + "1." + MESSAGE_CONTENT)).isEqualTo("Find a hotel in Rome");
+        assertThat(attributes.remove(input + "2." + MESSAGE_ROLE)).isEqualTo("tool");
+        assertThat(attributes.remove(input + "2." + MESSAGE_TOOL_CALL_ID)).isEqualTo("call_1");
+        assertThat(attributes.remove(input + "2." + MESSAGE_CONTENT)).isEqualTo("{\"hotels\":2}");
 
         String output = LLM_OUTPUT_MESSAGES + ".0.";
         String toolCall = output + MESSAGE_TOOL_CALLS + ".0.";
-        assertThat(string(attributes, output + MESSAGE_ROLE)).isEqualTo("assistant");
-        assertThat(string(attributes, output + MESSAGE_CONTENT)).isEqualTo("Checking availability.");
-        assertThat(string(attributes, toolCall + TOOL_CALL_ID)).isEqualTo("call_2");
-        assertThat(string(attributes, toolCall + TOOL_CALL_FUNCTION_NAME)).isEqualTo("book_hotel");
-        assertThat(string(attributes, toolCall + TOOL_CALL_FUNCTION_ARGUMENTS_JSON))
+        assertThat(attributes.remove(output + MESSAGE_ROLE)).isEqualTo("assistant");
+        assertThat(attributes.remove(output + MESSAGE_CONTENT)).isEqualTo("Checking availability.");
+        assertThat(attributes.remove(toolCall + TOOL_CALL_ID)).isEqualTo("call_2");
+        assertThat(attributes.remove(toolCall + TOOL_CALL_FUNCTION_NAME)).isEqualTo("book_hotel");
+        assertThat(attributes.remove(toolCall + TOOL_CALL_FUNCTION_ARGUMENTS_JSON))
                 .isEqualTo("{\"city\":\"Rome\"}");
 
-        assertThat(string(attributes, INPUT_MIME_TYPE)).isEqualTo("text/plain");
+        assertThat(attributes.remove(INPUT_VALUE)).isEqualTo("Find a hotel in Rome");
+        assertThat(attributes.remove(INPUT_MIME_TYPE)).isEqualTo("text/plain");
+        assertThat(attributes.remove(OUTPUT_VALUE)).isEqualTo("Checking availability.");
+        assertThat(attributes.remove(OUTPUT_MIME_TYPE)).isEqualTo("text/plain");
+        // The source GenAI attributes are kept.
+        chatAttributes().keySet().forEach(attributes::remove);
+        assertThat(attributes).isEmpty();
     }
 
     @Test
     void toolCallBecomesToolSpan() {
-        SpanData span = export(
-                TraceConfig.getDefault(),
-                "execute_tool book_hotel",
-                Map.of(
-                        "embabel.event.type", "tool_call",
-                        "gen_ai.operation.name", "execute_tool",
-                        "gen_ai.tool.name", "book_hotel",
-                        "gen_ai.tool.description", "Books a hotel room",
-                        "gen_ai.tool.call.arguments", "{\"city\":\"Rome\"}",
-                        "gen_ai.tool.call.result", "Booked: Hotel Roma"));
+        Map<String, String> source = Map.of(
+                "embabel.event.type", "tool_call",
+                "gen_ai.operation.name", "execute_tool",
+                "gen_ai.tool.name", "book_hotel",
+                "gen_ai.tool.description", "Books a hotel room",
+                "gen_ai.tool.call.arguments", "{\"city\":\"Rome\"}",
+                "gen_ai.tool.call.result", "Booked: Hotel Roma");
+        Map<String, Object> attributes =
+                attributes(export(TraceConfig.getDefault(), "execute_tool book_hotel", source));
 
-        Attributes attributes = span.getAttributes();
-        assertThat(string(attributes, OPENINFERENCE_SPAN_KIND)).isEqualTo("TOOL");
-        assertThat(string(attributes, TOOL_NAME)).isEqualTo("book_hotel");
-        assertThat(string(attributes, TOOL_DESCRIPTION)).isEqualTo("Books a hotel room");
-        assertThat(string(attributes, TOOL_PARAMETERS)).isEqualTo("{\"city\":\"Rome\"}");
-        assertThat(string(attributes, INPUT_VALUE)).isEqualTo("{\"city\":\"Rome\"}");
-        assertThat(string(attributes, INPUT_MIME_TYPE)).isEqualTo("application/json");
-        assertThat(string(attributes, OUTPUT_VALUE)).isEqualTo("Booked: Hotel Roma");
-        assertThat(string(attributes, OUTPUT_MIME_TYPE)).isEqualTo("text/plain");
+        assertThat(attributes.remove(OPENINFERENCE_SPAN_KIND)).isEqualTo("TOOL");
+        assertThat(attributes.remove(TOOL_NAME)).isEqualTo("book_hotel");
+        assertThat(attributes.remove(TOOL_DESCRIPTION)).isEqualTo("Books a hotel room");
+        assertThat(attributes.remove(TOOL_PARAMETERS)).isEqualTo("{\"city\":\"Rome\"}");
+        assertThat(attributes.remove(INPUT_VALUE)).isEqualTo("{\"city\":\"Rome\"}");
+        assertThat(attributes.remove(INPUT_MIME_TYPE)).isEqualTo("application/json");
+        assertThat(attributes.remove(OUTPUT_VALUE)).isEqualTo("Booked: Hotel Roma");
+        assertThat(attributes.remove(OUTPUT_MIME_TYPE)).isEqualTo("text/plain");
+        source.keySet().forEach(attributes::remove);
+        assertThat(attributes).isEmpty();
     }
 
     @Test
@@ -171,25 +178,47 @@ class OpenInferenceEmbabelSpanExporterTest {
     void hideInputsRemovesInputContentFromEverySource() {
         TraceConfig config = TraceConfig.builder().hideInputs(true).build();
 
-        Attributes llm = export(config, "chat gpt-4o", chatAttributes()).getAttributes();
-        assertThat(string(llm, OPENINFERENCE_SPAN_KIND)).isEqualTo("LLM");
-        assertThat(string(llm, INPUT_VALUE)).isNull();
-        assertThat(string(llm, "gen_ai.input.messages")).isNull();
-        assertThat(keysStartingWith(llm, LLM_INPUT_MESSAGES)).isEmpty();
-        assertThat(string(llm, OUTPUT_VALUE)).isEqualTo("Checking availability.");
+        Map<String, Object> llm = attributes(export(config, "chat gpt-4o", chatAttributes()));
+        assertThat(llm.remove(OPENINFERENCE_SPAN_KIND)).isEqualTo("LLM");
+        assertThat(llm.remove(OUTPUT_VALUE)).isEqualTo("Checking availability.");
+        assertThat(llm.remove(OUTPUT_MIME_TYPE)).isEqualTo("text/plain");
+        assertThat(llm.remove("gen_ai.output.messages")).isEqualTo(CHAT_OUTPUT_MESSAGES);
+        removeLlmMetadata(llm);
+        removeKeysStartingWith(llm, LLM_OUTPUT_MESSAGES);
+        assertThat(llm).isEmpty();
 
-        Attributes tool = export(
-                        config,
-                        "execute_tool book_hotel",
-                        Map.of(
-                                "embabel.event.type", "tool_call",
-                                "gen_ai.tool.name", "book_hotel",
-                                "gen_ai.tool.call.arguments", "{\"city\":\"Rome\"}"))
-                .getAttributes();
-        assertThat(string(tool, TOOL_NAME)).isEqualTo("book_hotel");
-        assertThat(string(tool, INPUT_VALUE)).isNull();
-        assertThat(string(tool, TOOL_PARAMETERS)).isNull();
-        assertThat(string(tool, "gen_ai.tool.call.arguments")).isNull();
+        Map<String, Object> tool = attributes(export(
+                config,
+                "execute_tool book_hotel",
+                Map.of(
+                        "embabel.event.type", "tool_call",
+                        "gen_ai.tool.name", "book_hotel",
+                        "gen_ai.tool.call.arguments", "{\"city\":\"Rome\"}")));
+        assertThat(tool.remove(OPENINFERENCE_SPAN_KIND)).isEqualTo("TOOL");
+        assertThat(tool.remove(TOOL_NAME)).isEqualTo("book_hotel");
+        assertThat(tool.remove("embabel.event.type")).isEqualTo("tool_call");
+        assertThat(tool.remove("gen_ai.tool.name")).isEqualTo("book_hotel");
+        assertThat(tool).isEmpty();
+    }
+
+    @Test
+    void hideInputsRemovesTheBasisOfADynamicAgent() {
+        Map<String, String> source = Map.of(
+                "embabel.event.type", "dynamic_agent_creation",
+                "gen_ai.operation.name", "dynamic_agent_creation",
+                "embabel.agent.name", "TripPlanner",
+                "embabel.dynamic_agent.basis", "Plan a weekend in Rome for my family");
+
+        Map<String, Object> shown = attributes(export(TraceConfig.getDefault(), "dynamic_agent TripPlanner", source));
+        assertThat(shown.remove("embabel.dynamic_agent.basis")).isEqualTo("Plan a weekend in Rome for my family");
+
+        TraceConfig config = TraceConfig.builder().hideInputs(true).build();
+        Map<String, Object> hidden = attributes(export(config, "dynamic_agent TripPlanner", source));
+        assertThat(hidden.remove(OPENINFERENCE_SPAN_KIND)).isEqualTo("CHAIN");
+        assertThat(hidden.remove("embabel.event.type")).isEqualTo("dynamic_agent_creation");
+        assertThat(hidden.remove("gen_ai.operation.name")).isEqualTo("dynamic_agent_creation");
+        assertThat(hidden.remove("embabel.agent.name")).isEqualTo("TripPlanner");
+        assertThat(hidden).isEmpty();
     }
 
     @Test
@@ -226,22 +255,33 @@ class OpenInferenceEmbabelSpanExporterTest {
     void hideOutputsRemovesOutputContentFromEverySource() {
         TraceConfig config = TraceConfig.builder().hideOutputs(true).build();
 
-        Attributes llm = export(config, "chat gpt-4o", chatAttributes()).getAttributes();
-        assertThat(string(llm, OUTPUT_VALUE)).isNull();
-        assertThat(string(llm, "gen_ai.output.messages")).isNull();
-        assertThat(keysStartingWith(llm, LLM_OUTPUT_MESSAGES)).isEmpty();
-        assertThat(string(llm, INPUT_VALUE)).isEqualTo("Find a hotel in Rome");
+        Map<String, Object> llm = attributes(export(config, "chat gpt-4o", chatAttributes()));
+        assertThat(llm.remove(OPENINFERENCE_SPAN_KIND)).isEqualTo("LLM");
+        assertThat(llm.remove(INPUT_VALUE)).isEqualTo("Find a hotel in Rome");
+        assertThat(llm.remove(INPUT_MIME_TYPE)).isEqualTo("text/plain");
+        assertThat(llm.remove("gen_ai.input.messages")).isEqualTo(CHAT_INPUT_MESSAGES);
+        removeLlmMetadata(llm);
+        removeKeysStartingWith(llm, LLM_INPUT_MESSAGES);
+        assertThat(llm).isEmpty();
 
-        Attributes agent = export(
-                        config,
-                        "agent TravelAgent",
-                        Map.of(
-                                "embabel.event.type", "agent_process",
-                                "embabel.agent.result", "Hotel Roma",
-                                "output.value", "Hotel Roma"))
-                .getAttributes();
-        assertThat(string(agent, OUTPUT_VALUE)).isNull();
-        assertThat(string(agent, "embabel.agent.result")).isNull();
+        Map<String, Object> agent = attributes(export(
+                config,
+                "agent TravelAgent",
+                Map.of(
+                        "embabel.event.type", "agent_process",
+                        "embabel.agent.result", "Hotel Roma",
+                        "output.value", "Hotel Roma")));
+        assertThat(agent.remove(OPENINFERENCE_SPAN_KIND)).isEqualTo("AGENT");
+        assertThat(agent.remove("embabel.event.type")).isEqualTo("agent_process");
+        assertThat(agent).isEmpty();
+
+        Map<String, Object> replan = attributes(export(
+                config,
+                "replan",
+                Map.of("embabel.event.type", "replan", "embabel.replan.reason", "Hotel Roma is full")));
+        assertThat(replan.remove(OPENINFERENCE_SPAN_KIND)).isEqualTo("CHAIN");
+        assertThat(replan.remove("embabel.event.type")).isEqualTo("replan");
+        assertThat(replan).isEmpty();
     }
 
     @Test
@@ -267,6 +307,39 @@ class OpenInferenceEmbabelSpanExporterTest {
         TraceConfig config = TraceConfig.builder().suppressTracing(true).build();
         SpanData span = export(config, "agent TravelAgent", Map.of("embabel.event.type", "agent_process"));
         assertThat(string(span.getAttributes(), OPENINFERENCE_SPAN_KIND)).isNull();
+    }
+
+    /** Removes the LLM attributes that no hide flag covers: model, provider, tokens, parameters, sources. */
+    private static void removeLlmMetadata(Map<String, Object> attributes) {
+        assertThat(attributes.remove(LLM_MODEL_NAME)).isEqualTo("gpt-4o-2024-08-06");
+        assertThat(attributes.remove(LLM_PROVIDER)).isEqualTo("openai");
+        assertThat(attributes.remove(LLM_TOKEN_COUNT_PROMPT)).isEqualTo(120L);
+        assertThat(attributes.remove(LLM_TOKEN_COUNT_COMPLETION)).isEqualTo(30L);
+        assertThat(attributes.remove(LLM_TOKEN_COUNT_TOTAL)).isEqualTo(150L);
+        assertThat(attributes.remove(LLM_INVOCATION_PARAMETERS)).isNotNull();
+        for (String key : List.of(
+                "gen_ai.operation.name",
+                "gen_ai.provider.name",
+                "gen_ai.request.model",
+                "gen_ai.response.model",
+                "gen_ai.request.temperature",
+                "gen_ai.request.max_tokens",
+                "gen_ai.usage.input_tokens",
+                "gen_ai.usage.output_tokens")) {
+            assertThat(attributes.remove(key)).as(key).isNotNull();
+        }
+    }
+
+    private static void removeKeysStartingWith(Map<String, Object> attributes, String prefix) {
+        assertThat(attributes.keySet().removeIf(key -> key.startsWith(prefix)))
+                .as(prefix)
+                .isTrue();
+    }
+
+    private static Map<String, Object> attributes(SpanData span) {
+        Map<String, Object> attributes = new HashMap<>();
+        span.getAttributes().forEach((key, value) -> attributes.put(key.getKey(), value));
+        return attributes;
     }
 
     private static Map<String, String> chatAttributes() {

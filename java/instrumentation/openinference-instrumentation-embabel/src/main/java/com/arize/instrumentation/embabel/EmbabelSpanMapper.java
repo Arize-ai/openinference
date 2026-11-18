@@ -42,6 +42,14 @@ final class EmbabelSpanMapper {
     static final String EMBABEL_TRACKED_ARGS = "embabel.tracked.args";
     static final String EMBABEL_TRACKED_RESULT = "embabel.tracked.result";
     static final String EMBABEL_RAG_QUERY = "embabel.rag.query";
+    static final String EMBABEL_DYNAMIC_AGENT_BASIS = "embabel.dynamic_agent.basis";
+    static final String EMBABEL_REPLAN_REASON = "embabel.replan.reason";
+
+    /**
+     * Internal marker that {@link OpenInferenceEmbabelSpanProcessor} sets on spans started while
+     * tracing is suppressed. Marked spans are exported unmapped, and the marker is removed.
+     */
+    static final AttributeKey<Boolean> SUPPRESSED = AttributeKey.booleanKey("openinference.embabel.suppressed");
 
     // OpenTelemetry GenAI semantic convention keys, as Embabel and Spring AI write them.
     static final String GEN_AI_OPERATION_NAME = "gen_ai.operation.name";
@@ -64,8 +72,14 @@ final class EmbabelSpanMapper {
     static final String GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result";
 
     /** Source keys that hold input content: dropped from the exported span when inputs are hidden. */
-    private static final Set<String> INPUT_CONTENT_KEYS =
-            Set.of(INPUT_VALUE, INPUT_MIME_TYPE, GEN_AI_INPUT_MESSAGES, EMBABEL_TRACKED_ARGS, EMBABEL_RAG_QUERY);
+    private static final Set<String> INPUT_CONTENT_KEYS = Set.of(
+            INPUT_VALUE,
+            INPUT_MIME_TYPE,
+            GEN_AI_INPUT_MESSAGES,
+            EMBABEL_TRACKED_ARGS,
+            EMBABEL_RAG_QUERY,
+            // Embabel's Autonomy fills the basis of a dynamic agent from the user's input.
+            EMBABEL_DYNAMIC_AGENT_BASIS);
 
     /** Source keys that hold output content: dropped from the exported span when outputs are hidden. */
     private static final Set<String> OUTPUT_CONTENT_KEYS = Set.of(
@@ -76,7 +90,9 @@ final class EmbabelSpanMapper {
             EMBABEL_AGENT_RESULT,
             EMBABEL_ACTION_RESULT,
             EMBABEL_GOAL_RESULT,
-            EMBABEL_TRACKED_RESULT);
+            EMBABEL_TRACKED_RESULT,
+            // Written by the tool or action that asks for a replan, so it is the step's output.
+            EMBABEL_REPLAN_REASON);
 
     private static final Map<String, LLMProvider> PROVIDERS = Map.ofEntries(
             Map.entry("openai", LLMProvider.OPENAI),
@@ -104,10 +120,17 @@ final class EmbabelSpanMapper {
         this.config = config;
     }
 
-    /** Returns the OpenInference view of {@code span}, or {@code span} itself when it is not an Embabel span. */
+    /**
+     * Returns the OpenInference view of {@code span}, or {@code span} itself when it is not an Embabel
+     * span or tracing is suppressed.
+     */
     SpanData map(SpanData span) {
         Attributes source = span.getAttributes();
-        if (source.get(AttributeKey.stringKey(OPENINFERENCE_SPAN_KIND)) != null) {
+        if (source.get(SUPPRESSED) != null) {
+            return new MappedSpanData(
+                    span, source.toBuilder().remove(SUPPRESSED).build());
+        }
+        if (config.isSuppressTracing() || source.get(AttributeKey.stringKey(OPENINFERENCE_SPAN_KIND)) != null) {
             return span;
         }
         OpenInferenceSpanKind kind = classify(source);

@@ -18,8 +18,9 @@ import java.util.Objects;
  * for agent runs, actions, LLM and tool calls. Use it together with
  * {@link OpenInferenceEmbabelSpanExporter}.
  *
- * <p>Nothing is copied while tracing is suppressed with {@link SuppressTracing} or through
- * {@link TraceConfig#isSuppressTracing()}.
+ * <p>While tracing is suppressed with {@link SuppressTracing} or through
+ * {@link TraceConfig#isSuppressTracing()}, nothing is copied and the span is marked so that
+ * {@link OpenInferenceEmbabelSpanExporter} exports it unmapped.
  */
 public final class OpenInferenceEmbabelSpanProcessor implements SpanProcessor {
 
@@ -37,6 +38,7 @@ public final class OpenInferenceEmbabelSpanProcessor implements SpanProcessor {
     public void onStart(Context parentContext, ReadWriteSpan span) {
         try (Scope ignored = parentContext.makeCurrent()) {
             if (SuppressTracing.isSuppressed() || config.isSuppressTracing()) {
+                span.setAttribute(EmbabelSpanMapper.SUPPRESSED, true);
                 return;
             }
             ContextAttributes.applyToSpan(new ContextAttributeTarget(span, config));
