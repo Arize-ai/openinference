@@ -1,3 +1,5 @@
+import asyncio
+import threading
 from enum import Enum
 from types import AsyncGeneratorType, GeneratorType
 from typing import (
@@ -232,6 +234,13 @@ class _FunctionCallWrapper:
     ) -> Iterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
         """Handle streaming success case: set span attributes and close span."""
         function_result = ""
+        # The generator body runs while it is iterated here, not when the tool was
+        # called, so keep the tool span current for the whole iteration. Spans the
+        # body starts (e.g. a member agent run in delegate_task_to_member) are then
+        # children of the tool span. Manually attach/detach, like the run wrappers,
+        # because the consumer may resume the generator from another thread.
+        initial_thread = threading.current_thread()
+        ctx_token = self._activation.attach_span(span)
         try:
             for item in result:
                 yield item
@@ -242,6 +251,9 @@ class _FunctionCallWrapper:
         except Exception:
             # Don't break if observability fails
             pass
+        finally:
+            if threading.current_thread() is initial_thread:
+                self._activation.detach(ctx_token)
         span.set_status(trace_api.StatusCode.OK)
         span.set_attributes(
             dict(
@@ -257,16 +269,24 @@ class _FunctionCallWrapper:
     ) -> AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
         """Handle streaming success case: set span attributes and close span."""
         function_result = ""
-        async for item in result:
-            yield item
-            try:
-                if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
-                    function_result += self._parse_content(item.content)
-                elif isinstance(item, str):
-                    function_result += str(item)
-            except Exception:
-                # Don't break if observability fails
-                pass
+        # See _handle_success_streaming: keep the tool span current while the
+        # generator body runs. Detach only from the task that attached.
+        initial_task = asyncio.current_task()
+        ctx_token = self._activation.attach_span(span)
+        try:
+            async for item in result:
+                yield item
+                try:
+                    if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
+                        function_result += self._parse_content(item.content)
+                    elif isinstance(item, str):
+                        function_result += str(item)
+                except Exception:
+                    # Don't break if observability fails
+                    pass
+        finally:
+            if asyncio.current_task() is initial_task:
+                self._activation.detach(ctx_token)
 
         span.set_status(trace_api.StatusCode.OK)
         span.set_attributes(
