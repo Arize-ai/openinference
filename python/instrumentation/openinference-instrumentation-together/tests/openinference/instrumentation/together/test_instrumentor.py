@@ -899,6 +899,7 @@ async def test_async_chat_stream_cancelled_iteration_sets_error(
     assert attrs["exception.type"] == "asyncio.exceptions.CancelledError"
     assert attrs["exception.message"] == "stream cancelled"
 
+
 def test_non_stream_keyboard_interrupt_ends_span_error(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
