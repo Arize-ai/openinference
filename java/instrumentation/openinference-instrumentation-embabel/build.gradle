@@ -1,0 +1,12 @@
+description = 'OpenInference Instrumentation for the Embabel agent framework'
+
+dependencies {
+    // Brings openinference-semantic-conventions, the OpenTelemetry API/SDK BOM, TraceConfig,
+    // ContextAttributes and SuppressTracing (shared with the other Java instrumentors).
+    api project(':openinference-instrumentation')
+
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+
+    testImplementation "io.opentelemetry:opentelemetry-sdk-testing"
+}
