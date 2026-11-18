@@ -10,6 +10,7 @@
 import PageMarkings, { type Run } from "../components/PageMarkings.astro";
 import Statement from "../components/Statement.astro";
 import TraceHero from "../components/hero/TraceHero.astro";
+import { getLatestNews, newsUrl } from "../lib/news";
 import { base, directionOf, site } from "../lib/site";
 import BaseLayout from "./BaseLayout.astro";
 
@@ -20,6 +21,7 @@ interface Props {
 
 const { lang = "en" } = Astro.props;
 const dir = directionOf(lang);
+const latest = await getLatestNews();
 
 /** The tagline in two lines that never break: "Telemetry" / "for the AI Frontier". */
 const [taglineHead, taglineTail] = (() => {
@@ -46,6 +48,15 @@ const rulerRuns: Run[] = [
   <PageMarkings runs={rulerRuns} marks=".readme > h2" />
   <section class="hero" aria-labelledby="hero-heading">
     <div class="hero-text">
+      {
+        latest && (
+          <a class="latest" href={newsUrl(latest)}>
+            <span class="eyebrow">News</span>
+            <span class="latest-title">{latest.data.title}</span>
+            <span class="arrow" aria-hidden="true">→</span>
+          </a>
+        )
+      }
       <h1 id="hero-heading">
         <span class="keep">{taglineHead}</span>{" "}<span class="keep">{taglineTail}</span>
       </h1>
@@ -102,6 +113,21 @@ const rulerRuns: Run[] = [
   /* The words, centred on the demo beside them. */
   .hero-text { grid-area: text; align-self: center; container-type: inline-size; }
   section.hero > :global(.trace-hero) { grid-area: demo; }
+  /* The newest post, while it's recent: one quiet line over the tagline. */
+  .latest {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    max-width: 100%;
+    margin-bottom: var(--space-6);
+    color: var(--soft);
+    font-size: var(--text-small);
+    text-decoration: none;
+  }
+  .latest-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .latest .arrow { color: var(--dim); transition: transform 0.15s, color 0.15s; }
+  .latest:hover, .latest:focus-visible { color: var(--fg); }
+  .latest:hover .arrow, .latest:focus-visible .arrow { color: var(--accent); transform: translateX(3px); }
   h1 {
     /* Sized to its column, so each of its two lines holds whole. */
     font: 600 var(--text-hero) / 1.04 var(--font-sans);

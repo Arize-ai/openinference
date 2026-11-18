@@ -3,9 +3,9 @@
  * Rewrites relative links in repository markdown so they work on the
  * published site.
  *
- * The markdown rendered by this site (the root README, `MISSION.md`, `spec/`, and
- * `docs/i18n/`) is written for GitHub, so it links to other files with
- * repository-relative paths such as `./spans/llm.md` or
+ * The markdown rendered by this site (the root README, `MISSION.md`, `spec/`,
+ * `docs/i18n/` and `docs/news/`) is written for GitHub, so it links to other
+ * files with repository-relative paths such as `./spans/llm.md` or
  * `../../python/openinference-instrumentation`. This plugin maps links to
  * files the site publishes onto their site routes and sends everything else
  * to the file on GitHub.
@@ -37,6 +37,9 @@ export function siteRoute(repoPath, base) {
   if (match) return `${base}spec/${match[1]}.html`;
   match = p.match(/^docs\/i18n\/(README\.[^/]+)\.md$/);
   if (match) return `${base}docs/i18n/${match[1]}.html`;
+  if (p === "docs/news" || p === "docs/news/README.md") return `${base}news/`;
+  match = p.match(/^docs\/news\/([^/]+)\.md$/);
+  if (match) return `${base}news/${match[1]}.html`;
   return undefined;
 }
 

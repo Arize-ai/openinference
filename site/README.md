@@ -12,11 +12,24 @@ duplicated here. The content collections in `src/content.config.ts` load:
 | `spec/README.md`     | `/openinference/spec/`               |
 | `spec/*.md`          | `/openinference/spec/<name>.html`    |
 | `docs/i18n/*.md`     | `/openinference/docs/i18n/<name>.html` |
+| `docs/news/*.md`     | `/openinference/news/<name>.html`    |
 
 Relative links in that markdown are rewritten by
 `src/plugins/rehype-repo-links.mjs`: links to published pages point at their
 route, and links to anything else (package directories, source files) point at
 the file on GitHub.
+
+## News
+
+`/openinference/news/` is a timeline of the project's news, newest first,
+with an RSS feed at `/openinference/news/rss.xml`. Each post is a markdown
+file in [`docs/news/`](../docs/news/README.md) with frontmatter (`title`,
+`description`, `pubDate`, `authors` as GitHub handles, and optional `tags`,
+`releases` and `draft`), checked by the `news` collection's schema in
+`src/content.config.ts`, as posts are on the Arize Labs site. Release notes
+are not written here: they stay on GitHub, and a post links to the releases
+it announces with `releases`. [`docs/news/README.md`](../docs/news/README.md)
+is the guide for writing one.
 
 ## API references
 

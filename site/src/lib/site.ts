@@ -55,6 +55,11 @@ export const pages = {
     title: "Brand guidelines",
     description: "The OpenInference mark and wordmark: files, clear space, colour and typography.",
   },
+  news: {
+    title: "News",
+    description:
+      "What's new in OpenInference: new instrumentation, changes to the spec, and the releases worth knowing about.",
+  },
   credits: {
     title: "Credits",
     description: "Work by others that this site is built with, and the licences it is used under.",
@@ -66,6 +71,7 @@ export const nav: { href: string; label: string; external?: boolean }[] = [
   { href: routeOf("spec/README.md"), label: "Spec" },
   { href: `${base}js/`, label: "JavaScript" },
   { href: `${base}python/`, label: "Python" },
+  { href: `${base}news/`, label: "News" },
   { href: site.repo, label: "GitHub", external: true },
 ];
 

@@ -9,6 +9,7 @@ import "../styles/global.css";
 import CodeCopy from "../components/CodeCopy.astro";
 import Footer from "../components/Footer.astro";
 import Header from "../components/Header.astro";
+import { newsFeed } from "../lib/news";
 import { CARD_SIZE, cardFor, imagePathOf } from "../lib/og/cards";
 import { base, site } from "../lib/site";
 
@@ -41,6 +42,7 @@ const imageAlt = `${card.eyebrow === site.name ? site.name : `${site.name} ${car
     <link rel="icon" href={`${base}favicon-32.png`} sizes="32x32" type="image/png" />
     <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml" />
     <link rel="apple-touch-icon" href={`${base}apple-touch-icon.png`} />
+    <link rel="alternate" type="application/rss+xml" title={`${site.name} news`} href={newsFeed} />
     <!-- Open Graph and Twitter: the page's social card is drawn at build
          time by src/pages/og/[...card].png.ts. See DESIGN.md ("Social cards"). -->
     <meta property="og:type" content="website" />

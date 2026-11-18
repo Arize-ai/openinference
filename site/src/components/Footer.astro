@@ -1,5 +1,6 @@
 ---
 import ArizeLogo from "../assets/arize-logo.svg";
+import { newsFeed, newsIndex, releasesUrl } from "../lib/news";
 import { base, routeOf, site } from "../lib/site";
 import ThemeToggle from "./ThemeToggle.astro";
 
@@ -11,11 +12,14 @@ const columns = [
     { href: routeOf("spec/attributes/semantic-conventions.md"), label: "Semantic conventions" },
     { href: `${base}js/`, label: "JavaScript API" },
     { href: `${base}python/`, label: "Python API" },
+    { href: newsIndex, label: "News" },
     { href: `${base}brand.html`, label: "Brand" },
     { href: `${base}credits.html`, label: "Credits" },
   ],
   [
     { href: site.repo, label: "GitHub" },
+    { href: releasesUrl, label: "Release notes" },
+    { href: newsFeed, label: "RSS" },
     { href: site.community, label: "Slack community" },
     { href: site.phoenix, label: "Arize Phoenix" },
     { href: site.ax, label: "Arize AX" },
