@@ -14,9 +14,10 @@ on:
   release:
     types: [published]
 
+# The default GITHUB_TOKEN only needs to read the repo for checkout. Pushing the
+# branch, opening the PR and enabling auto-merge all use the factory app token.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 # Serialize runs so two releases from one release-please merge cannot push the
 # shared branch at the same time. Never cancel: the queued run carries the
@@ -72,13 +73,13 @@ jobs:
       # sdist/wheel to PyPI. Opening the bump PR before then makes every instrumentor
       # CI job fail to resolve the new floor, so hold until PyPI can serve both.
       - name: Wait for openinference-semantic-conventions on PyPI
-        uses: ./.github/actions/wait-for-pypi-version
+        uses: $/.github/actions/wait-for-pypi-version
         with:
           package: openinference-semantic-conventions
           version: ${{ steps.version.outputs.semconv }}
 
       - name: Wait for openinference-instrumentation on PyPI
-        uses: ./.github/actions/wait-for-pypi-version
+        uses: $/.github/actions/wait-for-pypi-version
         with:
           package: openinference-instrumentation
           version: ${{ steps.version.outputs.instrumentation }}
