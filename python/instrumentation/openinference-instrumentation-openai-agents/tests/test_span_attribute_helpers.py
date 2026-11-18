@@ -807,6 +807,58 @@ def test_get_attributes_from_generation_span_data(
     assert attributes == expected_attributes
 
 
+_ADD_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "add",
+        "description": "Adds two numbers together.",
+        "parameters": {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+            "required": ["a", "b"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+}
+_HANDOFF_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "transfer_to_billing",
+        "description": "Handoff to the Billing agent.",
+        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+}
+
+
+@pytest.mark.skipif("'tools' not in GenerationSpanData.__slots__")
+@pytest.mark.parametrize(
+    "tools,expected_tool_attributes",
+    [
+        pytest.param(
+            [_ADD_TOOL, _HANDOFF_TOOL],
+            {
+                "llm.tools.0.tool.json_schema": json.dumps(_ADD_TOOL),
+                "llm.tools.1.tool.json_schema": json.dumps(_HANDOFF_TOOL),
+            },
+            id="function_and_handoff_tools",
+        ),
+        pytest.param([], {}, id="empty_tools"),
+        pytest.param(None, {}, id="no_tools"),
+    ],
+)
+def test_get_attributes_from_generation_span_data_tools(
+    tools: Union[list[dict[str, Any]], None],
+    expected_tool_attributes: Mapping[str, Any],
+) -> None:
+    generation_span_data = GenerationSpanData(
+        model="gpt-4o-mini",
+        tools=tools,  # type: ignore[call-arg, unused-ignore]
+    )
+    attributes = dict(_get_attributes_from_generation_span_data(generation_span_data))
+    assert attributes == {"llm.model_name": "gpt-4o-mini", **expected_tool_attributes}
+
+
 @pytest.mark.parametrize(
     "mcp_list_tool_span_data,expected_attributes",
     [
