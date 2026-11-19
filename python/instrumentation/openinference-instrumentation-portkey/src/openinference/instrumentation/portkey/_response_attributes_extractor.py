@@ -3,7 +3,11 @@ from typing import Any, Iterable, Iterator, Mapping, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation.portkey._utils import _as_output_attributes, _io_value_and_type
+from openinference.instrumentation.portkey._utils import (
+    _as_output_attributes,
+    _io_value_and_type,
+    get_attribute,
+)
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
 logger = logging.getLogger(__name__)
@@ -94,3 +98,9 @@ class _ResponseAttributesExtractor:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+        prompt_details = getattr(usage, "prompt_tokens_details", None)
+        if (cached_tokens := get_attribute(prompt_details, "cached_tokens")) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+        completion_details = getattr(usage, "completion_tokens_details", None)
+        if (reasoning_tokens := get_attribute(completion_details, "reasoning_tokens")) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
