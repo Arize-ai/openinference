@@ -11,16 +11,15 @@
  *    yet started are not drawn;
  *  - dotted gridlines a second apart, labelled 0s, 2s, 4s…;
  *  - the failed request hatched in the accent;
- *  - the playhead, here a knob's hand pivoting on the bolt, with the hero's
- *    ink time tag at its tip and one readout: the span it has just reached
- *    (at the root, just "agent").
+ *  - the playhead, here a knob's hand pivoting on the bolt;
+ *  - the hero's ink time tag, set into the agent's own ring at twelve
+ *    o'clock: "agent", and the run's time.
  * The run's dead zone sits over the keyway, as a knob's travel leaves one at
  * the bottom. The mark bleeds off the card; the dial lives in its window.
  *
  * Pure geometry: SVG shapes plus labels placed by baseline, so the build sets
  * the type with satori (render.ts) and a browser can draw the same thing.
  */
-import { GLYPHS } from "../../components/hero/glyphs";
 import { SPANS, T, type Kind } from "../../components/hero/model";
 import { markGeometry } from "../mark.mjs";
 import { COLOR, KIND } from "./palette";
@@ -93,30 +92,9 @@ export function drawLandingArt(options: ArtOptions, wordmarkSvg: string) {
       labels.push({ x, y: r2(y + 4 * k), text: `${sec}s`, color: COLOR.dim, size: r2(12 * k), anchor: "middle", weight: 500 });
     }
   }
-  /* Where the tag and readout go: at the hand's tip while they fit inside the mark's window, else in the
-     dead zone over the keyway, like a knob's value display, so they never sit on the mark. */
+  /* The hand, under the bars: a knob's pointer on the bolt, out just past the dial to where the run stands. */
   const ah = ang(now);
-  const TAG_H = 22 * k;
-  const tagText = `${(now / 1000).toFixed(2)}s`;
-  const tagW = (tagText.length * 7.6 + 14) * k;
-  const under = SPANS.map((sp, i) => ({ sp, i })).filter(({ sp }) => sp.start <= now && now <= sp.end + 1).sort((a, b) => b.sp.depth - a.sp.depth)[0];
-  const readText = !under ? "" : under.sp.depth === 0 ? "agent" : `${under.sp.name}${under.sp.note ? ` ${under.sp.note}` : ""}  ${under.sp.end <= now ? `${Math.round(under.sp.end - under.sp.start)}ms` : `${Math.round(now - under.sp.start)}ms…`}`;
-  const readW = !under ? 0 : (readText.length * 7.8 + (under.sp.depth === 0 ? 10 : 34)) * k;
-  /** The window: the nut, a hexagon round the bolt with a point at the top; inside when within every flat. */
-  const flat = geometry.nut * s - 10 * k;
-  const inWindow = (x: number, y: number) => [0, 60, 120, 180, 240, 300].every((a) => (x - bx) * Math.cos(rad(a)) + (y - by) * Math.sin(rad(a)) <= flat);
-  const tipAt = outer + 30 * k;
-  const [tx0, ty0] = pol(tipAt, ah);
-  const right = Math.cos(rad(ah)) >= -0.1 && tx0 + tagW + readW < W - 40 * k;
-  const below = Math.sin(rad(ah)) > 0.35;
-  const tagX = right ? tx0 - 4 * k : tx0 - tagW + 4 * k;
-  const tagY = below ? ty0 + 2 * k : ty0 - TAG_H - 2 * k;
-  const rowX0 = right ? tagX : tagX - readW, rowX1 = right ? tagX + tagW + readW : tagX + tagW;
-  const fits = [[rowX0, tagY], [rowX1, tagY], [rowX0, tagY + TAG_H], [rowX1, tagY + TAG_H]].every(([x, y]) => inWindow(x, y));
-
-  /* The hand, under the bars: a knob's pointer on the bolt, out to the tag, or just past the dial. */
-  const tip = fits ? tipAt : outer + 8 * k;
-  svg.push(line(0, tip, ah, `stroke="${COLOR.fg}" stroke-width="${r2(1.25 * k)}"`));
+  svg.push(line(0, outer + 8 * k, ah, `stroke="${COLOR.fg}" stroke-width="${r2(1.25 * k)}"`));
 
   svg.push(`<defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(${r2(ang(SPANS[SPANS.findIndex((x) => x.error)].start) + 45)})"><rect width="4" height="4" fill="${COLOR.accent}" fill-opacity=".18"/><line x1="0" y1="0" x2="0" y2="4" stroke="${COLOR.accent}" stroke-width="2"/></pattern></defs>`);
   /* Tree ticks, then the spans: ended solid, running dashed to the playhead, to come not drawn (or ghosted). */
@@ -137,35 +115,21 @@ export function drawLandingArt(options: ArtOptions, wordmarkSvg: string) {
   svg.push(ticks.join(""), bars.join(""));
   anchors.orbit = pol(orbit(1), ang(700));
 
-  /* The pivot, and the tag at the hand's tip. */
-  svg.push(
-    `<circle cx="${r2(bx)}" cy="${r2(by)}" r="${r2(9 * k)}" fill="${COLOR.fg}"/><circle cx="${r2(bx)}" cy="${r2(by)}" r="${r2(3 * k)}" fill="${COLOR.bg}"/>`,
-  );
-  {
-    /* The tag: at the hand's tip, or centred in the dead zone with the readout beside it. */
-    const gap = 10 * k;
-    const x = fits ? tagX : bx - (tagW + gap + readW) / 2;
-    const y = fits ? tagY : by + outer * 0.82 - TAG_H / 2;
-    const toRight = fits ? right : true;
-    svg.push(`<rect x="${r2(x)}" y="${r2(y)}" width="${r2(tagW)}" height="${r2(TAG_H)}" fill="${COLOR.fg}"/>`);
-    labels.push({ x: r2(x + tagW / 2), y: r2(y + TAG_H / 2 + 4.5 * k), text: tagText, color: COLOR.bg, size: r2(13 * k), anchor: "middle", weight: 500 });
-    anchors.tag = [x + tagW / 2, y + TAG_H / 2];
+  /* The pivot. */
+  svg.push(`<circle cx="${r2(bx)}" cy="${r2(by)}" r="${r2(9 * k)}" fill="${COLOR.fg}"/><circle cx="${r2(bx)}" cy="${r2(by)}" r="${r2(3 * k)}" fill="${COLOR.bg}"/>`);
 
-    /* The readout: the span the hand has just reached; at the root, just what it is, the agent. */
-    if (under) {
-      const { sp } = under;
-      const gy = y + TAG_H / 2;
-      let tx = toRight ? x + tagW + gap : x - gap;
-      if (sp.depth > 0) {
-        const gs = 14 * k;
-        const gc = sp.error ? COLOR.accent : KIND[sp.kind as Kind];
-        const gxx = toRight ? tx : tx - gs;
-        svg.push(`<g transform="translate(${r2(gxx)} ${r2(gy - gs / 2)}) scale(${r2(gs / 16)})" fill="none" stroke="${gc}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[sp.kind as Kind].replace(/class="fill"/g, `fill="${gc}" stroke="none"`)}</g>`);
-        tx = toRight ? gxx + gs + 8 * k : gxx - 8 * k;
-      }
-      labels.push({ x: r2(tx), y: r2(gy + 4.5 * k), text: readText, color: sp.error ? COLOR.accent : COLOR.fg, size: r2(13 * k), anchor: toRight ? "start" : "end", weight: 500 });
-      anchors.readout = [toRight ? tx + 30 * k : tx - 30 * k, gy];
-    }
+  /* The agent's tag, on its own ring at twelve o'clock: the hero's ink time tag, cut into the root span
+     like a label on a knob's ring, naming it and giving its time. */
+  {
+    const text = `agent  ${(now / 1000).toFixed(2)}s`;
+    const w = (text.length * 7.6 + 16) * k;
+    const h = 20 * k;
+    const [cx, cy] = pol(orbit(0), 270);
+    const [x, y] = [cx - w / 2, cy - h / 2];
+    svg.push(`<rect x="${r2(x - 3 * k)}" y="${r2(y - 3 * k)}" width="${r2(w + 6 * k)}" height="${r2(h + 6 * k)}" fill="${COLOR.bg}"/>`);
+    svg.push(`<rect x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" fill="${COLOR.fg}"/>`);
+    labels.push({ x: r2(cx), y: r2(cy + 4.5 * k), text, color: COLOR.bg, size: r2(13 * k), anchor: "middle", weight: 500 });
+    anchors.tag = [cx, cy];
   }
 
   return {
