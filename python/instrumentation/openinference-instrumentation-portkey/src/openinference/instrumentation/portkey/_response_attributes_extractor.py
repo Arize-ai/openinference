@@ -3,7 +3,11 @@ from typing import Any, Iterable, Iterator, Mapping, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation.portkey._utils import _as_output_attributes, _io_value_and_type
+from openinference.instrumentation.portkey._utils import (
+    _as_output_attributes,
+    _io_value_and_type,
+    get_attribute,
+)
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
 logger = logging.getLogger(__name__)
@@ -88,9 +92,35 @@ class _ResponseAttributesExtractor:
         self,
         usage: object,
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
+        total_tokens = getattr(usage, "total_tokens", None)
+        prompt_tokens = getattr(usage, "prompt_tokens", None)
+        completion_tokens = getattr(usage, "completion_tokens", None)
+        # For Anthropic models the Portkey gateway adds Anthropic's own cache counts to usage.
+        # Its Anthropic and Vertex transforms leave them out of prompt_tokens but count them in
+        # total_tokens, while Bedrock counts them in both. The cache counts are sub-counts of the
+        # prompt, so fold them in only when the total shows prompt_tokens left them out.
+        cache_write_tokens = getattr(usage, "cache_creation_input_tokens", None)
+        anthropic_cache_tokens = (getattr(usage, "cache_read_input_tokens", None) or 0) + (
+            cache_write_tokens or 0
+        )
+        if (
+            anthropic_cache_tokens
+            and isinstance(prompt_tokens, int)
+            and isinstance(completion_tokens, int)
+            and prompt_tokens + completion_tokens + anthropic_cache_tokens == total_tokens
+        ):
+            prompt_tokens += anthropic_cache_tokens
+        if total_tokens is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
-        if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
+        if prompt_tokens is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-        if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
+        if completion_tokens is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+        prompt_details = getattr(usage, "prompt_tokens_details", None)
+        if (cached_tokens := get_attribute(prompt_details, "cached_tokens")) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+        if cache_write_tokens is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_write_tokens
+        completion_details = getattr(usage, "completion_tokens_details", None)
+        if (reasoning_tokens := get_attribute(completion_details, "reasoning_tokens")) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens

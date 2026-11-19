@@ -5,7 +5,7 @@ interactions:
       [{"text": "What is the capital of France?"}], "role": "user"}, "model": "models/gemini-embedding-001"}]}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-embedding-001:batchEmbedContents
   response:
     body:
       string: "{\n  \"embeddings\": [\n    {\n      \"values\": [\n        0.0022283257,\n

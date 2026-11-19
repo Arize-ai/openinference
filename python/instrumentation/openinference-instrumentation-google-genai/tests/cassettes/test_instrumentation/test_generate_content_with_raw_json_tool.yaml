@@ -11,21 +11,21 @@ interactions:
       "type": "OBJECT"}}]}], "generationConfig": {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"functionCall\": {\n              \"name\": \"get_weather\",\n
         \             \"args\": {\n                \"location\": \"San Francisco\"\n
-        \             }\n            }\n          }\n        ],\n        \"role\":
-        \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\":
-        -0.0059414530793825788\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
-        63,\n    \"candidatesTokenCount\": 6,\n    \"totalTokenCount\": 69,\n    \"promptTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 63\n
-        \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
-        \"TEXT\",\n        \"tokenCount\": 6\n      }\n    ],\n    \"serviceTier\":
-        \"standard\"\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
-        \"lNcEasWlBfGeqtsPq5r2qQ0\"\n}\n"
+        \             },\n              \"id\": \"call_9527813079073587870\"\n            },\n
+        \           \"thoughtSignature\": \"EuECCt4CAWkUfRMYfeNlTKKN+HrpvEcxjF1USrPdwIRSsqxDQEFqbjcJhsrU9SrRLZZ14GOsa5O5Ibq0q1xI031e0d3dIJbqnboWp911lf5nbjiEXYate/mBhwRk4Nnkmmx2ywfmGd8PnRdGM+n3rF5rcxcEbvUVh3Xn0N798pFHrs5rL82jaKKM8fDXYTcATydIImw5ckDP+JuxtedzNY9uj0gdhwOrm1ymSxewIuJurppKif113bKm9LKUIQElWYAF9kgoA/c6ov96VP0gX9ARD30q30RiAz43dvQjugrpQ2ERPvEjdx4vG9f2j3S+Mt42yUPy4FlpA2w10B6uS3mBa/U8v3L5ZX3UbzQsZzkxejIhucP8QMFgZoYa7o9JIRt2m2ZFm8TiJv87O6HBNDPotp7tI0Q9Tdo5B1nvQfm2EdCzvBx+oTI7U5t51f+FTM9X4GsDBCNycZasGCz641mg3lM=\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"index\": 0,\n      \"finishMessage\": \"Model generated
+        function call(s).\"\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        119,\n    \"candidatesTokenCount\": 17,\n    \"totalTokenCount\": 198,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 119\n
+        \     }\n    ],\n    \"thoughtsTokenCount\": 62,\n    \"serviceTier\": \"standard\"\n
+        \ },\n  \"modelVersion\": \"gemini-3.6-flash\",\n  \"responseId\": \"2fr0aumkIfng-sAPpceJiQY\"\n}\n"
     headers: {}
     status:
       code: 200

@@ -513,6 +513,20 @@ def _build_openai_message(msg: Dict[str, Any]) -> Message:
     return message
 
 
+def _nova_prompt_tokens(usage: Dict[str, Any]) -> int | None:
+    """Return the Nova prompt token count with cache reads and writes folded in.
+
+    ``inputTokens`` excludes cache reads and writes, so add them to keep prompt + completion
+    equal to the total.
+    """
+    input_tokens = usage.get("inputTokens")
+    if input_tokens is None:
+        return None
+    cache_read = usage.get("cacheReadInputTokenCount") or 0
+    cache_write = usage.get("cacheWriteInputTokenCount") or 0
+    return int(input_tokens) + int(cache_read) + int(cache_write)
+
+
 def _set_nova_body_token_attributes(span: Span, response_body: Dict[str, Any]) -> None:
     """Set token count attributes from the Nova invoke_model response body usage field.
 
@@ -522,15 +536,15 @@ def _set_nova_body_token_attributes(span: Span, response_body: Dict[str, Any]) -
     usage = response_body.get("usage", {})
     if not isinstance(usage, dict):
         return
-    input_tokens = usage.get("inputTokens")
+    prompt_tokens = _nova_prompt_tokens(usage)
     output_tokens = usage.get("outputTokens")
-    if input_tokens is not None:
-        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, int(input_tokens))
+    if prompt_tokens is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
     if output_tokens is not None:
         _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, int(output_tokens))
     total = usage.get("totalTokens")
-    if total is None and input_tokens is not None and output_tokens is not None:
-        total = int(input_tokens) + int(output_tokens)
+    if total is None and prompt_tokens is not None and output_tokens is not None:
+        total = prompt_tokens + int(output_tokens)
     if total is not None:
         _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, int(total))
     if (v := usage.get("cacheReadInputTokenCount")) is not None:

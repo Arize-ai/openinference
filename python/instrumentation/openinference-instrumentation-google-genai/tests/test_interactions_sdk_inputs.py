@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import pytest
 from google import genai
@@ -16,6 +16,9 @@ TINY_PNG_BASE64 = (
     "EQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII="
 )
 
+# Shared by tests that check client-side input handling, so the body is not matched.
+# The API rejects mime-less images, so record this cassette from the redaction test:
+# `pytest tests/test_interactions_sdk_inputs.py -k redacts`.
 INTERACTIONS_CREATE_CASSETTE = "test_interactions_create"
 INTERACTIONS_CREATE_MATCH_ON = [
     "method_case_insensitive",
@@ -26,11 +29,15 @@ INTERACTIONS_CREATE_MATCH_ON = [
 ]
 
 
-def _client() -> genai.Client:
-    return genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
+def _client(http_options: Optional[genai.types.HttpOptions] = None) -> genai.Client:
+    return genai.Client(
+        api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"), http_options=http_options
+    )
 
 
-@pytest.mark.default_cassette(INTERACTIONS_CREATE_CASSETTE)
+# The SDK wraps list input in a user turn but sends tuple input as bare content items,
+# which the `v1` endpoint (the default from google-genai 3.0 on) rejects; only `v1beta`
+# accepts them, so this test opts in and records its own cassette.
 @pytest.mark.vcr(match_on=INTERACTIONS_CREATE_MATCH_ON)
 def test_interactions_create_accepts_tuple_image_input(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -42,7 +49,7 @@ def test_interactions_create_accepts_tuple_image_input(
         "data": TINY_PNG_BASE64,
         "mime_type": "image/png",
     }
-    client = _client()
+    client = _client(genai.types.HttpOptions(api_version="v1beta"))
 
     interaction = client.interactions.create(
         model="gemini-2.5-flash",

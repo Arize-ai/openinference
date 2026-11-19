@@ -2,7 +2,7 @@
 
 Decision calls are recorded as DECISION spans: the model is identified under `decision.*`
 rather than `llm.*`, the request and response bodies are recorded as `input.value` and
-`output.value`, and no `llm.*` attribute is emitted. See spec/decision_spans.md.
+`output.value`, and no `llm.*` attribute is emitted. See spec/spans/decision.md.
 
 The Decisions API was added in openai 3.26.0; on older SDKs this module is skipped.
 """
@@ -20,6 +20,7 @@ from httpx import Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv.attributes.server_attributes import SERVER_ADDRESS, SERVER_PORT
 from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
 
@@ -210,6 +211,8 @@ def _pop_common_attributes(
         OpenInferenceDecisionSystemValues.OPENAI.value
     )
     assert attributes.pop(SpanAttributes.DECISION_PROVIDER, None) == provider
+    assert attributes.pop(SERVER_ADDRESS, None) == "api.openai.com"
+    assert attributes.pop(SERVER_PORT, None) == 443
     assert attributes.pop(SpanAttributes.DECISION_REQUEST_MODEL_NAME, None) == _REQUEST_MODEL
 
 

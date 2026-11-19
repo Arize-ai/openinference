@@ -1,0 +1,83 @@
+---
+/**
+ * The README's language switcher, as a disclosure: it lists every
+ * translation in `docs/i18n/` by its own name. A disclosure, so it works
+ * without JavaScript.
+ */
+import { getLanguages } from "../lib/site";
+
+interface Props {
+  /** The page's language code. */
+  current: string;
+}
+
+const { current } = Astro.props;
+const languages = await getLanguages();
+const active = languages.find((language) => language.code === current);
+---
+
+<details class="language-picker disclosure">
+  <summary class="eyebrow">
+    <span class="visually-hidden">Language: </span>
+    <span lang={current}>{active?.label ?? current}</span>
+    <span class="count" aria-hidden="true">· {languages.length} languages</span>
+  </summary>
+  <ul>
+    {
+      languages.map((language) => (
+        <li>
+          <a
+            href={language.href}
+            lang={language.code}
+            hreflang={language.code}
+            aria-current={language.code === current ? "page" : undefined}
+          >
+            {language.label}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</details>
+
+<style>
+  .language-picker { position: relative; display: inline-block; }
+  summary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    line-height: 1;
+  }
+  summary::after { font-size: 13px; }
+  summary:hover, .language-picker[open] summary { color: var(--fg); }
+
+  ul {
+    position: absolute;
+    z-index: 5;
+    top: calc(100% + var(--space-3));
+    left: 50%;
+    translate: -50% 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-1) var(--space-4);
+    width: min(480px, calc(100vw - 2 * var(--gutter)));
+    padding: var(--space-4);
+    list-style: none;
+    text-align: start;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+  }
+  a {
+    display: block;
+    padding: var(--space-1) 0;
+    color: var(--soft);
+    font-size: var(--text-small);
+    text-decoration: none;
+  }
+  a:hover { color: var(--accent); }
+  a[aria-current="page"] { color: var(--fg); font-weight: 600; }
+
+  @media (max-width: 720px) {
+    ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>

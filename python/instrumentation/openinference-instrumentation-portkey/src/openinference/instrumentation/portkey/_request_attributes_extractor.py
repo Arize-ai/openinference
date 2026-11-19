@@ -5,7 +5,11 @@ from typing import Any, Iterable, Iterator, Mapping, Optional, Sequence, Tuple
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.portkey._utils import _as_input_attributes, _io_value_and_type
+from openinference.instrumentation.portkey._utils import (
+    _as_input_attributes,
+    _io_value_and_type,
+    get_attribute,
+)
 from openinference.semconv.trace import (
     AudioAttributes,
     ImageAttributes,
@@ -143,12 +147,6 @@ class _RequestAttributesExtractor:
                             f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             arguments,
                         )
-
-
-def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
-    if isinstance(obj, dict):
-        return obj.get(attr_name, default)
-    return getattr(obj, attr_name, default)
 
 
 def _get_attributes_from_message_content(

@@ -1,0 +1,104 @@
+---
+/**
+ * The page shell: <head>, the header, <main> and the footer. Pages don't use
+ * it directly; they use ReadmeLayout (the landing page and its translations)
+ * or DocsLayout (the spec). See DESIGN.md ("Page types").
+ */
+import "../styles/global.css";
+
+import CodeCopy from "../components/CodeCopy.astro";
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import { newsFeed } from "../lib/news";
+import { CARD_SIZE, cardFor, imagePathOf } from "../lib/og/cards";
+import { base, site } from "../lib/site";
+
+export interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title, description = site.description } = Astro.props;
+const fullTitle = title && title !== site.name ? `${title} · ${site.name}` : site.name;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const card = await cardFor(Astro.url.pathname);
+const image = new URL(imagePathOf(card), Astro.site);
+const imageAlt = `${card.eyebrow === site.name ? site.name : `${site.name} ${card.eyebrow}`}: ${card.title}`;
+---
+
+<!doctype html>
+<!-- The chrome is English; a translated page sets lang and dir on its content. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <!-- The SVG favicon follows the browser's theme; the PNG (sizes 32x32, so
+         browsers that take SVG prefer it) is for those that don't. All three
+         are drawn by `pnpm brand`. -->
+    <link rel="icon" href={`${base}favicon-32.png`} sizes="32x32" type="image/png" />
+    <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml" />
+    <link rel="apple-touch-icon" href={`${base}apple-touch-icon.png`} />
+    <link rel="alternate" type="application/rss+xml" title={`${site.name} news`} href={newsFeed} />
+    <!-- Open Graph and Twitter: the page's social card is drawn at build
+         time by src/pages/og/[...card].png.ts. See DESIGN.md ("Social cards"). -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={image} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content={String(CARD_SIZE.width)} />
+    <meta property="og:image:height" content={String(CARD_SIZE.height)} />
+    <meta property="og:image:alt" content={imageAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
+    <meta name="twitter:image:alt" content={imageAlt} />
+    <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141213" media="(prefers-color-scheme: dark)" />
+    <!-- Set the theme before first paint so there is no flash. -->
+    <script is:inline>
+      (() => {
+        let saved = null;
+        try {
+          saved = localStorage.getItem("theme");
+        } catch {}
+        document.documentElement.dataset.theme =
+          saved === "light" || saved === "dark"
+            ? saved
+            : matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <Header />
+    <main id="main" class="page-grid">
+      <slot />
+    </main>
+    <Footer />
+    <CodeCopy />
+  </body>
+</html>
+
+<style>
+  .skip-link {
+    position: absolute;
+    left: var(--space-4);
+    top: -100px;
+    z-index: 20;
+    padding: var(--space-2) var(--space-3);
+    background: var(--fg);
+    color: var(--bg);
+  }
+  .skip-link:focus { top: var(--space-2); }
+</style>

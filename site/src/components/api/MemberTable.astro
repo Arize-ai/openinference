@@ -1,0 +1,68 @@
+---
+/**
+ * Members that are values rather than callables, as one table: a class's
+ * attributes, an enum's members, an interface's properties, a module's
+ * constants. Each row is an anchor; its docs sit under its type.
+ */
+import type { DocstringSection, Resolve } from "../../lib/api";
+import Docstring from "./Docstring.astro";
+
+interface Row {
+  id: string;
+  name: string;
+  /** The type and value cell, as HTML (code). */
+  html: string;
+  docstring: DocstringSection[];
+}
+
+interface Props {
+  label: string;
+  /** The second column's heading. */
+  column: string;
+  rows: Row[];
+  resolve: Resolve;
+  /** Docstring text to Markdown (Python's reStructuredText). */
+  markdown?: (text: string, row: Row) => string;
+}
+
+const { label, column, rows, resolve, markdown } = Astro.props;
+---
+
+<div class="api-members">
+  <p class="eyebrow">{label}</p>
+  <div class="table-scroll">
+    <table class="api-attributes">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>{column}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          rows.map((row) => (
+            <tr id={row.id}>
+              <td>
+                <a href={`#${row.id}`}>
+                  <code>{row.name}</code>
+                </a>
+              </td>
+              <td>
+                {row.html && <code set:html={row.html} />}
+                {row.docstring.length > 0 && (
+                  <div class="api-row-doc">
+                    <Docstring
+                      sections={row.docstring}
+                      resolve={resolve}
+                      markdown={markdown ? (text) => markdown(text, row) : undefined}
+                    />
+                  </div>
+                )}
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

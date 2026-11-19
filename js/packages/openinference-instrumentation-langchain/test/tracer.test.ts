@@ -4,6 +4,7 @@ import { RecursiveCharacterTextSplitter } from "@langchain/classic/text_splitter
 import { MemoryVectorStore } from "@langchain/classic/vectorstores/memory";
 import * as CallbackManager from "@langchain/core/callbacks/manager";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { FakeListChatModel } from "@langchain/core/utils/testing";
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import "dotenv/config";
 import { trace } from "@opentelemetry/api";
@@ -103,6 +104,8 @@ const {
   DOCUMENT_METADATA,
   OPENINFERENCE_SPAN_KIND,
   LLM_MODEL_NAME,
+  LLM_PROVIDER,
+  LLM_SYSTEM,
   LLM_INVOCATION_PARAMETERS,
   LLM_FINISH_REASON,
   LLM_TOKEN_COUNT_COMPLETION,
@@ -187,6 +190,25 @@ describe("LangChainInstrumentation", () => {
       [OUTPUT_MIME_TYPE]: "application/json",
     });
   });
+  it("should use the ls_model_name of chat models that leave the model out of their invocation params", async () => {
+    // Like @langchain/google's chat models, the fake chat model's invocation
+    // params have no model, so the model is only reported as `ls_model_name`.
+    class FakeChatModelWithLsModelName extends FakeListChatModel {
+      getLsParams(options: this["ParsedCallOptions"]) {
+        return { ...super.getLsParams(options), ls_model_name: "gemini-2.5-flash" };
+      }
+    }
+    const chatModel = new FakeChatModelWithLsModelName({ responses: ["This is a test."] });
+    await chatModel.invoke("hello, this is a test");
+
+    const spans = memoryExporter.getFinishedSpans();
+    const llmSpan = spans.find(
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+    expect(llmSpan).toBeDefined();
+    expect(llmSpan?.attributes[LLM_MODEL_NAME]).toBe("gemini-2.5-flash");
+  });
+
   const testDocuments = ["dogs are cute", "rainbows are colorful", "water is wet"];
 
   it("should properly nest spans", async () => {
@@ -473,6 +495,8 @@ describe("LangChainInstrumentation", () => {
     expect(attributes).toStrictEqual({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
       [LLM_MODEL_NAME]: "gpt-3.5-turbo",
+      [LLM_PROVIDER]: "openai",
+      [LLM_SYSTEM]: "openai",
       [LLM_FINISH_REASON]: "function_call",
       [LLM_FUNCTION_CALL]:
         '{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}',
@@ -609,6 +633,8 @@ describe("LangChainInstrumentation", () => {
         "llm.model_name": "gpt-3.5-turbo",
         "llm.output_messages.0.message.content": "This is a test.",
         "llm.output_messages.0.message.role": "assistant",
+        "llm.provider": "openai",
+        "llm.system": "openai",
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
         "llm.token_count.total": 17,
