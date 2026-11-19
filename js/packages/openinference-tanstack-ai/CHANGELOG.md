@@ -1,5 +1,13 @@
 # @arizeai/openinference-tanstack-ai
 
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [3154e2b]
+  - @arizeai/openinference-core@2.8.4
+  - @arizeai/openinference-semantic-conventions@2.17.1
+
 ## 0.3.5
 
 ### Patch Changes

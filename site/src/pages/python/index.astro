@@ -56,17 +56,17 @@ const headings = [
     Each <strong>instrumentation</strong> package traces one library: install it, call its
     instrumentor's <code>instrument()</code> once at startup, and the library's calls make spans
     that follow the <a href={routeOf("spec/README.md")}>specification</a>.
-    They are built on two <strong>core</strong> packages:
+    They are built on two <strong>core</strong> packages:{" "}
     <a href={routeOfPackage("openinference-instrumentation")}><code>openinference-instrumentation</code></a>,
     for configuring what spans record (<code>TraceConfig</code>), adding context such as session and
-    user IDs, and tracing your own code; and
+    user IDs, and tracing your own code; and{" "}
     <a href={routeOfPackage("openinference-semantic-conventions")}
       ><code>openinference-semantic-conventions</code></a
     >, the attribute names as constants.
   </p>
   <Fragment set:html={install} />
 
-  <h2 id="search">Search</h2>
+  <h2 id="search" data-markdown-ignore>Search</h2>
   <ApiSearch entries={entries} example="using_session" />
 
   {

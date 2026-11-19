@@ -1,5 +1,20 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.6.0
+
+### Minor Changes
+
+- e35372b: Capture span-level image attributes for OpenAI image workflows. The OpenAI instrumentation records input and output images for Images API calls and output images from Responses image generation. The OpenAI Agents instrumentation records output images on response spans.
+
+## 4.5.1
+
+### Patch Changes
+
+- 3154e2b: Stop building and publishing the unused `dist/esnext` output and the non-standard `esnext` package field. Entry points resolved through `exports`, `main` and `module` are unchanged.
+- Updated dependencies [3154e2b]
+  - @arizeai/openinference-core@2.8.4
+  - @arizeai/openinference-semantic-conventions@2.17.1
+
 ## 4.5.0
 
 ### Minor Changes

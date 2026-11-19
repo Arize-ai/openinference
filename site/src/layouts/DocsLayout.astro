@@ -13,6 +13,7 @@
  * page's own `# Title` is the title block.
  */
 import DocsPageList from "../components/DocsPageList.astro";
+import PageActions from "../components/PageActions.astro";
 import type { Heading } from "../lib/api";
 import type { DocsNav } from "../lib/docs";
 import BaseLayout from "./BaseLayout.astro";
@@ -51,7 +52,9 @@ const sections = headings.filter((heading) => heading.depth >= 2 && heading.dept
         <DocsPageList groups={nav.groups} />
       </details>
 
-      <article class="prose">
+      <PageActions />
+
+      <article class="prose" data-markdown>
         <slot />
       </article>
 

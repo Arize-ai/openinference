@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.69](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.68...python-openinference-instrumentation-bedrock-v0.1.69) (2026-11-19)
+
+
+### Bug Fixes
+
+* **bedrock:** include cache tokens in Nova prompt token count ([#4059](https://github.com/Arize-ai/openinference/issues/4059)) ([2b1a5a5](https://github.com/Arize-ai/openinference/commit/2b1a5a5c8e11af7f57539f28cecdfc5cc0a36b31))
+
+## [0.1.68](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.67...python-openinference-instrumentation-bedrock-v0.1.68) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.79 ([#4335](https://github.com/Arize-ai/openinference/issues/4335)) ([e03fde3](https://github.com/Arize-ai/openinference/commit/e03fde31a743fedd77fa3e2ab043bfa9b95b7058))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.46 ([#4334](https://github.com/Arize-ai/openinference/issues/4334)) ([70ce76a](https://github.com/Arize-ai/openinference/commit/70ce76aefaf3daa99292bf3d456e496ff75742bd))
+
 ## [0.1.67](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.66...python-openinference-instrumentation-bedrock-v0.1.67) (2026-11-12)
 
 

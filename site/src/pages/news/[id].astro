@@ -1,0 +1,155 @@
+---
+/**
+ * A news post: its frontmatter as the title block, its markdown as .prose on
+ * the 880px page, the release notes it announces (on GitHub), then the
+ * newer and older posts. See DESIGN.md ("News").
+ */
+import type { GetStaticPaths } from "astro";
+import { render } from "astro:content";
+
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import {
+  authorUrl,
+  formatDate,
+  getNews,
+  isoDate,
+  newsIndex,
+  newsUrl,
+  releaseUrl,
+  type NewsPost,
+} from "../../lib/news";
+import { GITHUB_URL, BRANCH } from "../../plugins/rehype-repo-links.mjs";
+
+export const getStaticPaths = (async () => {
+  const posts = await getNews();
+  return posts.map((post, index) => ({
+    params: { id: post.id },
+    // The list is newest first: the post before this one is newer.
+    props: { post, newer: posts[index - 1], older: posts[index + 1] },
+  }));
+}) satisfies GetStaticPaths;
+
+interface Props {
+  post: NewsPost;
+  newer?: NewsPost;
+  older?: NewsPost;
+}
+
+const { post, newer, older } = Astro.props;
+const { title, description, pubDate, updatedDate, authors, tags, releases } = post.data;
+const { Content } = await render(post);
+const source = `${GITHUB_URL}/blob/${BRANCH}/docs/news/${post.id}.md`;
+---
+
+<BaseLayout title={title} description={description}>
+  <article class="post" data-markdown>
+    <header class="page-head">
+      <p class="eyebrow">
+        <a href={newsIndex}>News</a> · <time datetime={isoDate(pubDate)}>{formatDate(pubDate)}</time>
+        {tags.length > 0 && <> · {tags.join(" · ")}</>}
+      </p>
+      <h1>{title}</h1>
+      <p class="intro">{description}</p>
+      <p class="byline">
+        By{" "}
+        {
+          authors.map((handle, index) => (
+            <>
+              {index > 0 && (index === authors.length - 1 ? " and " : ", ")}
+              <a href={authorUrl(handle)}>@{handle}</a>
+            </>
+          ))
+        }
+        {updatedDate && <> · Updated <time datetime={isoDate(updatedDate)}>{formatDate(updatedDate)}</time></>}
+      </p>
+    </header>
+
+    <div class="prose">
+      <Content />
+    </div>
+
+    {
+      releases.length > 0 && (
+        <section class="releases" aria-labelledby="release-notes">
+          <h2 id="release-notes" class="eyebrow">
+            Release notes
+          </h2>
+          <ul>
+            {releases.map((tag) => (
+              <li>
+                <a href={releaseUrl(tag)}>
+                  <code>{tag}</code> ↗
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    <footer class="page-footer">
+      <a class="source eyebrow" href={source}>Edit this post on GitHub ↗</a>
+      <nav class="pager" aria-label="News">
+        {
+          newer && (
+            <a class="newer" href={newsUrl(newer)} rel="prev">
+              <span class="eyebrow">← Newer</span>
+              <span class="label">{newer.data.title}</span>
+            </a>
+          )
+        }
+        {
+          older ? (
+            <a class="older" href={newsUrl(older)} rel="next">
+              <span class="eyebrow">Older →</span>
+              <span class="label">{older.data.title}</span>
+            </a>
+          ) : (
+            <a class="older" href={newsIndex}>
+              <span class="eyebrow">All news →</span>
+              <span class="label">The timeline</span>
+            </a>
+          )
+        }
+      </nav>
+    </footer>
+  </article>
+</BaseLayout>
+
+<style>
+  .post { padding-block: var(--space-8); }
+  .page-head { margin-bottom: var(--space-8); }
+  .page-head .eyebrow a { text-decoration: none; }
+  .page-head .eyebrow a:hover { color: var(--fg); }
+  .page-head h1 { text-wrap: balance; }
+  .byline { color: var(--dim); font-size: var(--text-small); }
+  .byline a { color: var(--soft); text-decoration: none; }
+  .byline a:hover { color: var(--accent); }
+
+  .releases { display: grid; gap: var(--space-3); margin-top: var(--space-8); padding-top: var(--space-5); border-top: 1px solid var(--rule); }
+  .releases ul { display: grid; gap: var(--space-2); padding: 0; list-style: none; }
+  .releases a { text-decoration: none; }
+  .releases code { padding: 0.12em 0.32em; background: var(--tint); border-radius: 3px; font: var(--text-small) var(--font-mono); }
+  .releases a:hover { color: var(--accent); }
+
+  /* As under a docs page: the source link, then the neighbouring posts. */
+  .page-footer { display: grid; gap: var(--space-6); margin-top: var(--space-9); }
+  .source { justify-self: start; text-decoration: none; }
+  .source:hover { color: var(--fg); }
+  .pager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-5);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--rule);
+  }
+  .pager a { display: grid; gap: var(--space-2); text-decoration: none; }
+  .pager .older { grid-column: 2; text-align: end; }
+  .pager .label { font-size: var(--text-h4); font-weight: 600; line-height: 1.3; }
+  .pager a:hover .label { color: var(--accent); }
+
+  @media (max-width: 720px) {
+    .pager { grid-template-columns: 1fr; }
+    .pager .older { grid-column: 1; }
+  }
+</style>

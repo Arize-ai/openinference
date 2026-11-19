@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.31...python-openinference-instrumentation-portkey-v0.1.32) (2026-11-19)
+
+
+### Bug Fixes
+
+* **portkey:** capture cache and reasoning token counts ([#4367](https://github.com/Arize-ai/openinference/issues/4367)) ([28d4eba](https://github.com/Arize-ai/openinference/commit/28d4eba99dd37ccf5e326a07b49b8fae6b6301ba))
+
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.30...python-openinference-instrumentation-portkey-v0.1.31) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.79 ([#4335](https://github.com/Arize-ai/openinference/issues/4335)) ([e03fde3](https://github.com/Arize-ai/openinference/commit/e03fde31a743fedd77fa3e2ab043bfa9b95b7058))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.46 ([#4334](https://github.com/Arize-ai/openinference/issues/4334)) ([70ce76a](https://github.com/Arize-ai/openinference/commit/70ce76aefaf3daa99292bf3d456e496ff75742bd))
+
 ## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.29...python-openinference-instrumentation-portkey-v0.1.30) (2026-11-16)
 
 

@@ -63,7 +63,10 @@ class _RequestAttributesExtractor:
                     _tool_json_schema(tool),
                 )
 
-        yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+        yield (
+            SpanAttributes.LLM_INVOCATION_PARAMETERS,
+            safe_json_dumps({k: _as_dumpable(v) for k, v in invocation_params.items()}),
+        )
 
         if (
             (input_messages := request_parameters.get("messages"))
@@ -109,6 +112,19 @@ class _RequestAttributesExtractor:
                             f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             _as_arguments_json(arguments),
                         )
+
+
+def _as_dumpable(value: Any) -> Any:
+    # ollama accepts a pydantic model wherever a mapping is also allowed, most
+    # visibly `options=ollama.Options(...)`. safe_json_dumps falls back to
+    # str(), which records the model's repr and drags in every unset field, so
+    # dump it the way _tool_json_schema already dumps a Tool.
+    if hasattr(value, "model_dump"):
+        try:
+            return value.model_dump(exclude_none=True)
+        except Exception:
+            logger.exception(f"Failed to dump invocation parameter of type {type(value)}")
+    return value
 
 
 def _tool_json_schema(tool: Any) -> str:
