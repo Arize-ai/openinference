@@ -118,6 +118,10 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return isString(value) && value.length > 0;
+}
+
 function isNumber(value: unknown): value is number {
   return typeof value === "number";
 }
@@ -756,7 +760,7 @@ function extractResponseOutput({
         attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = item.arguments;
       }
       messageIndex++;
-    } else if (item.type === "image_generation_call" && isString(item.result)) {
+    } else if (item.type === "image_generation_call" && isNonEmptyString(item.result)) {
       attributes[`${OUTPUT_IMAGES}.${imageIndex}.${IMAGE_URL}`] = getImageDataURL({
         base64: item.result,
         imageFormat: isString(item.output_format) ? item.output_format : imageFormat,

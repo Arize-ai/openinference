@@ -24,7 +24,7 @@ async function main() {
 
   const image = response.data?.[0];
   console.log(`Generated image response: b64_json=${image?.b64_json != null}`);
-  console.log(`Recorded data URL length: ${(image?.b64_json?.length ?? 0) + 23}`);
+  console.log(`Recorded data URL length: ${(image?.b64_json?.length ?? 0) + "data:image/webp;base64,".length}`);
 }
 
 main().catch(console.error);

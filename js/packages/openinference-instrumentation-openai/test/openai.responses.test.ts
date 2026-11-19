@@ -194,6 +194,41 @@ describe("OpenAIInstrumentation - Responses", () => {
     expect(span.attributes["output.images.2.image.url"]).toBeUndefined();
   });
 
+  it("ends the span with an error when a streamed response fails", async () => {
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      const controller = new AbortController();
+      const stream = new Stream(
+        () =>
+          (async function* () {
+            yield { type: "response.output_text.delta", delta: "partial" };
+            throw new Error("stream failed");
+          })(),
+        controller,
+      );
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        Promise.resolve({ response: new Response(), options: {}, controller }) as never,
+        () => stream,
+      );
+    });
+
+    const stream = await openai.responses.create({
+      input: "Say I am streaming!",
+      model: "gpt-4.1",
+      stream: true,
+    });
+    await expect(async () => {
+      for await (const _event of stream) {
+        // Consume the caller's half of the tee'd stream.
+      }
+    }).rejects.toThrow("stream failed");
+
+    await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.status.code).toBe(2);
+    expect(span.status.message).toBe("stream failed");
+  });
+
   it("creates a span for responses with multiple messages and instructions", async () => {
     const response = {
       ...responseBase,

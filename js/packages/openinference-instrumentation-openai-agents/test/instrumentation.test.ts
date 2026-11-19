@@ -881,6 +881,7 @@ describe("OpenInferenceTracingProcessor", () => {
         tools: [{ type: "image_generation", output_format: "webp" }],
         output: [
           { type: "image_generation_call", status: "failed", result: null },
+          { type: "image_generation_call", status: "failed", result: "" },
           { type: "image_generation_call", status: "completed", result: "Zmlyc3Q=" },
           {
             type: "image_generation_call",

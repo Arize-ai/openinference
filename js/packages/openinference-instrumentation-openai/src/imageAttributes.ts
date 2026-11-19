@@ -104,25 +104,34 @@ export function getImagesResponseAttributes({
 }): Attributes {
   const attributes: Attributes = {};
   const imageFormat = response.output_format ?? requestFormat;
-  response.data?.forEach((image, index) => {
+  // Images without a URL or base64 are skipped, so the recorded indices stay contiguous.
+  let imageIndex = 0;
+  response.data?.forEach((image) => {
     const imageUrl =
       image.url ??
       (image.b64_json ? getImageDataURL({ base64: image.b64_json, imageFormat }) : undefined);
     if (imageUrl) {
-      attributes[getImageAttributeKey({ namespace: SemanticConventions.OUTPUT_IMAGES, index })] =
-        imageUrl;
+      attributes[
+        getImageAttributeKey({ namespace: SemanticConventions.OUTPUT_IMAGES, index: imageIndex })
+      ] = imageUrl;
+      imageIndex++;
     }
   });
   return attributes;
 }
 
+/**
+ * @param events - A stream's completed events, one for each image it generated
+ */
 export function getCompletedImageEventAttributes(
-  event: ImageEditCompletedEvent | ImageGenCompletedEvent,
+  events: ReadonlyArray<ImageEditCompletedEvent | ImageGenCompletedEvent>,
 ): Attributes {
-  return {
-    [getImageAttributeKey({ namespace: SemanticConventions.OUTPUT_IMAGES, index: 0 })]:
-      getImageDataURL({ base64: event.b64_json, imageFormat: event.output_format }),
-  };
+  const attributes: Attributes = {};
+  events.forEach((event, index) => {
+    attributes[getImageAttributeKey({ namespace: SemanticConventions.OUTPUT_IMAGES, index })] =
+      getImageDataURL({ base64: event.b64_json, imageFormat: event.output_format });
+  });
+  return attributes;
 }
 
 /**
@@ -255,8 +264,10 @@ async function readFileStreamUpload({
   const { promises: fileSystem, ReadStream } = await import("node:fs");
   if (!(upload instanceof ReadStream) || typeof upload.path !== "string") return undefined;
   // A ranged stream sends only part of the file, so the file would not match the request.
+  // Starting at 0 with no end still sends the whole file.
+  const start: unknown = Reflect.get(upload, "start");
   const isRangedStream =
-    Reflect.get(upload, "start") !== undefined || Reflect.get(upload, "end") !== Infinity;
+    (start !== undefined && start !== 0) || Reflect.get(upload, "end") !== Infinity;
   if (isRangedStream) return undefined;
   const fileStats = await fileSystem.stat(upload.path);
   if (!fileStats.isFile()) return undefined;
@@ -306,8 +317,10 @@ async function getUploadDataURL({
     });
     if (contents === undefined || contents === REDACTED_VALUE) return contents;
     const { bytes, declaredMediaType, filename } = contents;
+    // Drop parameters such as "; charset=binary", which do not belong in the data URL.
+    const declaredImageType = declaredMediaType?.split(";", 1)[0].trim().toLowerCase();
     const mediaType =
-      (declaredMediaType?.startsWith("image/") ? declaredMediaType : undefined) ??
+      (declaredImageType?.startsWith("image/") ? declaredImageType : undefined) ??
       sniffImageMediaType(bytes) ??
       getMediaTypeFromFilename(filename) ??
       "image/png";

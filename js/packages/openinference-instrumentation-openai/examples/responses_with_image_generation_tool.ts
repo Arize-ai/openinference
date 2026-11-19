@@ -31,7 +31,7 @@ async function main() {
     .filter((item) => item.type === "image_generation_call")
     .map((item) => item.result);
   console.log(`Generated ${images.length} image(s): result=${Boolean(images[0])}`);
-  console.log(`Recorded data URL length: ${(images[0]?.length ?? 0) + 24}`);
+  console.log(`Recorded data URL length: ${(images[0]?.length ?? 0) + "data:image/webp;base64,".length}`);
 }
 
 main().catch(console.error);

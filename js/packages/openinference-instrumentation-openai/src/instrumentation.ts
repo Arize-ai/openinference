@@ -40,7 +40,12 @@ import type {
 import type { Stream } from "openai/streaming";
 
 import type { TraceConfigOptions } from "@arizeai/openinference-core";
-import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
+import {
+  getInputAttributes,
+  getOutputAttributes,
+  OITracer,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
 import {
   LLMProvider,
   LLMSystem,
@@ -587,7 +592,9 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 const [leftStream, rightStream] = result.tee();
                 // take the right stream, consuming it and then recording the final chunk
                 // into the span
-                void consumeResponseStreamEvents(rightStream).then(recordSpan);
+                // A stream that fails is rethrown to the caller from their half of the tee, so
+                // only end the span here: leaving this rejection unhandled would crash Node.
+                void consumeResponseStreamEvents(rightStream).then(recordSpan).catch(recordError);
                 // give the left stream back to the caller
                 result = leftStream;
               }
@@ -677,8 +684,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           attributes: {
             [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
             [SemanticConventions.LLM_MODEL_NAME]: body.model ?? undefined,
-            [SemanticConventions.INPUT_VALUE]: JSON.stringify(requestBody),
-            [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+            ...getInputAttributes({ value: JSON.stringify(requestBody), mimeType: MimeType.JSON }),
             [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
             [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
             [SemanticConventions.LLM_PROVIDER]: getLLMProvider(clientInstance),
@@ -726,11 +732,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           return function patchedGenerate(this: unknown, ...args: Parameters<ImagesGenerateType>) {
             const body = args[0];
             const requestBody = { ...body };
-            const getInputAttributes = (): Attributes => ({});
+            const getUploadAttributes = (): Attributes => ({});
             const span = startImagesSpan({ clientInstance: this, body, requestBody });
             const execContext = getExecContext(span);
             const recordError = (error: unknown) => {
-              span.setAttributes(getInputAttributes());
+              span.setAttributes(getUploadAttributes());
               endSpanWithError(span, error);
             };
             const execPromise = safeExecuteInTheMiddle(
@@ -747,14 +753,14 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               recordImagesResult({
                 result,
                 span,
-                getInputAttributes,
+                getUploadAttributes,
                 requestFormat: body.output_format,
               }),
             );
             endImagesSpanWithoutResult({
               promise: wrappedPromise,
               span,
-              getInputAttributes,
+              getUploadAttributes,
               recordError,
             });
             return context.bind(execContext, wrappedPromise);
@@ -772,13 +778,13 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             const body = args[0];
             const { image, mask, ...requestBody } = body;
             const span = startImagesSpan({ clientInstance: this, body, requestBody });
-            const getInputAttributes = captureUploadAttributes({
+            const getUploadAttributes = captureUploadAttributes({
               span,
               uploads: mask === undefined ? [image] : [image, mask],
             });
             const execContext = getExecContext(span);
             const recordError = (error: unknown) => {
-              span.setAttributes(getInputAttributes());
+              span.setAttributes(getUploadAttributes());
               endSpanWithError(span, error);
             };
             const execPromise = safeExecuteInTheMiddle(
@@ -795,14 +801,14 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               recordImagesResult({
                 result,
                 span,
-                getInputAttributes,
+                getUploadAttributes,
                 requestFormat: body.output_format,
               }),
             );
             endImagesSpanWithoutResult({
               promise: wrappedPromise,
               span,
-              getInputAttributes,
+              getUploadAttributes,
               recordError,
             });
             return context.bind(execContext, wrappedPromise);
@@ -823,10 +829,10 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             const body = args[0];
             const { image, ...requestBody } = body;
             const span = startImagesSpan({ clientInstance: this, body, requestBody });
-            const getInputAttributes = captureUploadAttributes({ span, uploads: [image] });
+            const getUploadAttributes = captureUploadAttributes({ span, uploads: [image] });
             const execContext = getExecContext(span);
             const recordError = (error: unknown) => {
-              span.setAttributes(getInputAttributes());
+              span.setAttributes(getUploadAttributes());
               endSpanWithError(span, error);
             };
             const execPromise = safeExecuteInTheMiddle(
@@ -843,14 +849,14 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               recordImagesResult({
                 result,
                 span,
-                getInputAttributes,
+                getUploadAttributes,
                 requestFormat: "png",
               }),
             );
             endImagesSpanWithoutResult({
               promise: wrappedPromise,
               span,
-              getInputAttributes,
+              getUploadAttributes,
               recordError,
             });
             return context.bind(execContext, wrappedPromise);
@@ -930,40 +936,44 @@ function isCompletedImageEvent(
 /**
  * @param params.stream - The instrumentor's copy of the stream
  * @param params.span - The Images span, ended once the stream is
- * @param params.getInputAttributes - Gets the upload attributes read so far
+ * @param params.getUploadAttributes - Gets the upload attributes read so far
  */
 async function consumeImagesStreamEvents({
   stream,
   span,
-  getInputAttributes,
+  getUploadAttributes,
 }: {
   stream: AsyncIterable<ImagesStreamEvent>;
   span: Span;
-  getInputAttributes: () => Attributes;
+  getUploadAttributes: () => Attributes;
 }) {
-  let completedEvent: ImageEditCompletedEvent | ImageGenCompletedEvent | undefined;
+  // A request for several images streams one completed event for each of them.
+  const completedEvents: Array<ImageEditCompletedEvent | ImageGenCompletedEvent> = [];
   try {
     for await (const event of stream) {
-      if (isCompletedImageEvent(event)) completedEvent = event;
+      if (isCompletedImageEvent(event)) completedEvents.push(event);
     }
-    if (completedEvent) {
+    const lastCompletedEvent = completedEvents[completedEvents.length - 1];
+    if (lastCompletedEvent !== undefined) {
       span.setAttributes({
-        [SemanticConventions.OUTPUT_VALUE]: stringifyCompletedImageEvent(completedEvent),
-        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-        ...getCompletedImageEventAttributes(completedEvent),
+        ...getOutputAttributes({
+          value: stringifyCompletedImageEvent(lastCompletedEvent),
+          mimeType: MimeType.JSON,
+        }),
+        ...getCompletedImageEventAttributes(completedEvents),
       });
       span.setStatus({ code: SpanStatusCode.OK });
     } else {
       span.setStatus({ code: SpanStatusCode.ERROR });
     }
   } catch (error) {
-    if (error instanceof Error) span.recordException(error);
+    span.recordException(error instanceof Error ? error : String(error));
     span.setStatus({
       code: SpanStatusCode.ERROR,
-      message: error instanceof Error ? error.message : undefined,
+      message: error instanceof Error ? error.message : String(error),
     });
   } finally {
-    span.setAttributes(getInputAttributes());
+    span.setAttributes(getUploadAttributes());
     span.end();
   }
 }
@@ -971,35 +981,34 @@ async function consumeImagesStreamEvents({
 /**
  * @param params.result - The parsed response or stream
  * @param params.span - The Images span
- * @param params.getInputAttributes - Gets the upload attributes read so far
+ * @param params.getUploadAttributes - Gets the upload attributes read so far
  * @param params.requestFormat - The output format the request asked for
  * @returns The result to give the caller
  */
 function recordImagesResult<T extends ImagesResult>({
   result,
   span,
-  getInputAttributes,
+  getUploadAttributes,
   requestFormat,
 }: {
   result: T;
   span: Span;
-  getInputAttributes: () => Attributes;
+  getUploadAttributes: () => Attributes;
   requestFormat?: unknown;
 }): T {
   // The span is already ended when the caller read the raw response before the parsed one.
   if (!span.isRecording()) return result;
   if (isImagesStream(result)) {
     const [leftStream, rightStream] = result.tee();
-    void consumeImagesStreamEvents({ stream: rightStream, span, getInputAttributes });
+    void consumeImagesStreamEvents({ stream: rightStream, span, getUploadAttributes });
     // The tee preserves the stream's event type, which instanceof cannot express for generic T.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     return leftStream as T;
   }
-  span.setAttributes(getInputAttributes());
+  span.setAttributes(getUploadAttributes());
   try {
     span.setAttributes({
-      [SemanticConventions.OUTPUT_VALUE]: stringifyImagesResponse(result),
-      [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+      ...getOutputAttributes({ value: stringifyImagesResponse(result), mimeType: MimeType.JSON }),
       ...getImagesResponseAttributes({ response: result, requestFormat }),
     });
   } catch (error) {
@@ -1019,18 +1028,18 @@ function recordImagesResult<T extends ImagesResult>({
  *
  * @param params.promise - The promise returned to the caller
  * @param params.span - The span to end
- * @param params.getInputAttributes - Gets the input attributes read so far
+ * @param params.getUploadAttributes - Gets the input attributes read so far
  * @param params.recordError - Records an error on the span and ends it
  */
 function endImagesSpanWithoutResult({
   promise,
   span,
-  getInputAttributes,
+  getUploadAttributes,
   recordError,
 }: {
   promise: unknown;
   span: Span;
-  getInputAttributes: () => Attributes;
+  getUploadAttributes: () => Attributes;
   recordError: (error: unknown) => void;
 }): void {
   if (!isAPIPromise<unknown>(promise)) return;
@@ -1053,7 +1062,7 @@ function endImagesSpanWithoutResult({
       () => {
         // withResponse() also parses, which records the result and ends the span.
         if (isParsing || !span.isRecording()) return;
-        span.setAttributes(getInputAttributes());
+        span.setAttributes(getUploadAttributes());
         span.setStatus({ code: SpanStatusCode.OK });
         span.end();
       },

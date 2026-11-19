@@ -109,6 +109,22 @@ describe("OpenAIInstrumentation - Images", () => {
     expect(span.attributes["output.images.1.image.url"]).toBe("data:image/webp;base64,aW1hZ2U=");
   });
 
+  it("keeps output image indices contiguous when an image has no URL or base64", async () => {
+    vi.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error return only needs to model the parsed SDK response.
+      async () => ({
+        created: 1,
+        data: [{ revised_prompt: "filtered" }, { url: "https://example.com/second.png" }],
+      }),
+    );
+
+    await openai.images.generate({ prompt: "two lighthouses", n: 2 });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.attributes["output.images.0.image.url"]).toBe("https://example.com/second.png");
+    expect(span.attributes["output.images.1.image.url"]).toBeUndefined();
+  });
+
   it("keeps a base64 image that is already a data URL", async () => {
     vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error return only needs to model the parsed SDK response.
@@ -669,6 +685,17 @@ describe("OpenAIInstrumentation - Images", () => {
     });
   });
 
+  it("drops Content-Type parameters from the data URL", async () => {
+    // The bytes are not a known image signature, so only the declared type can name them.
+    const upload = new Response(new Uint8Array([0x00, 0x01, 0x02]), {
+      headers: { "content-type": "Image/AVIF; charset=binary" },
+    });
+
+    await expect(getInputImageAttributes({ uploads: [upload] })).resolves.toEqual({
+      "input.images.0.image.url": "data:image/avif;base64,AAEC",
+    });
+  });
+
   it("redacts data URLs that only exceed base64ImageMaxLength with their prefix", async () => {
     const image = new File([new Uint8Array(3)], "source.png", { type: "image/png" });
 
@@ -733,6 +760,16 @@ describe("OpenAIInstrumentation - Images", () => {
         }),
       ).resolves.toEqual({ "input.images.0.image.url": REDACTED_VALUE });
       expect(readFileSpy).not.toHaveBeenCalled();
+      stream.destroy();
+    });
+
+    it("captures streams that start at 0 with no end, since they send the whole file", async () => {
+      const stream = createReadStream(imagePath, { start: 0 });
+      await once(stream, "open");
+
+      await expect(getInputImageAttributes({ uploads: [stream] })).resolves.toEqual({
+        "input.images.0.image.url": `data:image/png;base64,${Buffer.from(imageBytes).toString("base64")}`,
+      });
       stream.destroy();
     });
 
@@ -881,6 +918,24 @@ describe("OpenAIInstrumentation - Images", () => {
       expect(span.status.code).toBe(2);
       expect(span.status.message).toContain("boom");
       expect(span.events.map((event) => event.name)).toEqual(["exception"]);
+    });
+
+    it("captures every completed image of a stream that generates several", async () => {
+      const client = createStreamClient(
+        ["Zmlyc3Q=", "c2Vjb25k"].map((b64Json) => ({
+          event: "image_generation.completed",
+          data: { type: "image_generation.completed", b64_json: b64Json, output_format: "png" },
+        })),
+      );
+
+      await consumeStream(
+        await client.images.generate({ prompt: "two lighthouses", n: 2, stream: true }),
+      );
+
+      const span = await getFinishedSpan();
+      expect(span.status.code).toBe(1);
+      expect(span.attributes["output.images.0.image.url"]).toBe("data:image/png;base64,Zmlyc3Q=");
+      expect(span.attributes["output.images.1.image.url"]).toBe("data:image/png;base64,c2Vjb25k");
     });
 
     it("captures the input and output images of a streamed edit", async () => {

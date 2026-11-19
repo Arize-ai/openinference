@@ -35,7 +35,7 @@ async function main() {
     .filter((item) => item.type === "hosted_tool_call" && item.name === "image_generation_call")
     .map((item) => (item.type === "hosted_tool_call" ? item.output : undefined));
   console.log(`\nGenerated ${images.length} image(s): result=${Boolean(images[0])}`);
-  console.log(`Recorded data URL length: ${(images[0]?.length ?? 0) + 24}`);
+  console.log(`Recorded data URL length: ${(images[0]?.length ?? 0) + "data:image/webp;base64,".length}`);
 
   if (result.finalOutput) {
     console.log("\nFinal output:\n" + result.finalOutput);
