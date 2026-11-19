@@ -847,19 +847,26 @@ def _get_attributes_from_chat_completions_usage(
 ) -> Iterator[tuple[str, AttributeValue]]:
     if not obj:
         return
-    if input_tokens := obj.get("input_tokens"):
+    # When the provider returns no usage, the Agents SDK still records a default
+    # Usage() here: every count is 0 and so is "requests". Those zeros weren't
+    # reported by anyone, so skip them rather than putting fake counts on the span.
+    if obj.get("requests") == 0:
+        return
+    # A count of 0 is a real value (e.g. no cache hit), so emit it the same way
+    # _get_attributes_from_usage does on the Responses path.
+    if (input_tokens := obj.get("input_tokens")) is not None:
         yield LLM_TOKEN_COUNT_PROMPT, input_tokens
-    if output_tokens := obj.get("output_tokens"):
+    if (output_tokens := obj.get("output_tokens")) is not None:
         yield LLM_TOKEN_COUNT_COMPLETION, output_tokens
-    if total_tokens := obj.get("total_tokens"):
+    if (total_tokens := obj.get("total_tokens")) is not None:
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
     if isinstance(input_tokens_details := obj.get("input_tokens_details"), Mapping):
-        if cached_tokens := input_tokens_details.get("cached_tokens"):
+        if (cached_tokens := input_tokens_details.get("cached_tokens")) is not None:
             yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
-        if cache_write_tokens := input_tokens_details.get("cache_write_tokens"):
+        if (cache_write_tokens := input_tokens_details.get("cache_write_tokens")) is not None:
             yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_write_tokens
     if isinstance(output_tokens_details := obj.get("output_tokens_details"), Mapping):
-        if reasoning_tokens := output_tokens_details.get("reasoning_tokens"):
+        if (reasoning_tokens := output_tokens_details.get("reasoning_tokens")) is not None:
             yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
 
 
