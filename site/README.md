@@ -51,8 +51,16 @@ page's `<head>` links to its copy (`rel="alternate"`) and to `llms.txt`
 `llms.txt.ts` to list it. The build fails if `llms.txt` links to a page with
 no copy.
 
+Every docs page (`DocsLayout`: the spec and the API references) has a
+**Copy page** button beside its title
+([`src/components/PageActions.astro`](./src/components/PageActions.astro)):
+it copies the page's markdown, and its menu links to the markdown and opens
+it in ChatGPT, Claude or Perplexity (by its openinf.dev URL, which they can
+fetch).
+
 `pnpm dev` serves `llms.txt`; the copies and `llms-full.txt` exist only after
-`pnpm build` (see them with `pnpm preview`).
+`pnpm build` (see them with `pnpm preview`), so under `pnpm dev` the Copy
+page button says it couldn't copy.
 
 ## API references
 
