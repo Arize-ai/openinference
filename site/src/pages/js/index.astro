@@ -59,7 +59,7 @@ const headings = [
     instrumentation with OpenTelemetry at startup, and the library's calls make spans that follow
     the <a href={routeOf("spec/README.md")}>specification</a>. <strong>Integrations</strong> turn
     the spans another SDK makes (the Vercel AI SDK, OpenTelemetry's GenAI conventions, TanStack AI)
-    into OpenInference spans. All of them build on two <strong>core</strong> packages:
+    into OpenInference spans. All of them build on two <strong>core</strong> packages:{" "}
     {
       core && (
         <a href={routeOfPackage(core)}>
@@ -67,7 +67,7 @@ const headings = [
         </a>
       )
     }, for tracing your own code (<code>withSpan</code>, <code>traceChain</code>), adding context such as
-    session and user IDs, and configuring what spans record (<code>TraceConfig</code>); and
+    session and user IDs, and configuring what spans record (<code>TraceConfig</code>); and{" "}
     {
       conventions && (
         <a href={routeOfPackage(conventions)}>
@@ -78,7 +78,7 @@ const headings = [
   </p>
   <Fragment set:html={install} />
 
-  <h2 id="search">Search</h2>
+  <h2 id="search" data-markdown-ignore>Search</h2>
   <ApiSearch entries={entries} example="withSpan" />
 
   {

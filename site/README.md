@@ -31,6 +31,29 @@ are not written here: they stay on GitHub, and a post links to the releases
 it announces with `releases`. [`docs/news/README.md`](../docs/news/README.md)
 is the guide for writing one.
 
+## llms.txt
+
+The site publishes [`llms.txt`](https://llmstxt.org) for agents, at
+`/openinference/llms.txt`, with a markdown copy of every page.
+
+| File                         | What it is                                                     | Made by                                                           |
+| ---------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `llms.txt`                   | The index: what OpenInference is, then a link to each page's markdown with a line on what it covers | [`src/pages/llms.txt.ts`](./src/pages/llms.txt.ts), from the same data as the pages |
+| `<page>.md`                  | A page as markdown, at its URL plus `.md` (`spec/spans/llm.html.md`, `spec/index.html.md`) | [`src/integrations/llms-txt.mjs`](./src/integrations/llms-txt.mjs), after the build |
+| `llms-full.txt`              | The README and the spec in one file (`FULL_SECTIONS`)          | `src/integrations/llms-txt.mjs`, from the pages `llms.txt` lists  |
+
+The markdown is converted from each page's built HTML, so it says what the
+page says, the API references included. The element converted is the one
+marked `data-markdown` (each layout's `<article>`); anything inside it that
+only works in a browser is marked `data-markdown-ignore`. Each converted
+page's `<head>` links to its copy (`rel="alternate"`) and to `llms.txt`
+(`rel="describedby"`). A new page with that marker gets a copy; add it to
+`llms.txt.ts` to list it. The build fails if `llms.txt` links to a page with
+no copy.
+
+`pnpm dev` serves `llms.txt`; the copies and `llms-full.txt` exist only after
+`pnpm build` (see them with `pnpm preview`).
+
 ## API references
 
 The JavaScript and Python API references are part of the site, built the

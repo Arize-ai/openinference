@@ -4,6 +4,7 @@ import { copyFile, readdir } from "node:fs/promises";
 
 import { defineConfig } from "astro/config";
 
+import llmsTxt from "./src/integrations/llms-txt.mjs";
 import { shikiConfig } from "./src/lib/shiki.mjs";
 import rehypeReadmeIntro from "./src/plugins/rehype-readme-intro.mjs";
 import rehypeRepoLinks from "./src/plugins/rehype-repo-links.mjs";
@@ -45,7 +46,9 @@ export default defineConfig({
   // URL style the Jekyll build published. The old flat spec pages redirect
   // from src/pages/spec/[moved].astro.
   build: { format: "preserve" },
-  integrations: [specSectionIndexes],
+  // llms.txt, llms-full.txt and a markdown copy of each page: see
+  // src/integrations/llms-txt.mjs.
+  integrations: [specSectionIndexes, llmsTxt()],
   markdown: {
     // The Pierre theme, in light and dark: see src/lib/shiki.mjs.
     shikiConfig,

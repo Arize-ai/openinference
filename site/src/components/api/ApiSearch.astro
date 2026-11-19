@@ -20,7 +20,7 @@ const { entries, example } = Astro.props;
 const data = JSON.stringify(entries).replace(/</g, "\\u003c");
 ---
 
-<div class="api-search" data-search>
+<div class="api-search" data-search data-markdown-ignore>
   <label class="eyebrow" for="api-search">Find a class, function or constant</label>
   <input
     id="api-search"
