@@ -181,6 +181,8 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 0
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 0
     assert not attributes
 
     span = spans[2]
@@ -587,6 +589,8 @@ def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 0
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 0
     assert not attributes
 
 
@@ -740,6 +744,8 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 0
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 0
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
@@ -750,6 +756,48 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
     assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
     assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
+    assert not attributes
+
+
+@pytest.mark.parametrize(
+    "cache_write_tokens",
+    [
+        pytest.param(None, id="cache-read"),
+        pytest.param(512, id="cache-write"),
+    ],
+)
+@pytest.mark.vcr
+def test_openai_chat_generator_llm_span_has_token_count_details(
+    cache_write_tokens: Optional[int],
+    openai_api_key: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    pipe.add_component("llm", OpenAIChatGenerator(model="o4-mini"))
+    pipe.run({"llm": {"messages": [ChatMessage.from_user("Hi")]}})
+    span = next(
+        span for span in in_memory_span_exporter.get_finished_spans() if span.name.endswith(".run")
+    )
+    attributes = _span_attributes(span)
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "Hi"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "Hello"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 2006
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 300
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 2306
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 1920
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 256
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, None) == cache_write_tokens
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(LLM_MODEL_NAME) == "o4-mini-2025-04-16"
+    assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.OPENAI.value
+    assert attributes.pop(LLM_SYSTEM) == OpenInferenceLLMSystemValues.OPENAI.value
     assert not attributes
 
 
@@ -1265,6 +1313,8 @@ async def test_agent_run_component_spans(
     assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 0
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 0
     assert not attributes
     if _HAS_DEDICATED_ASYNC_PIPELINE:
         tool_invoker_span = spans[1]
@@ -1304,6 +1354,8 @@ async def test_agent_run_component_spans(
     assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 0
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 0
     assert not attributes
     agent_run_span = spans[agent_index]  # root span
     assert agent_run_span.name == f"Agent.{run_method}"
@@ -1584,7 +1636,14 @@ LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
