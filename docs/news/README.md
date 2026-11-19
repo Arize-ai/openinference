@@ -1,6 +1,6 @@
 # News
 
-Posts for the [news timeline](https://arize-ai.github.io/openinference/news/)
+Posts for the [news timeline](https://openinf.dev/news/)
 on the OpenInference site: new instrumentation, changes to the spec, and the
 releases worth knowing about. Release notes themselves stay on
 [GitHub](https://github.com/Arize-ai/openinference/releases); a post links to
