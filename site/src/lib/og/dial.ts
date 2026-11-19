@@ -1,250 +1,164 @@
 /**
- * The landing card's art: the wordmark on the card's centre line, and on the
- * same line the Keyway, large and faint, with the trace hero's run wound once
- * round its bolt. See DESIGN.md ("Social cards").
+ * The landing card's art, rooted in the trace hero: its run, wound once round
+ * the Keyway's bolt, the replay's hand at its end (or paused anywhere, as the
+ * hero pauses). See DESIGN.md ("Social cards").
  *
- * The dial is the trace tree as orbits, drawn in hairlines. The root span is
- * the inner orbit; each level of the tree is the next orbit out, and each
- * span is an arc on its level's orbit in its kind's colour, with a short
- * radial tick down to its parent: the tree's elbow, wound round. The run
- * sweeps 300°, starting and ending either side of the keyway at the bottom,
- * the way a knob's travel leaves a dead zone, under a scale a tick every
- * 100 ms. One marker per kind leads out past the scale to its glyph; the
- * failed request's leads to its duration, in the accent.
+ * Everything on the dial is the hero's own vocabulary, turned through 300°:
+ *  - one orbit per level of the span tree, a hairline tick down to the parent
+ *    where each span starts (the hero's tree lines);
+ *  - spans that have ended are solid bars in their kind's colour; spans still
+ *    running are dashed outlines from their start to the playhead; spans not
+ *    yet started are not drawn;
+ *  - dotted gridlines a second apart, labelled 0s, 2s, 4s…;
+ *  - the failed request hatched in the accent;
+ *  - the playhead, here a knob's hand pivoting on the bolt, with the hero's
+ *    ink time tag at its tip and one readout: the span it has just reached
+ *    (at the root, just "agent").
+ * The run's dead zone sits over the keyway, as a knob's travel leaves one at
+ * the bottom. The mark bleeds off the card; the dial lives in its window.
  *
- * Pure geometry: it returns the artwork as SVG (shapes and outlined brand
- * artwork only) and its type as labels, so the build can set the type in
- * the site's faces with satori (render.ts) and a browser can draw the same
- * thing.
+ * Pure geometry: SVG shapes plus labels placed by baseline, so the build sets
+ * the type with satori (render.ts) and a browser can draw the same thing.
  */
 import { GLYPHS } from "../../components/hero/glyphs";
 import { SPANS, T, type Kind } from "../../components/hero/model";
 import { markGeometry } from "../mark.mjs";
 import { COLOR, KIND } from "./palette";
 
-/** A line of type, placed by its baseline. */
-export interface Label {
-  x: number;
-  y: number;
-  text: string;
-  color: string;
-  size: number;
-  anchor: "start" | "middle" | "end";
-  weight?: 500 | 600;
-  /** Letter spacing, in px. */
-  tracking?: number;
-}
-
+export interface Label { x: number; y: number; text: string; color: string; size: number; anchor: "start" | "middle" | "end"; weight?: 500 | 600; tracking?: number }
 export interface ArtOptions {
   width: number;
   height: number;
-  /** The wordmark's cap height, px at 1280 × 640. */
+  /** Where the replay's hand stands, ms into the run; the whole run by default. */
+  at?: number;
+  /** Draw the spans still to come as faint ghosts. */
+  ghosts?: boolean;
   wordmarkCap?: number;
-  /** The watermark's opacity. */
   watermark?: number;
-  /** Space between the tree's levels, px at 1280 × 640. */
+  markHeight?: number;
+  boltX?: number;
   gap?: number;
-  /** The run's sweep, in degrees; the rest is the dead zone over the keyway. */
   sweep?: number;
-  /** Number every second, or every other. */
-  numerals?: "all" | "even";
-  /** Mute the LLM colour so the accent means only the failure. */
-  calm?: boolean;
 }
-
-export const ART_DEFAULTS: Required<Omit<ArtOptions, "width" | "height">> = {
-  wordmarkCap: 50,
-  watermark: 0.09,
-  gap: 32,
-  sweep: 300,
-  numerals: "all",
-  calm: false,
-};
-
-/** The frame: rulers, content edges, and the centre line everything sits on. */
-export interface Frame {
-  rl: number;
-  rr: number;
-  x0: number;
-  x1: number;
-  top: number;
-  base: number;
-  centre: number;
-}
-
-export interface Art {
-  svg: string;
-  labels: Label[];
-  frame: Frame;
-  /** Named points, for a lab's guides and notes. */
-  anchors: Record<string, [number, number]>;
-}
+export const ART_DEFAULTS = { at: 8200, ghosts: false, wordmarkCap: 50, watermark: 0.07, markHeight: 900, boltX: 915, gap: 30, sweep: 300 };
 
 const geometry = markGeometry();
 const r2 = (n: number) => Math.round(n * 100) / 100;
-const mix = (hex: string, t: number, to: string = COLOR.white) => {
-  const n = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-  const [a, b] = [n(hex), n(to)];
-  return `#${a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, "0")).join("")}`;
-};
 
-export function frameOf(width: number, height: number): Frame {
-  const kx = width / 1280;
-  const top = Math.round((64 * height) / 640);
-  const rl = Math.round(48 * kx);
-  const x0 = Math.round(104 * kx);
-  return { rl, rr: width - rl, x0, x1: width - x0, top, base: height - top, centre: height / 2 };
-}
-
-/** The kinds that get a marker, each on the span that best spreads them round the dial; the hub is the agent. */
-const MARKED: string[] = ["input_guard", "CreateEmbeddings", "vector_search", "rerank", "execute_code", "Response@15"];
-
-/** The card's artwork and type, for a card `width` × `height`. */
-export function drawLandingArt(options: ArtOptions, wordmarkSvg: string): Art {
+export function drawLandingArt(options: ArtOptions, wordmarkSvg: string) {
   const o = { ...ART_DEFAULTS, ...options };
   const { width: W, height: H } = o;
-  const F = frameOf(W, H);
+  const k = W / 1280;
+  const F = { x0: Math.round(104 * k), top: Math.round((64 * H) / 640), base: H - Math.round((64 * H) / 640), centre: H / 2 };
   const svg: string[] = [];
   const labels: Label[] = [];
   const anchors: Record<string, [number, number]> = {};
-  const kindColor = (kind: Kind) => (o.calm && kind === "LLM" ? mix(KIND.LLM, 0.5) : KIND[kind]);
+  const now = Math.min(Math.max(o.at, 0), T);
 
-  /* ---------- The mark: as tall as the frame, right flat on x1, its bolt on the centre line. ---------- */
-  const s = (F.base - F.top) / geometry.height;
-  /** Lengths below are px on the 1280 × 640 card; q carries them to this card's scale. */
-  const q = s / (512 / geometry.height);
-  const bx = F.x1 - (geometry.width / 2) * s;
-  const by = F.centre;
-  const inkY = by - geometry.drop * s;
-  svg.push(`<g transform="translate(${r2(bx)} ${r2(inkY)}) scale(${r2(s * 1e4) / 1e4})" opacity="${o.watermark}"><path d="${geometry.path}" fill="${COLOR.fg}"/></g>`);
-  anchors.markBox = [bx - (geometry.width / 2) * s, inkY - (geometry.height / 2) * s];
+  /* The mark: large, bleeding off the card; its bolt on the centre line. */
+  const s = (o.markHeight * k) / geometry.height;
+  const bx = o.boltX * k, by = F.centre;
+  svg.push(`<g transform="translate(${r2(bx)} ${r2(by - geometry.drop * s)}) scale(${r2(s * 1e4) / 1e4})" opacity="${o.watermark}"><path d="${geometry.path}" fill="${COLOR.fg}"/></g>`);
   anchors.centre = [bx, by];
 
-  /* ---------- The page markings' rulers, crossed on the centre line. ---------- */
+  /* The wordmark: caps centred on the centre line, flush to the margin. */
   {
-    const p: string[] = [];
-    const ink = mix(COLOR.fg, 0.72, COLOR.bg);
-    for (const [x, dir] of [[F.rl, -1], [F.rr, 1]] as const) {
-      p.push(`<rect x="${x}" y="0" width="1" height="${H}"/>`);
-      for (let y = 0; y <= H; y += 16) {
-        const len = y % 320 === 0 ? 12 : y % 80 === 0 ? 7 : 3;
-        p.push(`<rect x="${dir < 0 ? x - len : x + 1}" y="${y}" width="${len}" height="1"/>`);
-        if (y % 80 === 0 && y > 0 && y < H - 8)
-          labels.push({ x: x + dir * 14, y: y + 3, text: String(y).padStart(4, "0"), color: ink, size: 9, anchor: dir < 0 ? "end" : "start", tracking: 0.5 });
-      }
-      p.push(`<path d="M${x - 6.5} ${F.centre + 0.5}h15M${x + 0.5} ${F.centre - 7}v15" stroke="${COLOR.fg}" stroke-width="1.25" fill="none"/>`);
-    }
-    svg.push(
-      `<defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".12" stop-color="#fff"/><stop offset=".88" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><mask id="rulers"><rect width="${W}" height="${H}" fill="url(#fade)"/></mask></defs>`,
-      `<g mask="url(#rulers)" fill="${COLOR.fg}" opacity=".28">${p.join("")}</g>`,
-    );
-  }
-
-  /* ---------- The wordmark: its caps centred on the centre line, flush to x0. ---------- */
-  {
-    const [, , vw] = wordmarkSvg.match(/viewBox="([^"]+)"/)![1].split(/\s+/).map(Number);
     const paths = [...wordmarkSvg.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]);
-    const cap = o.wordmarkCap * q;
-    const k = cap / 1000;
-    const capTop = F.centre - cap / 2;
-    svg.push(`<g transform="translate(${F.x0} ${r2(capTop)}) scale(${r2(k * 1e5) / 1e5})" fill="${COLOR.fg}">${paths.map((d) => `<path d="${d}"/>`).join("")}</g>`);
+    const cap = o.wordmarkCap * k, capTop = F.centre - cap / 2;
+    svg.push(`<g transform="translate(${F.x0} ${r2(capTop)}) scale(${r2((cap / 1000) * 1e5) / 1e5})" fill="${COLOR.fg}">${paths.map((d) => `<path d="${d}"/>`).join("")}</g>`);
     anchors.wordmark = [F.x0, capTop];
-    anchors.wordmarkEnd = [F.x0 + vw * k, capTop + cap];
   }
 
-  /* ---------- The dial. ---------- */
+  /* ---------- The dial ---------- */
   const ang = (ms: number) => 90 + (360 - o.sweep) / 2 + (ms / T) * o.sweep;
   const rad = (a: number) => (a * Math.PI) / 180;
   const pol = (r: number, a: number): [number, number] => [r2(bx + r * Math.cos(rad(a))), r2(by + r * Math.sin(rad(a)))];
-  const line = (r0: number, r1: number, a: number, attrs: string) => {
-    const [p, t] = [pol(r0, a), pol(r1, a)];
-    return `<line x1="${p[0]}" y1="${p[1]}" x2="${t[0]}" y2="${t[1]}" ${attrs}/>`;
+  const sector = (r0: number, r1: number, a0: number, a1: number) => {
+    const L = a1 - a0 > 180 ? 1 : 0, [p0, p1, p2, p3] = [pol(r1, a0), pol(r1, a1), pol(r0, a1), pol(r0, a0)];
+    return `M${p0}A${r2(r1)} ${r2(r1)} 0 ${L} 1 ${p1}L${p2}A${r2(r0)} ${r2(r0)} 0 ${L} 0 ${p3}Z`;
   };
-  const arc = (r: number, a0: number, a1: number) => `M${pol(r, a0)}A${r2(r)} ${r2(r)} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${pol(r, a1)}`;
+  const line = (r0: number, r1: number, a: number, attrs: string) => { const [p, t] = [pol(r0, a), pol(r1, a)]; return `<line x1="${p[0]}" y1="${p[1]}" x2="${t[0]}" y2="${t[1]}" ${attrs}/>`; };
 
-  /* The orbits: one per level of the tree, `gap` apart, each span an arc on its level's orbit. */
   const boltR = geometry.bolt * s;
-  const orbit = (d: number) => boltR + (14 + d * o.gap) * q;
-  const weight = [2.5, 5, 4, 3.5];
-  const [start, end] = [ang(0), ang(T)];
-  svg.push(`<g fill="none" stroke="${COLOR.fg}" stroke-opacity=".16" stroke-width="1">${[1, 2, 3].map((d) => `<path d="${arc(orbit(d), start, end)}"/>`).join("")}</g>`);
-  const span = (i: number) => {
-    const a0 = ang(SPANS[i].start);
-    return [a0, Math.max(ang(SPANS[i].end), a0 + 1.2)] as const;
-  };
-  const elbows: string[] = [];
-  const arcs = SPANS.map((sp, i) => {
-    const [a0, a1] = span(i);
-    const color = sp.error ? COLOR.accent : sp.depth === 0 ? COLOR.fg : sp.kind === "HTTP" ? "#aaa59e" : kindColor(sp.kind);
-    if (sp.depth > 0) elbows.push(line(orbit(sp.depth - 1) + 3 * q, orbit(sp.depth) - weight[sp.depth] / 2, a0 + 0.35, `stroke="${COLOR.fg}" stroke-opacity=".4" stroke-width="1"`));
-    return `<path d="${arc(orbit(sp.depth), a0 + 0.35, a1 - 0.35)}" fill="none" stroke="${color}" stroke-width="${r2(weight[sp.depth] * q)}"/>`;
-  });
-  svg.push(elbows.join(""), arcs.join(""));
-  anchors.orbit = pol(orbit(2), ang(1700));
+  /** The orbits, `gap` apart; the bars on them, the hero's bar height. */
+  const orbit = (d: number) => boltR + (22 + d * o.gap) * k;
+  const BAR = [6, 10, 10, 10].map((b) => b * k);
+  const inner = orbit(0) - 10 * k, outer = orbit(3) + 12 * k;
 
-  /* The hub: a crosshair through the bolt, and the agent's glyph. */
-  const glyph = (kind: Kind, [x, y]: [number, number], size: number, color: string) =>
-    `<g transform="translate(${r2(x - size / 2)} ${r2(y - size / 2)}) scale(${r2(size / 16)})" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[kind].replace(/class="fill"/g, `fill="${color}" stroke="none"`)}</g>`;
-  {
-    const c = orbit(0) - 10 * q;
-    svg.push(
-      `<g stroke="${COLOR.fg}" stroke-opacity=".35" stroke-width="1"><line x1="${r2(bx - c)}" y1="${by}" x2="${r2(bx - c * 0.45)}" y2="${by}"/><line x1="${r2(bx + c * 0.45)}" y1="${by}" x2="${r2(bx + c)}" y2="${by}"/><line x1="${r2(bx)}" y1="${r2(by - c)}" x2="${r2(bx)}" y2="${r2(by - c * 0.45)}"/><line x1="${r2(bx)}" y1="${r2(by + c * 0.45)}" x2="${r2(bx)}" y2="${r2(by + c)}"/></g>`,
-      glyph("AGENT", [bx, by], 18 * q, COLOR.fg),
-    );
-  }
-
-  /* The scale: a hairline, 100 ms ticks, 500 ms longer, each second longest and numbered; a stop at the run's end. */
-  const rs = orbit(3) + 22 * q;
-  const rn = rs + 20 * q;
-  const scale: string[] = [`<path d="${arc(rs, start, end)}" fill="none" stroke="${COLOR.fg}" stroke-opacity=".5" stroke-width="1"/>`];
-  for (let ms = 0; ms <= Math.floor(T / 1000) * 1000; ms += 100) {
-    const sec = ms % 1000 === 0;
-    const half = ms % 500 === 0;
-    scale.push(line(rs, rs + (sec ? 9 : half ? 5.5 : 3) * q, ang(ms), `stroke="${COLOR.fg}" stroke-width="${sec ? 1.5 : 1}" stroke-opacity="${sec ? 1 : 0.5}"`));
-    if (sec && (o.numerals === "all" || (ms / 1000) % 2 === 0)) {
-      const [x, y] = pol(rn, ang(ms));
-      labels.push({ x, y: r2(y + 3.5 * q), text: String(ms / 1000), color: ms === 0 ? COLOR.fg : COLOR.dim, size: r2(10.5 * q), anchor: "middle", weight: 500 });
+  /* Gridlines a second apart, dotted, through every orbit; labelled on even seconds, as the hero's axis is, except where the hand's tag stands. */
+  for (let sec = 0; sec * 1000 <= T; sec++) {
+    svg.push(line(inner, outer, ang(sec * 1000), `stroke="${COLOR.fg}" stroke-opacity=".3" stroke-width="1" stroke-dasharray="1 3"`));
+    if (sec % 2 === 0 && Math.abs(ang(sec * 1000) - ang(now)) > 12) {
+      const [x, y] = pol(outer + 16 * k, ang(sec * 1000));
+      labels.push({ x, y: r2(y + 4 * k), text: `${sec}s`, color: COLOR.dim, size: r2(12 * k), anchor: "middle", weight: 500 });
     }
   }
-  scale.push(line(rs - 5 * q, rs + 13 * q, end, `stroke="${COLOR.fg}" stroke-width="2" stroke-linecap="round"`));
-  svg.push(scale.join(""));
-  anchors.scale = pol(rn, ang(6000));
+  /* The hand, under the bars: a knob's pointer on the bolt, out past the dial to the hero's time tag. */
+  const ah = ang(now);
+  const tip = outer + 30 * k;
+  svg.push(line(0, tip, ah, `stroke="${COLOR.fg}" stroke-width="${r2(1.25 * k)}"`));
 
-  /* Markers: a ring on the arc, a leader out past the scale, the kind's glyph at its end. */
-  const rl = rn + 32 * q;
-  const marker = (i: number, color: string) => {
-    const [a0, a1] = span(i);
-    const a = (a0 + a1) / 2;
-    const r = orbit(SPANS[i].depth);
-    const [mx, my] = pol(r, a);
-    svg.push(
-      line(r + 5 * q, rl, a, `stroke="${color}" stroke-opacity="${color === COLOR.accent ? 1 : 0.55}" stroke-width="1"`),
-      `<circle cx="${mx}" cy="${my}" r="${r2(4 * q)}" fill="${COLOR.white}" stroke="${color}" stroke-width="1.5"/>`,
-    );
-    return { a, tip: pol(rl, a) };
-  };
-  for (const name of MARKED) {
-    const [n, nth] = name.split("@");
-    const i = nth ? Number(nth) : SPANS.findIndex((sp) => sp.name === n);
-    const kind = SPANS[i].kind;
-    const { a } = marker(i, kindColor(kind));
-    svg.push(glyph(kind, pol(rl + 11 * q, a), 16 * q, kindColor(kind)));
-  }
-  anchors.marker = pol(rl + 11 * q, span(SPANS.findIndex((sp) => sp.name === "vector_search"))[0]);
+  svg.push(`<defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(${r2(ang(SPANS[SPANS.findIndex((x) => x.error)].start) + 45)})"><rect width="4" height="4" fill="${COLOR.accent}" fill-opacity=".18"/><line x1="0" y1="0" x2="0" y2="4" stroke="${COLOR.accent}" stroke-width="2"/></pattern></defs>`);
+  /* Tree ticks, then the spans: ended solid, running dashed to the playhead, to come not drawn (or ghosted). */
+  const ticks: string[] = [], bars: string[] = [];
+  SPANS.forEach((sp) => {
+    const started = sp.start <= now, ended = sp.end <= now;
+    if (!started && !o.ghosts) return;
+    const d = sp.depth, [r0, r1] = [orbit(d) - BAR[d] / 2, orbit(d) + BAR[d] / 2];
+    const a0 = ang(sp.start) + 0.3;
+    const a1 = Math.max(ang(ended || !started ? sp.end : now), a0 + 0.9) - 0.3;
+    const color = sp.error ? COLOR.accent : d === 0 ? COLOR.soft : KIND[sp.kind as Kind];
+    if (d > 0 && started) ticks.push(line(orbit(d - 1) + BAR[d - 1] / 2 + 1, r0 - 1, a0, `stroke="${COLOR.fg}" stroke-opacity=".3" stroke-width="1"`));
+    if (!started) bars.push(`<path d="${sector(r0, r1, a0, a1)}" fill="${color}" fill-opacity=".08"/>`);
+    else if (!ended) bars.push(`<path d="${sector(r0 + 0.5, r1 - 0.5, a0, a1)}" fill="none" stroke="${color}" stroke-width="1.25" stroke-dasharray="3 2.5"/>`);
+    else if (sp.error) bars.push(`<path d="${sector(r0 + 0.5, r1 - 0.5, a0, a1)}" fill="url(#hatch)" stroke="${COLOR.accent}" stroke-width="1"/>`);
+    else bars.push(`<path d="${sector(r0, r1, a0, a1)}" fill="${color}"/>`);
+  });
+  svg.push(ticks.join(""), bars.join(""));
+  anchors.orbit = pol(orbit(1), ang(700));
 
-  /* The failure: its marker and leader in the accent, its duration at the end. */
+  /* The pivot, and the tag at the hand's tip. */
+  svg.push(
+    `<circle cx="${r2(bx)}" cy="${r2(by)}" r="${r2(9 * k)}" fill="${COLOR.fg}"/><circle cx="${r2(bx)}" cy="${r2(by)}" r="${r2(3 * k)}" fill="${COLOR.bg}"/>`,
+  );
   {
-    const i = SPANS.findIndex((sp) => sp.error);
-    const { a } = marker(i, COLOR.accent);
-    const [lx, ly] = pol(rl + 12 * q, a);
-    labels.push({ x: lx, y: r2(ly + 4 * q), text: `${Math.round(SPANS[i].end - SPANS[i].start)} ms`, color: COLOR.accent, size: r2(12 * q), anchor: Math.cos(rad(a)) > 0.2 ? "start" : Math.cos(rad(a)) < -0.2 ? "end" : "middle", weight: 600, tracking: 0.3 });
-    anchors.failure = [lx, ly - 4];
+    const [tx, ty] = pol(tip, ah);
+    const text = `${(now / 1000).toFixed(2)}s`;
+    const w = (text.length * 7.6 + 14) * k, h = 22 * k;
+    /* The tag sits on the tip's outer side; the readout runs away from the dial, toward whichever side has room. */
+    const under0 = SPANS.filter((sp) => sp.start <= now && now <= sp.end + 1).sort((a, b) => b.depth - a.depth)[0];
+    const readW = under0 ? (under0.depth === 0 ? 5 * 7.8 + 14 : (`${under0.name}${under0.note ? ` ${under0.note}` : ""}  0000ms`.length * 7.8 + 34)) * k : 0;
+    const right = Math.cos(rad(ah)) >= -0.1 && tx + w + readW < W - 40 * k;
+    const below = Math.sin(rad(ah)) > 0.35;
+    const x = right ? tx - 4 * k : tx - w + 4 * k, y = below ? ty + 2 * k : ty - h - 2 * k;
+    svg.push(`<rect x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" fill="${COLOR.fg}"/>`);
+    labels.push({ x: r2(x + w / 2), y: r2(y + h / 2 + 4.5 * k), text, color: COLOR.bg, size: r2(13 * k), anchor: "middle", weight: 500 });
+    anchors.tag = [x + w / 2, y + h / 2];
+
+    /* The readout: the span the hand has just reached, the deepest under it, or the failure as it ends. */
+    const under = SPANS.map((sp, i) => ({ sp, i })).filter(({ sp }) => sp.start <= now && now <= sp.end + 1).sort((a, b) => b.sp.depth - a.sp.depth)[0];
+    if (under && under.sp.depth === 0) {
+      /* At the root, the readout is just what it is: the agent. */
+      labels.push({ x: r2(right ? x + w + 10 * k : x - 10 * k), y: r2(y + h / 2 + 4.5 * k), text: "agent", color: COLOR.fg, size: r2(13 * k), anchor: right ? "start" : "end", weight: 500 });
+      anchors.readout = [right ? x + w + 30 * k : x - 30 * k, y + h / 2];
+    } else if (under) {
+      const { sp } = under;
+      const c = sp.error ? COLOR.accent : COLOR.fg;
+      const gx = right ? x + w + 12 * k : x - 12 * k - 14 * k;
+      const gs = 14 * k;
+      const gy = y + h / 2;
+      const gxx = right ? gx : x - 12 * k - gs;
+      svg.push(`<g transform="translate(${r2(gxx)} ${r2(gy - gs / 2)}) scale(${r2(gs / 16)})" fill="none" stroke="${sp.error ? COLOR.accent : KIND[sp.kind as Kind]}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[sp.kind as Kind].replace(/class="fill"/g, `fill="${sp.error ? COLOR.accent : KIND[sp.kind as Kind]}" stroke="none"`)}</g>`);
+      const name = `${sp.name}${sp.note ? ` ${sp.note}` : ""}`;
+      const dur = sp.end <= now ? `${Math.round(sp.end - sp.start)}ms` : `${Math.round(now - sp.start)}ms…`;
+      labels.push({ x: r2(right ? gxx + gs + 8 * k : gxx - 8 * k), y: r2(gy + 4.5 * k), text: `${name}  ${dur}`, color: c, size: r2(13 * k), anchor: right ? "start" : "end", weight: 500 });
+      anchors.readout = [right ? gxx + gs + 60 * k : gxx - 60 * k, gy];
+    }
   }
 
   return {
     svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${COLOR.bg}"/>${svg.join("")}</svg>`,
     labels,
-    frame: F,
     anchors,
   };
 }

@@ -487,20 +487,20 @@ the reader's.
   in a fainter tone, so the part that names the package reads first.
 - **Landing card.** Drawn by [`src/lib/og/dial.ts`](./src/lib/og/dial.ts),
   and nothing on it but the name and the run. The wordmark, its caps centred
-  on the card's centre line, flush left; on the same line, the bolt of the
-  Keyway, which stands as tall as the frame at 9% ink, its right flat on the
-  right margin. The trace hero's run is wound once round the bolt in
-  hairlines: one orbit per level of the span tree, each span a thin arc in
-  its kind's colour with a tick down to its parent where it starts, the
-  agent's glyph at the hub. The run sweeps 300° and its dead zone sits over
-  the keyway, as a knob's travel leaves one at the bottom; a hairline scale
-  outside it ticks every 100 ms, longer at 500 ms and 1 s, each second
-  numbered. One marker per kind leads out past the scale to the kind's
-  glyph; the failed request's leads to its duration, in the accent, the
-  card's one accent. No legend, no tagline, no address. The rulers cross on
-  the centre line. The same art at 1280 × 640 is `og/github.png`, the
-  repository's social preview: upload it in the repository's Settings →
-  General → Social preview when it changes.
+  on the card's centre line, flush left. On the same line, the bolt of the
+  Keyway, drawn large at 7% ink and bleeding off the top, right and bottom;
+  the dial lives in its window. The dial is the trace hero's run wound once
+  round the bolt, in the hero's own marks: one orbit per level of the span
+  tree with the hero's tree lines as ticks to each parent, solid bars in each
+  kind's colour (`--kind-*`, light), the failed request hatched in the
+  accent, dotted gridlines a second apart labelled on even seconds. The run
+  sweeps 300° and its dead zone sits over the keyway, as a knob's travel
+  leaves one at the bottom. The hero's playhead is the knob's hand, under the
+  bars, pivoting on the bolt and standing at the run's end, with the hero's
+  ink time tag (8.20s) and one word, "agent". No rulers, legend or address.
+  The same art at 1280 × 640 is `og/github.png`, the repository's social
+  preview: upload it in the repository's Settings → General → Social
+  preview when it changes.
 
 To see a card, run `pnpm dev` and open `/openinference/og/<page>.png`.
 
