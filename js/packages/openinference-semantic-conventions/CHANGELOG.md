@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.17.1
+
+### Patch Changes
+
+- 3154e2b: Stop building and publishing the unused `dist/esnext` output and the non-standard `esnext` package field. Entry points resolved through `exports`, `main` and `module` are unchanged.
+
 ## 2.17.0
 
 ### Minor Changes
