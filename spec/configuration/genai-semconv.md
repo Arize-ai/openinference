@@ -18,12 +18,13 @@ In code, the setting is `TraceConfig(enable_genai_semconv=True)`. It follows the
 
 | Language | `OPENINFERENCE_ENABLE_GENAI_SEMCONV` | Weaver conformance tests |
 | --- | --- | --- |
-| Python | Supported (experimental) | Supported for Anthropic, OpenAI, and Google GenAI |
-| JavaScript | Planned | Planned |
-| Java | Planned | Planned |
-| Go | Planned | Planned |
+| Python | ✅ Supported (experimental) | ✅ Anthropic, OpenAI, and Google GenAI |
+| JavaScript | 🗓️ Planned ([#2983](https://github.com/Arize-ai/openinference/issues/2983)) | 🗓️ Planned ([#3114](https://github.com/Arize-ai/openinference/issues/3114)) |
+| Java | 🗓️ Planned ([#2983](https://github.com/Arize-ai/openinference/issues/2983)) | 🗓️ Planned ([#3114](https://github.com/Arize-ai/openinference/issues/3114)) |
+| Go | 🗓️ Planned ([#2983](https://github.com/Arize-ai/openinference/issues/2983)) | 🗓️ Planned ([#3114](https://github.com/Arize-ai/openinference/issues/3114)) |
 
-Languages marked "Planned" ignore the variable.
+Languages marked 🗓️ Planned ignore the variable. Broader OTel GenAI support is discussed in
+[#2205](https://github.com/Arize-ai/openinference/issues/2205).
 
 JavaScript also ships [`@arizeai/openinference-genai`](https://github.com/Arize-ai/openinference/tree/main/js/packages/openinference-genai),
 which converts the other way: it turns `gen_ai.*` spans into OpenInference attributes. It does not implement this
