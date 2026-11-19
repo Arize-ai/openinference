@@ -1,0 +1,125 @@
+---
+/**
+ * News: every post in docs/news/, newest first, as a timeline on the 880px
+ * page, by year. Release notes stay on GitHub, linked from the head. See
+ * DESIGN.md ("News").
+ */
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { byYear, formatDay, getNews, isoDate, newsFeed, newsUrl, releasesUrl } from "../../lib/news";
+import { pages } from "../../lib/site";
+
+const years = byYear(await getNews());
+---
+
+<BaseLayout title={pages.news.title} description={pages.news.description}>
+  <div class="news">
+    <header class="page-head">
+      <h1>News</h1>
+      <p class="intro">{pages.news.description}</p>
+      <ul class="links">
+        <li><a class="eyebrow" href={releasesUrl}>Release notes on GitHub ↗</a></li>
+        <li><a class="eyebrow" href={newsFeed}>RSS</a></li>
+      </ul>
+    </header>
+
+    {years.length === 0 && <p class="empty">No news yet.</p>}
+
+    {
+      years.map(([year, posts]) => (
+        <section class="year" aria-labelledby={`year-${year}`}>
+          <h2 id={`year-${year}`} class="eyebrow">
+            {year}
+          </h2>
+          <ol class="timeline">
+            {posts.map((post) => (
+              <li class="entry">
+                <time class="eyebrow when" datetime={isoDate(post.data.pubDate)}>
+                  {formatDay(post.data.pubDate)}
+                </time>
+                <div class="body">
+                  <h3 class="title">
+                    <a href={newsUrl(post)}>{post.data.title}</a>
+                  </h3>
+                  <p class="description">{post.data.description}</p>
+                  {(post.data.tags.length > 0 || post.data.draft) && (
+                    <p class="eyebrow tags">
+                      {[...(post.data.draft ? ["Draft"] : []), ...post.data.tags].join(" · ")}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  /* The timeline's geometry: the date column, and the marker on the line. */
+  .news {
+    --when-width: var(--space-9);
+    --marker: 7px;
+
+    display: grid;
+    gap: var(--space-8);
+    padding-block: var(--space-8);
+  }
+
+  .links { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); padding: 0; list-style: none; }
+  .links a { text-decoration: none; }
+  .links a:hover { color: var(--fg); }
+  .empty { color: var(--dim); }
+
+  .year { display: grid; gap: var(--space-4); }
+  .timeline { padding: 0; list-style: none; }
+
+  /* The date, then the post beside one hairline that runs down the year,
+     with a square marker where each post sits on it. */
+  .entry {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--when-width) minmax(0, 1fr);
+    align-items: baseline;
+  }
+  .when { padding-top: var(--space-5); white-space: nowrap; }
+  .body {
+    position: relative;
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-5) 0 var(--space-5) var(--space-6);
+    border-left: 1px solid var(--rule);
+  }
+  /* The marker: on the line, level with the first line beside it (the
+     title; on a phone, the date). */
+  .body::before, .when::before {
+    content: "";
+    position: absolute;
+    left: calc(var(--marker) / -2 - 0.5px);
+    top: calc(var(--space-5) + 0.5lh - var(--marker) / 2);
+    width: var(--marker);
+    height: var(--marker);
+    background: var(--bg);
+    border: 1px solid var(--fg);
+  }
+  .title { font: 600 var(--text-h3) / 1.25 var(--font-sans); letter-spacing: -0.01em; text-wrap: pretty; }
+  .title a { text-decoration: none; }
+  /* The whole entry is the link target. */
+  .title a::after { content: ""; position: absolute; inset: 0; }
+  .entry:hover .title a, .title a:focus-visible { color: var(--accent); }
+  .entry:hover :is(.body, .when)::before { border-color: var(--accent); background: var(--accent); }
+  .when::before { display: none; }
+  .description { color: var(--soft); text-wrap: pretty; }
+  .tags { margin-top: var(--space-1); }
+
+  /* A phone: the date over the title, both beside the line. */
+  @media (max-width: 720px) {
+    .entry { grid-template-columns: minmax(0, 1fr); }
+    .when { position: relative; padding: var(--space-5) 0 0 var(--space-6); border-left: 1px solid var(--rule); }
+    .when::before { display: block; }
+    .body { padding-top: var(--space-2); }
+    .body::before { display: none; }
+    .title { font-size: var(--text-h4); }
+  }
+</style>

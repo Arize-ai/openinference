@@ -1,0 +1,25 @@
+---
+/**
+ * A section directory's URL (`spec/spans/`), which has no page of its own:
+ * it redirects to the section's first page.
+ */
+import type { GetStaticPaths } from "astro";
+
+import SpecRedirect from "../../../components/SpecRedirect.astro";
+import { routeOf } from "../../../lib/site";
+import { getSpecSections } from "../../../lib/spec";
+
+export const getStaticPaths = (async () => {
+  const sections = await getSpecSections();
+  return sections
+    .filter((section) => section.dir !== "")
+    .map((section) => ({
+      params: { section: section.dir },
+      props: { to: routeOf(`spec/${section.pages[0].id}.md`) },
+    }));
+}) satisfies GetStaticPaths;
+
+const { to } = Astro.props;
+---
+
+<SpecRedirect to={to} />

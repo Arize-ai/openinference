@@ -106,6 +106,12 @@ class ReplayTransport(Transport):
         return True
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers", "cassette(name): replay the cassette recorded for another test"
+    )
+
+
 def _cassette_path(test_name: str) -> Path:
     return Path(__file__).parent / "cassettes" / "test_instrumentor" / f"{test_name}.yaml"
 
@@ -121,7 +127,8 @@ def cassette_transport(
     In record mode, yields None so tests pass transport=None to the SDK, letting
     InternalClient create the real SubprocessCLITransport (patched to capture messages).
     """
-    test_name = request.node.name
+    marker = request.node.get_closest_marker("cassette")
+    test_name = marker.args[0] if marker else request.node.name
     path = _cassette_path(test_name)
 
     if path.exists():

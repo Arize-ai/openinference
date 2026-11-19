@@ -1472,6 +1472,8 @@ def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
 
 @stop_on_exception
 def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
+    if document_id := getattr(document, "id", None):
+        yield DOCUMENT_ID, str(document_id)
     if page_content := getattr(document, "page_content", None):
         assert isinstance(page_content, str), f"expected str, found {type(page_content)}"
         yield DOCUMENT_CONTENT, page_content
@@ -1634,6 +1636,7 @@ _PROVIDER_TO_SYSTEM = {
     "groq": OpenInferenceLLMSystemValues.OPENAI.value,
     "huggingface": _NA,  # TODO
     "ibm": _NA,  # TODO
+    "mistral": OpenInferenceLLMSystemValues.MISTRALAI.value,
     "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
     "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
     "openai": OpenInferenceLLMSystemValues.OPENAI.value,
@@ -1665,6 +1668,7 @@ _LANGCHAIN_PROVIDER_MAP = {
     "groq": "groq",
     "huggingface": "huggingface",
     "ibm": "ibm",
+    "mistral": OpenInferenceLLMProviderValues.MISTRALAI.value,
     "mistralai": OpenInferenceLLMProviderValues.MISTRALAI.value,
     "nvidia": "nvidia",
     "ollama": "ollama",

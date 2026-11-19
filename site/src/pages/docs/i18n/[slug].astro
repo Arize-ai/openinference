@@ -1,0 +1,22 @@
+---
+import type { GetStaticPaths } from "astro";
+import { getCollection, render } from "astro:content";
+
+import ReadmeLayout from "../../../layouts/ReadmeLayout.astro";
+import { languageOf } from "../../../lib/site";
+
+export const getStaticPaths = (async () => {
+  const entries = await getCollection("i18n");
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<ReadmeLayout lang={languageOf(entry.id)}>
+  <Content />
+</ReadmeLayout>

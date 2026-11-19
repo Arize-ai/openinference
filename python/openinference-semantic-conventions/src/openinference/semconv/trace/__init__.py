@@ -109,7 +109,7 @@ class SpanAttributes:
     DECISION spans. A decision model takes state plus typed questions and
     returns a typed, probabilistic answer per question instead of generated
     text; see
-    https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+    https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md
     for the convention and the decision model families it covers.
     """
     DECISION_REQUEST_MODEL_NAME = "decision.request.model_name"
@@ -736,7 +736,9 @@ class OpenInferenceLLMProviderValues(Enum):
     ZAI = "zai"
     MINIMAX = "minimax"
     ORACLE = "oracle"
+    IBM = "ibm"
     TYPESAFE = "typesafe"
+    DOUBLEWORD = "doubleword"
 
 
 class OpenInferenceDecisionSystemValues(Enum):

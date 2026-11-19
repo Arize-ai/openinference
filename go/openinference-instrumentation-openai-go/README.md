@@ -95,7 +95,7 @@ Only response creation is traced. `GET /v1/responses/{id}`, `/cancel`, and the o
 
 ### Decisions
 
-Decisions API calls (`POST /v1/decisions`) produce an `openai.decisions.create` span of kind `DECISION`, following the [decision span spec](https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md) and the Python and JS OpenAI instrumentors. A decision model answers typed questions (`predicate`, `choice`, `score`) instead of generating text, so the span identifies the model under `decision.*` and has no `llm.*` attributes. Decision usage is not counted as LLM usage.
+Decisions API calls (`POST /v1/decisions`) produce an `openai.decisions.create` span of kind `DECISION`, following the [decision span spec](https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md) and the Python and JS OpenAI instrumentors. A decision model answers typed questions (`predicate`, `choice`, `score`) instead of generating text, so the span identifies the model under `decision.*` and has no `llm.*` attributes. Decision usage is not counted as LLM usage.
 
 `openai-go` v1 has no Decisions client, so send the request with the generic `client.Post`, which goes through the middleware:
 

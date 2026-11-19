@@ -409,6 +409,13 @@ class _Span(BaseSpan):
         self._otel_span.set_attributes(self._attributes)
         self._otel_span.end(end_time=self._end_time)
 
+    def end_stream(self, exception: Optional[BaseException] = None) -> None:
+        # The stamp taken when the call returned its generator only marks the span as
+        # waiting for the stream; the span ends when the stream does. Clearing it lets the
+        # SDK stamp the end after end() records the exception, so that event stays inside.
+        self._end_time = None
+        self.end(exception)
+
     @property
     def waiting_for_streaming(self) -> bool:
         return self._active and bool(self._end_time)
@@ -512,7 +519,7 @@ class _Span(BaseSpan):
         if not self.waiting_for_streaming:
             return
         if isinstance(event, STREAMING_FINISHED_EVENTS):
-            self.end()
+            self.end_stream()
             self.notify_parent(_StreamingStatus.FINISHED)
         elif isinstance(event, STREAMING_IN_PROGRESS_EVENTS):
             if self._first_token_timestamp is None:
@@ -522,7 +529,7 @@ class _Span(BaseSpan):
             self._last_updated_at = time()
             self.notify_parent(_StreamingStatus.IN_PROGRESS)
         elif isinstance(event, ExceptionEvent):
-            self.end(event.exception)
+            self.end_stream(event.exception)
             self.notify_parent(_StreamingStatus.FINISHED)
 
     def notify_parent(self, status: _StreamingStatus) -> None:
@@ -531,7 +538,7 @@ class _Span(BaseSpan):
         if status is _StreamingStatus.IN_PROGRESS:
             parent._last_updated_at = time()
         elif parent.waiting_for_streaming:
-            parent.end()
+            parent.end_stream()
         else:
             return
         parent.notify_parent(status)
@@ -1029,6 +1036,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _separate_trace_from_runtime_context: bool = PrivateAttr()
     _export_queue: _ExportQueue = PrivateAttr()
     _pending_streams: weakref.WeakKeyDictionary[Any, List[Tuple[_Span, Context]]] = PrivateAttr()
+    _llm_streams: weakref.WeakKeyDictionary[Any, _Span] = PrivateAttr()
 
     def __init__(
         self,
@@ -1047,6 +1055,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
         self._export_queue = _ExportQueue()
         self._pending_streams = weakref.WeakKeyDictionary()
+        self._llm_streams = weakref.WeakKeyDictionary()
 
     def new_span(
         self,
@@ -1129,6 +1138,8 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
                 and result.ag_frame is not None
             ):
                 span._end_time = time_ns()
+                with self.lock:
+                    self._llm_streams[result] = span
                 self._export_queue.put(span)
                 return span
             span.process_output(instance, result)
@@ -1136,6 +1147,18 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         else:
             logger.warning(f"Open span is missing for {id_=}")
         return span
+
+    def pop_llm_stream_span(self, stream: Any) -> Optional[Span]:
+        """The LLM span `stream` was returned from, once per stream.
+
+        Only the stream methods wrapped in `_llm_stream` ask; the other generators recorded
+        here are dropped with them.
+        """
+        if not isinstance(stream, (Generator, AsyncGenerator)):
+            return None
+        with self.lock:
+            span = self._llm_streams.pop(stream, None)
+        return None if span is None else span._otel_span
 
     def prepare_to_drop_span(
         self,

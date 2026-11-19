@@ -1,0 +1,358 @@
+---
+/**
+ * Brand guidelines: the OpenInference mark and wordmark, which are used
+ * apart, never locked up together. Artwork and measurements come from
+ * src/lib/brand.ts. See DESIGN.md ("Brand").
+ */
+import BrandArt from "../components/brand/BrandArt.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { art, clearSpace, colors, geometry as g, icon, minimumSize, num, wordmarkPaper } from "../lib/brand";
+import { pages } from "../lib/site";
+
+type Box = { x: number; y: number; w: number; h: number };
+const viewBoxOf = (box: Box, pad: number) =>
+  `${num(box.x - pad)} ${num(box.y - pad)} ${num(box.w + 2 * pad)} ${num(box.h + 2 * pad)}`;
+/** Where to letter the clear space: the middle of each side's margin. */
+const sidesOf = (box: Box, space: number): [number, number][] => [
+  [box.x + box.w / 2, box.y - space / 2],
+  [box.x + box.w / 2, box.y + box.h + space / 2],
+  [box.x - space / 2, box.y + box.h / 2],
+  [box.x + box.w + space / 2, box.y + box.h / 2],
+];
+
+const M = art.mark.viewBox;
+const W = art.wordmark.viewBox;
+const markSpace = clearSpace.mark;
+const wordSpace = clearSpace.wordmark;
+
+/* Anatomy: the construction drawing, in the mark's own units (Labs units,
+   y down, centred on the ink). The hexagon and the nut share a centre,
+   g.drop below the ink's. */
+const top = M.y;
+const bottom = M.y + M.h;
+const half = M.w / 2;
+const halfCut = g.cut / 2;
+/* The i: the bolt is its dot, and the keyway its stem, which reads on up
+   through the window to just under the dot (half the bolt's radius clear, as
+   a lowercase i leaves) and down to the foot of the mark. */
+const stemTop = g.drop + g.bolt * 1.5;
+const stemBottom = bottom;
+/** The stem's callout: level with the keyway, its label outside the outline. */
+const stemY = (g.drop + g.nut / (Math.sqrt(3) / 2) + bottom) / 2 - halfCut / Math.sqrt(3);
+const STEM_LABEL_X = g.width / 2 - (stemY - (g.drop + g.side / 2)) * Math.sqrt(3) + 24;
+const TICK = 12;
+/** From the mark to its first dimension line, and between dimension lines. */
+const DIM = 44;
+const ROW = 66;
+/** From a dimension line to its label's baseline: under the line, over it, or beside it (turned). */
+const LABEL = { below: 38, above: -14, beside: 40 };
+/** A dimension line; a horizontal one's label goes `below` it unless set `above`. */
+type Dimension = { from: [number, number]; to: [number, number]; label: string; side?: "below" | "above" };
+const dimensionLines: Dimension[] = [
+  { from: [half + DIM, top], to: [half + DIM, bottom], label: num(g.height) },
+  { from: [-halfCut, bottom + DIM], to: [halfCut, bottom + DIM], label: num(g.cut) },
+  { from: [-half, bottom + DIM + ROW], to: [half, bottom + DIM + ROW], label: num(g.width) },
+  { from: [-g.nut, g.drop], to: [-g.bolt, g.drop], label: num(g.clearance), side: "above" },
+];
+const isVertical = ({ from, to }: Dimension) => from[0] === to[0];
+/** The two ticks across a dimension line's ends. */
+const ticksOf = (d: Dimension) =>
+  [d.from, d.to].map(([x, y]) =>
+    isVertical(d) ? { x1: x - TICK, y1: y, x2: x + TICK, y2: y } : { x1: x, y1: y - TICK, x2: x, y2: y + TICK },
+  );
+/** A label at the middle of its line: under or over a horizontal one, beside a vertical one, turned to read up it. */
+const labelOf = (d: Dimension) => {
+  const x = (d.from[0] + d.to[0]) / 2;
+  const y = (d.from[1] + d.to[1]) / 2;
+  if (isVertical(d)) return { x: x + LABEL.beside, y, transform: `rotate(-90 ${x + LABEL.beside} ${y})` };
+  return { x, y: y + LABEL[d.side ?? "below"] };
+};
+/* Room for the outermost labels: the turned height beside the mark, the
+   radius over the crown, the width under the lowest dimension line. */
+const anatomyPad = { x: DIM + LABEL.beside + 12, top: 62, bottom: DIM + ROW + LABEL.below + 14 };
+const anatomyBox = [-half - anatomyPad.x, top - anatomyPad.top, M.w + 2 * anatomyPad.x, M.h + anatomyPad.top + anatomyPad.bottom]
+  .map(num)
+  .join(" ");
+const u = (n: number) => `${num(n)} u`;
+const dimensions = [
+  { label: "Height", value: u(g.height), note: "crown to shoulders" },
+  { label: "Width", value: u(g.width), note: "√3 × side" },
+  { label: "Ring thickness", value: u(g.wall), note: "outer flat to window" },
+  { label: "Corner radius", value: u(g.corner) },
+  { label: "Bolt diameter", value: u(2 * g.bolt) },
+  { label: "Keyway", value: u(g.cut), note: "the bolt’s diameter" },
+  { label: "Shoulder radius", value: u(g.shoulder), note: "keyway corners" },
+  { label: "Window across flats", value: u(2 * g.nut) },
+  { label: "Window corner radius", value: u(g.nutCorner) },
+  { label: "Clearance (bolt → nut)", value: u(g.clearance) },
+  { label: "Bolt centre", value: "Hexagon centre", note: `${num(g.drop)} u low` },
+];
+
+const downloads = {
+  mark: [
+    { label: "Mark", file: art.mark.file, url: art.mark.url },
+    { label: "Icon", file: icon.file, url: icon.url },
+  ],
+  wordmark: [
+    { label: "Wordmark", file: art.wordmark.file, url: art.wordmark.url },
+    { label: "Wordmark, paper", file: wordmarkPaper.file, url: wordmarkPaper.url },
+  ],
+};
+
+const swatches = [
+  { name: "Ink", hex: colors.ink, class: "ink" },
+  { name: "Paper", hex: colors.paper, class: "paper" },
+  { name: "Signal", hex: colors.signal, class: "signal" },
+  { name: "Black", hex: colors.black, class: "black" },
+];
+---
+
+<BaseLayout title={pages.brand.title} description={pages.brand.description}>
+  <div class="brand">
+    <header class="page-head">
+      <h1>Brand</h1>
+      <p class="intro">The mark and the wordmark stand apart. Use the files; never redraw them.</p>
+    </header>
+
+    <section id="mark" aria-labelledby="mark-heading">
+      <div class="section-head">
+        <h2 id="mark-heading">Mark</h2>
+        <ul class="downloads">
+          {downloads.mark.map((d) => <li><a class="button" href={d.url} download={d.file}>{d.label} ↓</a></li>)}
+        </ul>
+      </div>
+      <div class="grid two">
+        <figure class="panel paper"><div class="stage hero-stage"><BrandArt name="mark" label="OpenInference mark, ink on paper" class="show-mark" /></div></figure>
+        <figure class="panel ink"><div class="stage hero-stage"><BrandArt name="mark" label="OpenInference mark, paper on ink" class="show-mark" /></div></figure>
+      </div>
+    </section>
+
+    <section id="anatomy" aria-labelledby="anatomy-heading">
+      <h2 id="anatomy-heading">Anatomy</h2>
+      <div class="grid anatomy">
+        <figure class="panel paper">
+          <div class="stage anatomy-stage">
+            <svg
+              class="diagram"
+              viewBox={anatomyBox}
+              role="img"
+              aria-label="Construction: a hexagon with five corners rounded, the nut cut out as its window with the bolt at its centre, and a keyway as wide as the bolt cut through its bottom. The bolt over its keyway is a lowercase i: the bolt its dot, the keyway its stem."
+            >
+              <line class="g" x1={-half - 40} y1={g.drop} x2={half + 40} y2={g.drop} />
+              <line class="g" x1="0" y1={top - 40} x2="0" y2={bottom + 40} />
+              <path class="st da" d={g.construction.hexagon} />
+              <path class="st da" d={g.construction.nut} />
+              <path class="ghost" d={g.path} />
+              {/* The keyway's walls carry straight on up the bolt's sides. */}
+              <g class="st da">
+                <line x1={-halfCut} y1={g.drop} x2={-halfCut} y2={bottom + 32} />
+                <line x1={halfCut} y1={g.drop} x2={halfCut} y2={bottom + 32} />
+              </g>
+              {/* The i: the bolt its dot, and the keyway its stem. */}
+              <g class="i-shape">
+                <circle cx="0" cy={g.drop} r={g.bolt} />
+                <rect x={-halfCut} y={stemTop} width={g.cut} height={stemBottom - stemTop} />
+              </g>
+              {
+                dimensionLines.map((d) => (
+                  <g class="st">
+                    <line x1={d.from[0]} y1={d.from[1]} x2={d.to[0]} y2={d.to[1]} />
+                    {ticksOf(d).map((t) => <line {...t} />)}
+                  </g>
+                ))
+              }
+              <g class="lab" font-size="26">
+                {
+                  dimensionLines.map((d) => (
+                    <text {...labelOf(d)} text-anchor="middle">
+                      {d.label}
+                    </text>
+                  ))
+                }
+                <text x="52" y={top - 22}>r {num(g.corner)} ×5</text>
+                <text x="-14" y={g.drop - 120} text-anchor="end">r {num(g.nutCorner)} ×7</text>
+                <text x="0" y={g.drop - g.bolt - 14} text-anchor="middle">r {num(g.bolt)}</text>
+                <text x={halfCut + 38} y={bottom + 28}>r {num(g.shoulder)}</text>
+              </g>
+              {/* Callouts: what the two parts of the i are. */}
+              <g class="st">
+                <line x1={g.bolt * 0.72} y1={g.drop - g.bolt * 0.72} x2={g.bolt + 34} y2={g.drop - g.bolt - 26} />
+                <line x1={halfCut + 6} y1={stemY} x2={STEM_LABEL_X - 6} y2={stemY} />
+              </g>
+              <g class="lab callout" font-size="26">
+                <text x={g.bolt + 40} y={g.drop - g.bolt - 22}>i · dot</text>
+                <text x={STEM_LABEL_X} y={stemY + 9}>i · stem</text>
+              </g>
+            </svg>
+          </div>
+          <figcaption>The bolt over its keyway is an <i>i</i>. Dimensions in <i>u</i>, the drawing's units</figcaption>
+        </figure>
+        <dl class="dimensions">
+          {
+            dimensions.map((d) => (
+              <div>
+                <dt class="eyebrow">{d.label}</dt>
+                <dd>
+                  {d.value}
+                  {d.note && <span> · {d.note}</span>}
+                </dd>
+              </div>
+            ))
+          }
+        </dl>
+      </div>
+    </section>
+
+    <section id="wordmark" aria-labelledby="wordmark-heading">
+      <div class="section-head">
+        <h2 id="wordmark-heading">Wordmark</h2>
+        <ul class="downloads">
+          {downloads.wordmark.map((d) => <li><a class="button" href={d.url} download={d.file}>{d.label} ↓</a></li>)}
+        </ul>
+      </div>
+      <div class="grid one">
+        <figure class="panel paper"><div class="stage word-stage"><BrandArt name="wordmark" label="OpenInference wordmark, ink on paper" class="show-word" /></div></figure>
+        <figure class="panel ink"><div class="stage word-stage"><BrandArt name="wordmark" label="OpenInference wordmark, paper on ink" class="show-word" /></div></figure>
+      </div>
+    </section>
+
+    <section id="space" aria-labelledby="space-heading">
+      <h2 id="space-heading">Clear space</h2>
+      <div class="grid space-grid">
+        <figure class="panel paper">
+          <div class="stage">
+            <svg class="diagram space-mark" viewBox={viewBoxOf(M, markSpace + 53)} role="img" aria-label="One bolt diameter clear on every side of the mark">
+              <rect class="st da" x={M.x - markSpace} y={M.y - markSpace} width={M.w + 2 * markSpace} height={M.h + 2 * markSpace} />
+              <rect class="g" x={M.x} y={M.y} width={M.w} height={M.h} />
+              <BrandArt name="mark" nested />
+              <g class="lab" font-size="84" text-anchor="middle">{sidesOf(M, markSpace).map(([x, y]) => <text {x} y={y + 29}>d</text>)}</g>
+            </svg>
+          </div>
+          <figcaption><i>d</i> · one bolt diameter · {minimumSize.mark} px minimum</figcaption>
+        </figure>
+        <figure class="panel paper">
+          <div class="stage">
+            <svg class="diagram" viewBox={viewBoxOf(W, wordSpace + 140)} role="img" aria-label="One cap height clear on every side of the wordmark">
+              <rect class="st da" x={W.x - wordSpace} y={W.y - wordSpace} width={W.w + 2 * wordSpace} height={W.h + 2 * wordSpace} />
+              <rect class="g" x={W.x} y={W.y} width={W.w} height={W.h} />
+              <BrandArt name="wordmark" nested />
+              <g class="lab" font-size="420" text-anchor="middle">{sidesOf(W, wordSpace).map(([x, y]) => <text {x} y={y + 145}>c</text>)}</g>
+            </svg>
+          </div>
+          <figcaption><i>c</i> · one cap height</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="colour" aria-labelledby="colour-heading">
+      <h2 id="colour-heading">Colour</h2>
+      <ul class="grid four swatches">
+        {
+          swatches.map((s) => (
+            <li class:list={["swatch", s.class]}>
+              <b>{s.name}</b>
+              <span>{s.hex}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section id="type" aria-labelledby="type-heading">
+      <h2 id="type-heading">Typography</h2>
+      <div class="grid two faces">
+        <div class="face">
+          <p class="sample sans" aria-hidden="true">Aa</p>
+          <p class="face-name">Urbanist</p>
+        </div>
+        <div class="face">
+          <p class="sample mono" aria-hidden="true">Aa</p>
+          <p class="face-name">Geist Mono</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</BaseLayout>
+
+<style>
+  .brand { padding-block: var(--space-8) 0; }
+
+  section { margin-top: var(--space-8); padding-top: var(--space-5); border-top: 1px solid var(--rule); scroll-margin-top: var(--header-height); }
+  h2 { margin-bottom: var(--space-5); font: 600 var(--text-feature) / 1.1 var(--font-sans); letter-spacing: var(--tracking-tight); }
+  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-5); }
+  .section-head h2 { margin-bottom: 0; }
+  .downloads { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 0; list-style: none; }
+
+  .grid { display: grid; gap: var(--space-4); padding: 0; list-style: none; }
+  .one { grid-template-columns: minmax(0, 1fr); }
+  .two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .space-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+
+  /* Panels keep a fixed ground in both themes, so artwork always shows as specified. */
+  .panel { display: flex; flex-direction: column; margin: 0; border: 1px solid var(--rule); }
+  .panel.paper { background: var(--color-white); color: var(--color-ink); border-color: var(--color-rule); }
+  .stage { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 220px; padding: var(--space-6); }
+  .hero-stage { aspect-ratio: 1; }
+  .stage :global(.show-mark) { width: auto; height: 38%; max-height: 180px; }
+  .word-stage { min-height: 260px; }
+  .stage :global(.show-word) { width: min(62%, 480px); }
+
+  figcaption, .swatch span, .face-name {
+    font: 500 var(--text-micro) / 1.4 var(--font-mono);
+    letter-spacing: var(--tracking-micro);
+    text-transform: uppercase;
+  }
+  figcaption i { font-style: normal; text-transform: none; }
+  .panel figcaption { padding: 10px 14px; border-top: 1px solid var(--color-rule); color: var(--color-dim); }
+
+  /* Clear-space diagrams: guides in the panel's ink at low opacity. */
+  .diagram { width: 100%; height: auto; overflow: visible; }
+  .diagram :global(*) { vector-effect: non-scaling-stroke; }
+  .diagram :global(.g) { fill: none; stroke: currentColor; stroke-width: 1; stroke-opacity: 0.35; }
+  .diagram :global(.st) { fill: none; stroke: currentColor; stroke-width: 1.25; stroke-opacity: 0.85; }
+  .diagram :global(.da) { stroke-dasharray: 5 4; }
+  .diagram .lab { fill: currentColor; font-family: var(--font-mono); font-weight: 500; }
+  .diagram.space-mark { max-width: 200px; }
+
+  /* Anatomy: the drawing beside its dimensions. The accent marks one thing,
+     the i: the bolt its dot, the keyway at the bottom its stem. */
+  .anatomy { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: var(--space-6); align-items: start; }
+  .anatomy-stage { padding: var(--space-4); }
+  .diagram :global(.ghost) { fill: currentColor; fill-opacity: 0.08; stroke: currentColor; stroke-width: 1.5; }
+  .diagram :global(.i-shape) { fill: var(--color-signal); fill-opacity: 0.22; stroke: var(--color-signal); stroke-width: 1.5; }
+  .dimensions { margin: 0; border-top: 1px solid var(--fg); }
+  .dimensions div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--rule); }
+  .dimensions dd { margin: 0 0 0 auto; text-align: right; font: 500 var(--text-small) / 1.4 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--fg); }
+  .dimensions dd span { color: var(--dim); }
+
+  /* Colour */
+  .swatch { display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; min-height: 180px; padding: 14px; border: 1px solid var(--rule); }
+  .swatch b { margin-bottom: var(--space-1); font: 600 22px / 1.1 var(--font-sans); }
+  .swatch span { opacity: 0.85; }
+  .ink { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+  .paper { background: var(--color-paper); color: var(--color-ink); }
+  .signal { background: var(--color-signal); color: var(--color-ink); border-color: var(--color-signal); }
+  .black { background: var(--color-black); color: var(--color-white); border-color: var(--color-black); }
+
+  /* Typography */
+  .face { padding-top: var(--space-4); border-top: 1px solid var(--fg); }
+  .sample { font-size: clamp(96px, 16vw, 180px); line-height: 1; }
+  .sample.sans { font-family: var(--font-sans); font-weight: 600; }
+  .sample.mono { font-family: var(--font-mono); font-weight: 500; }
+  .face-name { margin-top: var(--space-3); color: var(--dim); }
+
+  @media (max-width: 840px) {
+    .space-grid, .anatomy { grid-template-columns: minmax(0, 1fr); }
+    .four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 720px) {
+    .brand { padding-top: var(--space-7); }
+    section { margin-top: var(--space-7); }
+    .two { grid-template-columns: minmax(0, 1fr); }
+    .stage { padding: var(--space-5); }
+    .word-stage { min-height: 180px; }
+  }
+</style>

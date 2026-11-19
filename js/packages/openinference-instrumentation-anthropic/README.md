@@ -109,7 +109,7 @@ The `AnthropicInstrumentation` constructor accepts the following options:
 
 ## Semantic Conventions
 
-This instrumentation follows the [OpenInference semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md) for LLM observability, capturing:
+This instrumentation follows the [OpenInference semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md) for LLM observability, capturing:
 
 - Model name and provider information
 - Input/output messages and content

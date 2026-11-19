@@ -325,7 +325,7 @@ export const LLM_SYSTEM =
  * A decision model takes state plus typed questions and returns a typed,
  * probabilistic answer per question instead of generated text.
  *
- * @see https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+ * @see https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md
  */
 export const DECISION_MODEL_NAME =
   `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.model_name}` as const;
@@ -1084,6 +1084,8 @@ export enum LLMProvider {
   MINIMAX = "minimax",
   TYPESAFE = "typesafe",
   ORACLE = "oracle",
+  IBM = "ibm",
+  DOUBLEWORD = "doubleword",
 }
 
 /**

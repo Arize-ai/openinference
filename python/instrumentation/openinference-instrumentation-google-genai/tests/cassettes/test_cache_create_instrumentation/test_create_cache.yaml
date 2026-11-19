@@ -93,9 +93,9 @@ interactions:
     uri: https://generativelanguage.googleapis.com/v1beta/cachedContents
   response:
     body:
-      string: "{\n  \"name\": \"cachedContents/2u2c5gkqdinjkmk0s0tkgf5xewd42eruftlig8ga\",\n
-        \ \"model\": \"models/gemini-2.5-flash\",\n  \"createTime\": \"2026-05-13T19:56:49.957864Z\",\n
-        \ \"updateTime\": \"2026-05-13T19:56:49.957864Z\",\n  \"expireTime\": \"2026-05-13T20:01:49.580642575Z\",\n
+      string: "{\n  \"name\": \"cachedContents/74xrhv5c87qr73o9bmke0duaej5h91loagfg8051\",\n
+        \ \"model\": \"models/gemini-2.5-flash\",\n  \"createTime\": \"2026-11-11T23:31:20.282407Z\",\n
+        \ \"updateTime\": \"2026-11-11T23:31:20.282407Z\",\n  \"expireTime\": \"2026-11-11T23:36:20.019607789Z\",\n
         \ \"displayName\": \"test story cache\",\n  \"usageMetadata\": {\n    \"totalTokenCount\":
         1090\n  }\n}\n"
     headers: {}
