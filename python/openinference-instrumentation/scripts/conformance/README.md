@@ -10,7 +10,7 @@ google_genai_conformance.py ┘
         └────HTTP────▶ mock_server.py  (Anthropic + OpenAI + Google GenAI endpoints)
 ```
 
-Each instrumentor is configured with `TraceConfig(enable_genai_semconv=True)`, so every span carries both the native OpenInference attributes and the `gen_ai.*` attributes derived by the dual-write logic in `_genai_conversion.py`.
+Each instrumentor is configured with `TraceConfig(enable_genai_semconv=True)` (env: `OPENINFERENCE_ENABLE_GENAI_SEMCONV`), so every span carries both the native OpenInference attributes and the `gen_ai.*` attributes derived by the dual-write logic in `_genai_conversion.py`. See the [GenAI Semantic Conventions Export spec](../../../../spec/configuration/genai-semconv.md) for the setting's behavior and per-language status.
 
 ## Prerequisites
 
