@@ -96,6 +96,26 @@ def _cache_tokens_excluded_from_input(model: Model, metrics: Any) -> int:
     return int(cache_read) + int(cache_write)
 
 
+def _usage_attributes(model: Model, metrics: Any) -> Iterator[Tuple[str, AttributeValue]]:
+    cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
+    if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
+        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    if total_tokens := getattr(metrics, "total_tokens", None):
+        yield LLM_TOKEN_COUNT_TOTAL, total_tokens + cache_tokens
+    for key, field in (
+        (LLM_TOKEN_COUNT_COMPLETION, "output_tokens"),
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, "cache_read_tokens"),
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, "cache_write_tokens"),
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, "audio_input_tokens"),
+        (LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, "reasoning_tokens"),
+        (LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, "audio_output_tokens"),
+    ):
+        if count := getattr(metrics, field, None):
+            yield key, count
+    if (cost := getattr(metrics, "cost", None)) is not None:
+        yield LLM_COST_TOTAL, cost
+
+
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
     """Helper function to get attribute from either dict or object."""
     if obj is None:
@@ -507,28 +527,7 @@ class _ModelWrapper:
             # Extract and set token usage from the response
             if hasattr(response, "response_usage") and response.response_usage:
                 metrics = response.response_usage
-
-                # Set token usage attributes
-                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
-                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
-
-                if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
-
-                # Set cache-related tokens if available
-                if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
-                    )
-
-                if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
-                    )
-
-                if (cost := getattr(metrics, "cost", None)) is not None:
-                    span.set_attribute(LLM_COST_TOTAL, cost)
+                span.set_attributes(dict(_usage_attributes(model, metrics)))
 
             span.set_status(trace_api.StatusCode.OK)
             return response
@@ -587,28 +586,7 @@ class _ModelWrapper:
             # Extract and set token usage from the final response
             if final_response_with_metrics and final_response_with_metrics.response_usage:
                 metrics = final_response_with_metrics.response_usage
-
-                # Set token usage attributes
-                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
-                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
-
-                if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
-
-                # Set cache-related tokens if available
-                if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
-                    )
-
-                if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
-                    )
-
-                if (cost := getattr(metrics, "cost", None)) is not None:
-                    span.set_attribute(LLM_COST_TOTAL, cost)
+                span.set_attributes(dict(_usage_attributes(model, metrics)))
 
             span.set_status(trace_api.StatusCode.OK)
 
@@ -651,31 +629,7 @@ class _ModelWrapper:
             # Extract and set token usage from the response
             if hasattr(response, "response_usage") and response.response_usage:
                 metrics = response.response_usage
-
-                # Set token usage attributes
-                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
-                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
-
-                if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
-
-                if hasattr(metrics, "total_tokens") and metrics.total_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.total_tokens + cache_tokens)
-
-                # Set cache-related tokens if available
-                if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
-                    )
-
-                if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
-                    )
-
-                if (cost := getattr(metrics, "cost", None)) is not None:
-                    span.set_attribute(LLM_COST_TOTAL, cost)
+                span.set_attributes(dict(_usage_attributes(model, metrics)))
 
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
             span.set_status(trace_api.StatusCode.OK)
@@ -738,28 +692,7 @@ class _ModelWrapper:
             # Extract and set token usage from the final response
             if final_response_with_metrics and final_response_with_metrics.response_usage:
                 metrics = final_response_with_metrics.response_usage
-
-                # Set token usage attributes
-                cache_tokens = _cache_tokens_excluded_from_input(model, metrics)
-                if prompt_tokens := (getattr(metrics, "input_tokens", None) or 0) + cache_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
-
-                if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
-
-                # Set cache-related tokens if available
-                if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
-                    )
-
-                if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
-                    )
-
-                if (cost := getattr(metrics, "cost", None)) is not None:
-                    span.set_attribute(LLM_COST_TOTAL, cost)
+                span.set_attributes(dict(_usage_attributes(model, metrics)))
 
             span.set_status(trace_api.StatusCode.OK)
 
@@ -815,3 +748,8 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMP
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
     SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
 )
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
