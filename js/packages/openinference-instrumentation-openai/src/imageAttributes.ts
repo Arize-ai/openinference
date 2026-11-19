@@ -137,9 +137,16 @@ export function getCompletedImageEventAttributes(
 /**
  * Serializes an Images response for output.value without its base64 images. They are
  * recorded on output.images.*, where base64ImageMaxLength applies to them.
+ *
+ * A body that is not a JSON object, such as an HTML error page, is recorded as it is.
+ *
+ * Note: any other JSON object is assumed to be an ImagesResponse and is re-serialized with
+ * `b64_json` removed from each `data` entry. That may be the wrong call for a body of another
+ * shape, such as a gateway's error envelope: it is recorded as rebuilt rather than as sent,
+ * and a `data` that is not an array throws, which the caller catches, so output.value is not
+ * recorded at all.
  */
 export function stringifyImagesResponse(response: ImagesResponse): string {
-  // A body that is not a JSON object, such as an HTML error page, is recorded as it is.
   const isObject = typeof response === "object" && response !== null && !Array.isArray(response);
   if (!isObject) return JSON.stringify(response);
   return JSON.stringify({
