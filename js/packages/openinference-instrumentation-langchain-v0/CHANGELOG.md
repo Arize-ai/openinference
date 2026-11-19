@@ -1,5 +1,14 @@
 # @arizeai/openinference-instrumentation-langchain-v0
 
+## 0.1.8
+
+### Patch Changes
+
+- 3154e2b: Stop building and publishing the unused `dist/esnext` output and the non-standard `esnext` package field. Entry points resolved through `exports`, `main` and `module` are unchanged.
+- Updated dependencies [3154e2b]
+  - @arizeai/openinference-core@2.8.4
+  - @arizeai/openinference-semantic-conventions@2.17.1
+
 ## 0.1.7
 
 ### Patch Changes
