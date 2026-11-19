@@ -69,8 +69,7 @@ OpenInference adds no new signal or wire format. It defines conventions for Open
 - [Trace Configuration](./configuration/trace-config.md) — Environment variables and `TraceConfig` settings
 - [Data Masking](./configuration/data-masking.md) — What each privacy setting hides
 - [Blob Upload](./configuration/blob-upload.md) — Uploading oversized media to external storage (experimental)
-- [GenAI Semantic Conventions Export](./configuration/genai-semconv.md) — Emitting OTel `gen_ai.*` attributes
-  alongside OpenInference attributes, and Weaver conformance testing (experimental)
+- [GenAI Semantic Conventions Export](./configuration/genai-semconv.md) — Also emitting OTel `gen_ai.*` attributes (experimental)
 
 ## Notation Conventions and Compliance
 
