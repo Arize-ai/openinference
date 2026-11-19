@@ -89,6 +89,27 @@ def _as_output_attributes(
         yield SpanAttributes.OUTPUT_MIME_TYPE, value_and_type.type.value
 
 
+def _get_error_status(error: Any) -> trace_api.Status:
+    # The error's message is the description, as in the JavaScript instrumentation.
+    message = getattr(error, "message", None)
+    return trace_api.Status(
+        status_code=trace_api.StatusCode.ERROR,
+        description=str(message) if message else None,
+    )
+
+
+def _get_failed_response_status(response: Any) -> Optional[trace_api.Status]:
+    """
+    Returns an error status for a Responses API response that failed. The request itself
+    succeeds, so the failure, e.g. a server error during generation, is only in the response.
+    """
+    if getattr(response, "object", None) != "response":
+        return None
+    if getattr(response, "status", None) != "failed":
+        return None
+    return _get_error_status(getattr(response, "error", None))
+
+
 class _HasAttributes(Protocol):
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]: ...
 

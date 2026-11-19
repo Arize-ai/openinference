@@ -593,6 +593,7 @@ def test_responses_image_generation_records_completed_results_only(
     assert json.loads(cast(str, attributes.pop("llm.tools.0.tool.json_schema"))) == image_tool
     assert isinstance(attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
     assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
     # The failed call is skipped, and the two results that came back are numbered
     # from zero rather than by their position in the output list.
     assert attributes.pop(_output_image(0)) == "data:image/webp;base64,c2Vjb25k"
