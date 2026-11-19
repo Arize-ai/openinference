@@ -722,6 +722,8 @@ def _get_attributes_from_generation_span_data(
     yield from _get_attributes_from_chat_completions_input(obj.input)
     yield from _get_attributes_from_chat_completions_output(obj.output)
     yield from _get_attributes_from_chat_completions_usage(obj.usage)
+    # openai-agents >= 0.25.0 records the tools sent with the request; older versions don't.
+    yield from _get_attributes_from_chat_completions_tools(getattr(obj, "tools", None))
 
 
 def _get_attributes_from_mcp_list_tool_span_data(
@@ -828,6 +830,16 @@ def _get_attributes_from_chat_completions_tool_call_dict(
         if arguments := function.get("arguments"):
             if arguments != "{}":
                 yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
+
+
+def _get_attributes_from_chat_completions_tools(
+    tools: Optional[Iterable[Mapping[str, Any]]],
+) -> Iterator[tuple[str, AttributeValue]]:
+    if not tools:
+        return
+    for i, tool in enumerate(tools):
+        if isinstance(tool, Mapping):
+            yield f"{LLM_TOOLS}.{i}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
 
 
 def _get_attributes_from_chat_completions_usage(

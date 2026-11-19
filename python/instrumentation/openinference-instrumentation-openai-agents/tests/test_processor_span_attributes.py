@@ -231,6 +231,53 @@ def test_llm_system_absent_on_trace_root_span() -> None:
     assert "llm.system" not in _attrs(root)
 
 
+# --- tools offered on Chat Completions generation spans --------------------------------
+
+_GENERATION_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": _TOOL_DESCRIPTION,
+        "parameters": _TOOL_PARAMETERS,
+    },
+}
+
+requires_generation_tools = pytest.mark.skipif("'tools' not in GenerationSpanData.__slots__")
+
+
+def _run_generation_with_tools(
+    config: Optional[TraceConfig] = None,
+) -> dict[str, Any]:
+    """The SDK sets the tools while the generation span is open, after it has started."""
+    processor, exporter = _make_processor(config)
+    trace = _FakeTrace()
+    span = _FakeSpan("gen", None, GenerationSpanData(model="gpt-4o-mini"))
+    processor.on_trace_start(trace)  # type: ignore[arg-type]
+    processor.on_span_start(span)  # type: ignore[arg-type]
+    span.span_data.tools = [_GENERATION_TOOL]  # type: ignore[attr-defined, unused-ignore]
+    processor.on_span_end(span)  # type: ignore[arg-type]
+    processor.on_trace_end(trace)  # type: ignore[arg-type]
+    return _one_of_kind(list(exporter.get_finished_spans()), "LLM", "generation")
+
+
+@requires_generation_tools
+def test_generation_span_records_offered_tools() -> None:
+    attrs = _run_generation_with_tools()
+    assert attrs["llm.tools.0.tool.json_schema"] == safe_json_dumps(_GENERATION_TOOL)
+    assert not [k for k in attrs if k.startswith("llm.tools.1.")]
+
+
+@requires_generation_tools
+@pytest.mark.parametrize(
+    "config",
+    [TraceConfig(hide_llm_tools=True), TraceConfig(hide_inputs=True)],
+    ids=["hide_llm_tools", "hide_inputs"],
+)
+def test_generation_span_tools_respect_trace_config_masking(config: TraceConfig) -> None:
+    attrs = _run_generation_with_tools(config)
+    assert not [k for k in attrs if k.startswith("llm.tools.")]
+
+
 def test_response_spans_round_trip_reasoning_output_to_follow_up_input() -> None:
     processor, exporter = _make_processor()
     reasoning_id = "reason-123"
