@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-openai",
-  "version": "4.5.1",
+  "version": "4.6.0",
   "private": false,
   "description": "OpenInference instrumentation for OpenAI",
   "keywords": [],
