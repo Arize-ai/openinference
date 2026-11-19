@@ -87,6 +87,10 @@ result = await kernel.invoke_prompt(
 
 The traces will be visible in the Phoenix UI at `http://localhost:6006`.
 
+## Token counts
+
+`llm.token_count.prompt` is openlit's `gen_ai.usage.input_tokens`, unchanged. On spans from openlit's Anthropic module that count leaves out cache reads and writes, as Anthropic's `input_tokens` does, so it can be smaller than `llm.token_count.prompt_details.cache_read` plus `cache_write`; the OpenInference convention counts them in. The processor doesn't add them back: openlit's LangChain module writes the same `gen_ai.provider.name: anthropic` with a count that already includes the cache (streamed `ChatAnthropic` calls), and the span attributes don't tell the two apart.
+
 ## More Info
 
 -   [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
