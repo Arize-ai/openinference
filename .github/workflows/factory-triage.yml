@@ -78,6 +78,9 @@ jobs:
           FACTORY_APP_CLIENT_ID: ${{ vars.FACTORY_APP_CLIENT_ID }}
           FACTORY_APP_PRIVATE_KEY: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
           FACTORY_GITHUB_LOGIN: ${{ vars.FACTORY_GITHUB_LOGIN }}
+          # Written to the factory-providers vault for the session's live round trips; the
+          # sandbox sees a placeholder. Unset, the vault's key is deleted.
+          FACTORY_SANDBOX_ANTHROPIC_API_KEY: ${{ secrets.FACTORY_SANDBOX_ANTHROPIC_API_KEY }}
           EVENT_NAME: ${{ github.event_name }}
           REQUESTED_BY: ${{ github.event.sender.login }}
         run: |

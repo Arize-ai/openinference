@@ -44,6 +44,7 @@ from dispatch import (
     write_github_outputs,
 )
 from github_app import GitHubAppToken
+from provider_keys import write_provider_keys
 
 TRIAGER_LOCK_KEY = "./agents/issue-triager.md"
 READONLY_VAULT_LOCK_KEY = "./vaults/github-readonly.yaml"
@@ -305,7 +306,7 @@ def create_session(
     return client.beta.sessions.create(
         agent=agent_id,
         environment_id=read_lock_id(lock=lock, lock_key=ENVIRONMENT_LOCK_KEY),
-        vault_ids=[vault_id],
+        vault_ids=[vault_id, *write_provider_keys(client=client, lock=lock)],
         title=f"triage: {repo}#{issue['number']}",
         metadata={"repo": repo, "issue": str(issue["number"]), "lane": "triage"},
         budget={

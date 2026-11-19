@@ -6,7 +6,9 @@ name: Factory Review
 on:
   # zizmor: ignore[dangerous-triggers] The job checks out only the base branch and runs
   # review.py from it. The PR's code runs in the Managed Agents sandbox, which holds no repo
-  # secret, and a ruleset keeps the app's token off every branch but factory/**.
+  # secret: the provider key reaches it as a placeholder, swapped for the real key only in
+  # headers sent to the provider's API. A ruleset keeps the app's token off every branch but
+  # factory/**.
   pull_request_target:
     types: [labeled]
   workflow_dispatch:
@@ -64,6 +66,9 @@ jobs:
           FACTORY_APP_CLIENT_ID: ${{ vars.FACTORY_APP_CLIENT_ID }}
           FACTORY_APP_PRIVATE_KEY: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
           FACTORY_GITHUB_LOGIN: ${{ vars.FACTORY_GITHUB_LOGIN }}
+          # Written to the factory-providers vault for the session's live round trips; the
+          # sandbox sees a placeholder. Unset, the vault's key is deleted.
+          FACTORY_SANDBOX_ANTHROPIC_API_KEY: ${{ secrets.FACTORY_SANDBOX_ANTHROPIC_API_KEY }}
           REQUESTED_BY: ${{ github.event.sender.login }}
         run: python factory/review.py --repo "$GH_REPO" --pr "$PR_NUMBER" start --requested-by "$REQUESTED_BY"
 

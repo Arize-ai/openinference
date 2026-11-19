@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Prepares a factory sandbox for the languages an issue touches: `python`, `js`, or both
 # (the default). Python needs no setup here, since tox builds each package's environment.
+# Add `phoenix` to start a local Phoenix for a live round trip (python/scripts/roundtrip/) and
+# report which provider keys the factory-providers vault gave the session.
 # JS runs `make install-js` on the sandbox's Node, which must meet the Makefile's floor
 # (20.19+ or 22.12+, for oxfmt); CI runs Node 20. It ends with a report of what works.
 # Anything it reports missing is a verification gap for the PR body; CI runs the full
@@ -22,6 +24,10 @@ if wants js; then
   install_js_status=$?
 fi
 
+if wants phoenix; then
+  phoenix_report=$(python/scripts/roundtrip/serve_phoenix.sh /tmp/factory-phoenix 2>&1)
+fi
+
 echo "--- factory bootstrap report"
 echo "languages: ${languages[*]}"
 echo "gh: $(gh --version 2>/dev/null | head -n 1 | grep . || echo missing)"
@@ -41,4 +47,10 @@ if wants js; then
     echo "make install-js: failed (exit $install_js_status); last lines of /tmp/factory-install-js.log:"
     tail -n 20 /tmp/factory-install-js.log
   fi
+fi
+if wants phoenix; then
+  echo "$phoenix_report"
+  for key in ANTHROPIC_API_KEY; do
+    echo "$key: $([ -n "${!key:-}" ] && echo "set (a vault placeholder; the real key is added at egress)" || echo "missing: the live round trip cannot run")"
+  done
 fi

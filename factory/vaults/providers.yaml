@@ -1,0 +1,7 @@
+# Provider API keys for the live round trips that triage and review sessions write and run
+# (python/scripts/roundtrip/README.md). The vault container only: triage.py and review.py write
+# each key from its repo secret on every session, as an environment_variable credential injected
+# only into headers sent to that provider's API host, so the sandbox sees a placeholder. See
+# Provider keys in factory/README.md.
+type: vault
+display_name: factory-providers

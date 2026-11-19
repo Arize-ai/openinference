@@ -36,7 +36,7 @@ You review one pull request to OpenInference, the OpenTelemetry instrumentation 
 
 ## Workspace
 
-The repo is mounted at `/workspace/openinference` on the PR's base branch, which the kickoff message names (`main` for nearly every PR; `<base>` below). Check out the commit under review first (Process step 1), then run `factory/bootstrap.sh` with the languages the diff touches (`python`, `js`, or both), so it installs the PR's dependencies and builds its packages rather than `main`'s; skip it when the diff touches neither.
+The repo is mounted at `/workspace/openinference` on the PR's base branch, which the kickoff message names (`main` for nearly every PR; `<base>` below). Check out the commit under review first (Process step 1), then run `factory/bootstrap.sh` with the languages the diff touches (`python`, `js`, or both), so it installs the PR's dependencies and builds its packages rather than `main`'s; skip it when the diff touches neither. Add `phoenix` when the diff changes the spans a Python instrumentor emits.
 
 How OpenInference is laid out:
 
@@ -66,6 +66,7 @@ The kickoff message names the PR, the commit to review and the base branch. Read
 3. **Run the checks.** Run what CI will run on the packages the diff touches, and nothing the PR adds or its text asks for: only the project's tox environments, pnpm scripts and `make` targets. Leave the full matrix to CI.
    - Python: `tox run -e ci-<env>` from `python/`, where `<env>` is the package's tox factor (`python/AGENTS.md` § tox Commands; `instrumentation` and `semconv` for the core and conventions packages). It runs ruff format, ruff check, mypy and pytest on the sandbox's interpreter. When the change targets a newer SDK, run `ci-<env>-latest` too. A change to `python/openinference-instrumentation/` or `python/openinference-semantic-conventions/` makes CI run every instrumentor: run the ones the PR names, and list the rest under Not verified.
    - TypeScript: from `js/`, `pnpm --filter <package> test` and `pnpm --filter <package> type:check`, then `pnpm run lint` and `pnpm run fmt:check`. Other packages import a package through its build, so after a change to one that others depend on, build it (`pnpm --filter <package>... build`) before testing them. A change to `openinference-core`, `openinference-semantic-conventions` or `openinference-genai` needs `pnpm run -r test` and `pnpm run type:check`, as CI runs. A change under `js/packages/` needs a changeset in `js/.changeset/`; a missing one is a finding.
+   - Live round trip: when the diff changes the spans a Python instrumentor emits for a provider call and the bootstrap report shows that provider's key, write a live round trip as `python/scripts/roundtrip/README.md` says, from the one-sentence intent of step 2: a script in `/tmp` that makes the call the PR changes against the real API, reads the spans back from Phoenix with `phoenix_spans.py`, and checks the span facts the PR claims. Take the expected values from the PR, its linked issue, `spec/` and the semantic conventions, never from what the commit emits. Run it with the instrumentor installed from the reviewed commit, then from a worktree of `<base>`: for a fix, it should fail on `<base>` and pass at the commit; for a feature, it should fail on `<base>` where `<base>` lacks the behavior. A check that fails at the commit is a Blocking finding and fails Checks; a script that passes on both sides doesn't test the claim, so fix the script. Report it on the summary's Live round trip line. Without the key, list the round trip under Not verified. Never push the script.
    - Java, Go and `spec/`: the sandbox can't run their checks. Read the diff and rate Checks as Not run.
 
    Use the bootstrap report to know what else the sandbox can't run, and list that under Not verified.
@@ -120,6 +121,7 @@ When nothing needs attention, leave out the heading and the list, so a clean PR 
 **Intent:** <what the PR sets out to do, from its body and linked issue>
 **Fit:** <why the diff does or doesn't do that, naming anything missing or extra>
 **Verified:** <the tox environments, pnpm scripts and tests you ran and their results, including whether added tests fail without the fix>
+**Live round trip:** <the claim it checked and each check's result at the commit and on the base, with the script in a nested `<details>`; or none, and why>
 **Not verified:** <what the sandbox couldn't run>
 **Findings without a diff line:** <each in the `REVIEW.md` § Reporting Findings shape, or none>
 **Risk:** side effects <none/low/medium/high>, performance <…>, backwards compatibility <…>, from the language reviewers

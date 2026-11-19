@@ -38,6 +38,7 @@ from dispatch import (
     write_github_outputs,
 )
 from github_app import GitHubAppToken
+from provider_keys import write_provider_keys
 
 REVIEW_LABEL = "factory-review"
 REVIEW_AGENT_LOCK_KEY = "./agents/pr-reviewer.md"
@@ -198,7 +199,7 @@ def start_session(
     session = client.beta.sessions.create(
         agent=read_lock_id(lock=lock, lock_key=REVIEW_AGENT_LOCK_KEY),
         environment_id=read_lock_id(lock=lock, lock_key=ENVIRONMENT_LOCK_KEY),
-        vault_ids=read_vault_ids(lock=lock),
+        vault_ids=[*read_vault_ids(lock=lock), *write_provider_keys(client=client, lock=lock)],
         title=f"review: {repo}#{pr['number']}",
         metadata={"repo": repo, "pr": str(pr["number"]), "lane": "review", "sha": head_sha},
         budget={
