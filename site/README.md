@@ -1,18 +1,18 @@
 # OpenInference site
 
 The [Astro](https://astro.build) project behind
-<https://arize-ai.github.io/openinference/>.
+<https://openinf.dev/>.
 
 The site renders markdown that lives elsewhere in the repository; nothing is
 duplicated here. The content collections in `src/content.config.ts` load:
 
-| Source               | Route                                |
-| -------------------- | ------------------------------------ |
-| `README.md`          | `/openinference/`                    |
-| `spec/README.md`     | `/openinference/spec/`               |
-| `spec/*.md`          | `/openinference/spec/<name>.html`    |
-| `docs/i18n/*.md`     | `/openinference/docs/i18n/<name>.html` |
-| `docs/news/*.md`     | `/openinference/news/<name>.html`    |
+| Source           | Route                    |
+| ---------------- | ------------------------ |
+| `README.md`      | `/`                      |
+| `spec/README.md` | `/spec/`                 |
+| `spec/*.md`      | `/spec/<name>.html`      |
+| `docs/i18n/*.md` | `/docs/i18n/<name>.html` |
+| `docs/news/*.md` | `/news/<name>.html`      |
 
 Relative links in that markdown are rewritten by
 `src/plugins/rehype-repo-links.mjs`: links to published pages point at their
@@ -21,8 +21,8 @@ the file on GitHub.
 
 ## News
 
-`/openinference/news/` is a timeline of the project's news, newest first,
-with an RSS feed at `/openinference/news/rss.xml`. Each post is a markdown
+`/news/` is a timeline of the project's news, newest first,
+with an RSS feed at `/news/rss.xml`. Each post is a markdown
 file in [`docs/news/`](../docs/news/README.md) with frontmatter (`title`,
 `description`, `pubDate`, `authors` as GitHub handles, and optional `tags`,
 `releases` and `draft`), checked by the `news` collection's schema in
@@ -34,7 +34,7 @@ is the guide for writing one.
 ## llms.txt
 
 The site publishes [`llms.txt`](https://llmstxt.org) for agents, at
-`/openinference/llms.txt`, with a markdown copy of every page.
+`/llms.txt`, with a markdown copy of every page.
 
 | File                         | What it is                                                     | Made by                                                           |
 | ---------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -61,12 +61,12 @@ same way: a script extracts each package's public API to JSON in
 `src/generated/` (not committed), and the pages render it with the shared
 components in `src/components/api/`.
 
-| Source                                                 | Route                                  |
-| ------------------------------------------------------ | -------------------------------------- |
-| `js/packages/<package>`                                | `/openinference/js/<package>.html`     |
-| `python/<package>`, `python/instrumentation/<package>` | `/openinference/python/<package>.html` |
+| Source                                                 | Route                    |
+| ------------------------------------------------------ | ------------------------ |
+| `js/packages/<package>`                                | `/js/<package>.html`     |
+| `python/<package>`, `python/instrumentation/<package>` | `/python/<package>.html` |
 
-`/openinference/js/` and `/openinference/python/` are overviews: every
+`/js/` and `/python/` are overviews: every
 package by group, and a search over every documented object.
 
 ### JavaScript
@@ -134,7 +134,7 @@ cd site
 pnpm install
 pnpm js-api      # writes src/generated/js-api.json
 pnpm python-api  # writes src/generated/python-api.json
-pnpm dev      # http://localhost:4321/openinference/
+pnpm dev      # http://localhost:4321/
 pnpm build    # outputs to dist/
 pnpm preview
 ```

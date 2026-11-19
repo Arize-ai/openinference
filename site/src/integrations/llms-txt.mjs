@@ -31,8 +31,8 @@ import { unified } from "unified";
 
 /**
  * The route of a page's markdown copy, by the page's route:
- * `/openinference/spec/llm.html` → `/openinference/spec/llm.html.md`,
- * `/openinference/spec/` → `/openinference/spec/index.html.md`.
+ * `/spec/llm.html` → `/spec/llm.html.md`,
+ * `/spec/` → `/spec/index.html.md`.
  * @param {string} route
  */
 export function markdownRouteOf(route) {
@@ -80,7 +80,7 @@ const BADGE_HOSTS = new Set(["img.shields.io", "badge.fury.io"]);
 /**
  * @typedef {object} Site
  * @property {URL} root the site's root URL, with its base:
- *   `https://arize-ai.github.io/openinference/`
+ *   `https://openinf.dev/`
  * @property {Set<string>} mirrored the pages with a markdown copy, by their
  *   path in the build: `spec/spans/llm.html`
  */

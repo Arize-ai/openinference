@@ -16,7 +16,7 @@ import { getSpecSections, ledeOf, titleOf } from "../lib/spec";
 
 interface Link {
   title: string;
-  /** The page's route, e.g. `/openinference/spec/`. */
+  /** The page's route, e.g. `/spec/`. */
   route: string;
   notes?: string;
 }
