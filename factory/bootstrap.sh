@@ -50,7 +50,7 @@ if wants js; then
 fi
 if wants phoenix; then
   echo "$phoenix_report"
-  for key in ANTHROPIC_API_KEY; do
-    echo "$key: $([ -n "${!key:-}" ] && echo "set (a vault placeholder; the real key is added at egress)" || echo "missing: the live round trip cannot run")"
+  for key in ANTHROPIC_AUTH_TOKEN; do
+    echo "$key: $([ -n "${!key:-}" ] && echo "set (a vault placeholder; the real token is added at egress)" || echo "missing: the live round trip cannot run")"
   done
 fi

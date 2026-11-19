@@ -7,7 +7,7 @@ config:
     # PyPI, npm and nodejs.org for setup; the GitHub MCP server for issues and PRs.
     allow_package_managers: true
     allow_mcp_servers: true
-    # Provider APIs for live round trips; provider_keys.py scopes each key to its own host.
+    # Provider APIs for live round trips; provider_keys.py scopes each token to its own host.
     allowed_hosts: [api.anthropic.com]
   packages:
     type: packages

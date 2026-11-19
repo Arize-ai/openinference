@@ -44,7 +44,7 @@ from dispatch import (
     write_github_outputs,
 )
 from github_app import GitHubAppToken
-from provider_keys import write_provider_keys
+from provider_keys import SandboxAnthropicToken
 
 TRIAGER_LOCK_KEY = "./agents/issue-triager.md"
 READONLY_VAULT_LOCK_KEY = "./vaults/github-readonly.yaml"
@@ -306,7 +306,7 @@ def create_session(
     return client.beta.sessions.create(
         agent=agent_id,
         environment_id=read_lock_id(lock=lock, lock_key=ENVIRONMENT_LOCK_KEY),
-        vault_ids=[vault_id, *write_provider_keys(client=client, lock=lock)],
+        vault_ids=[vault_id, *SandboxAnthropicToken(client=client, lock=lock).vault_ids()],
         title=f"triage: {repo}#{issue['number']}",
         metadata={"repo": repo, "issue": str(issue["number"]), "lane": "triage"},
         budget={
@@ -611,6 +611,7 @@ def watch_session(
     *,
     client: anthropic.Anthropic,
     session_token: GitHubAppToken,
+    sandbox_token: SandboxAnthropicToken,
     session_id: str,
     issue_number: int,
     repo_label_names: set[str],
@@ -633,6 +634,7 @@ def watch_session(
             session_id=session_id,
             previous_idle_event_id=previous_idle_event_id,
             deadline=deadline,
+            also_refresh=[sandbox_token.refresh_quietly],
         )
         if session is None:
             return submission, f"still running after {watch_minutes} minutes"
@@ -1277,7 +1279,8 @@ def print_untrusted(text: str) -> None:
 def run_watch(*, args: argparse.Namespace) -> None:
     client = anthropic.Anthropic()
     factory_login = read_factory_login()
-    agent_id, vault_id = read_triage_ids(client=client, lock=json.loads(LOCK_FILE_PATH.read_text()))
+    lock = json.loads(LOCK_FILE_PATH.read_text())
+    agent_id, vault_id = read_triage_ids(client=client, lock=lock)
     session_token = create_token(
         client=client, repo=args.repo, permissions=SESSION_TOKEN_PERMISSIONS, vault_id=vault_id
     )
@@ -1285,6 +1288,7 @@ def run_watch(*, args: argparse.Namespace) -> None:
     submission, stop_reason = watch_session(
         client=client,
         session_token=session_token,
+        sandbox_token=SandboxAnthropicToken(client=client, lock=lock),
         session_id=args.session_id,
         issue_number=args.issue,
         repo_label_names=read_repo_label_names(),

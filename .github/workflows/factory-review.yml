@@ -6,9 +6,9 @@ name: Factory Review
 on:
   # zizmor: ignore[dangerous-triggers] The job checks out only the base branch and runs
   # review.py from it. The PR's code runs in the Managed Agents sandbox, which holds no repo
-  # secret: the provider key reaches it as a placeholder, swapped for the real key only in
-  # headers sent to the provider's API. A ruleset keeps the app's token off every branch but
-  # factory/**.
+  # secret: its Anthropic token is minted per run, scoped to the Messages API, lives about ten
+  # minutes, and reaches it as a placeholder swapped in only on headers to api.anthropic.com.
+  # A ruleset keeps the app's token off every branch but factory/**.
   pull_request_target:
     types: [labeled]
   workflow_dispatch:
@@ -34,10 +34,17 @@ jobs:
     permissions:
       contents: read
       pull-requests: write # report a failed start; the app posts every other comment
+      id-token: write # mints the sandbox's short-lived Anthropic token
     env:
       GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+      # The federation rule that mints the sandbox's short-lived Anthropic token from this
+      # job's OIDC token (factory/provider_keys.py). IDs, not secrets; unset, no token.
+      FACTORY_SANDBOX_ANTHROPIC_ORGANIZATION_ID: ${{ vars.FACTORY_SANDBOX_ANTHROPIC_ORGANIZATION_ID }}
+      FACTORY_SANDBOX_ANTHROPIC_FEDERATION_RULE_ID: ${{ vars.FACTORY_SANDBOX_ANTHROPIC_FEDERATION_RULE_ID }}
+      FACTORY_SANDBOX_ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ vars.FACTORY_SANDBOX_ANTHROPIC_SERVICE_ACCOUNT_ID }}
+      FACTORY_SANDBOX_ANTHROPIC_WORKSPACE_ID: ${{ vars.FACTORY_SANDBOX_ANTHROPIC_WORKSPACE_ID }}
     steps:
       # pull_request_target checks out the base branch by default; keep it that way.
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -66,9 +73,6 @@ jobs:
           FACTORY_APP_CLIENT_ID: ${{ vars.FACTORY_APP_CLIENT_ID }}
           FACTORY_APP_PRIVATE_KEY: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
           FACTORY_GITHUB_LOGIN: ${{ vars.FACTORY_GITHUB_LOGIN }}
-          # Written to the factory-providers vault for the session's live round trips; the
-          # sandbox sees a placeholder. Unset, the vault's key is deleted.
-          FACTORY_SANDBOX_ANTHROPIC_API_KEY: ${{ secrets.FACTORY_SANDBOX_ANTHROPIC_API_KEY }}
           REQUESTED_BY: ${{ github.event.sender.login }}
         run: python factory/review.py --repo "$GH_REPO" --pr "$PR_NUMBER" start --requested-by "$REQUESTED_BY"
 

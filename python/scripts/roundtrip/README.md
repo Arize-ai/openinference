@@ -63,13 +63,13 @@ pieces every such script needs:
 
 - **Factory triage and review.** The issue triager (through the bug reproducer) and the PR
   reviewer write and run a round trip when the claim is about emitted spans and the sandbox has a
-  provider key. The key comes from the repo secret `FACTORY_SANDBOX_<PROVIDER>_API_KEY`; see
-  Provider keys in `factory/README.md`. `factory/bootstrap.sh phoenix` starts Phoenix there.
+  provider credential. For Anthropic that is a short-lived token in `ANTHROPIC_AUTH_TOKEN`,
+  which the SDK reads by itself; see Provider keys in `factory/README.md`. `factory/bootstrap.sh phoenix` starts Phoenix there.
 - **Locally.** The `phoenix-verify` skill, with your own key.
 
 ## Adding a provider
 
-Add its key to `PROVIDER_KEYS` in `factory/provider_keys.py`, its API host to `allowed_hosts` in
-`factory/environments/openinference-dev.yaml`, the secret to the Start session steps of
-`factory-triage.yml` and `factory-review.yml`, and its variable name to the key report in
+The sandbox needs a credential for the provider's API, scoped to its host; see Provider keys in
+`factory/README.md`. Add the host to `allowed_hosts` in
+`factory/environments/openinference-dev.yaml` and the variable the SDK reads to the key report in
 `factory/bootstrap.sh`.
