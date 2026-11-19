@@ -862,6 +862,7 @@ class _CallableStr(str):
         SpanAttributes.OUTPUT_VALUE,
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.contents.0."
         f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+        _message_document_key(SpanAttributes.LLM_INPUT_MESSAGES, DocumentAttributes.DOCUMENT_URL),
     ],
 )
 def test_mask_does_not_call_callable_str(key: str) -> None:
