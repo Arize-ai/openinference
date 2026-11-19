@@ -41,6 +41,7 @@ them; Phoenix and Arize render them natively.
 | `GUARDRAIL` | safety check on input or output |
 | `EVALUATOR` | scoring a model output |
 | `PROMPT` | rendering a prompt template |
+| `DECISION` | one call to a decision model (typed questions over state) |
 
 ## Attributes most often set
 
@@ -74,14 +75,17 @@ standard `service.name`.
 ## Privacy masking
 
 Configure in code via TraceConfig or with env vars; code wins over env, env over defaults.
+Python and JS read different sets of env vars; the authoritative table, with the
+language-specific flags marked, is `spec/configuration/trace-config.md`.
 Hidden values become the string `__REDACTED__`. Masking happens in the `OITracer` wrapper,
 so spans from a raw OTel tracer are never masked.
 
-Boolean flags, all default false: `OPENINFERENCE_HIDE_INPUTS`, `_HIDE_OUTPUTS`,
-`_HIDE_INPUT_MESSAGES`, `_HIDE_OUTPUT_MESSAGES`, `_HIDE_INPUT_TEXT`, `_HIDE_OUTPUT_TEXT`,
-`_HIDE_INPUT_IMAGES`, `_HIDE_LLM_INVOCATION_PARAMETERS`, `_HIDE_LLM_TOOLS`,
-`_HIDE_EMBEDDINGS_VECTORS` (JS reads `_HIDE_EMBEDDING_VECTORS`), `_HIDE_EMBEDDINGS_TEXT`,
-`_HIDE_PROMPTS`, `_HIDE_CHOICES`. `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` is an int,
+Boolean flags read by both languages, all default false: `OPENINFERENCE_HIDE_INPUTS`,
+`_HIDE_OUTPUTS`, `_HIDE_INPUT_MESSAGES`, `_HIDE_OUTPUT_MESSAGES`, `_HIDE_INPUT_TEXT`,
+`_HIDE_OUTPUT_TEXT`, `_HIDE_INPUT_IMAGES`, `_HIDE_LLM_TOOLS`, `_HIDE_PROMPTS`, and the embedding
+vectors flag (Python `_HIDE_EMBEDDINGS_VECTORS`, JS `_HIDE_EMBEDDING_VECTORS`). Python only:
+`_HIDE_LLM_INVOCATION_PARAMETERS`, `_HIDE_EMBEDDINGS_TEXT`, `_HIDE_CHOICES`,
+`_HIDE_RETRIEVAL_DOCUMENTS`. `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` is an int,
 default 32000. `HIDE_INPUTS` also hides input messages and tool definitions;
 `HIDE_OUTPUTS` also hides output messages.
 

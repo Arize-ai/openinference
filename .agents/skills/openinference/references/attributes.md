@@ -1,7 +1,7 @@
 # OpenInference attribute reference
 
 Grouped by where they appear. `N`, `M` are zero-based indexes. "JSON" means a JSON string.
-Complete spec: https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md
+Complete spec: https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md
 
 ## Every span
 
@@ -23,8 +23,8 @@ Complete spec: https://github.com/Arize-ai/openinference/blob/main/spec/semantic
 | --- | --- | --- |
 | `llm.model_name` | string | model that answered; falls back to requested |
 | `llm.request.model_name` / `llm.response.model_name` | string | only when the provider reports both |
-| `llm.provider` | string | host: `openai`, `anthropic`, `azure`, `google`, `aws`, `cohere`, `mistralai`, `xai`, `deepseek`, `groq`, `fireworks`, `together`, `ollama`, `perplexity`, `cerebras`, `moonshot`, `meta`, `zai`, `minimax` |
-| `llm.system` | string | model family: `openai`, `anthropic`, `vertexai`, `cohere`, `mistralai`, `xai`, `deepseek`, `amazon`, `meta`, `ai21` |
+| `llm.provider` | string | host, e.g. `openai`, `anthropic`, `azure`, `google`, `aws`, `groq`, `ollama`; full list in the spec's LLM Provider Values |
+| `llm.system` | string | model family, e.g. `openai`, `anthropic`, `vertexai`, `amazon`, `meta`; full list in the spec's LLM System Values |
 | `llm.invocation_parameters` | JSON | temperature, max_tokens, etc.; no messages |
 | `llm.input_messages.N.message.role` | string | `system`, `user`, `assistant`, `tool` |
 | `llm.input_messages.N.message.content` | string | plain text content |

@@ -54,11 +54,12 @@ model-provider instrumentor for full coverage. `uninstrument()` reverses.
 
 ## Trace your own code
 
-Decorators work on sync, async, and generator functions. Input comes from the bound
+Decorators work on sync and async functions; `@tracer.llm` and `@tracer.decision` also
+support sync and async generators. Input comes from the bound
 arguments and output from the return value, JSON-encoded when not a string.
 
 ```python
-@tracer.agent  # also .chain .tool .llm .retriever .reranker .guardrail .evaluator
+@tracer.agent  # also .chain .tool .llm .decision .retriever .reranker .guardrail .evaluator
 def run(question: str) -> str: ...
 
 @tracer.tool  # tool.description and tool.parameters inferred from docstring and signature
@@ -72,7 +73,7 @@ Manual span:
 
 ```python
 with tracer.start_as_current_span("rerank", openinference_span_kind="reranker") as span:
-    span.set_input(query)  # also set_output(value), set_tool(name=..., parameters=...)
+    span.set_input(query)  # also set_output(value); set_tool(name=..., parameters=...) only on tool-kind spans
     span.set_attributes(get_reranker_attributes(query=query, output_documents=docs))
 ```
 

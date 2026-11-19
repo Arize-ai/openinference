@@ -3,7 +3,7 @@ name: openinference-instrument-js
 description: >
   Instrument JavaScript and TypeScript LLM, agent, and RAG code with OpenInference on
   OpenTelemetry: set up a NodeTracerProvider with a project name, register
-  auto-instrumentations (OpenAI, Anthropic, LangChain, Bedrock, Google GenAI, MCP), use the
+  auto-instrumentations (OpenAI, Anthropic, LangChain, Bedrock, OpenAI Agents, MCP), use the
   Vercel AI SDK span processor and TanStack AI middleware, trace your own functions with
   withSpan, traceChain, traceAgent, traceTool, or the observe decorator, build attributes with
   helpers, attach context attributes (setSession, setUser, setMetadata, setTags), mask data
@@ -49,6 +49,9 @@ registerInstrumentations({
 Load this file before the instrumented library, for example with
 `node --import ./instrumentation.js app.js`. Under ESM or bundlers, module patching can miss;
 import the library and call `instrumentation.manuallyInstrument(module)` instead.
+MCP is the exception: auto-instrumentation never patches it, so always call
+`new MCPInstrumentation().manuallyInstrument({ clientStdioModule, serverStdioModule, ... })`.
+It creates no spans; it only propagates trace context between MCP client and server.
 
 ## Trace your own code
 
@@ -67,7 +70,7 @@ const retrieve = withSpan(retrieveDocs, {
 ```
 
 Also `traceChain`, `traceLLM`, `traceRetriever`, `traceReranker`, `traceEmbedding`,
-`traceGuardrail`, `traceEvaluator`, `tracePrompt`, and `@observe({ kind })` on class methods
+`traceGuardrail`, `traceEvaluator`, `tracePrompt`, `traceDecision`, and `@observe({ kind })` on class methods
 (TypeScript 5 standard decorators). Wrappers preserve `this`, await promises, and record
 errors. Without processors, input and output are JSON-stringified. Pass `tracer` to control
 masking; `getTracer(name)` and `wrapTracer(tracer)` return an `OITracer`.
@@ -99,8 +102,8 @@ a raw tracer, call `span.setAttributes(getAttributesFromContext(context.active()
 
 ## Trace config
 
-`new OITracer({ tracer, traceConfig })` and every instrumentation constructor accept the same
-`traceConfig`: `hideInputs`, `hideOutputs`, `hideInputMessages`, `hideOutputMessages`,
+`new OITracer({ tracer, traceConfig })` and every span-producing instrumentation constructor
+(not MCP) accept the same `traceConfig`: `hideInputs`, `hideOutputs`, `hideInputMessages`, `hideOutputMessages`,
 `hideInputText`, `hideOutputText`, `hideInputImages`, `hideLLMTools`, `hideEmbeddingVectors`,
 `hidePrompts`, `base64ImageMaxLength`. Unset keys fall back to `OPENINFERENCE_*` env vars,
 then defaults.
