@@ -228,6 +228,15 @@ centre line, under the header's.
   weight 600, with a 2px `--accent` bar over the rule. The section being
   read in the right rail gets `--fg` and an ink bar, not the accent, so
   there is still one accent on screen.
+- **Copy page.** At the top of the page, floated to its end edge so the
+  title's first line (or an API page's eyebrow) wraps short of it: a
+  **Copy page** button that copies the page's markdown copy, joined to a
+  toggle for a menu (view the markdown; open it in ChatGPT, Claude or
+  Perplexity). Both are the code blocks' Copy button: mono caps on
+  `--surface` in a 1px `--rule`, `--fg` on hover, `--accent` once copied.
+  The menu is a `--surface` panel in a 1px `--rule`; an item's label takes
+  the accent on hover. It sits outside the converted article, so it isn't
+  in the markdown, and it is hidden without JavaScript.
 - **Under the page.** **Edit this page on GitHub**, then the previous and
   next pages: mono caps direction labels over the page titles at
   `--text-h4`, which take the accent on hover.

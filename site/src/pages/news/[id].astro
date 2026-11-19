@@ -42,7 +42,7 @@ const source = `${GITHUB_URL}/blob/${BRANCH}/docs/news/${post.id}.md`;
 ---
 
 <BaseLayout title={title} description={description}>
-  <article class="post">
+  <article class="post" data-markdown>
     <header class="page-head">
       <p class="eyebrow">
         <a href={newsIndex}>News</a> · <time datetime={isoDate(pubDate)}>{formatDate(pubDate)}</time>
