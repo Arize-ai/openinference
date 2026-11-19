@@ -267,7 +267,8 @@ async def test_query_uses_per_turn_message_usage_instead_of_session_totals(
             "type": "result",
             "subtype": "success",
             "result": "done",
-            "usage": {"input_tokens": 1300, "output_tokens": 700},
+            # Step output_tokens above are placeholders; the result has the real count.
+            "usage": {"input_tokens": 1300, "output_tokens": 321},
             "total_cost_usd": 12.34,
             "session_id": "session-1",
         },
@@ -285,8 +286,8 @@ async def test_query_uses_per_turn_message_usage_instead_of_session_totals(
     agent_span = _span_by_name(in_memory_span_exporter.get_finished_spans(), "ClaudeAgentSDK.query")
     attributes = dict(agent_span.attributes or {})
     assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 36
-    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 9
-    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 45
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 321
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 357
     assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 6
     assert SpanAttributes.LLM_COST_TOTAL not in attributes
     subagent_span = _span_by_name(
