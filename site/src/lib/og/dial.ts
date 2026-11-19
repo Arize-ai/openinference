@@ -93,9 +93,29 @@ export function drawLandingArt(options: ArtOptions, wordmarkSvg: string) {
       labels.push({ x, y: r2(y + 4 * k), text: `${sec}s`, color: COLOR.dim, size: r2(12 * k), anchor: "middle", weight: 500 });
     }
   }
-  /* The hand, under the bars: a knob's pointer on the bolt, out past the dial to the hero's time tag. */
+  /* Where the tag and readout go: at the hand's tip while they fit inside the mark's window, else in the
+     dead zone over the keyway, like a knob's value display, so they never sit on the mark. */
   const ah = ang(now);
-  const tip = outer + 30 * k;
+  const TAG_H = 22 * k;
+  const tagText = `${(now / 1000).toFixed(2)}s`;
+  const tagW = (tagText.length * 7.6 + 14) * k;
+  const under = SPANS.map((sp, i) => ({ sp, i })).filter(({ sp }) => sp.start <= now && now <= sp.end + 1).sort((a, b) => b.sp.depth - a.sp.depth)[0];
+  const readText = !under ? "" : under.sp.depth === 0 ? "agent" : `${under.sp.name}${under.sp.note ? ` ${under.sp.note}` : ""}  ${under.sp.end <= now ? `${Math.round(under.sp.end - under.sp.start)}ms` : `${Math.round(now - under.sp.start)}ms…`}`;
+  const readW = !under ? 0 : (readText.length * 7.8 + (under.sp.depth === 0 ? 10 : 34)) * k;
+  /** The window: the nut, a hexagon round the bolt with a point at the top; inside when within every flat. */
+  const flat = geometry.nut * s - 10 * k;
+  const inWindow = (x: number, y: number) => [0, 60, 120, 180, 240, 300].every((a) => (x - bx) * Math.cos(rad(a)) + (y - by) * Math.sin(rad(a)) <= flat);
+  const tipAt = outer + 30 * k;
+  const [tx0, ty0] = pol(tipAt, ah);
+  const right = Math.cos(rad(ah)) >= -0.1 && tx0 + tagW + readW < W - 40 * k;
+  const below = Math.sin(rad(ah)) > 0.35;
+  const tagX = right ? tx0 - 4 * k : tx0 - tagW + 4 * k;
+  const tagY = below ? ty0 + 2 * k : ty0 - TAG_H - 2 * k;
+  const rowX0 = right ? tagX : tagX - readW, rowX1 = right ? tagX + tagW + readW : tagX + tagW;
+  const fits = [[rowX0, tagY], [rowX1, tagY], [rowX0, tagY + TAG_H], [rowX1, tagY + TAG_H]].every(([x, y]) => inWindow(x, y));
+
+  /* The hand, under the bars: a knob's pointer on the bolt, out to the tag, or just past the dial. */
+  const tip = fits ? tipAt : outer + 8 * k;
   svg.push(line(0, tip, ah, `stroke="${COLOR.fg}" stroke-width="${r2(1.25 * k)}"`));
 
   svg.push(`<defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(${r2(ang(SPANS[SPANS.findIndex((x) => x.error)].start) + 45)})"><rect width="4" height="4" fill="${COLOR.accent}" fill-opacity=".18"/><line x1="0" y1="0" x2="0" y2="4" stroke="${COLOR.accent}" stroke-width="2"/></pattern></defs>`);
@@ -122,37 +142,29 @@ export function drawLandingArt(options: ArtOptions, wordmarkSvg: string) {
     `<circle cx="${r2(bx)}" cy="${r2(by)}" r="${r2(9 * k)}" fill="${COLOR.fg}"/><circle cx="${r2(bx)}" cy="${r2(by)}" r="${r2(3 * k)}" fill="${COLOR.bg}"/>`,
   );
   {
-    const [tx, ty] = pol(tip, ah);
-    const text = `${(now / 1000).toFixed(2)}s`;
-    const w = (text.length * 7.6 + 14) * k, h = 22 * k;
-    /* The tag sits on the tip's outer side; the readout runs away from the dial, toward whichever side has room. */
-    const under0 = SPANS.filter((sp) => sp.start <= now && now <= sp.end + 1).sort((a, b) => b.depth - a.depth)[0];
-    const readW = under0 ? (under0.depth === 0 ? 5 * 7.8 + 14 : (`${under0.name}${under0.note ? ` ${under0.note}` : ""}  0000ms`.length * 7.8 + 34)) * k : 0;
-    const right = Math.cos(rad(ah)) >= -0.1 && tx + w + readW < W - 40 * k;
-    const below = Math.sin(rad(ah)) > 0.35;
-    const x = right ? tx - 4 * k : tx - w + 4 * k, y = below ? ty + 2 * k : ty - h - 2 * k;
-    svg.push(`<rect x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" fill="${COLOR.fg}"/>`);
-    labels.push({ x: r2(x + w / 2), y: r2(y + h / 2 + 4.5 * k), text, color: COLOR.bg, size: r2(13 * k), anchor: "middle", weight: 500 });
-    anchors.tag = [x + w / 2, y + h / 2];
+    /* The tag: at the hand's tip, or centred in the dead zone with the readout beside it. */
+    const gap = 10 * k;
+    const x = fits ? tagX : bx - (tagW + gap + readW) / 2;
+    const y = fits ? tagY : by + outer * 0.82 - TAG_H / 2;
+    const toRight = fits ? right : true;
+    svg.push(`<rect x="${r2(x)}" y="${r2(y)}" width="${r2(tagW)}" height="${r2(TAG_H)}" fill="${COLOR.fg}"/>`);
+    labels.push({ x: r2(x + tagW / 2), y: r2(y + TAG_H / 2 + 4.5 * k), text: tagText, color: COLOR.bg, size: r2(13 * k), anchor: "middle", weight: 500 });
+    anchors.tag = [x + tagW / 2, y + TAG_H / 2];
 
-    /* The readout: the span the hand has just reached, the deepest under it, or the failure as it ends. */
-    const under = SPANS.map((sp, i) => ({ sp, i })).filter(({ sp }) => sp.start <= now && now <= sp.end + 1).sort((a, b) => b.sp.depth - a.sp.depth)[0];
-    if (under && under.sp.depth === 0) {
-      /* At the root, the readout is just what it is: the agent. */
-      labels.push({ x: r2(right ? x + w + 10 * k : x - 10 * k), y: r2(y + h / 2 + 4.5 * k), text: "agent", color: COLOR.fg, size: r2(13 * k), anchor: right ? "start" : "end", weight: 500 });
-      anchors.readout = [right ? x + w + 30 * k : x - 30 * k, y + h / 2];
-    } else if (under) {
+    /* The readout: the span the hand has just reached; at the root, just what it is, the agent. */
+    if (under) {
       const { sp } = under;
-      const c = sp.error ? COLOR.accent : COLOR.fg;
-      const gx = right ? x + w + 12 * k : x - 12 * k - 14 * k;
-      const gs = 14 * k;
-      const gy = y + h / 2;
-      const gxx = right ? gx : x - 12 * k - gs;
-      svg.push(`<g transform="translate(${r2(gxx)} ${r2(gy - gs / 2)}) scale(${r2(gs / 16)})" fill="none" stroke="${sp.error ? COLOR.accent : KIND[sp.kind as Kind]}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[sp.kind as Kind].replace(/class="fill"/g, `fill="${sp.error ? COLOR.accent : KIND[sp.kind as Kind]}" stroke="none"`)}</g>`);
-      const name = `${sp.name}${sp.note ? ` ${sp.note}` : ""}`;
-      const dur = sp.end <= now ? `${Math.round(sp.end - sp.start)}ms` : `${Math.round(now - sp.start)}ms…`;
-      labels.push({ x: r2(right ? gxx + gs + 8 * k : gxx - 8 * k), y: r2(gy + 4.5 * k), text: `${name}  ${dur}`, color: c, size: r2(13 * k), anchor: right ? "start" : "end", weight: 500 });
-      anchors.readout = [right ? gxx + gs + 60 * k : gxx - 60 * k, gy];
+      const gy = y + TAG_H / 2;
+      let tx = toRight ? x + tagW + gap : x - gap;
+      if (sp.depth > 0) {
+        const gs = 14 * k;
+        const gc = sp.error ? COLOR.accent : KIND[sp.kind as Kind];
+        const gxx = toRight ? tx : tx - gs;
+        svg.push(`<g transform="translate(${r2(gxx)} ${r2(gy - gs / 2)}) scale(${r2(gs / 16)})" fill="none" stroke="${gc}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[sp.kind as Kind].replace(/class="fill"/g, `fill="${gc}" stroke="none"`)}</g>`);
+        tx = toRight ? gxx + gs + 8 * k : gxx - 8 * k;
+      }
+      labels.push({ x: r2(tx), y: r2(gy + 4.5 * k), text: readText, color: sp.error ? COLOR.accent : COLOR.fg, size: r2(13 * k), anchor: toRight ? "start" : "end", weight: 500 });
+      anchors.readout = [toRight ? tx + 30 * k : tx - 30 * k, gy];
     }
   }
 

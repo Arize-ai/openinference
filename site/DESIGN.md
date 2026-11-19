@@ -496,8 +496,11 @@ the reader's.
   accent, dotted gridlines a second apart labelled on even seconds. The run
   sweeps 300° and its dead zone sits over the keyway, as a knob's travel
   leaves one at the bottom. The hero's playhead is the knob's hand, under the
-  bars, pivoting on the bolt and standing at the run's end, with the hero's
-  ink time tag (8.20s) and one word, "agent". No rulers, legend or address.
+  bars, pivoting on the bolt and standing at the run's end. The hero's ink
+  time tag (8.20s) and one word, "agent", sit at the hand's tip while they
+  fit inside the mark's window; at the run's end they don't, so they sit in
+  the dead zone over the keyway, like a knob's value display, and never on
+  the mark. No rulers, legend or address.
   The same art at 1280 × 640 is `og/github.png`, the repository's social
   preview: upload it in the repository's Settings → General → Social
   preview when it changes.
