@@ -21,6 +21,9 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._image_utils import image_b64_to_data_url
+from openinference.instrumentation.openai._response_attributes_extractor import (
+    _get_attributes_from_image_usage,
+)
 from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
     _io_value_and_type,
@@ -126,6 +129,7 @@ class _ImagesAccumulator:
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if self._completed_event is None:
             return
+        yield from _get_attributes_from_image_usage(getattr(self._completed_event, "usage", None))
         if b64_json := getattr(self._completed_event, "b64_json", None):
             yield (
                 f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}",

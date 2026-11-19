@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.1.75](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.74...python-openinference-instrumentation-openai-v0.1.75) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.79 ([#4335](https://github.com/Arize-ai/openinference/issues/4335)) ([e03fde3](https://github.com/Arize-ai/openinference/commit/e03fde31a743fedd77fa3e2ab043bfa9b95b7058))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.46 ([#4334](https://github.com/Arize-ai/openinference/issues/4334)) ([70ce76a](https://github.com/Arize-ai/openinference/commit/70ce76aefaf3daa99292bf3d456e496ff75742bd))
+
+## [0.1.74](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.73...python-openinference-instrumentation-openai-v0.1.74) (2026-11-16)
+
+
+### Features
+
+* **openai:** record the base URL host as server.address and server.port ([#4054](https://github.com/Arize-ai/openinference/issues/4054)) ([eb5f2e6](https://github.com/Arize-ai/openinference/commit/eb5f2e60433532dc6d6306835cff07ad9b734289))
+
+
+### Documentation
+
+* **spec:** organize the spec into sections modeled on OpenTelemetry ([#4325](https://github.com/Arize-ai/openinference/issues/4325)) ([46e8ae6](https://github.com/Arize-ai/openinference/commit/46e8ae60d4ec58eec6e4bd72084865c87ecb2993))
+
+## [0.1.73](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.72...python-openinference-instrumentation-openai-v0.1.73) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+
+## [0.1.72](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.71...python-openinference-instrumentation-openai-v0.1.72) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+
+## [0.1.71](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.70...python-openinference-instrumentation-openai-v0.1.71) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
+## [0.1.70](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.69...python-openinference-instrumentation-openai-v0.1.70) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+
+## [0.1.69](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.68...python-openinference-instrumentation-openai-v0.1.69) (2026-10-31)
+
+
+### Bug Fixes
+
+* **openai:** record token counts and model name for image generation ([#4197](https://github.com/Arize-ai/openinference/issues/4197)) ([e4a6e70](https://github.com/Arize-ai/openinference/commit/e4a6e70335222436c7a9c1aee1244b44a90f0a18))
+
 ## [0.1.68](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.67...python-openinference-instrumentation-openai-v0.1.68) (2026-10-29)
 
 

@@ -2,10 +2,11 @@
 
 `start` checks that the PR is open and that whoever asked has write access, then creates a
 Managed Agents session with the pr-reviewer agent, kicked off with the PR number and the
-commit to review. `watch` waits for the session to end, finds the review it posted, and
-reports that review's verdict on the PR. It acts on GitHub as the factory's GitHub App,
-through tokens github_app.py mints. Agent, environment and vault IDs come from
-claude-lock.json, which `ant apply` writes.
+commit to review, and posts one status comment on the PR. `watch` waits for the session to
+end, finds the review it posted, and turns that comment into the review's verdict, which it
+also sets as one of the VERDICT_LABELS. It acts on GitHub as the factory's GitHub App, through
+tokens github_app.py mints. Agent, environment and vault IDs come from claude-lock.json, which
+`ant apply` writes.
 """
 
 import argparse
@@ -13,7 +14,8 @@ import json
 import re
 import time
 from datetime import datetime, timezone
-from typing import Any, Optional
+from enum import StrEnum
+from typing import Any, NamedTuple, Optional
 
 import anthropic
 from dispatch import (
@@ -23,11 +25,14 @@ from dispatch import (
     WORKFLOW_LOGIN,
     create_app_token,
     format_cost,
+    format_mention,
     format_session_link,
+    post_status_comment,
     read_factory_login,
     read_lock_id,
     read_repo_permission,
     read_vault_ids,
+    report_on_status_comment,
     run_gh,
     wait_for_session,
     write_github_outputs,
@@ -36,9 +41,67 @@ from github_app import GitHubAppToken
 
 REVIEW_LABEL = "factory-review"
 REVIEW_AGENT_LOCK_KEY = "./agents/pr-reviewer.md"
+
+
+class Marker(StrEnum):
+    """The emoji that starts each scorecard cell, Needs attention bullet and the heading of a
+    review summary, per agents/pr-reviewer.md § Review summary. Each differs from the others
+    in shape and color, and always sits next to a word that says the same thing."""
+
+    CLEAN = "✅"
+    ATTENTION = "⚠️"
+    FIX = "❌"
+    CLOSE = "🚫"
+
+
+# The marker each scorecard Result takes. Blocking and Non-blocking hold counts, so they are
+# keyed by whether the count is zero.
+SCORECARD_MARKERS: dict[str, dict[str, Marker]] = {
+    "Fit": {"Pass": Marker.CLEAN, "Partial": Marker.FIX, "Fail": Marker.FIX},
+    "Checks": {"Pass": Marker.CLEAN, "Not run": Marker.ATTENTION, "Fail": Marker.FIX},
+    "Tests": {"Pass": Marker.CLEAN, "Not needed": Marker.CLEAN, "Fail": Marker.FIX},
+    "Blocking": {"0": Marker.CLEAN, "1+": Marker.FIX},
+    "Non-blocking": {"0": Marker.CLEAN, "1+": Marker.ATTENTION},
+    "Risk": {
+        "None": Marker.CLEAN,
+        "Low": Marker.ATTENTION,
+        "Medium": Marker.ATTENTION,
+        "High": Marker.ATTENTION,
+    },
+    "Depth": {"Glance": Marker.CLEAN, "Focused": Marker.CLEAN, "Deep": Marker.ATTENTION},
+}
+
+
+class VerdictLabel(NamedTuple):
+    name: str
+    color: str
+    description: str
+    marker: Marker
+
+
+# The label each verdict leaves on the PR, so maintainers can filter the review queue by it.
+# A PR carries at most one of them, for the factory's latest review.
+VERDICT_LABELS = {
+    "Approve": VerdictLabel(
+        "factory-approved", "0E8A16", "The factory review recommends approving", Marker.CLEAN
+    ),
+    "Request changes": VerdictLabel(
+        "factory-request-changes",
+        "D93F0B",
+        "The factory review recommends requesting changes",
+        Marker.FIX,
+    ),
+    "Close": VerdictLabel(
+        "factory-close", "B60205", "The factory review recommends closing", Marker.CLOSE
+    ),
+}
 # The verdict in the review summary's heading, its first line, per agents/pr-reviewer.md.
-# Matched after read_verdict strips emphasis and trailing punctuation from the heading.
-VERDICT_PATTERN = re.compile(r"#+ Factory review of \S+?\s*:\s*(Approve|Request changes|Close)")
+# Matched after read_verdict strips emphasis and trailing punctuation from the heading. The
+# marker is optional so reviews posted before markers existed still parse.
+VERDICT_PATTERN = re.compile(
+    rf"#+ (?:(?P<marker>{'|'.join(re.escape(marker) for marker in Marker)})\s*)?"
+    rf"Factory review of \S+?\s*:\s*(?P<verdict>{'|'.join(VERDICT_LABELS)})"
+)
 
 
 def read_pr(*, pr_number: int) -> dict[str, Any]:
@@ -60,6 +123,37 @@ def comment_on_pr(*, pr_number: int, body: str, token: Optional[str]) -> None:
 
 def remove_review_label(*, pr_number: int, token: Optional[str]) -> None:
     run_gh("pr", "edit", str(pr_number), "--remove-label", REVIEW_LABEL, token=token)
+
+
+def set_verdict_label(*, pr_number: int, verdict: Optional[str], token: Optional[str]) -> None:
+    """Leave the PR with the label for `verdict` and no other verdict label; None clears them."""
+    pr_labels = json.loads(run_gh("pr", "view", str(pr_number), "--json", "labels", token=token))
+    current_names = {label["name"] for label in pr_labels["labels"]}
+    wanted = VERDICT_LABELS[verdict] if verdict is not None else None
+    stale_names = [
+        label.name
+        for label in VERDICT_LABELS.values()
+        if label != wanted and label.name in current_names
+    ]
+    edit_args: list[str] = []
+    if wanted is not None and wanted.name not in current_names:
+        # Create or update the label on use, so a repo never lacks one the factory applies.
+        run_gh(
+            "label",
+            "create",
+            wanted.name,
+            "--color",
+            wanted.color,
+            "--description",
+            wanted.description,
+            "--force",
+            token=token,
+        )
+        edit_args += ["--add-label", wanted.name]
+    if stale_names:
+        edit_args += ["--remove-label", ",".join(stale_names)]
+    if edit_args:
+        run_gh("pr", "edit", str(pr_number), *edit_args, token=token)
 
 
 def find_admission_problem(
@@ -150,12 +244,62 @@ def find_factory_review(
     return reviews[0] if reviews else None
 
 
-def read_verdict(*, review_body: str) -> Optional[str]:
-    heading = review_body.lstrip().split("\n", 1)[0]
+def normalize_markers(text: str) -> str:
+    """Add the emoji variation selector models sometimes drop, so "⚠" reads as "⚠️"."""
+    return text.replace(Marker.ATTENTION, "⚠").replace("⚠", Marker.ATTENTION)
+
+
+def match_heading(*, review_body: str) -> Optional[re.Match[str]]:
+    heading = normalize_markers(review_body.lstrip().split("\n", 1)[0])
     # Tolerate `**Approve**` or a trailing period; the template asks for neither.
     heading = re.sub(r"[*_`]", "", heading).strip().rstrip(".!")
-    verdict_match = VERDICT_PATTERN.fullmatch(heading)
-    return verdict_match.group(1) if verdict_match else None
+    return VERDICT_PATTERN.fullmatch(heading)
+
+
+def read_verdict(*, review_body: str) -> Optional[str]:
+    verdict_match = match_heading(review_body=review_body)
+    return verdict_match.group("verdict") if verdict_match else None
+
+
+def expected_marker(*, column: str, result: str) -> Optional[Marker]:
+    markers = SCORECARD_MARKERS.get(column)
+    if markers is None:
+        return None
+    if column in ("Blocking", "Non-blocking"):
+        return markers["0" if result == "0" else "1+"] if result.isdigit() else None
+    return markers.get(result)
+
+
+def find_marker_mismatches(*, review_body: str) -> list[str]:
+    """Describe each place the summary's markers disagree with SCORECARD_MARKERS and
+    VERDICT_LABELS, so the job log shows when the reviewer drifted from the template."""
+    mismatches: list[str] = []
+    heading_match = match_heading(review_body=review_body)
+    if heading_match:
+        verdict_marker = VERDICT_LABELS[heading_match.group("verdict")].marker
+        if heading_match.group("marker") != verdict_marker:
+            mismatches.append(
+                f"heading: want {verdict_marker}, got {heading_match.group('marker')}"
+            )
+    lines = [line.strip() for line in normalize_markers(review_body).strip().splitlines()]
+    columns = list(SCORECARD_MARKERS)
+    header = "| " + " | ".join(columns) + " |"
+    if header not in lines or lines.index(header) + 2 >= len(lines):
+        return mismatches + ["scorecard: not found"]
+    row = lines[lines.index(header) + 2]
+    cells = [cell.strip() for cell in row.strip("|").split("|")]
+    if len(cells) != len(columns):
+        return mismatches + [f"scorecard: want {len(columns)} cells, got {len(cells)}"]
+    for column, cell in zip(columns, cells):
+        marker, _, result = cell.partition(" ")
+        if marker not in tuple(Marker):
+            marker, result = "", cell
+        wanted = expected_marker(column=column, result=result)
+        if wanted is None:
+            mismatches.append(f"{column}: unknown result {cell!r}")
+        elif marker != wanted:
+            mismatches.append(f"{column}: want {wanted} {result}, got {cell!r}")
+    return mismatches
 
 
 def watch_session(
@@ -167,7 +311,8 @@ def watch_session(
     started_at: str,
     factory_login: str,
     watch_minutes: int,
-) -> str:
+) -> tuple[str, Optional[str]]:
+    """Return the report to comment on the PR and the review's verdict, if it named one."""
     session, idle_event = wait_for_session(
         client=client,
         app_token=app_token,
@@ -179,7 +324,7 @@ def watch_session(
         return (
             f"The factory's **review** session {format_session_link(session_id=session_id)} "
             f"is still running after {watch_minutes} minutes."
-        )
+        ), None
     stop_reason = idle_event.stop_reason.type if idle_event else "terminated"
     # The PR comment is for the maintainer; how the session ran goes to the job log.
     print(f"stop_reason={stop_reason} cost={format_cost(session=session)}")
@@ -191,18 +336,22 @@ def watch_session(
         return (
             f"The factory's **review** session {format_session_link(session_id=session_id)} "
             f"ended without posting a review (stop reason: `{stop_reason}`)."
-        )
+        ), None
     reviewed_sha = review["commit_id"][:10]
+    session_link = format_session_link(session_id=session_id)
     verdict = read_verdict(review_body=review["body"] or "")
+    for mismatch in find_marker_mismatches(review_body=review["body"] or ""):
+        print(f"::warning::Review summary marker mismatch: {mismatch}")
     if verdict is None:
         return (
             f"The factory posted [its review of {reviewed_sha}]({review['html_url']}), "
-            "but the review's heading names no verdict."
-        )
+            f"but the review's heading names no verdict (session {session_link})."
+        ), None
     return (
-        f"The factory recommends **{verdict}** for {reviewed_sha}. "
-        f"[Read the review]({review['html_url']})."
-    )
+        f"The factory recommends {VERDICT_LABELS[verdict].marker} **{verdict}** for "
+        f"{reviewed_sha} and labeled this pull request `{VERDICT_LABELS[verdict].name}`. "
+        f"[Read the review]({review['html_url']}) · session {session_link}"
+    ), verdict
 
 
 def run_start(*, args: argparse.Namespace) -> None:
@@ -223,7 +372,10 @@ def run_start(*, args: argparse.Namespace) -> None:
     if admission_problem is not None:
         comment_on_pr(
             pr_number=args.pr,
-            body=f"The factory skipped reviewing this pull request: {admission_problem}.",
+            body=(
+                f"The factory skipped reviewing this pull request: {admission_problem}."
+                f"{format_mention(login=requester_login)}"
+            ),
             token=app_token.refresh(),
         )
         remove_review_label(pr_number=args.pr, token=app_token.refresh())
@@ -232,6 +384,8 @@ def run_start(*, args: argparse.Namespace) -> None:
 
     # Fail before starting a session that the watch step could not check.
     read_factory_login()
+    # A verdict from an earlier review describes an older commit, so drop it until this one ends.
+    set_verdict_label(pr_number=args.pr, verdict=None, token=app_token.refresh())
     # Taken before the session exists, so every review it posts is submitted at or after it.
     started_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     session_id = start_session(
@@ -242,16 +396,23 @@ def run_start(*, args: argparse.Namespace) -> None:
         budget_cents=args.budget_cents,
     )
     print(f"session_id={session_id}")
-    comment_on_pr(
-        pr_number=args.pr,
+    status_comment_id = post_status_comment(
+        number=args.pr,
         body=(
-            f"The factory started a **review** of {pr['headRefOid'][:10]} "
+            f"The factory is reviewing {pr['headRefOid'][:10]} "
             f"(session {format_session_link(session_id=session_id)}). "
             f"It reports back here when the session ends."
+            f"{format_mention(login=requester_login)}"
         ),
         token=app_token.refresh(),
     )
-    write_github_outputs(started="true", session_id=session_id, started_at=started_at)
+    write_github_outputs(
+        started="true",
+        requested_by=requester_login,
+        session_id=session_id,
+        started_at=started_at,
+        status_comment_id=str(status_comment_id),
+    )
 
 
 def run_watch(*, args: argparse.Namespace) -> None:
@@ -260,13 +421,14 @@ def run_watch(*, args: argparse.Namespace) -> None:
         "The factory lost track of session "
         f"{format_session_link(session_id=args.session_id)}; see the workflow run."
     )
+    verdict: Optional[str] = None
     client = anthropic.Anthropic()
     app_token: Optional[GitHubAppToken] = None
     try:
         factory_login = read_factory_login()
         app_token = create_app_token(client=client, repo=args.repo)
         app_token.follow_session(session_id=args.session_id)
-        report = watch_session(
+        report, verdict = watch_session(
             client=client,
             app_token=app_token,
             session_id=args.session_id,
@@ -284,9 +446,18 @@ def run_watch(*, args: argparse.Namespace) -> None:
         except Exception as error:
             print(f"::warning::Reporting with GITHUB_TOKEN; the app token failed: {error}")
         try:
-            comment_on_pr(pr_number=args.pr, body=report, token=report_token)
+            # A verdict means the factory posted a review, which already notified the PR's
+            # subscribers. Any other report is the only word that the run ended.
+            report_on_status_comment(
+                number=args.pr,
+                comment_id=args.status_comment_id,
+                body=report + format_mention(login=args.requested_by),
+                token=report_token,
+                notify=verdict is None,
+            )
+            set_verdict_label(pr_number=args.pr, verdict=verdict, token=report_token)
         finally:
-            # Free the label even when the comment fails, so re-adding it runs the PR again.
+            # Free the label even when reporting fails, so re-adding it runs the PR again.
             remove_review_label(pr_number=args.pr, token=report_token)
 
 
@@ -308,7 +479,13 @@ def main() -> None:
     watch_parser = subparsers.add_parser("watch", help="Follow a review session to its report")
     watch_parser.add_argument("--session-id", required=True)
     watch_parser.add_argument(
+        "--requested-by", default="", help="Login the run answers to, named in the report"
+    )
+    watch_parser.add_argument(
         "--started-at", required=True, help="UTC time the start step created the session"
+    )
+    watch_parser.add_argument(
+        "--status-comment-id", type=int, help="The start step's comment, edited into the report"
     )
     watch_parser.add_argument("--watch-minutes", type=int, default=100)
 

@@ -28,7 +28,8 @@
 // their spans end when the caller closes or fully reads the response
 // body. Streamed Chat Completions spans carry request attributes only;
 // streamed Responses spans also record the final response from the
-// response.completed event as the caller reads it.
+// response.completed, response.incomplete or response.failed event as
+// the caller reads it.
 package openai
 
 import (

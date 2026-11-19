@@ -44,7 +44,7 @@ registerInstrumentations({
 ### Decisions API
 
 Calls to the [Decisions API](https://developers.openai.com/api/docs/guides/decisions) are recorded as
-[`DECISION` spans](https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md) rather than
+[`DECISION` spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md) rather than
 `LLM` spans: the model scores caller-supplied answers instead of generating text. The span carries
 `decision.system` / `decision.provider` (`openai`), `decision.request.model_name`,
 `decision.response.model_name`, `decision.model_name`, `decision.token_count.input` /
@@ -116,5 +116,5 @@ openaiInstrumentation.setTracerProvider(customTracerProvider);
 
 OpenAI cache reads (`cached_tokens`) and writes (`cache_write_tokens`) are recorded as
 `llm.token_count.prompt_details.cache_read` and `cache_write`. See the
-[semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md#token-count-details) for how these sub-counts relate to the prompt total, and the
+[semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/spans/llm.md#token-counts) for how these sub-counts relate to the prompt total, and the
 [cache token example](https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-openai/examples/cache_tokens.md) for a Phoenix round trip.

@@ -1,0 +1,41 @@
+{
+  "name": "openinference-site",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "brand": "node scripts/build-brand.mjs",
+    "python-api": "uv run scripts/python-api.py",
+    "js-api": "node scripts/js-api.mjs"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^7.3.9",
+    "@astrojs/rss": "4.0.19",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@fontsource-variable/urbanist": "^5.3.0",
+    "@pierre/theme": "^2.0.0",
+    "astro": "^7.4.12",
+    "hast-util-to-text": "4.0.3",
+    "rehype-parse": "9.0.1",
+    "rehype-remark": "10.0.1",
+    "remark-gfm": "4.0.1",
+    "remark-stringify": "11.0.0",
+    "shiki": "4.6.0",
+    "unified": "11.0.5"
+  },
+  "packageManager": "pnpm@10.29.3",
+  "private": true,
+  "devDependencies": {
+    "@fontsource/geist-mono": "5.3.0",
+    "@fontsource/urbanist": "5.3.0",
+    "@types/hast": "3.0.5",
+    "satori": "0.63.2",
+    "sharp": "0.34.5"
+  }
+}

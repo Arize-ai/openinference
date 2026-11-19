@@ -82,6 +82,19 @@ Now simply run the python file and observe the traces in Phoenix.
 python your_file.py
 ```
 
+## Session tracking
+
+`trace(group_id=...)` and `RunConfig(group_id=...)` are recorded as `session.id` on the root span of that trace, so multiple runs in the same conversation correlate in Phoenix. `RunConfig.group_id` only applies when the run starts its own trace; inside an enclosing `trace(...)`, the SDK ignores it and the enclosing trace's `group_id` is used. The value is stamped on the root span only; child spans do not inherit it unless you also wrap the call in `using_session(...)`.
+
+`using_session("…")` takes precedence over `group_id`: when both are set, the context value wins.
+
+```python
+from openinference.instrumentation import using_session
+
+with using_session("conversation-42"):
+    result = await Runner.run(agent, "Hello")  # root span and all children get session.id="conversation-42"
+```
+
 ## Hosted search tools
 
 The instrumentor records the Agents SDK's hosted `FileSearchTool` and `WebSearchTool`
@@ -237,4 +250,4 @@ The realtime instrumentor recognizes three environment variables for redacting c
 * [More info on OpenInference and Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)
-* [How prompt cache reads and writes are counted](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md#token-count-details), with a [Phoenix round-trip example](https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-openai/examples/cache_tokens.md)
+* [How prompt cache reads and writes are counted](https://github.com/Arize-ai/openinference/blob/main/spec/spans/llm.md#token-counts), with a [Phoenix round-trip example](https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-openai/examples/cache_tokens.md)

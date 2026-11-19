@@ -10,6 +10,7 @@ import {
   InstrumentationNodeModuleDefinition,
   safeExecuteInTheMiddle,
 } from "@opentelemetry/instrumentation";
+import { ATTR_SERVER_ADDRESS, ATTR_SERVER_PORT } from "@opentelemetry/semantic-conventions";
 import type openai from "openai";
 import { APIPromise } from "openai";
 import type { Completion, CreateEmbeddingResponse, EmbeddingCreateParams } from "openai/resources";
@@ -110,6 +111,8 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
   "api.minimaxi.com": LLMProvider.MINIMAX,
   "api.minimax.chat": LLMProvider.MINIMAX,
   "oci.oraclecloud.com": LLMProvider.ORACLE,
+  "ml.cloud.ibm.com": LLMProvider.IBM,
+  "api.doubleword.ai": LLMProvider.DOUBLEWORD,
 };
 
 /**
@@ -169,6 +172,31 @@ function getExecContext(span: Span) {
   return execContext;
 }
 
+const DEFAULT_PORTS: Partial<Record<string, number>> = { "http:": 80, "https:": 443 };
+
+/**
+ * Gets the baseURL of the OpenAI client instance
+ * @param clientInstance The OpenAI client instance
+ */
+function getBaseURL(clientInstance: unknown): unknown {
+  // The clientInstance might be a sub-object (like Completions) that has a _client property
+  // pointing to the actual OpenAI/AzureOpenAI client
+  if (clientInstance == null || typeof clientInstance !== "object") {
+    return undefined;
+  }
+  // First try to get baseURL from the instance itself
+  const baseURL = Reflect.get(clientInstance, "baseURL");
+  if (baseURL) {
+    return baseURL;
+  }
+  // If not found (or empty), try the _client property (this is where Azure OpenAI stores it)
+  const nestedClient = Reflect.get(clientInstance, "_client");
+  if (nestedClient != null && typeof nestedClient === "object") {
+    return Reflect.get(nestedClient, "baseURL");
+  }
+  return undefined;
+}
+
 /**
  * Gets the appropriate LLM provider based on the OpenAI client instance
  * Follows the same logic as the Python implementation by checking the baseURL host
@@ -177,22 +205,8 @@ function getExecContext(span: Span) {
  */
 function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
   try {
-    // The clientInstance might be a sub-object (like Completions) that has a _client property
-    // pointing to the actual OpenAI/AzureOpenAI client
     let host: string | undefined;
-    let baseURL: unknown;
-
-    // First try to get baseURL from the instance itself
-    if (clientInstance != null && typeof clientInstance === "object") {
-      baseURL = Reflect.get(clientInstance, "baseURL");
-      // If not found (or empty), try the _client property (this is where Azure OpenAI stores it)
-      if (!baseURL) {
-        const nestedClient = Reflect.get(clientInstance, "_client");
-        if (nestedClient != null && typeof nestedClient === "object") {
-          baseURL = Reflect.get(nestedClient, "baseURL");
-        }
-      }
-    }
+    const baseURL = getBaseURL(clientInstance);
 
     if (typeof baseURL === "string") {
       // Extract host from URL string
@@ -218,7 +232,37 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
 }
 
 /**
- * An auto instrumentation class for OpenAI that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md|OpenInference} Compliant spans for the OpenAI API
+ * Gets the host and port of the endpoint the OpenAI client instance sends requests to.
+ * They are recorded whether or not a provider can be inferred from the host, so a span
+ * shows when a call went through a gateway or a self-hosted proxy. Only the host and
+ * port are recorded: the path and query can carry tenant identifiers.
+ * @param clientInstance The OpenAI client instance
+ * @returns server.address and server.port attributes
+ */
+function getServerAttributes(clientInstance: unknown): Attributes {
+  try {
+    const baseURL = getBaseURL(clientInstance);
+    if (typeof baseURL !== "string") {
+      return {};
+    }
+    const url = new URL(baseURL);
+    // URL keeps the brackets around an IPv6 host; server.address is the bare address.
+    const hostname = url.hostname.replace(/^\[(.*)\]$/, "$1");
+    if (!hostname) {
+      return {};
+    }
+    const port = url.port ? Number(url.port) : DEFAULT_PORTS[url.protocol];
+    return port == null
+      ? { [ATTR_SERVER_ADDRESS]: hostname }
+      : { [ATTR_SERVER_ADDRESS]: hostname, [ATTR_SERVER_PORT]: port };
+  } catch (error) {
+    diag.debug("Failed to determine the server address from instance", error);
+  }
+  return {};
+}
+
+/**
+ * An auto instrumentation class for OpenAI that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md|OpenInference} Compliant spans for the OpenAI API
  * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
  * @param traceConfig The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans. @see {@link TraceConfigOptions}
  */
@@ -345,6 +389,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+              ...getServerAttributes(this),
               ...getLLMInputMessagesAttributes(body),
               ...getLLMToolsJSONSchema(body),
             },
@@ -420,6 +465,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+              ...getServerAttributes(this),
               ...getCompletionInputValueAndMimeType(body),
             },
           });
@@ -484,6 +530,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.INPUT_MIME_TYPE]: isStringInput ? MimeType.TEXT : MimeType.JSON,
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+              ...getServerAttributes(this),
               ...getEmbeddingTextAttributes(body),
             },
           });
@@ -545,6 +592,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   JSON.stringify(invocationParameters),
                 [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
                 [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+                ...getServerAttributes(this),
                 ...getResponsesInputMessagesAttributes(body),
                 ...getLLMToolsJSONSchema(body),
               },
@@ -580,7 +628,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   ...getResponsesOutputImageAttributes({ response: result, body }),
                   ...getResponsesUsageAttributes(result),
                 });
-                span.setStatus({ code: SpanStatusCode.OK });
+                span.setStatus(
+                  result.status === "failed"
+                    ? { code: SpanStatusCode.ERROR, message: result.error?.message }
+                    : { code: SpanStatusCode.OK },
+                );
                 span.end();
               };
               if (isResponseCreateResponse(result)) {
@@ -591,10 +643,17 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 // First split the stream via tee
                 const [leftStream, rightStream] = result.tee();
                 // take the right stream, consuming it and then recording the final chunk
-                // into the span
-                // A stream that fails is rethrown to the caller from their half of the tee, so
-                // only end the span here: leaving this rejection unhandled would crash Node.
-                void consumeResponseStreamEvents(rightStream).then(recordSpan).catch(recordError);
+                // into the span. If reading it fails, the caller gets the same error from
+                // the left stream and the span ends with status ERROR.
+                void consumeResponseStreamEvents(rightStream).then((response) => {
+                  // An aborted request ends the stream without an error or a final
+                  // response, so leave the status unset
+                  if (!response && rightStream.controller.signal.aborted) {
+                    span.end();
+                    return;
+                  }
+                  recordSpan(response);
+                }, recordError);
                 // give the left stream back to the caller
                 result = leftStream;
               }
@@ -627,6 +686,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               attributes: {
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.DECISION,
                 ...getDecisionsRequestAttributes(body),
+                ...getServerAttributes(this),
               },
             });
             const execContext = getExecContext(span);
@@ -688,6 +748,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
             [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
             [SemanticConventions.LLM_PROVIDER]: getLLMProvider(clientInstance),
+            ...getServerAttributes(clientInstance),
           },
         });
       };
@@ -1392,7 +1453,10 @@ function getEmbeddingUsageAttributes(response: CreateEmbeddingResponse): Attribu
 }
 
 /**
- * Consumes the stream chunks and adds them to the span
+ * Consumes the stream chunks and adds them to the span.
+ * The span ends with status OK when the stream is read to the end, with status ERROR when
+ * reading it fails, and with the status unset when the request is aborted. In every case it
+ * keeps what was streamed so far.
  */
 async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionChunk>, span: Span) {
   let streamResponse = "";
@@ -1401,34 +1465,44 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   // So the final tool and function calls need to be aggregated
   // across chunks
   const toolAndFunctionCallAttributes: Attributes = {};
+  const getToolCallIndex = createStreamToolCallIndexResolver();
   let finishReason: string | undefined;
-  // The first message is for the assistant response so we start at 1
-  for await (const chunk of stream) {
-    // With `stream_options.include_usage`, the final chunk carries the request's
-    // usage and an empty `choices` array, so read it before the guard below.
-    if (chunk.usage) {
-      span.setAttributes(getUsageAttributes(chunk));
-    }
-    if (chunk.choices.length <= 0) {
-      continue;
-    }
-    const choice = chunk.choices[0];
-    if (choice.delta.content) {
-      streamResponse += choice.delta.content;
-    }
-    if (choice.finish_reason) {
-      finishReason = choice.finish_reason;
-    }
-    // Accumulate the tool and function call attributes
-    const toolAndFunctionCallAttributesDiff =
-      getToolAndFunctionCallAttributesFromStreamChunk(chunk);
-    for (const [key, value] of Object.entries(toolAndFunctionCallAttributesDiff)) {
-      if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
-        toolAndFunctionCallAttributes[key] += value;
-      } else if (isString(value)) {
-        toolAndFunctionCallAttributes[key] = value;
+  let streamFailed = false;
+  let streamError: unknown;
+  try {
+    for await (const chunk of stream) {
+      // With `stream_options.include_usage`, the final chunk carries the request's
+      // usage and an empty `choices` array, so read it before the guard below.
+      if (chunk.usage) {
+        span.setAttributes(getUsageAttributes(chunk));
+      }
+      if (chunk.choices.length <= 0) {
+        continue;
+      }
+      const choice = chunk.choices[0];
+      if (choice.delta.content) {
+        streamResponse += choice.delta.content;
+      }
+      if (choice.finish_reason) {
+        finishReason = choice.finish_reason;
+      }
+      // Accumulate the tool and function call attributes
+      const toolAndFunctionCallAttributesDiff = getToolAndFunctionCallAttributesFromStreamChunk(
+        chunk,
+        getToolCallIndex,
+      );
+      for (const [key, value] of Object.entries(toolAndFunctionCallAttributesDiff)) {
+        if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
+          toolAndFunctionCallAttributes[key] += value;
+        } else if (isString(value)) {
+          toolAndFunctionCallAttributes[key] = value;
+        }
       }
     }
+  } catch (error) {
+    // The caller reads the other branch of the tee and gets the same error
+    streamFailed = true;
+    streamError = error;
   }
   const messageIndexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
@@ -1447,20 +1521,59 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
   span.setAttributes(attributes);
+  if (streamFailed) {
+    endSpanWithError(span, streamError);
+    return;
+  }
+  // An aborted request ends the stream without an error, but did not run to completion
+  if (!stream.controller.signal.aborted) {
+    span.setStatus({ code: SpanStatusCode.OK });
+  }
   span.end();
+}
+
+/**
+ * Returns a function that gives the position of a streamed tool call delta within the message.
+ * OpenAI sends an index with every delta. Some OpenAI-compatible providers (such as Gemini)
+ * leave it out, so a delta with a new id, or a function name without an id, starts the next
+ * tool call and any other delta continues the latest one.
+ */
+function createStreamToolCallIndexResolver() {
+  let latestIndex = -1;
+  let latestId: string | undefined;
+  let nextIndex = 0;
+  return (toolCall: ChatCompletionChunk.Choice.Delta.ToolCall): number => {
+    // The SDK types the index as required, but some providers omit it
+    if (typeof toolCall.index === "number") {
+      latestIndex = toolCall.index;
+      nextIndex = Math.max(nextIndex, toolCall.index + 1);
+      return toolCall.index;
+    }
+    const startsNewToolCall =
+      latestIndex < 0 || (toolCall.id ? toolCall.id !== latestId : toolCall.function?.name != null);
+    if (startsNewToolCall) {
+      latestIndex = nextIndex++;
+      latestId = toolCall.id;
+    }
+    return latestIndex;
+  };
 }
 
 /**
  * Extracts the semantic attributes from the stream chunk for tool_calls and function_calls
  */
-function getToolAndFunctionCallAttributesFromStreamChunk(chunk: ChatCompletionChunk): Attributes {
+function getToolAndFunctionCallAttributesFromStreamChunk(
+  chunk: ChatCompletionChunk,
+  getToolCallIndex: (toolCall: ChatCompletionChunk.Choice.Delta.ToolCall) => number,
+): Attributes {
   if (chunk.choices.length <= 0) {
     return {};
   }
   const choice = chunk.choices[0];
   const attributes: Attributes = {};
   if (choice.delta.tool_calls) {
-    choice.delta.tool_calls.forEach((toolCall, index) => {
+    choice.delta.tool_calls.forEach((toolCall) => {
+      const index = getToolCallIndex(toolCall);
       const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
       // Add the tool call id if it exists
       if (toolCall.id) {

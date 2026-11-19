@@ -65,7 +65,7 @@ export function isPatched(): boolean {
 }
 
 /**
- * An auto instrumentation class for AWS Bedrock that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md|OpenInference} Compliant spans for Bedrock API calls
+ * An auto instrumentation class for AWS Bedrock that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md|OpenInference} Compliant spans for Bedrock API calls
  *
  * Supports instrumentation of:
  * - InvokeModel commands (synchronous)

@@ -374,7 +374,7 @@ public class SemanticConventions {
      * state plus typed questions and returns a typed, probabilistic answer per question instead of
      * generated text.
      *
-     * @see <a href="https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md">Decision
+     * @see <a href="https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md">Decision
      *     Spans</a>
      */
     public static final String DECISION_MODEL_NAME =
@@ -1054,7 +1054,9 @@ public class SemanticConventions {
         ZAI("zai"),
         MINIMAX("minimax"),
         ORACLE("oracle"),
-        TYPESAFE("typesafe");
+        IBM("ibm"),
+        TYPESAFE("typesafe"),
+        DOUBLEWORD("doubleword");
 
         private final String value;
 

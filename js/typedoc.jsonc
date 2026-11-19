@@ -20,6 +20,9 @@
   "categorizeByGroup": false,
   "defaultCategory": "Other",
   "categoryOrder": ["*"],
+  // The site's favicon (site/public/favicon.svg, drawn by `pnpm brand` in
+  // site/), so the API reference at /js/ carries the same mark.
+  "favicon": "../site/public/favicon.svg",
   "navigationLinks": {
     "GitHub": "https://github.com/Arize-ai/openinference",
   },

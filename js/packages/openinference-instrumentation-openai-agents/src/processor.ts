@@ -214,7 +214,7 @@ function getSpanName(span: Span<SpanData>): string {
 /**
  * Maps a SpanData type to the corresponding OpenInference span kind.
  *
- * @see https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md
+ * @see https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md
  */
 function getSpanKind(data: SpanData): OpenInferenceSpanKind {
   switch (data.type) {
@@ -1177,7 +1177,7 @@ function setSpanStatus(otelSpan: OtelSpan, span: Span<SpanData>, eventTime?: HrT
  * {@link OpenAIAgentsInstrumentation.instrument} (preferred) or directly with
  * `setTraceProcessors` / `addTraceProcessor`.
  *
- * @see https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md
+ * @see https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md
  */
 export class OpenInferenceTracingProcessor implements TracingProcessor {
   private enabled = true;

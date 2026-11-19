@@ -1,5 +1,21 @@
 # @arizeai/openinference-instrumentation-typesafe
 
+## 0.4.6
+
+### Patch Changes
+
+- Updated dependencies [7f295ae]
+  - @arizeai/openinference-semantic-conventions@2.17.0
+  - @arizeai/openinference-core@2.8.3
+
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [10bb8cc]
+  - @arizeai/openinference-semantic-conventions@2.16.0
+  - @arizeai/openinference-core@2.8.2
+
 ## 0.4.4
 
 ### Patch Changes

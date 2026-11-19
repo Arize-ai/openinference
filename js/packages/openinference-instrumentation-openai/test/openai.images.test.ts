@@ -105,6 +105,8 @@ describe("OpenAIInstrumentation - Images", () => {
     expect(span.attributes["llm.system"]).toBe("openai");
     expect(span.attributes["llm.model_name"]).toBe("gpt-image-1");
     expect(span.attributes["llm.provider"]).toBe("openai");
+    expect(span.attributes["server.address"]).toBe("api.openai.com");
+    expect(span.attributes["server.port"]).toBe(443);
     expect(span.attributes["output.images.0.image.url"]).toBe("https://example.com/generated.png");
     expect(span.attributes["output.images.1.image.url"]).toBe("data:image/webp;base64,aW1hZ2U=");
   });

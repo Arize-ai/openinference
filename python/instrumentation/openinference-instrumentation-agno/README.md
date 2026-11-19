@@ -76,6 +76,23 @@ python example.py
 
 Finally, browse for your trace in Phoenix at `http://localhost:6006`!
 
+## Isolating agno spans from the host context
+
+By default, agno spans become the current span in OpenTelemetry's global context, so they nest under whatever span the host application has active. Pass `runtime_context` to keep them in a separate context instead:
+
+```python
+from opentelemetry.context.contextvars_context import ContextVarsRuntimeContext
+
+AgnoInstrumentor().instrument(
+    tracer_provider=tracer_provider,
+    runtime_context=ContextVarsRuntimeContext(),
+)
+```
+
+Any object with `attach`, `get_current` and `detach`, such as an OpenTelemetry `_RuntimeContext`, works. Agno spans then form their own trace and never replace the host's current span. Code that agno calls, such as a tool, still sees the host's span as current.
+
+Only agno's own spans use the injected context. Spans from other instrumentors that run inside agno, such as `OpenAIInstrumentor`, still read the global context, so they parent to the host span rather than to the agno span that made the call.
+
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)

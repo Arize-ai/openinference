@@ -29,6 +29,9 @@ from pyagentspec.tracing.trace import Trace as AgentSpecTrace
 from pyagentspec.tracing.trace import get_trace
 
 from openinference.instrumentation.agentspec import AgentSpecInstrumentor
+from openinference.instrumentation.agentspec._openinference_spanprocessor import (
+    OpenInferenceSpanProcessor,
+)
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -123,6 +126,50 @@ def test_instrumentor_triggers_processors_and_exports_agent_spans(
     AgentSpecInstrumentor().uninstrument()
     trace = get_trace()
     assert trace is None
+
+
+async def test_instrumentor_exports_spans_opened_with_async_with(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    agentspec_agent: Agent,
+) -> None:
+    AgentSpecInstrumentor().instrument(skip_dep_check=True, tracer_provider=tracer_provider)
+
+    # Agent Spec calls the processors' async methods for spans opened with `async with`
+    async with AgentExecutionSpan(agent=agentspec_agent) as span:
+        await span.add_event_async(
+            AgentExecutionStart(agent=agentspec_agent, inputs={"question": "hi"})
+        )
+        await span.add_event_async(
+            AgentExecutionEnd(agent=agentspec_agent, outputs={"answer": "hello"})
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.AGENT.value
+    assert attrs[SpanAttributes.AGENT_NAME] == "assistant"
+    assert attrs[SpanAttributes.INPUT_VALUE] == '{"question": "hi"}'
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == '{"answer": "hello"}'
+
+
+async def test_async_trace_starts_and_shuts_down_the_processors(
+    in_memory_span_exporter: InMemorySpanExporter,
+    agentspec_agent: Agent,
+) -> None:
+    span_processor = OpenInferenceSpanProcessor(
+        span_exporter=in_memory_span_exporter, use_batch_span_processor=False
+    )
+
+    # An async Trace calls startup_async and shutdown_async
+    async with AgentSpecTrace(span_processors=[span_processor]):
+        async with AgentExecutionSpan(agent=agentspec_agent):
+            pass
+
+    assert [s.name for s in in_memory_span_exporter.get_finished_spans()] == [
+        "AgentExecutionSpan",
+        "RootSpan",
+    ]
 
 
 def test_instrumentor_context_triggers_processors_and_exports_agent_spans(

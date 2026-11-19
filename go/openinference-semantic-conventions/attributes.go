@@ -121,7 +121,7 @@ const (
 // questions and returns a typed, probabilistic answer per question instead
 // of generated text. These mirror the llm.* identification attributes and
 // share their well-known values. See
-// https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+// https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md
 // for the convention and the decision model families it covers.
 const (
 	// DecisionModelName is the name of the decision model being used.
