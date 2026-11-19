@@ -24,7 +24,7 @@ import {
  * @param body - The `decisions.create` request body.
  * @returns `decision.system`, `decision.provider`, `decision.request.model_name`,
  * `decision.model_name` and the input attributes.
- * @see https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+ * @see https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md
  */
 export function getDecisionsRequestAttributes(body: DecisionCreateParams): Attributes {
   const input = safelyJSONStringify(body);

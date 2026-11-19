@@ -1238,3 +1238,78 @@ def test_undumpable_computer_call_output_does_not_break_span() -> None:
     assert attrs["llm.input_messages.1.message.tool_call_id"] == "call-x"
     assert "_Undumpable" in str(attrs["llm.input_messages.1.message.content"])
     assert "_Undumpable" in str(attrs["input.value"])
+
+
+# --- Trace.group_id maps to session.id on the root span ----------------------------
+
+
+class _FakeTraceWithGroupId(_FakeTrace):
+    def __init__(self, group_id: Any, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.group_id = group_id
+
+
+def _root_span(exporter: InMemorySpanExporter) -> ReadableSpan:
+    """Return the root AGENT span (the one produced by on_trace_start)."""
+    spans = exporter.get_finished_spans()
+    roots = [s for s in spans if s.parent is None]
+    assert len(roots) == 1, f"Expected 1 root span, got {[s.name for s in roots]}"
+    return roots[0]
+
+
+def test_group_id_mapped_to_session_id() -> None:
+    """group_id present → root span carries session.id."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTraceWithGroupId("conv-abc"), [])
+    assert _attrs(_root_span(exporter))["session.id"] == "conv-abc"
+
+
+def test_none_group_id_omits_session_id() -> None:
+    """group_id=None → session.id must not be set on the root span."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTraceWithGroupId(None), [])
+    assert "session.id" not in _attrs(_root_span(exporter))
+
+
+def test_empty_group_id_omits_session_id() -> None:
+    """group_id='' → session.id absent, consistent with using_session()."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTraceWithGroupId(""), [])
+    assert "session.id" not in _attrs(_root_span(exporter))
+
+
+def test_missing_group_id_attr_no_crash() -> None:
+    """Trace whose type lacks group_id (abstract Trace) → no crash, session.id omitted."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTrace(), [])  # _FakeTrace has no group_id attr
+    assert "session.id" not in _attrs(_root_span(exporter))
+
+
+def test_using_session_overrides_group_id() -> None:
+    """using_session() context takes precedence over group_id on root span."""
+    processor, exporter = _make_processor()
+    with using_session("ctx-sess"):
+        _run(processor, _FakeTraceWithGroupId("g1"), [])
+    assert _attrs(_root_span(exporter))["session.id"] == "ctx-sess"
+
+
+def test_group_id_sdk_integration() -> None:
+    """Real agents.trace(group_id=...) → session.id on root span, no extra attributes."""
+    import agents
+    from agents import set_trace_processors
+    from agents.tracing import get_trace_provider
+
+    processor, exporter = _make_processor()
+    # Restore whatever was registered before, rather than leaving the global list empty.
+    saved = list(get_trace_provider()._multi_processor._processors)  # type: ignore[attr-defined]
+    set_trace_processors([processor])
+    try:
+        with agents.trace("wf", group_id="conv-1"):
+            pass
+    finally:
+        set_trace_processors(saved)
+
+    attrs = _attrs(_root_span(exporter))
+    assert attrs.pop("openinference.span.kind") == "AGENT"
+    assert attrs.pop("session.id") == "conv-1"
+    assert not attrs, f"unexpected attributes: {attrs}"

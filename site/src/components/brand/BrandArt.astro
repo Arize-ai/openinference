@@ -1,0 +1,42 @@
+---
+/**
+ * Inlines a piece of brand artwork so it takes the surrounding text colour.
+ * Pass `nested` to place it inside a diagram's <svg> at its own coordinates.
+ */
+import { art, type ArtworkName } from "../../lib/brand";
+
+export interface Props {
+  name: ArtworkName;
+  /** Accessible name. Omit for decorative or repeated uses. */
+  label?: string;
+  nested?: boolean;
+  class?: string;
+  style?: string;
+}
+
+const { name, label, nested = false, class: className, style } = Astro.props;
+const { viewBox, body } = art[name];
+const a11y = label
+  ? { role: "img" as const, "aria-label": label }
+  : { "aria-hidden": "true" as const };
+const placement = nested
+  ? { x: viewBox.x, y: viewBox.y, width: viewBox.w, height: viewBox.h }
+  : {};
+---
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+  class:list={["brand-art", className]}
+  style={style}
+  {...placement}
+  {...a11y}
+  set:html={body}
+/>
+
+<style>
+  /* CSS outranks the artwork's fill attribute, so the art follows `color`. */
+  .brand-art :global(g) { fill: currentColor; }
+  /* Zero specificity, so any sizing rule in the page wins. */
+  :where(.brand-art:not([width])) { width: 100%; height: auto; }
+</style>

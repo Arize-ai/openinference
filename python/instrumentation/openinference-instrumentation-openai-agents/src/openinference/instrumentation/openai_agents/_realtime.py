@@ -850,7 +850,7 @@ def _finalize_response(
     if not hide_out and response.asst_audio_buf:
         uri = pcm16_to_wav_data_uri(bytes(response.asst_audio_buf))
         if len(uri) > max_len:
-            # spec/audio_spans.md: preserve the data:<mediatype>;base64, prefix
+            # spec/content/multimodal.md: preserve the data:<mediatype>;base64, prefix
             uri = truncate_audio_data_uri(uri, max_len)
         llm_span.set_attribute(_OUTPUT_AUDIO_URL, uri)
         llm_span.set_attribute(_OUTPUT_AUDIO_MIME_TYPE, "audio/wav")

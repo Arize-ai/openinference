@@ -1,0 +1,49 @@
+---
+/**
+ * A package page's head: an eyebrow (language and group), the package's
+ * name as the title, its description, a ruled row of facts, and links.
+ */
+import "../../styles/api.css";
+
+import type { Fact } from "../../lib/api";
+
+interface Props {
+  eyebrow: string;
+  name: string;
+  description?: string;
+  facts: Fact[];
+  links: { label: string; href: string | null | undefined }[];
+}
+
+const { eyebrow, name, description, facts, links } = Astro.props;
+const shown = facts.filter((fact) => fact.value);
+---
+
+<header class="api-head">
+  <p class="eyebrow">{eyebrow}</p>
+  <h1>{name}</h1>
+  {description && <p class="api-lede">{description}</p>}
+  {
+    shown.length > 0 && (
+      <dl class="api-facts">
+        {shown.map((fact) => (
+          <div>
+            <dt class="eyebrow">{fact.label}</dt>
+            <dd>{fact.code ? <code>{fact.value}</code> : fact.value}</dd>
+          </div>
+        ))}
+      </dl>
+    )
+  }
+  <p class="api-links">
+    {
+      links
+        .filter((link) => link.href)
+        .map((link) => (
+          <a class="eyebrow" href={link.href!}>
+            {link.label} ↗
+          </a>
+        ))
+    }
+  </p>
+</header>

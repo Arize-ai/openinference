@@ -1,0 +1,54 @@
+---
+/**
+ * Adds a Copy button to every code block in `.prose`, as on the Arize Labs
+ * site. The button needs JavaScript, so the script adds it; without JS, code
+ * blocks are unchanged. Each block is wrapped so the button stays put while
+ * the code scrolls sideways. API signatures don't get one: they document a
+ * call rather than being code to paste. Styles are in global.css, next to the
+ * code block styles.
+ */
+---
+
+<script>
+  const LABEL = "Copy";
+  const RESET_MS = 2000;
+
+  document.querySelectorAll<HTMLPreElement>(".prose pre:not(.api-signature)").forEach((pre) => {
+    if (pre.parentElement?.classList.contains("code-block")) return;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "code-block";
+    pre.replaceWith(wrapper);
+    wrapper.append(pre);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "code-copy";
+    button.textContent = LABEL;
+    // Announced separately: a button's contents aren't a reliable live region.
+    const status = document.createElement("span");
+    status.className = "visually-hidden";
+    status.setAttribute("role", "status");
+    wrapper.append(button, status);
+
+    let timer: number | undefined;
+    button.addEventListener("click", async () => {
+      const text = (pre.querySelector("code") ?? pre).textContent ?? "";
+      let copied = true;
+      try {
+        await navigator.clipboard.writeText(text.replace(/\n$/, ""));
+      } catch {
+        copied = false;
+      }
+      button.textContent = copied ? "Copied" : "Copy failed";
+      status.textContent = copied ? "Code copied to clipboard" : "Couldn't copy the code";
+      button.dataset.state = copied ? "copied" : "failed";
+      clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        button.textContent = LABEL;
+        status.textContent = "";
+        delete button.dataset.state;
+      }, RESET_MS);
+    });
+  });
+</script>

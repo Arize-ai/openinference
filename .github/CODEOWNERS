@@ -1,5 +1,6 @@
-/js @arize-ai/oss-javascript
-/python @arize-ai/oss-python
-/java @arize-ai/oss-eng
+/js @arize-ai/openinference-javascript
+/python @arize-ai/openinference-python
+/java @arize-ai/openinference-java
+/go @arize-ai/openinference-go
 /spec @arize-ai/oss-eng
 .github @Arize-ai/openinference-admin

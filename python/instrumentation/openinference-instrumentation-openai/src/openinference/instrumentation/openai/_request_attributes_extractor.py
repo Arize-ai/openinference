@@ -302,7 +302,7 @@ def _get_attributes_from_decision_create_param(
     `decision.model_name` is set to the requested model here so that it is present even when
     the request fails; a successful response overwrites it with the model that answered.
 
-    See https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md and
+    See https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md and
     openai.types.DecisionCreateParams (openai>=3.26.0).
     """
     if not isinstance(params, Mapping):

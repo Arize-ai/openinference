@@ -1,0 +1,103 @@
+---
+/**
+ * Theme switch: Auto (the default) follows the system preference; Light and
+ * Dark override it and are saved per browser. BaseLayout applies the saved
+ * choice before first paint. Hidden until the script runs, since it needs JS.
+ * Ported from the Arize Labs site.
+ */
+const options = [
+  ["auto", "Auto"],
+  ["light", "Light"],
+  ["dark", "Dark"],
+] as const;
+---
+
+<fieldset class="theme-switch" data-theme-switch hidden>
+  <legend class="visually-hidden">Theme</legend>
+  {
+    options.map(([value, label]) => (
+      <label>
+        <input type="radio" name="theme" value={value} />
+        <span>{label}</span>
+      </label>
+    ))
+  }
+</fieldset>
+
+<style>
+  .theme-switch { display: inline-flex; gap: 2px; margin: 0; padding: 2px; border: 1px solid var(--rule); }
+  .theme-switch[hidden] { display: none; }
+  label { position: relative; display: block; cursor: pointer; }
+  input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+  span {
+    display: block;
+    padding: 5px 8px;
+    color: var(--dim);
+    font: 500 var(--text-micro) / 1 var(--font-mono);
+    letter-spacing: var(--tracking-micro);
+    text-transform: uppercase;
+  }
+  label:hover span { color: var(--fg); }
+  input:checked + span { background: var(--fg); color: var(--bg); }
+  input:focus-visible + span { outline: 1px solid var(--accent); outline-offset: 1px; }
+</style>
+
+<script>
+  type Preference = "auto" | "light" | "dark";
+  const KEY = "theme";
+  const root = document.documentElement;
+  const systemDark = matchMedia("(prefers-color-scheme: dark)");
+
+  const read = (): Preference => {
+    try {
+      const value = localStorage.getItem(KEY);
+      return value === "light" || value === "dark" ? value : "auto";
+    } catch {
+      return "auto";
+    }
+  };
+
+  const save = (preference: Preference) => {
+    try {
+      if (preference === "auto") localStorage.removeItem(KEY);
+      else localStorage.setItem(KEY, preference);
+    } catch {
+      // Storage is unavailable (private mode, blocked site data): the choice
+      // lasts for this page only.
+    }
+  };
+
+  // BaseLayout's theme-color metas follow the system preference; an explicit
+  // choice pins both to the chosen ground so the browser chrome matches.
+  const themeColors = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')];
+  const defaultColors = themeColors.map((meta) => meta.content);
+
+  const apply = (preference: Preference) => {
+    root.dataset.theme =
+      preference === "auto" ? (systemDark.matches ? "dark" : "light") : preference;
+    const ground = getComputedStyle(root).getPropertyValue("--bg").trim();
+    themeColors.forEach((meta, index) => {
+      meta.content = preference === "auto" ? defaultColors[index] : ground;
+    });
+  };
+
+  apply(read());
+
+  // In Auto, follow the system as it changes (e.g. at sunset).
+  systemDark.addEventListener("change", () => {
+    if (read() === "auto") apply("auto");
+  });
+
+  document.querySelectorAll<HTMLFieldSetElement>("[data-theme-switch]").forEach((group) => {
+    const current = read();
+    group.querySelectorAll<HTMLInputElement>("input").forEach((input) => {
+      input.checked = input.value === current;
+    });
+    group.addEventListener("change", (event) => {
+      const preference = (event.target as HTMLInputElement).value as Preference;
+      save(preference);
+      apply(preference);
+    });
+    group.hidden = false;
+  });
+</script>
