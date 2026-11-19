@@ -18,6 +18,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
+from agno.exceptions import RunCancelledException
 from agno.run.agent import RunContentEvent, RunOutputEvent
 from agno.run.team import RunContentEvent as TeamRunContentEvent
 from agno.run.team import TeamRunOutputEvent
@@ -244,25 +245,32 @@ class _FunctionCallWrapper:
         try:
             for item in result:
                 yield item
-                if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
-                    function_result += self._parse_content(item.content)
-                elif isinstance(item, str):
-                    function_result += str(item)
-        except Exception:
-            # Don't break if observability fails
-            pass
+                try:
+                    if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
+                        function_result += self._parse_content(item.content)
+                    elif isinstance(item, str):
+                        function_result += str(item)
+                except Exception:
+                    # Don't break if observability fails
+                    pass
+            span.set_status(trace_api.StatusCode.OK)
+        except RunCancelledException:
+            # A cancelled run is not a tool failure, so the status stays unset.
+            raise
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
+            raise
         finally:
+            # On early close, close the tool's generator first so the spans it still
+            # holds open detach before the tool span does.
+            close = getattr(result, "close", None)
+            if close is not None:
+                close()
             if threading.current_thread() is initial_thread:
                 self._activation.detach(ctx_token)
-        span.set_status(trace_api.StatusCode.OK)
-        span.set_attributes(
-            dict(
-                _output_value_and_mime_type_for_tool_span(
-                    result=function_result,
-                )
-            )
-        )
-        span.end()
+            span.set_attributes(dict(_output_value_and_mime_type_for_tool_span(function_result)))
+            span.end()
 
     async def _handle_async_success_streaming(
         self, result: AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]], span: trace_api.Span
@@ -284,19 +292,22 @@ class _FunctionCallWrapper:
                 except Exception:
                     # Don't break if observability fails
                     pass
+            span.set_status(trace_api.StatusCode.OK)
+        except RunCancelledException:
+            # A cancelled run is not a tool failure, so the status stays unset.
+            raise
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
+            raise
         finally:
+            aclose = getattr(result, "aclose", None)
+            if aclose is not None:
+                await aclose()
             if asyncio.current_task() is initial_task:
                 self._activation.detach(ctx_token)
-
-        span.set_status(trace_api.StatusCode.OK)
-        span.set_attributes(
-            dict(
-                _output_value_and_mime_type_for_tool_span(
-                    result=function_result,
-                )
-            )
-        )
-        span.end()
+            span.set_attributes(dict(_output_value_and_mime_type_for_tool_span(function_result)))
+            span.end()
 
     def _parse_content(self, content: Any) -> str:
         from pydantic import BaseModel

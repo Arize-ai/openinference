@@ -5,14 +5,16 @@ Agno's delegate_task_to_member is a generator: FunctionCall.execute()/aexecute()
 creates it, and the member agent runs later while Agno iterates function_call.result.
 """
 
-from typing import Any, AsyncIterator, Dict, Generator, Iterator
+from typing import Any, AsyncGenerator, AsyncIterator, Dict, Generator, Iterator, Optional, Type
 
 import pytest
+from agno.exceptions import RunCancelledException
 from agno.tools.function import Function, FunctionCall
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 
 from openinference.instrumentation.agno import AgnoInstrumentor
 
@@ -93,6 +95,81 @@ async def test_async_generator_tool_span_is_parent_of_spans_started_while_consum
     spans = _spans_by_name(in_memory_span_exporter)
     _assert_parent(spans, "generator_tool", "team_run")
     _assert_parent(spans, "inner_of_generator_tool", "generator_tool")
+
+
+_EARLY_STOPS = [
+    pytest.param(RuntimeError, StatusCode.ERROR, id="raise"),
+    pytest.param(RunCancelledException, StatusCode.UNSET, id="cancel"),
+    pytest.param(None, StatusCode.UNSET, id="close"),
+]
+
+
+@pytest.mark.parametrize("error, expected_status", _EARLY_STOPS)
+def test_sync_generator_tool_span_ends_when_iteration_stops_early(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    instrument: Any,
+    error: Optional[Type[Exception]],
+    expected_status: StatusCode,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def generator_tool() -> Iterator[str]:
+        with tracer.start_as_current_span("inner_of_generator_tool"):
+            yield "chunk"
+            if error is not None:
+                raise error("tool stopped")
+
+    with tracer.start_as_current_span("team_run") as team_span:
+        call = FunctionCall(function=Function.from_callable(generator_tool), arguments={})
+        call.execute()
+        assert isinstance(call.result, Generator)
+        assert next(call.result) == "chunk"
+        if error is None:
+            call.result.close()
+        else:
+            with pytest.raises(error, match="tool stopped"):
+                next(call.result)
+        assert trace_api.get_current_span() is team_span
+
+    spans = _spans_by_name(in_memory_span_exporter)
+    assert "generator_tool" in spans, "tool span was not ended"
+    _assert_parent(spans, "inner_of_generator_tool", "generator_tool")
+    assert spans["generator_tool"].status.status_code is expected_status
+
+
+@pytest.mark.parametrize("error, expected_status", _EARLY_STOPS)
+async def test_async_generator_tool_span_ends_when_iteration_stops_early(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    instrument: Any,
+    error: Optional[Type[Exception]],
+    expected_status: StatusCode,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    async def generator_tool() -> AsyncIterator[str]:
+        with tracer.start_as_current_span("inner_of_generator_tool"):
+            yield "chunk"
+            if error is not None:
+                raise error("tool stopped")
+
+    with tracer.start_as_current_span("team_run") as team_span:
+        call = FunctionCall(function=Function.from_callable(generator_tool), arguments={})
+        await call.aexecute()
+        assert isinstance(call.result, AsyncGenerator)
+        assert await call.result.__anext__() == "chunk"
+        if error is None:
+            await call.result.aclose()
+        else:
+            with pytest.raises(error, match="tool stopped"):
+                await call.result.__anext__()
+        assert trace_api.get_current_span() is team_span
+
+    spans = _spans_by_name(in_memory_span_exporter)
+    assert "generator_tool" in spans, "tool span was not ended"
+    _assert_parent(spans, "inner_of_generator_tool", "generator_tool")
+    assert spans["generator_tool"].status.status_code is expected_status
 
 
 async def test_coroutine_tool_span_is_still_parent_of_its_spans(
