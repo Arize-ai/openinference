@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.3.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.3.6...python-openinference-instrumentation-mistralai-v2.3.7) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.79 ([#4335](https://github.com/Arize-ai/openinference/issues/4335)) ([e03fde3](https://github.com/Arize-ai/openinference/commit/e03fde31a743fedd77fa3e2ab043bfa9b95b7058))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.46 ([#4334](https://github.com/Arize-ai/openinference/issues/4334)) ([70ce76a](https://github.com/Arize-ai/openinference/commit/70ce76aefaf3daa99292bf3d456e496ff75742bd))
+
+## [2.3.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.3.5...python-openinference-instrumentation-mistralai-v2.3.6) (2026-11-16)
+
+
+### Bug Fixes
+
+* **mistralai:** record input messages passed as SDK model objects ([#4263](https://github.com/Arize-ai/openinference/issues/4263)) ([b9949ac](https://github.com/Arize-ai/openinference/commit/b9949acdf1bf80bed61919e0580e636dd2608d20))
+
 ## [2.3.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.3.4...python-openinference-instrumentation-mistralai-v2.3.5) (2026-11-12)
 
 

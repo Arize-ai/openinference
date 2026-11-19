@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.8.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.8.4...python-openinference-instrumentation-openai-agents-v2.8.5) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.79 ([#4335](https://github.com/Arize-ai/openinference/issues/4335)) ([e03fde3](https://github.com/Arize-ai/openinference/commit/e03fde31a743fedd77fa3e2ab043bfa9b95b7058))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.46 ([#4334](https://github.com/Arize-ai/openinference/issues/4334)) ([70ce76a](https://github.com/Arize-ai/openinference/commit/70ce76aefaf3daa99292bf3d456e496ff75742bd))
+* **openai-agents:** capture cache and reasoning tokens for chat completions usage ([#3856](https://github.com/Arize-ai/openinference/issues/3856)) ([97ab0b0](https://github.com/Arize-ai/openinference/commit/97ab0b044348c97f517ee40c92e61a73b1d9b7ba))
+
+## [2.8.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.8.3...python-openinference-instrumentation-openai-agents-v2.8.4) (2026-11-16)
+
+
+### Documentation
+
+* **spec:** organize the spec into sections modeled on OpenTelemetry ([#4325](https://github.com/Arize-ai/openinference/issues/4325)) ([46e8ae6](https://github.com/Arize-ai/openinference/commit/46e8ae60d4ec58eec6e4bd72084865c87ecb2993))
+
 ## [2.8.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.8.2...python-openinference-instrumentation-openai-agents-v2.8.3) (2026-11-12)
 
 

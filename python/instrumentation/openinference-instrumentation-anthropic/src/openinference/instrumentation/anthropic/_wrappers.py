@@ -860,6 +860,15 @@ def _get_outputs(response: "BaseModel") -> Iterator[Tuple[str, Any]]:
 def _get_llm_tools(tools: Iterable[ToolUnionParam]) -> Iterator[Tuple[str, Any]]:
     for tool_index, tool_schema in enumerate(tools):
         yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool_schema)
+        # Custom and server tools carry a name and only custom tools carry a description,
+        # while toolsets such as mcp_toolset carry neither. Emit each one present as its own
+        # spec attribute (spec/tool_calling.md) so consumers need not parse the schema blob.
+        if not isinstance(tool_schema, Mapping):
+            continue
+        if isinstance(name := tool_schema.get("name"), str) and name:
+            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_NAME}", name
+        if isinstance(description := tool_schema.get("description"), str) and description:
+            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_DESCRIPTION}", description
 
 
 @_stop_on_exception
@@ -1064,6 +1073,8 @@ TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+TOOL_NAME = ToolAttributes.TOOL_NAME
+TOOL_DESCRIPTION = ToolAttributes.TOOL_DESCRIPTION
 USER_ID = SpanAttributes.USER_ID
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM

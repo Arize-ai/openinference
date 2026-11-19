@@ -1,0 +1,20 @@
+---
+/**
+ * The spec's old flat pages (`spec/llm_spans.html`), kept so published links
+ * keep working: each redirects to its page in the section directories.
+ */
+import type { GetStaticPaths } from "astro";
+
+import SpecRedirect from "../../components/SpecRedirect.astro";
+import { movedSpecRedirects } from "../../lib/moved-spec-pages";
+
+export const getStaticPaths = (() =>
+  movedSpecRedirects().map(({ moved, to, anchors }) => ({
+    params: { moved },
+    props: { to, anchors },
+  }))) satisfies GetStaticPaths;
+
+const { to, anchors } = Astro.props;
+---
+
+<SpecRedirect to={to} anchors={anchors} />

@@ -16,9 +16,21 @@ import respx
 from httpx import Response
 from mistralai.client import Mistral
 from mistralai.client.models import (
+    AssistantMessage,
     ChatCompletionChoice,
     ChatCompletionResponse,
     CompletionEvent,
+    Function,
+    FunctionCall,
+    FunctionName,
+    ResponseFormat,
+    SystemMessage,
+    TextChunk,
+    Tool,
+    ToolCall,
+    ToolChoice,
+    ToolMessage,
+    UserMessage,
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
@@ -1465,6 +1477,252 @@ def test_finish_reason_values(
     assert len(spans) == 1
     attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
     assert attributes.get(LLM_FINISH_REASON) == finish_reason
+
+
+def test_messages_passed_as_sdk_models_are_recorded(
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "test_id",
+                "object": "chat.completion",
+                "created": 1711044439,
+                "model": "mistral-large-latest",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "It is sunny in Paris."},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 5, "total_tokens": 10, "completion_tokens": 5},
+            },
+        )
+    )
+
+    mistral_sync_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[
+            SystemMessage(content="You are a weather assistant."),
+            UserMessage(content="What is the weather in Paris?"),
+            AssistantMessage(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        id="call_1",
+                        function=FunctionCall(name="get_weather", arguments='{"city": "Paris"}'),
+                    )
+                ],
+            ),
+            ToolMessage(content="sunny", tool_call_id="call_1", name="get_weather"),
+        ],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "You are a weather assistant."
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}")
+        == "What is the weather in Paris?"
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        )
+        == '{"city": "Paris"}'
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}") == "tool"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_NAME}") == "get_weather"
+    input_messages = json.loads(cast(str, attributes.pop(INPUT_VALUE)))["messages"]
+    assert len(input_messages) == 4
+    assert input_messages[0] == {"content": "You are a weather assistant.", "role": "system"}
+    assert input_messages[1] == {"content": "What is the weather in Paris?", "role": "user"}
+    assert input_messages[2]["role"] == "assistant"
+    assert input_messages[2]["content"] == ""
+    assert [
+        (tool_call["id"], tool_call["function"]) for tool_call in input_messages[2]["tool_calls"]
+    ] == [("call_1", {"name": "get_weather", "arguments": '{"city": "Paris"}'})]
+    assert input_messages[3] == {
+        "content": "sunny",
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "name": "get_weather",
+    }
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    invocation_parameters = json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS)))
+    assert invocation_parameters["model"] == "mistral-large-latest"
+    assert invocation_parameters["stream"] is False
+    assert "messages" not in invocation_parameters
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "It is sunny in Paris."
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 5
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 5
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 10
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_FINISH_REASON) == "stop"
+    assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM) == OpenInferenceLLMSystemValues.MISTRALAI.value
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes == {}  # test should account for all span attributes
+
+
+_CHAT_COMPLETION_RESPONSE = {
+    "id": "test_id",
+    "object": "chat.completion",
+    "created": 1711044439,
+    "model": "mistral-large-latest",
+    "choices": [
+        {
+            "index": 0,
+            "message": {"role": "assistant", "content": "It is sunny in Paris."},
+            "finish_reason": "stop",
+        }
+    ],
+    "usage": {"prompt_tokens": 5, "total_tokens": 10, "completion_tokens": 5},
+}
+_TOOL_CALL = ToolCall(
+    id="call_1",
+    type="function",
+    index=0,
+    function=FunctionCall(name="get_weather", arguments='{"city": "Paris"}'),
+)
+
+
+@pytest.mark.parametrize(
+    "messages, expected_input_message_attributes, expected_input_messages",
+    [
+        pytest.param(
+            (SystemMessage(content="be brief"), UserMessage(content="hi")),
+            {
+                f"0.{MessageAttributes.MESSAGE_ROLE}": "system",
+                f"0.{MessageAttributes.MESSAGE_CONTENT}": "be brief",
+                f"1.{MessageAttributes.MESSAGE_ROLE}": "user",
+                f"1.{MessageAttributes.MESSAGE_CONTENT}": "hi",
+            },
+            [{"content": "be brief", "role": "system"}, {"content": "hi", "role": "user"}],
+            id="tuple_of_models",
+        ),
+        pytest.param(
+            [{"role": "assistant", "content": "", "tool_calls": [_TOOL_CALL]}],
+            {
+                f"0.{MessageAttributes.MESSAGE_ROLE}": "assistant",
+                (
+                    f"0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+                    f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+                ): "get_weather",
+                (
+                    f"0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+                    f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+                ): '{"city": "Paris"}',
+            },
+            [
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                            "id": "call_1",
+                            "type": "function",
+                            "index": 0,
+                        }
+                    ],
+                }
+            ],
+            id="dict_message_with_model_tool_call",
+        ),
+        pytest.param(
+            [{"role": "user", "content": [TextChunk(text="hi")]}],
+            {
+                f"0.{MessageAttributes.MESSAGE_ROLE}": "user",
+                f"0.{MessageAttributes.MESSAGE_CONTENT}": '[{"text": "hi", "type": "text"}]',
+            },
+            [{"role": "user", "content": [{"text": "hi", "type": "text"}]}],
+            id="dict_message_with_model_chunks",
+        ),
+    ],
+)
+def test_sdk_models_nested_in_messages_are_recorded(
+    messages: Any,
+    expected_input_message_attributes: Dict[str, AttributeValue],
+    expected_input_messages: List[Dict[str, Any]],
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(200, json=_CHAT_COMPLETION_RESPONSE)
+    )
+
+    mistral_sync_client.chat.complete(model="mistral-large-latest", messages=messages)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    prefix = f"{LLM_INPUT_MESSAGES}."
+    input_message_attributes = {
+        key.removeprefix(prefix): value
+        for key, value in attributes.items()
+        if key.startswith(prefix)
+    }
+    assert input_message_attributes == expected_input_message_attributes
+    assert json.loads(cast(str, attributes[INPUT_VALUE]))["messages"] == expected_input_messages
+
+
+def test_sdk_model_request_parameters_are_recorded_as_json(
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(200, json=_CHAT_COMPLETION_RESPONSE)
+    )
+
+    mistral_sync_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[UserMessage(content="What is the weather in Paris?")],
+        response_format=ResponseFormat(type="json_object"),
+        tools=[Tool(type="function", function=Function(name="get_weather", parameters={}))],
+        tool_choice=ToolChoice(type="function", function=FunctionName(name="get_weather")),
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    invocation_parameters = json.loads(cast(str, attributes[LLM_INVOCATION_PARAMETERS]))
+    assert invocation_parameters["response_format"] == {"type": "json_object"}
+    assert invocation_parameters["tool_choice"] == {
+        "function": {"name": "get_weather"},
+        "type": "function",
+    }
+    input_value = json.loads(cast(str, attributes[INPUT_VALUE]))
+    assert input_value["tools"] == [
+        {"function": {"name": "get_weather", "parameters": {}}, "type": "function"}
+    ]
 
 
 def _check_context_attributes(

@@ -1,0 +1,115 @@
+---
+/**
+ * A search over every object an API reference documents, for its overview
+ * page: a box, and results as ruled rows linking to each object. The
+ * entries are inlined as JSON; without JavaScript the box does nothing and
+ * a note says so. `?q=` fills it in.
+ */
+import "../../styles/api.css";
+
+import type { SearchEntry } from "../../lib/api";
+
+interface Props {
+  entries: SearchEntry[];
+  /** An object to suggest in the placeholder, e.g. `using_session`. */
+  example: string;
+}
+
+const { entries, example } = Astro.props;
+// Safe inside a script element: no `<` can close it.
+const data = JSON.stringify(entries).replace(/</g, "\\u003c");
+---
+
+<div class="api-search" data-search data-markdown-ignore>
+  <label class="eyebrow" for="api-search">Find a class, function or constant</label>
+  <input
+    id="api-search"
+    type="search"
+    placeholder={`Search ${entries.length} objects, e.g. ${example}`}
+    autocomplete="off"
+    spellcheck="false"
+  />
+  <p class="status" aria-live="polite" data-status></p>
+  <ul class="results" data-results></ul>
+  <noscript><p class="status">Search needs JavaScript; the packages are listed below.</p></noscript>
+  <script type="application/json" data-search-data set:html={data} />
+</div>
+
+<script>
+  interface Entry {
+    name: string;
+    path: string;
+    kind: string;
+    href: string;
+    package: string;
+    summary: string;
+  }
+
+  const LIMIT = 30;
+  const root = document.querySelector<HTMLElement>("[data-search]");
+  const input = root?.querySelector<HTMLInputElement>("input");
+  const status = root?.querySelector<HTMLElement>("[data-status]");
+  const results = root?.querySelector<HTMLUListElement>("[data-results]");
+  const raw = root?.querySelector("[data-search-data]")?.textContent ?? "[]";
+  const entries: Entry[] = JSON.parse(raw);
+
+  /** Lower is better: an exact name, a name prefix, a name match, a path match. */
+  const rank = (entry: Entry, query: string) => {
+    const name = entry.name.toLowerCase();
+    const path = entry.path.toLowerCase();
+    if (name === query) return 0;
+    if (name.startsWith(query)) return 1;
+    if (name.includes(query)) return 2;
+    if (path.includes(query)) return 3;
+    if (entry.summary.toLowerCase().includes(query)) return 4;
+    return -1;
+  };
+
+  const item = (entry: Entry) => {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = entry.href;
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = entry.path;
+    const meta = document.createElement("span");
+    meta.className = "meta eyebrow";
+    meta.textContent = `${entry.kind} · ${entry.package}`;
+    a.append(name, meta);
+    if (entry.summary) {
+      const summary = document.createElement("span");
+      summary.className = "summary";
+      summary.textContent = entry.summary;
+      a.append(summary);
+    }
+    li.append(a);
+    return li;
+  };
+
+  const search = () => {
+    if (!input || !status || !results) return;
+    const query = input.value.trim().toLowerCase();
+    results.replaceChildren();
+    if (!query) {
+      status.textContent = "";
+      return;
+    }
+    const matches = entries
+      .map((entry) => ({ entry, rank: rank(entry, query) }))
+      .filter((match) => match.rank >= 0)
+      .sort((a, b) => a.rank - b.rank || a.entry.path.length - b.entry.path.length);
+    status.textContent =
+      matches.length === 0
+        ? "No matches."
+        : matches.length > LIMIT
+          ? `${matches.length} matches; showing the first ${LIMIT}.`
+          : `${matches.length} ${matches.length === 1 ? "match" : "matches"}.`;
+    results.append(...matches.slice(0, LIMIT).map((match) => item(match.entry)));
+  };
+
+  input?.addEventListener("input", search);
+  // Keep a query across back-navigation, and accept one in the URL (?q=).
+  const initial = new URLSearchParams(location.search).get("q");
+  if (input && initial) input.value = initial;
+  search();
+</script>

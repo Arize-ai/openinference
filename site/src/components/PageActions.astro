@@ -1,0 +1,204 @@
+---
+/**
+ * "Copy page" on a docs page: copies the page's markdown copy (see
+ * src/integrations/llms-txt.mjs) for pasting into an LLM, with a menu to
+ * view the markdown or open it in ChatGPT, Claude or Perplexity. It sits at
+ * the top of the page, beside the title, outside the converted article, so
+ * it isn't in the markdown it copies. Copying needs JavaScript, so it is
+ * hidden until the script runs. See DESIGN.md ("Docs").
+ */
+import { markdownRouteOf } from "../integrations/llms-txt.mjs";
+
+const markdownRoute = markdownRouteOf(Astro.url.pathname);
+// An assistant fetches the page from the live site, never from localhost.
+const markdownUrl = new URL(markdownRoute, Astro.site).href;
+const prompt = encodeURIComponent(`Read ${markdownUrl} so I can ask questions about it.`);
+
+const assistants = [
+  { label: "Open in ChatGPT", href: `https://chatgpt.com/?hints=search&q=${prompt}` },
+  { label: "Open in Claude", href: `https://claude.ai/new?q=${prompt}` },
+  { label: "Open in Perplexity", href: `https://www.perplexity.ai/search?q=${prompt}` },
+];
+---
+
+<div class="page-actions" data-page-actions data-markdown-href={markdownRoute} hidden>
+  <button type="button" class="action copy" data-copy>Copy page</button>
+  <button
+    type="button"
+    class="action toggle"
+    aria-expanded="false"
+    aria-controls="page-actions-menu"
+    aria-label="More ways to use this page"
+    data-toggle
+  >
+    <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+      <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.25"></path>
+    </svg>
+  </button>
+  <ul class="menu" id="page-actions-menu" hidden>
+    <li>
+      <button type="button" data-copy>
+        <span class="label">Copy page</span>
+        <span class="note">Copy this page as markdown for LLMs</span>
+      </button>
+    </li>
+    <li>
+      <a href={markdownRoute} target="_blank" rel="noopener">
+        <span class="label">View as markdown ↗</span>
+        <span class="note">This page as plain text</span>
+      </a>
+    </li>
+    {
+      assistants.map(({ label, href }) => (
+        <li>
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            <span class="label">{label} ↗</span>
+            <span class="note">Ask questions about this page</span>
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+  <span class="visually-hidden" role="status" data-status></span>
+</div>
+
+<style>
+  /* The component's own geometry: the menu's width. */
+  .page-actions { --menu-width: 288px; }
+
+  /* Beside the title: the title's first line wraps short of it. */
+  .page-actions {
+    position: relative;
+    z-index: 5;
+    float: inline-end;
+    display: flex;
+    margin-inline-start: var(--space-5);
+    margin-block-end: var(--space-3);
+  }
+  .page-actions[hidden] { display: none; }
+
+  /* The code blocks' Copy button, joined to its menu's toggle. */
+  .action {
+    display: flex;
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--dim);
+    font: 500 var(--text-micro) / 1 var(--font-mono);
+    letter-spacing: var(--tracking-micro);
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .toggle { margin-inline-start: -1px; padding-inline: var(--space-2); }
+  .action:hover, .toggle[aria-expanded="true"] { position: relative; color: var(--fg); border-color: var(--fg); }
+  .copy[data-state="copied"] { color: var(--accent); border-color: var(--accent); }
+  .toggle svg { transition: transform 120ms; }
+  .toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+  .menu {
+    position: absolute;
+    inset-block-start: calc(100% + var(--space-2));
+    inset-inline-end: 0;
+    width: min(var(--menu-width), 100vw - 2 * var(--gutter));
+    margin: 0;
+    padding: var(--space-2);
+    list-style: none;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  .menu[hidden] { display: none; }
+  .menu :is(a, button) {
+    display: grid;
+    gap: var(--space-1);
+    width: 100%;
+    padding: var(--space-3);
+    border: 0;
+    background: none;
+    color: var(--fg);
+    font: inherit;
+    text-align: start;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .menu .label { font-size: var(--text-body); font-weight: 600; line-height: 1.3; }
+  .menu .note { color: var(--dim); font-size: var(--text-small); line-height: 1.4; }
+  .menu :is(a, button):hover .label { color: var(--accent); }
+  .menu li + li { border-top: 1px solid var(--rule); }
+</style>
+
+<script>
+  const LABEL = "Copy page";
+  const RESET_MS = 2000;
+
+  document.querySelectorAll<HTMLElement>("[data-page-actions]").forEach((actions) => {
+    const href = actions.dataset.markdownHref;
+    const toggle = actions.querySelector<HTMLButtonElement>("[data-toggle]");
+    const menu = actions.querySelector<HTMLElement>(".menu");
+    const main = actions.querySelector<HTMLButtonElement>(".copy");
+    const status = actions.querySelector<HTMLElement>("[data-status]");
+    if (!href || !toggle || !menu || !main || !status) return;
+
+    const setOpen = (open: boolean) => {
+      menu.hidden = !open;
+      toggle.setAttribute("aria-expanded", String(open));
+    };
+    toggle.addEventListener("click", () => setOpen(menu.hidden));
+    document.addEventListener("click", (event) => {
+      if (!actions.contains(event.target as Node)) setOpen(false);
+    });
+    actions.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || menu.hidden) return;
+      setOpen(false);
+      toggle.focus();
+    });
+    actions.addEventListener("focusout", (event) => {
+      if (!actions.contains(event.relatedTarget as Node | null)) setOpen(false);
+    });
+    menu.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => setOpen(false)));
+
+    const fetchMarkdown = async () => {
+      const response = await fetch(href);
+      if (!response.ok) throw new Error(`${href}: ${response.status}`);
+      return response.text();
+    };
+
+    // Safari only lets a page write to the clipboard during the click, so
+    // hand it the pending fetch as a ClipboardItem rather than awaiting the
+    // fetch first.
+    const copy = async () => {
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
+        const blob = fetchMarkdown().then((text) => new Blob([text], { type: "text/plain" }));
+        await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+      } else {
+        await navigator.clipboard.writeText(await fetchMarkdown());
+      }
+    };
+
+    let timer: number | undefined;
+    actions.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        // From the menu, focus returns to its toggle as the menu closes.
+        if (menu.contains(button)) toggle.focus();
+        setOpen(false);
+        let copied = true;
+        try {
+          await copy();
+        } catch {
+          copied = false;
+        }
+        main.textContent = copied ? "Copied" : "Copy failed";
+        main.dataset.state = copied ? "copied" : "failed";
+        status.textContent = copied ? "Page copied as markdown" : "Couldn't copy the page";
+        clearTimeout(timer);
+        timer = window.setTimeout(() => {
+          main.textContent = LABEL;
+          status.textContent = "";
+          delete main.dataset.state;
+        }, RESET_MS);
+      });
+    });
+
+    actions.hidden = false;
+  });
+</script>

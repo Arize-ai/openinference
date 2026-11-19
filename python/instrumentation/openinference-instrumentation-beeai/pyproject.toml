@@ -24,8 +24,8 @@ classifiers = [
 ]
 dependencies = [
     "beeai-framework (>=0.1.51,<0.2.0)",
-    "openinference-instrumentation>=0.1.77",
-    "openinference-semantic-conventions>=0.1.44",
+    "openinference-instrumentation>=0.1.79",
+    "openinference-semantic-conventions>=0.1.46",
     "opentelemetry-api>=1.36.0",
     "opentelemetry-instrumentation>=0.66b2",
     "opentelemetry-semantic-conventions>=0.66b2",

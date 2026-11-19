@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.1.5...python-openinference-instrumentation-mcp-v2.1.6) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.79 ([#4335](https://github.com/Arize-ai/openinference/issues/4335)) ([e03fde3](https://github.com/Arize-ai/openinference/commit/e03fde31a743fedd77fa3e2ab043bfa9b95b7058))
+
+## [2.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.1.4...python-openinference-instrumentation-mcp-v2.1.5) (2026-11-16)
+
+
+### Bug Fixes
+
+* **mcp:** make the streamable-http example server start on mcp 2.x ([#4154](https://github.com/Arize-ai/openinference/issues/4154)) ([cd0dc2c](https://github.com/Arize-ai/openinference/commit/cd0dc2c2a2f603504f86682a429ddb83f86abfc6))
+
 ## [2.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.1.3...python-openinference-instrumentation-mcp-v2.1.4) (2026-11-12)
 
 

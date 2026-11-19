@@ -2,6 +2,7 @@ import json
 from abc import ABC
 from copy import copy, deepcopy
 from enum import Enum
+from importlib import import_module
 from inspect import signature
 from logging import getLogger
 from typing import (
@@ -39,6 +40,8 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
 )
 
 if TYPE_CHECKING:
@@ -48,6 +51,26 @@ logger = getLogger(__name__)
 
 
 _DSPY_MODULE = "dspy"
+
+# Client settings (credentials, headers, endpoints) that LM calls accept alongside generation
+# options. They can carry secrets, so they are never recorded as invocation parameters.
+# Mirrors CLIENT_KEYS in dspy/clients/backend_selection.py.
+_CLIENT_SETTING_KEYS = frozenset(
+    {
+        "api_key",
+        "api_base",
+        "api_version",
+        "azure_ad_token_provider",
+        "base_url",
+        "custom_llm_provider",
+        "extra_headers",
+        "extra_query",
+        "headers",
+        "organization",
+        "project",
+        "timeout",
+    }
+)
 
 
 class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
@@ -308,6 +331,7 @@ class _LMCallWrapper(_WithTracer):
                         **dict(_llm_provider(instance)),
                         **dict(_llm_invocation_parameters(instance, arguments)),
                         **dict(_llm_input_messages(arguments)),
+                        **dict(_llm_tools(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
@@ -315,12 +339,14 @@ class _LMCallWrapper(_WithTracer):
         ) as span:
             response = wrapped(*args, **kwargs)
             span.set_status(StatusCode.OK)
+            output = _normalize_lm_response(response)
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            **dict(_output_value_and_mime_type(response)),
-                            **dict(_llm_output_messages(response)),
+                            **dict(_output_value_and_mime_type(output)),
+                            **dict(_llm_output_messages(output)),
+                            **dict(_llm_token_counts(output)),
                         }
                     )
                 )
@@ -355,6 +381,7 @@ class _LMAcallWrapper(_WithTracer):
                         **dict(_llm_provider(instance)),
                         **dict(_llm_invocation_parameters(instance, arguments)),
                         **dict(_llm_input_messages(arguments)),
+                        **dict(_llm_tools(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
@@ -362,12 +389,14 @@ class _LMAcallWrapper(_WithTracer):
         ) as span:
             response = await wrapped(*args, **kwargs)
             span.set_status(StatusCode.OK)
+            output = _normalize_lm_response(response)
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            **dict(_output_value_and_mime_type(response)),
-                            **dict(_llm_output_messages(response)),
+                            **dict(_output_value_and_mime_type(output)),
+                            **dict(_llm_output_messages(output)),
+                            **dict(_llm_token_counts(output)),
                         }
                     )
                 )
@@ -1004,6 +1033,8 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
 
 
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    if "kwargs" in arguments:
+        arguments = {**arguments, "kwargs": _without_client_settings(arguments["kwargs"])}
     yield INPUT_MIME_TYPE, JSON
     yield INPUT_VALUE, safe_json_dumps(arguments)
 
@@ -1069,9 +1100,13 @@ def _llm_provider(lm: "LM") -> Iterator[Tuple[str, Any]]:
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    if isinstance(prompt := arguments.get("prompt"), str):
+    prompt = arguments.get("prompt")
+    if isinstance(prompt, str):
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
+    elif isinstance(prompt, Mapping):  # serialized lm15 request
+        if lm15_messages := list(_lm15_request_messages(prompt)):
+            yield LLM_INPUT_MESSAGES, lm15_messages
     elif isinstance(messages := arguments.get("messages"), list):
         for i, message in enumerate(messages):
             if not isinstance(message, dict):
@@ -1082,8 +1117,95 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
 
 
+def _lm15_to_dict(value: Any) -> Optional[Dict[str, Any]]:
+    """
+    Serializes a DSPy >= 3.5 `dspy.lm15.Request` or `Response` to its canonical
+    lm15 JSON form. Returns None for any other value.
+    """
+    # lm15 is typed but DSPy is not; static imports make mypy lose DSPy's exports.
+    try:
+        lm15 = import_module("dspy._vendor.lm15")
+        serde = import_module("dspy._vendor.lm15.serde")
+    except ImportError:
+        return None
+    try:
+        if isinstance(value, lm15.Request):
+            return dict(serde.request_to_dict(value))
+        if isinstance(value, lm15.Response):
+            return dict(serde.response_to_dict(value))
+    except Exception:
+        logger.exception("Failed to serialize lm15 object")
+    return None
+
+
+def _lm15_parts(parts: Any) -> List[Mapping[str, Any]]:
+    return [part for part in parts if isinstance(part, Mapping)] if isinstance(parts, list) else []
+
+
+def _lm15_text(parts: Any) -> Optional[str]:
+    if isinstance(parts, str):
+        return parts
+    texts = [
+        text
+        for part in _lm15_parts(parts)
+        if part.get("type") == "text" and isinstance(text := part.get("text"), str)
+    ]
+    return "".join(texts) if texts else None
+
+
+def _lm15_message(role: Any, parts: List[Mapping[str, Any]]) -> Dict[str, Any]:
+    tool_calls = [
+        {
+            TOOL_CALL_ID: part.get("id"),
+            TOOL_CALL_FUNCTION_NAME: part.get("name"),
+            TOOL_CALL_FUNCTION_ARGUMENTS_JSON: safe_json_dumps(part.get("input")),
+        }
+        for part in parts
+        if part.get("type") == "tool_call"
+    ]
+    return {
+        MESSAGE_ROLE: role,
+        MESSAGE_CONTENT: _lm15_text(parts),
+        MESSAGE_TOOL_CALLS: tool_calls or None,
+    }
+
+
+def _lm15_request_messages(request: Mapping[str, Any]) -> Iterator[Dict[str, Any]]:
+    """
+    Converts a serialized lm15 request into OpenInference messages.
+    """
+    if (system := _lm15_text(request.get("system"))) is not None:
+        yield {MESSAGE_ROLE: "system", MESSAGE_CONTENT: system}
+    for message in request.get("messages") or ():
+        if not isinstance(message, Mapping):
+            continue
+        parts = _lm15_parts(message.get("parts"))
+        # lm15 carries tool results as parts of a message; OpenInference expects one
+        # `tool` message per result, so split them out of the message they arrive in.
+        tool_results = [part for part in parts if part.get("type") == "tool_result"]
+        other_parts = [part for part in parts if part.get("type") != "tool_result"]
+        if other_parts or not tool_results:
+            yield _lm15_message(message.get("role"), other_parts)
+        for result in tool_results:
+            yield {
+                MESSAGE_ROLE: "tool",
+                MESSAGE_TOOL_CALL_ID: result.get("id"),
+                MESSAGE_NAME: result.get("name"),
+                MESSAGE_CONTENT: _lm15_text(result.get("content")),
+            }
+
+
+def _normalize_lm_response(response: Any) -> Any:
+    lm15_response = _lm15_to_dict(response)
+    return response if lm15_response is None else lm15_response
+
+
 def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
-    if isinstance(response, Iterable):
+    if isinstance(response, Mapping):  # serialized lm15 response
+        if isinstance(message := response.get("message"), Mapping):
+            role = message.get("role", "assistant")
+            yield LLM_OUTPUT_MESSAGES, [_lm15_message(role, _lm15_parts(message.get("parts")))]
+    elif isinstance(response, Iterable):
         for i, message in enumerate(response):
             if isinstance(message, str):
                 yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", "assistant"
@@ -1091,11 +1213,54 @@ def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
 
 
 def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
-    kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
-    combined_kwargs = lm_kwargs | kwargs
-    combined_kwargs.pop("api_key", None)
-    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(combined_kwargs)
+    prompt = arguments.get("prompt")
+    if isinstance(prompt, Mapping):  # serialized lm15 request
+        # DSPy sends only the Request's config; LM defaults and call options are not merged.
+        parameters = _ if isinstance(_ := prompt.get("config"), dict) else {}
+    else:
+        lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
+        kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
+        parameters = lm_kwargs | kwargs
+    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(_without_client_settings(parameters))
+
+
+def _without_client_settings(options: Any) -> Any:
+    if not isinstance(options, Mapping):
+        return options
+    return {key: value for key, value in options.items() if key not in _CLIENT_SETTING_KEYS}
+
+
+def _llm_tools(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    if not isinstance(prompt := arguments.get("prompt"), Mapping):
+        return
+    tools = [tool for tool in prompt.get("tools") or () if isinstance(tool, Mapping)]
+    for index, tool in enumerate(tool for tool in tools if tool.get("type") == "function"):
+        schema = {
+            "type": "function",
+            "function": {
+                "name": tool.get("name"),
+                "description": tool.get("description"),
+                "parameters": tool.get("parameters"),
+            },
+        }
+        yield f"{LLM_TOOLS}.{index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(schema)
+
+
+def _llm_token_counts(response: Any) -> Iterator[Tuple[str, Any]]:
+    if not isinstance(response, Mapping) or not isinstance(usage := response.get("usage"), Mapping):
+        return
+    for attribute, field_name in (
+        (LLM_TOKEN_COUNT_PROMPT, "input_tokens"),
+        (LLM_TOKEN_COUNT_COMPLETION, "output_tokens"),
+        (LLM_TOKEN_COUNT_TOTAL, "total_tokens"),
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, "cache_read_tokens"),
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, "cache_write_tokens"),
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, "input_audio_tokens"),
+        (LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, "reasoning_tokens"),
+        (LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, "output_audio_tokens"),
+    ):
+        if isinstance(count := usage.get(field_name), int):
+            yield attribute, count
 
 
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
@@ -1112,8 +1277,12 @@ def _normalize_lm_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
     DSPy 3.3.0 changed the signature from `(prompt=None, messages=None, **kwargs)`
     to `(*items, prompt=None, messages=None, request=None, **kwargs)`, so a
     positionally-passed prompt string now arrives in `items` instead of `prompt`.
-    Map that shape back to the legacy `prompt` argument so span attributes are
-    stable across DSPy versions, and drop the new parameters when unused.
+    DSPy 3.5.0 changed it again to `(prompt=None, *, cache=None, rollout_id=None,
+    **options)`, renaming the generation options from `kwargs` to `options`,
+    and adapters now pass a `dspy.lm15.Request` as the prompt. Map these shapes
+    back to the legacy `prompt` and `kwargs` arguments so span attributes are
+    stable across DSPy versions, serialize lm15 requests, and drop the new
+    parameters when unused.
     """
     arguments = dict(arguments)
     items: Tuple[Any, ...] = tuple(arguments.pop("items", None) or ())
@@ -1121,8 +1290,13 @@ def _normalize_lm_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
         arguments["prompt"] = items[0]
     elif items:
         arguments["items"] = list(items)
-    if arguments.get("request", None) is None:
-        arguments.pop("request", None)
+    if (request := _lm15_to_dict(arguments.get("prompt"))) is not None:
+        arguments["prompt"] = request
+    if "options" in arguments and "kwargs" not in arguments:
+        arguments["kwargs"] = arguments.pop("options")
+    for name in ("request", "cache", "rollout_id"):
+        if arguments.get(name, None) is None:
+            arguments.pop(name, None)
     return arguments
 
 
@@ -1190,3 +1364,23 @@ RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
+MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
+MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA

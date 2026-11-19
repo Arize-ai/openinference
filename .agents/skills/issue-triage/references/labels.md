@@ -97,7 +97,7 @@ Two labels sit alongside the family:
 | `c/semcov` | `spec/*.md` and the three `openinference-semantic-conventions` packages. Attribute names, span kinds, MIME types |
 | `c/genai` | OpenTelemetry GenAI interop: `js/packages/openinference-genai`, the Python `gen_ai.*` dual-write conversion, the conformance harness. Usually also `c/semcov` |
 | `c/decorators` | Manual instrumentation helpers: Python `OITracer.chain/tool/agent` decorators and `start_as_current_span`, JS core trace helpers, Java annotations |
-| `c/annotations` | `spec/annotations.md` — evaluation and human-feedback attributes |
+| `c/annotations` | `spec/feedback/annotations.md` — evaluation and human-feedback attributes |
 | `c/ci` | `.github/workflows`, release-please, `python/tox.ini`, pnpm workspace config, Gradle build |
 | `c/trace-config` | Stage 4 — masking / PII requirement |
 | `c/context-attributes` | Stage 4 — context attribute propagation requirement |

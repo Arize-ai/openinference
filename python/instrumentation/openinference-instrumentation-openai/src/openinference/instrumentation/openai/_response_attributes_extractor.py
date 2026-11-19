@@ -113,7 +113,7 @@ class _ResponseAttributesExtractor:
         prompt/completion split and no total, so only `usage.input_tokens` and
         `usage.output_tokens` are recorded, and only when the response reports them.
 
-        See https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md and
+        See https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md and
         openai.types.Decision (openai>=3.26.0).
         """
         if isinstance(model := getattr(decision, "model", None), str) and model:
