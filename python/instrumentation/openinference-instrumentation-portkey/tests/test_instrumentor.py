@@ -75,6 +75,12 @@ def test_chat_completion(
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: (
+            resp.usage.prompt_tokens_details.cached_tokens
+        ),
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: (
+            resp.usage.completion_tokens_details.reasoning_tokens
+        ),
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": resp.choices[
             0
         ].message.role,
@@ -190,6 +196,12 @@ async def test_async_chat_completion(
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: (
+            resp.usage.prompt_tokens_details.cached_tokens
+        ),
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: (
+            resp.usage.completion_tokens_details.reasoning_tokens
+        ),
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": resp.choices[
             0
         ].message.role,
@@ -1352,3 +1364,117 @@ def test_prompt_completion_stream(
     output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
     assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}") == "Hello"
     assert not attributes
+
+
+_TOKEN_DETAILS_STREAM_CHUNKS: Tuple[Dict[str, Any], ...] = (
+    {"choices": [{"index": 0, "delta": {"role": "assistant", "content": "Hel"}}]},
+    {
+        "choices": [{"index": 0, "delta": {"content": "lo"}, "finish_reason": "stop"}],
+        "usage": {
+            "prompt_tokens": 2006,
+            "completion_tokens": 300,
+            "total_tokens": 2306,
+            "prompt_tokens_details": {"cached_tokens": 1920},
+            "completion_tokens_details": {"reasoning_tokens": 256},
+        },
+    },
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_chat_completion_stream_records_cache_and_reasoning_token_counts(
+    is_async: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=_stream_response(_TOKEN_DETAILS_STREAM_CHUNKS)
+        )
+        if is_async:
+            async for _ in await _create_async_stream():
+                pass
+        else:
+            for _ in _create_stream():
+                pass
+    attributes = _pop_stream_span(
+        in_memory_span_exporter,
+        "AsyncCompletions" if is_async else "Completions",
+        trace_api.StatusCode.OK,
+    )
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Hello"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}") == "Hello"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 2006
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 300
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 2306
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 1920
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 256
+    assert not attributes
+
+
+@pytest.mark.parametrize(
+    "usage, expected_prompt_tokens",
+    [
+        pytest.param(
+            {
+                "prompt_tokens": 86,
+                "completion_tokens": 300,
+                "total_tokens": 2806,
+                "prompt_tokens_details": {"cached_tokens": 1920},
+                "cache_read_input_tokens": 1920,
+                "cache_creation_input_tokens": 500,
+            },
+            2506,
+            id="anthropic-prompt-excludes-cache",
+        ),
+        pytest.param(
+            {
+                "prompt_tokens": 2506,
+                "completion_tokens": 300,
+                "total_tokens": 2806,
+                "prompt_tokens_details": {"cached_tokens": 1920},
+                "cache_read_input_tokens": 1920,
+                "cache_creation_input_tokens": 500,
+            },
+            2506,
+            id="bedrock-prompt-includes-cache",
+        ),
+    ],
+)
+def test_chat_completion_records_anthropic_cache_counts_from_gateway(
+    usage: Dict[str, Any],
+    expected_prompt_tokens: int,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    payload = {**_tool_calls_completion_payload(), "usage": usage}
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(status_code=200, json=payload)
+        )
+        portkey = import_module("portkey_ai")
+        client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+        client.chat.completions.create(
+            model="claude-sonnet-4-5", messages=[{"role": "user", "content": "hi"}]
+        )
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    token_counts = {
+        key: value
+        for key, value in (span.attributes or {}).items()
+        if key.startswith("llm.token_count.")
+    }
+    assert token_counts == {
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: expected_prompt_tokens,
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 300,
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 2806,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 1920,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: 500,
+    }
