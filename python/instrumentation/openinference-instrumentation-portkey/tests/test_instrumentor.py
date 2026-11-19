@@ -1417,3 +1417,64 @@ async def test_chat_completion_stream_records_cache_and_reasoning_token_counts(
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 1920
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 256
     assert not attributes
+
+
+@pytest.mark.parametrize(
+    "usage, expected_prompt_tokens",
+    [
+        pytest.param(
+            {
+                "prompt_tokens": 86,
+                "completion_tokens": 300,
+                "total_tokens": 2806,
+                "prompt_tokens_details": {"cached_tokens": 1920},
+                "cache_read_input_tokens": 1920,
+                "cache_creation_input_tokens": 500,
+            },
+            2506,
+            id="anthropic-prompt-excludes-cache",
+        ),
+        pytest.param(
+            {
+                "prompt_tokens": 2506,
+                "completion_tokens": 300,
+                "total_tokens": 2806,
+                "prompt_tokens_details": {"cached_tokens": 1920},
+                "cache_read_input_tokens": 1920,
+                "cache_creation_input_tokens": 500,
+            },
+            2506,
+            id="bedrock-prompt-includes-cache",
+        ),
+    ],
+)
+def test_chat_completion_records_anthropic_cache_counts_from_gateway(
+    usage: Dict[str, Any],
+    expected_prompt_tokens: int,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    payload = {**_tool_calls_completion_payload(), "usage": usage}
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(status_code=200, json=payload)
+        )
+        portkey = import_module("portkey_ai")
+        client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+        client.chat.completions.create(
+            model="claude-sonnet-4-5", messages=[{"role": "user", "content": "hi"}]
+        )
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    token_counts = {
+        key: value
+        for key, value in (span.attributes or {}).items()
+        if key.startswith("llm.token_count.")
+    }
+    assert token_counts == {
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: expected_prompt_tokens,
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 300,
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 2806,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 1920,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: 500,
+    }
