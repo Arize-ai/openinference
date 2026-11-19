@@ -19,7 +19,7 @@ import (
 // under decision.* and carries no llm.* model or token attributes. The
 // request and response are recorded whole, as JSON, in input.value and
 // output.value; they have no message equivalent. See
-// https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+// https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md
 
 // decisionStartAttrs returns the span kind, system and provider
 // attributes of a DECISION span.

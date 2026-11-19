@@ -60,11 +60,11 @@ const getOISpanKindFromAttributes = (
   if (existingOISpanKind != null && typeof existingOISpanKind === "string") {
     return existingOISpanKind;
   }
+  const hasAgentIdentity = GenAIAgentIdentityAttributes.some((key) => attributes[key] != null);
   const maybeOperationName = attributes["operation.name"];
   if (typeof maybeOperationName === "string") {
     const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
     if (maybeFunctionName != null) {
-      const hasAgentIdentity = GenAIAgentIdentityAttributes.some((key) => attributes[key] != null);
       const spanKind =
         VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName) ??
         (hasAgentIdentity ? undefined : EveOperationNameToSpanKindMap.get(maybeFunctionName));
@@ -75,6 +75,22 @@ const getOISpanKindFromAttributes = (
   }
 
   const maybeGenAIOperationName = attributes["gen_ai.operation.name"];
+
+  // eve 0.76+ sets operation.name and gen_ai.operation.name to "workflow" on its control-flow
+  // spans and keeps the span name (e.g. agent.step) under resource.name. Only that shape is
+  // matched here, so every other span classifies as it did before.
+  const maybeResourceName = attributes["resource.name"];
+  if (
+    typeof maybeResourceName === "string" &&
+    !hasAgentIdentity &&
+    maybeGenAIOperationName === "workflow"
+  ) {
+    const spanKind = EveOperationNameToSpanKindMap.get(maybeResourceName);
+    if (spanKind != null) {
+      return spanKind;
+    }
+  }
+
   if (typeof maybeGenAIOperationName === "string") {
     return GenAIOperationNameToSpanKindMap.get(maybeGenAIOperationName);
   }

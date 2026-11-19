@@ -1,0 +1,101 @@
+---
+/**
+ * The landing page's statement: the mission in one paragraph of display
+ * type, on the 880px page under the hero, one left edge with the README.
+ * Its words light from --unlit to --fg, one by one, as the paragraph
+ * scrolls through the window. Without
+ * JavaScript, or with reduced motion, every word is lit from the start.
+ * The text is `site.statement`; the full mission is MISSION.md.
+ */
+import { routeOf, site } from "../lib/site";
+
+const words = site.statement.split(/\s+/);
+---
+
+<section class="statement" aria-label="Mission">
+  <p class="words">
+    {
+      words.map((word, index) => (
+        <>
+          <span class="word">{word}</span>
+          {index < words.length - 1 ? " " : ""}
+        </>
+      ))
+    }
+  </p>
+  <a class="more" href={routeOf("MISSION.md")}>
+    Read the mission <span class="arrow" aria-hidden="true">→</span>
+  </a>
+</section>
+
+<script>
+  /*
+   * Progress runs from 0, when the paragraph's top reaches the lower fifth of
+   * the window, to 1, when its bottom passes the middle; that share of the
+   * words is lit, in reading order.
+   */
+  const reveal = (section: HTMLElement) => {
+    const words = [...section.querySelectorAll<HTMLElement>(".word")];
+    const paragraph = section.querySelector<HTMLElement>(".words");
+    if (!paragraph || words.length === 0) return;
+    section.dataset.reveal = "";
+
+    let lit = -1;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const { top, height } = paragraph.getBoundingClientRect();
+      const viewport = window.innerHeight;
+      const start = viewport * 0.8;
+      const end = viewport * 0.5 - height;
+      const progress = Math.min(1, Math.max(0, (start - top) / (start - end)));
+      const count = Math.round(progress * words.length);
+      if (count === lit) return;
+      lit = count;
+      words.forEach((word, index) => word.classList.toggle("lit", index < count));
+    };
+    const schedule = () => {
+      frame ||= requestAnimationFrame(update);
+    };
+    addEventListener("scroll", schedule, { passive: true });
+    addEventListener("resize", schedule);
+    update();
+  };
+
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    document.querySelectorAll<HTMLElement>(".statement").forEach(reveal);
+  }
+</script>
+
+<style>
+  .statement {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-7);
+    padding-block: var(--space-9) calc(var(--space-9) + var(--space-6));
+  }
+  .words {
+    font: 500 var(--text-h2) / 1.12 var(--font-sans);
+    letter-spacing: var(--tracking-tight);
+    text-wrap: pretty;
+  }
+  /* Dimmed only once the script runs, so the text never hides without it. */
+  [data-reveal] .word { color: var(--unlit); transition: color 0.25s ease-out; }
+  [data-reveal] .word.lit { color: var(--fg); }
+
+  .more {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    color: var(--fg);
+    font: 600 var(--text-title) / 1.25 var(--font-sans);
+    letter-spacing: -0.01em;
+    text-decoration: none;
+  }
+  .more .arrow { color: var(--dim); font-weight: 400; transition: transform 0.15s, color 0.15s; }
+  .more:hover .arrow, .more:focus-visible .arrow { color: var(--accent); transform: translateX(3px); }
+
+  @media (max-width: 720px) {
+    .statement { gap: var(--space-6); padding-block: var(--space-8) var(--space-9); }
+  }
+</style>

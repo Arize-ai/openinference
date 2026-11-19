@@ -361,3 +361,129 @@ def test_sequential_streamed_team_runs_create_separate_traces(
         assert parent_span_context is None or not parent_span_context.is_valid, (
             "Streamed Team span has a parent — traces are nesting instead of being separate"
         )
+
+
+def _get_agent_span(spans: Sequence[ReadableSpan], name: str) -> ReadableSpan:
+    matches = [span for span in spans if span.name == name]
+    assert len(matches) == 1, f"Expected one {name!r} span, got {len(matches)}"
+    return matches[0]
+
+
+def test_team_run_restores_current_span(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
+    """Regression: the finished Team span must not stay current after Team.run returns."""
+    from opentelemetry import trace as trace_api
+
+    team, exporter = instrumented_team
+
+    span_before = trace_api.get_current_span()
+    try:
+        team.run("Question")
+    except Exception:
+        pass
+
+    assert trace_api.get_current_span() is span_before, (
+        "Team span is still current after Team.run returned"
+    )
+
+    agent = Agent(
+        name="Standalone Agent",
+        model=OpenAIChat(id="gpt-4o-mini", api_key="fake-key-for-testing"),
+    )
+    try:
+        agent.run("Follow-up question")
+    except Exception:
+        pass
+
+    spans = exporter.get_finished_spans()
+    team_span_ids = {span.context.span_id for span in _get_team_spans(spans)}
+    assert team_span_ids, "No team span found"
+    agent_span = _get_agent_span(spans, "Standalone_Agent.run")
+    assert agent_span.parent is None or agent_span.parent.span_id not in team_span_ids, (
+        "Agent run after Team.run was parented under the finished Team span"
+    )
+
+
+@pytest.mark.asyncio
+async def test_team_arun_restores_current_span(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
+    """Regression: the finished Team span must not stay current after Team.arun returns."""
+    from opentelemetry import trace as trace_api
+
+    team, exporter = instrumented_team
+
+    span_before = trace_api.get_current_span()
+    try:
+        await team.arun("Async question")
+    except Exception:
+        pass
+
+    assert trace_api.get_current_span() is span_before, (
+        "Team span is still current after Team.arun returned"
+    )
+
+    agent = Agent(
+        name="Standalone Agent",
+        model=OpenAIChat(id="gpt-4o-mini", api_key="fake-key-for-testing"),
+    )
+    try:
+        await agent.arun("Async follow-up question")
+    except Exception:
+        pass
+
+    spans = exporter.get_finished_spans()
+    team_span_ids = {span.context.span_id for span in _get_team_spans(spans)}
+    assert team_span_ids, "No team span found"
+    agent_span = _get_agent_span(spans, "Standalone_Agent.arun")
+    assert agent_span.parent is None or agent_span.parent.span_id not in team_span_ids, (
+        "Agent run after Team.arun was parented under the finished Team span"
+    )
+
+
+def test_team_run_restores_current_span_on_exception(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
+    """Both context tokens must be detached in LIFO order when Team.run raises."""
+    from opentelemetry import trace as trace_api
+
+    from openinference.instrumentation.agno._runs_wrapper import _RunWrapper
+
+    team, exporter = instrumented_team
+    run_wrapper = _RunWrapper(tracer=TracerProvider().get_tracer(__name__))
+
+    def failing_run(team: Team, *args: object, **kwargs: object) -> None:
+        raise RuntimeError("boom")
+
+    span_before = trace_api.get_current_span()
+    with pytest.raises(RuntimeError, match="boom"):
+        run_wrapper.run(failing_run, None, (team,), {})
+
+    assert trace_api.get_current_span() is span_before, (
+        "Team span is still current after Team.run raised"
+    )
+
+
+@pytest.mark.asyncio
+async def test_team_arun_restores_current_span_on_exception(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
+    """Both context tokens must be detached in LIFO order when Team.arun raises."""
+    from opentelemetry import trace as trace_api
+
+    from openinference.instrumentation.agno._runs_wrapper import _RunWrapper
+
+    team, exporter = instrumented_team
+    run_wrapper = _RunWrapper(tracer=TracerProvider().get_tracer(__name__))
+
+    async def failing_arun(team: Team, *args: object, **kwargs: object) -> None:
+        raise RuntimeError("boom")
+
+    span_before = trace_api.get_current_span()
+    with pytest.raises(RuntimeError, match="boom"):
+        await run_wrapper.arun(failing_arun, None, (team,), {})
+
+    assert trace_api.get_current_span() is span_before, (
+        "Team span is still current after Team.arun raised"
+    )

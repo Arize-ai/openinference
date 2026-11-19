@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference LlamaIndex Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.10, <3.15"
+requires-python = ">=3.10, <3.16"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -23,13 +23,14 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
 ]
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.71",
-  "openinference-semantic-conventions>=0.1.41",
+  "openinference-instrumentation>=0.1.81",
+  "openinference-semantic-conventions>=0.1.46",
   "typing-extensions",
   "wrapt",
 ]
@@ -64,6 +65,10 @@ packages = ["src/openinference"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+# openai>=3 sends requests through httpx2, which respx does not patch, so the
+# mocked chat completions would otherwise go to the real API. The plugin aliases
+# httpx to httpx2 before respx loads; it is a no-op on openai<3.
+addopts = "-p openinference.instrumentation.openai._httpx2_compat"
 testpaths = [
   "tests",
 ]

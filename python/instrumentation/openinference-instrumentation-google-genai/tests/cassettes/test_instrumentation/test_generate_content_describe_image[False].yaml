@@ -2,33 +2,30 @@ interactions:
 - request:
     body: '{"contents": [{"parts": [{"text": "Describe Image."}, {"inlineData": {"data":
       "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD-wSzIAAAABlBMVEX___-_v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII=",
-      "mimeType": "image/png"}}], "role": "user"}], "systemInstruction": {"parts":
+      "mime_type": "image/png"}}], "role": "user"}], "systemInstruction": {"parts":
       [{"text": "You are a helpful assistant that can answer questions and help with
       tasks."}], "role": "user"}, "generationConfig": {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
-        [\n          {\n            \"text\": \"The image displays a simple, two-tone
-        geometric pattern divided into four equal quadrants, arranged in a 2x2 grid.\\n\\n*
-        \  The top-left quadrant is a light gray.\\n*   The top-right quadrant is
-        white.\\n*   The bottom-left quadrant is white.\\n*   The bottom-right quadrant
-        is a light gray.\\n\\nThis arrangement creates an alternating or checkerboard-like
-        pattern. The edges and lines separating the quadrants are not sharp or crisp;
-        instead, they appear slightly blurred or softly delineated, giving the overall
-        image a somewhat out-of-focus or smoothed quality.\"\n          }\n        ],\n
-        \       \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n
-        \     \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
-        277,\n    \"candidatesTokenCount\": 125,\n    \"totalTokenCount\": 1080,\n
+        [\n          {\n            \"text\": \"The image features a simple 2x2 blurred
+        checkerboard pattern:\\n\\n* **Top-left and bottom-right:** Light gray squares.\\n*
+        **Top-right and bottom-left:** White squares.\\n\\nThe borders between the
+        four sections are soft and slightly out of focus.\",\n            \"thoughtSignature\":
+        \"EtYHCtMHAWkUfRPP4eKzG/tzeum/qYepcyL5yE8dgz7ur0DAzDLmuMlbTFfqX0sdZidNfAxk55YyoLGWXHA6avD/+hn+w5ktMZJyO8+qttqNzriBZXsqIDOR0cpxVp2D6hhq364eFIe2UEZhSsStlayD4mErD9djXbbkDAX/RsH7uLYWvozRU4atvIoL4B1cxIBfCEWB3iLKN1liUayilupma0PgTvYr6FPe46BiRiUYrSbHOUZf1qjb/BejD0ZNzBKP9Wr6hF6cuBRwAUlNyEz7ojChnGERLt8EucGfzXdjvKtHKO8DFPuMkK9L8S+CzWZ24fNJXPq2woiLKPW06Po/HupyVwjSsOrtaeECFkk6cVsDp74rwtcbJR4zVJo/aNtdrsaXLpzPDLv87DEqmZQJYzpqdpIvcV1FzXQVPmO7+bzVYkyYATTAt5E7DrPgIpDlXwbFFPZVzhU6GpB0Y8ef1DCocrjErOQ7lidbCPtTIJIS0YPEErZv1H/cdRYrRmO26+qjp5YydA2Z/qP31Rsf5PR38dXTiRWUOW3Rk9zaswBa0mgcwnmwN3jjlVGXkPIdd387qR9UeB4u6MswcwcpgwTY/pJS3P7EAKB33wSA1nCrcavQWlFgUSBJPaXSGaTOrusNpGBETy0soSs4yJ4Yd8X1ndfC3n2G0js487Ajf9TXTsKU/g5g00n7vcbUQFUuYbkWlQpr1qS4rel5AklwzPd7Izu1kzPrluKqiiJIIajx4dfD9+V7ZfUn6VmfKSV67ZpbXIBE+68RFo9ycndvXzsHOw97gdiDf90nmVX6/vtlC2zdERdaaufIPHKakiq2T8xN7d5skK0P1d3c6W9GEeHaH9VXMO/29yGbuxFILyGm0f3/Ki+DwUegAhZT9KT7yIuFg9SCS0R+ObfcwXbXkeM4/dVi7JqwMSAPKqL9CYLiJC11mQHssHYGXV/YgUMRwlV2xoZIV3Unf5kdyzx1SfcxSOQ7BHVmEogv4Rs3xyWAG8krKkEGpaYChunXjK9OfE1ag5NLNYY/QS4L+3b6/GIVDODXeJvrPobXn3LvmN3NjT4OqJm7GIuhASlOyVZByY7GwfwsPeNwxfaJdLIp9kkMXZQZsnJinp+U7Iz9ADrPx6PC8BYE3a5BNd8BDWTOs1hrt7Sc4ZX392z3I0daP+jZLWE1cAHGSxHwWNWvPCDp9CJ+311gzdEqtpFkJFaOHg315NwXF0mRu9Fqw7ZWoj4LMxIwpwfWd+P2znCRnNnxgVAHVbiRJP9ts3UQdVx2mhUPbrpKLvssWNxZF8adIL2zl5EIKQ==\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        1108,\n    \"candidatesTokenCount\": 58,\n    \"totalTokenCount\": 1390,\n
         \   \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
         \       \"tokenCount\": 19\n      },\n      {\n        \"modality\": \"IMAGE\",\n
-        \       \"tokenCount\": 258\n      }\n    ],\n    \"thoughtsTokenCount\":
-        678,\n    \"serviceTier\": \"standard\"\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n
-        \ \"responseId\": \"RdkEauOIL66dqtsP_O-f0As\"\n}\n"
+        \       \"tokenCount\": 1089\n      }\n    ],\n    \"thoughtsTokenCount\":
+        224,\n    \"serviceTier\": \"standard\"\n  },\n  \"modelVersion\": \"gemini-3.6-flash\",\n
+        \ \"responseId\": \"y_r0aoqmLKrH-sAPufOOoAs\"\n}\n"
     headers:
-      Content-Type:
+      content-type:
       - application/json; charset=UTF-8
     status:
       code: 200

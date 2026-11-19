@@ -1,0 +1,6 @@
+# The triage lane's vault, kept apart from github.yaml because triage starts on any new issue,
+# so its sessions get a token that can only read: Contents, Issues and Pull requests read.
+# triage.py writes its credentials, the same two github_app.py writes for the other lanes, on
+# each session - see Bootstrap in factory/README.md.
+type: vault
+display_name: factory-github-readonly

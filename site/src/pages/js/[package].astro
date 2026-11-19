@@ -1,0 +1,167 @@
+---
+/**
+ * A JavaScript package's API reference: what it is and how to install it,
+ * then each entry point in its `exports` map and what that exports. See
+ * lib/js-api.ts.
+ */
+import type { GetStaticPaths } from "astro";
+
+import Docstring from "../../components/api/Docstring.astro";
+import MemberTable from "../../components/api/MemberTable.astro";
+import PackageHead from "../../components/api/PackageHead.astro";
+import JsObject from "../../components/js/JsObject.astro";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { renderMarkdown, type Fact, type Heading } from "../../lib/api";
+import {
+  cellHtml,
+  getJsNav,
+  isConstant,
+  linkRefs,
+  packages,
+  resolvePart,
+  type ApiPackage,
+} from "../../lib/js-api";
+
+export const getStaticPaths = (() =>
+  packages.map((pkg) => ({ params: { package: pkg.slug }, props: { pkg } }))) satisfies GetStaticPaths;
+
+const { pkg } = Astro.props as { pkg: ApiPackage };
+const nav = getJsNav(pkg);
+
+const install = await renderMarkdown(["```sh", `npm install ${pkg.name}`, "```"].join("\n"));
+
+const instrumentation = pkg.instrumentation;
+const usage = instrumentation
+  ? await renderMarkdown(
+      [
+        "```ts",
+        'import { registerInstrumentations } from "@opentelemetry/instrumentation";',
+        'import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";',
+        `import { ${instrumentation.name} } from "${pkg.name}";`,
+        "",
+        "const provider = new NodeTracerProvider({",
+        "  // ...a span processor that exports to Phoenix or any OTLP backend.",
+        "});",
+        "provider.register();",
+        "",
+        "registerInstrumentations({",
+        `  instrumentations: [new ${instrumentation.name}()],`,
+        "});",
+        "```",
+      ].join("\n"),
+    )
+  : undefined;
+
+/** Peer dependencies an instrumentation's "Instruments" fact doesn't already list. */
+const requires = Object.entries(pkg.peerDependencies)
+  .filter(([name]) => !pkg.instruments.some((requirement) => requirement.startsWith(`${name} `) || requirement === name))
+  .map(([name, range]) => `${name} ${range}`);
+
+const facts: Fact[] = [
+  { label: "Version", value: pkg.version },
+  { label: "Node.js", value: pkg.node },
+  { label: "Instruments", value: pkg.instruments.join(", "), code: true },
+  { label: "Peer dependencies", value: requires.join(", "), code: true },
+];
+
+const prefixOf = (subpath: string) => (subpath === "." ? "" : `${subpath.slice(2)}/`);
+const modules = pkg.modules.map((module) => ({
+  ...module,
+  id: `module:${module.subpath}`,
+  objects: module.members.filter((member) => !isConstant(member)),
+  constants: module.members.filter(isConstant),
+}));
+
+const headings: Heading[] = [
+  { depth: 2, slug: "install", text: "Install" },
+  ...(usage ? [{ depth: 2, slug: "usage", text: "Usage" }] : []),
+  ...modules.flatMap((module) => [
+    { depth: 2, slug: module.id, text: module.specifier },
+    ...module.objects.map((member) => ({ depth: 3, slug: member.anchor, text: member.name })),
+    ...(module.constants.length
+      ? [{ depth: 3, slug: `${prefixOf(module.subpath)}constants`, text: "Constants" }]
+      : []),
+  ]),
+];
+
+const groupLabel = { core: "Core", instrumentation: "Instrumentation", integration: "Integration" }[pkg.group];
+---
+
+<DocsLayout title={pkg.name} description={pkg.description} nav={nav} headings={headings} tocDepth={3}>
+  <PackageHead
+    eyebrow={`JavaScript · ${groupLabel}`}
+    name={pkg.name}
+    description={pkg.description}
+    facts={facts}
+    links={[
+      { label: "npm", href: pkg.npm },
+      { label: "README", href: pkg.readme },
+      { label: "Source", href: pkg.source },
+    ]}
+  />
+
+  <h2 id="install">Install</h2>
+  <Fragment set:html={install} />
+
+  {
+    usage && instrumentation && (
+      <>
+        <h2 id="usage">Usage</h2>
+        <p>
+          Register the instrumentation once, at startup, before the library is imported. The{" "}
+          <a href={`#${instrumentation.anchor}`}>
+            <code>{instrumentation.name}</code>
+          </a>{" "}
+          reference below lists its options.
+        </p>
+        <Fragment set:html={usage} />
+        {instrumentation.manual && (
+          <p>
+            If the library is imported first (as ES modules often are), patch it directly with{" "}
+            <a href={`#${instrumentation.anchor}.manuallyInstrument`}>
+              <code>manuallyInstrument()</code>
+            </a>
+            .
+          </p>
+        )}
+      </>
+    )
+  }
+
+  {
+    modules.map((module) => (
+      <section class="api-module">
+        <h2 id={module.id}>
+          <a href={`#${module.id}`}>
+            <code>{module.specifier}</code>
+          </a>
+        </h2>
+        {module.docstring.length > 0 && (
+          <div class="api-module-doc">
+            <Docstring sections={module.docstring} resolve={resolvePart} markdown={linkRefs} />
+          </div>
+        )}
+        {module.members.length === 0 && <p class="api-note">This entry point exports nothing of its own.</p>}
+        {module.objects.map((member) => (
+          <JsObject object={member} />
+        ))}
+        {module.constants.length > 0 && (
+          <section class="api-object level-3" id={`${prefixOf(module.subpath)}constants`}>
+            <MemberTable
+              label="Constants"
+              column="Value"
+              rows={module.constants.map((constant) => ({
+                id: constant.anchor,
+                name: constant.name,
+                html: cellHtml(constant),
+                docstring: constant.docstring,
+              }))}
+              resolve={resolvePart}
+              markdown={linkRefs}
+            />
+          </section>
+        )}
+      </section>
+    ))
+  }
+</DocsLayout>

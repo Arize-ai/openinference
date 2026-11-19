@@ -6,93 +6,131 @@ interactions:
       {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:streamGenerateContent?alt=sse
   response:
     body:
-      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"To
-        find the sum of the first 50 prime numbers, I will first generate the first
-        50\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
-        32,\"candidatesTokenCount\": 22,\"totalTokenCount\": 294,\"promptTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\": 240,\"serviceTier\":
-        \"standard\"},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\": \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" prime numbers using
-        a primality test, and then sum them up.\\n\\nHere's the Python code to perform
-        this calculation:\\n\\n\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
-        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 48,\"totalTokenCount\":
-        320,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\":
-        240,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
-        \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
-        {\"parts\": [{\"executableCode\": {\"language\": \"PYTHON\",\"code\": \"def
-        is_prime(n):\\n    if n \\u003c 2:\\n        return False\\n    for i in range(2,
-        int(n**0.5) + 1):\\n        if n % i == 0:\\n            return False\\n    return
-        True\\n\\nprime_numbers = []\\nnum = 2\\nwhile len(prime_numbers) \\u003c
-        50:\\n    if is_prime(num):\\n        prime_numbers.append(num)\\n    num
-        += 1\\n\\nsum_of_primes = sum(prime_numbers)\\n\\nprint(f\\\"The first 50
-        prime numbers are: {prime_numbers}\\\")\\nprint(f\\\"The count of prime numbers
-        found: {len(prime_numbers)}\\\")\\nprint(f\\\"The sum of the first 50 prime
-        numbers is: {sum_of_primes}\\\")\\n\"}}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
-        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 230,\"totalTokenCount\":
-        502,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\":
-        240,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
-        \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
-        {\"parts\": [{\"codeExecutionResult\": {\"outcome\": \"OUTCOME_OK\",\"output\":
-        \"The first 50 prime numbers are: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31,
-        37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109,
-        113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193,
-        197, 199, 211, 223, 227, 229]\\nThe count of prime numbers found: 50\\nThe
-        sum of the first 50 prime numbers is: 5117\\n\"}}],\"role\": \"model\"},\"index\":
-        0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
-        230,\"totalTokenCount\": 502,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        32}],\"thoughtsTokenCount\": 240,\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.5-flash\",\"responseId\": \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"The first 5\"}],\"role\":
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"executableCode\":
+        {\"language\": \"PYTHON\",\"code\": \"def is_prime(n):\\n    if n \\u003c=
+        1:\\n        return False\\n    for i in range(2, int(n**0.5) + 1):\\n        if
+        n % i == 0:\\n            return False\\n    return True\\n\\nprimes = []\\nnum
+        = 2\\nwhile len(primes) \\u003c 50:\\n    if is_prime(num):\\n        primes.append(num)\\n
+        \   num += 1\\n\\nprint(f\\\"Number of primes generated: {len(primes)}\\\")\\nprint(f\\\"Primes:
+        {primes}\\\")\\nprint(f\\\"Sum of the first 50 primes: {sum(primes)}\\\")\\n\",\"id\":
+        \"call_4893790612174691696\"},\"thoughtSignature\": \"EsEECr4EAWkUfRNDb5NQi/anTSIWkTNvGBYUNkWCSJNzTzZDNvlCwcqMwa9vM4ggcYPmaZFtOxyik+VQhXbptsUYGIqBc8rs0Z0Okzj5n0qhk88IqbbqEdFaFHDnCQFIDb/oV0cL/U1vhJPch6IaMEwmB5VaPG7JbdKusdoxexaCmJJC8aE+BOxVyOeTQTHw/pBZqbo3B5M7kP5u65FWkhBaxbzGcPRh/M0Y/Pj6PUPRKeU0czVCCjQPjWPcNUKGJ5AiYmB7mgnxBmeQmfKQk5O2er/2RecXQrsVrxFnxeZXoCdpL8tWO2uaM1YrBTAUKYOmlbIRcL40qcFNZqrbLSb4i8eVlILok3a74UowE9bgIhZf5V1MbyF7F+nhcdZdG9j1z+ZX9DpkVLAeNPOdx4CIhKLCSIapXvH+SN4fpCRCMft9UXTFUcDkUp2u0VZsAldLDZD9W8cfX8EptsdWBHFkRHFiXOA+f5xsQO7qySVVOjEfCzqtgUtw+7ThAuOADgeE9TP4BKShu2Tl1mL2YwvU7OdvzOIIRvoJqdRkDUOqZks0/XQxrhdW1Ri+0CxQur71UWQTStumcDLU8rQGBdE2vtDElOKdyaMsL3zuV3/INLC6XELhJNGIotib9cMYR/YN97MW8sPC7gEF6c+yGW0x4Uz8U3qv2cwtKU8OFZHCe5ChENESvvoCHOf1DZFC/Sr0buWcHP0RdaLiBnEj6Fqdr6kgGq/+Dy/eR0YbeazA1zFiMPKULnTMp5/PAkPZES/7LA==\"}],\"role\":
         \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
-        234,\"totalTokenCount\": 1270,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        32}],\"toolUsePromptTokenCount\": 764,\"toolUsePromptTokensDetails\": [{\"modality\":
-        \"TEXT\",\"tokenCount\": 764}],\"thoughtsTokenCount\": 240,\"serviceTier\":
-        \"standard\"},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\": \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"0 prime numbers
-        are: 2, 3, 5, 7\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
-        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 250,\"totalTokenCount\":
-        1286,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"toolUsePromptTokenCount\":
-        764,\"toolUsePromptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        764}],\"thoughtsTokenCount\": 240,\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.5-flash\",\"responseId\": \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \", 11, 13, 17, 19,
-        23, 29, 31, 37, 41, 43, 47, 53\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
-        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 298,\"totalTokenCount\":
-        1334,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"toolUsePromptTokenCount\":
-        764,\"toolUsePromptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        764}],\"thoughtsTokenCount\": 240,\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.5-flash\",\"responseId\": \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \", 59, 61, 67, 71,
-        73, 79, 83, 89, 97, 101, 103, \"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
-        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 345,\"totalTokenCount\":
-        1381,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"toolUsePromptTokenCount\":
-        764,\"toolUsePromptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        764}],\"thoughtsTokenCount\": 240,\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.5-flash\",\"responseId\": \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"107, 109, 113, 127,
-        131, 137, 139, 149, 151, 157\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
-        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 393,\"totalTokenCount\":
-        1429,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"toolUsePromptTokenCount\":
-        764,\"toolUsePromptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        764}],\"thoughtsTokenCount\": 240,\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.5-flash\",\"responseId\": \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \", 163, 167, 173,
-        179, 181, 191, 193, 197, 199, 2\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
-        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 441,\"totalTokenCount\":
-        1477,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"toolUsePromptTokenCount\":
-        764,\"toolUsePromptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        764}],\"thoughtsTokenCount\": 240,\"serviceTier\": \"standard\"},\"modelVersion\":
-        \"gemini-2.5-flash\",\"responseId\": \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\ndata:
-        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"11, 223, 227, 229.\\n\\nThe
-        sum of the first 50 prime numbers is **5117**.\"}],\"role\": \"model\"},\"finishReason\":
-        \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
-        477,\"totalTokenCount\": 1513,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
-        32}],\"toolUsePromptTokenCount\": 764,\"toolUsePromptTokensDetails\": [{\"modality\":
-        \"TEXT\",\"tokenCount\": 764}],\"thoughtsTokenCount\": 240,\"serviceTier\":
-        \"standard\"},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\": \"ntcEapytNbDmqtsP2JrvyQs\"}\r\n\r\n"
+        160,\"totalTokenCount\": 299,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"thoughtsTokenCount\": 107,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"codeExecutionResult\": {\"outcome\":
+        \"OUTCOME_OK\",\"output\": \"Number of primes generated: 50\\nPrimes: [2,
+        3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73,
+        79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157,
+        163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229]\\nSum of
+        the first 50 primes: 5117\\n\",\"id\": \"call_4893790612174691696\"}}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 32,\"totalTokenCount\":
+        32,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"The sum of the first
+        50 prime numbers is **5,117**.\\n\\nHere\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        20,\"totalTokenCount\": 133,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"thoughtsTokenCount\": 81,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" is the Python code
+        used to generate the first 50 prime numbers and calculate their sum:\\n\\n```python\\ndef
+        is_prime\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        32,\"candidatesTokenCount\": 47,\"totalTokenCount\": 160,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\": 81,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"(n):\\n    if n
+        \\u003c= 1:\\n        return False\\n    for i in range(2,\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        71,\"totalTokenCount\": 184,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"thoughtsTokenCount\": 81,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" int(n**0.5) + 1):\\n
+        \       if n % i == 0:\\n            \"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        95,\"totalTokenCount\": 208,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"thoughtsTokenCount\": 81,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"return False\\n
+        \   return True\\n\\n\\nprimes = []\\nnum = 2\\nwhile len(primes) \\u003c
+        5\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        32,\"candidatesTokenCount\": 119,\"totalTokenCount\": 232,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\": 81,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"0:\\n    if is_prime(num):\\n
+        \       primes.append(num)\\n    num += \"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        143,\"totalTokenCount\": 256,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"thoughtsTokenCount\": 81,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"1\\n\\nprint(\\\"Primes:\\\",
+        primes)\\nprint(\\\"Sum:\\\", sum(primes))\\n```\\n\\n### The First 50 Prime\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        171,\"totalTokenCount\": 284,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"thoughtsTokenCount\": 81,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" Numbers:\\n2, 3,
+        5, 7, 11, 13, 1\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 195,\"totalTokenCount\":
+        308,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\":
+        81,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\":
+        \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"7, 19, 23, 29, 31, 37, 4\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        219,\"totalTokenCount\": 332,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"thoughtsTokenCount\": 81,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"1, 43, 47, 53, 59,
+        61, 6\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        32,\"candidatesTokenCount\": 243,\"totalTokenCount\": 356,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\": 81,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"7, 71, 73, 79, 83,
+        89, 9\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        32,\"candidatesTokenCount\": 267,\"totalTokenCount\": 380,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\": 81,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"7, 101, 103, 107,
+        109, 1\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        32,\"candidatesTokenCount\": 291,\"totalTokenCount\": 404,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\": 81,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"13, 127, 131, 137,
+        139, \"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        32,\"candidatesTokenCount\": 315,\"totalTokenCount\": 428,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\": 81,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"149, 151, 157, 163,
+        167,\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        32,\"candidatesTokenCount\": 339,\"totalTokenCount\": 452,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\": 81,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" 173, 179, 181,
+        191, 193\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        32,\"candidatesTokenCount\": 363,\"totalTokenCount\": 476,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\": 81,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \", 197, 199, 211,
+        223, 22\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        32,\"candidatesTokenCount\": 387,\"totalTokenCount\": 500,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\": 81,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"7, 229\\n\\n**Total
+        Sum:** **5,117**\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 405,\"totalTokenCount\":
+        518,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\":
+        81,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.6-flash\",\"responseId\":
+        \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"\",\"thoughtSignature\": \"ErsDCrgDAWkUfRP8k0/rQ5pk3fpkhe1uIVbHbbLhwy6Bj0yCvO//PC3EJnjXhhlow241mbdnMp4IyYjG7KfD2PXnBDjeE4Wf10SzIhqav9mK3N6U6Z0QSoL/D6VB6EUAaIg2mcZ1wCcc9L0VuMbb9E2QBPaCCrGX0QJQJJBNr3rVL63LjR/rhnSnqcLHKPL1GTDf2s9j6twjLeEBcN46gv7OEoeZyhjUAil9BN6ybNcneNPwG8MwUb8+0k9MTlZXIlXWVula8OXYZtjn6qrrSi9Rt/3imF1IiJWDY7kT3PipYUK/vHqzsZZpmqQyBiG7+IJQVVdqmidLMC+G1/1KfhG4ZXS4OAelJx0wCwfPMJbLNh+cNA4SsUGVa83Ha0Ert+4tLf6xiEqH6HZVNIVYfTXnYbYSGDqKwlaBvFUD4GC0XlWfFIby4AN/jewPFF5tjlgVnZhS5pSxAOInfvJyq19mp8qz8ShiYtueD++xnDpJwOME/JtmYkamHFasjK2hxqsQi46EYRMxoDvuEO3H3cA9AQvZRR5SsVBIZToiu4CAaxgRrF0lnaT2jOmQgy14UGckNK6c43euXWLUx5A=\"}],\"role\":
+        \"model\"},\"finishReason\": \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        139,\"candidatesTokenCount\": 565,\"totalTokenCount\": 1438,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 139}],\"toolUsePromptTokenCount\":
+        546,\"toolUsePromptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        546}],\"thoughtsTokenCount\": 188,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.6-flash\",\"responseId\": \"-fr0aueZOt6d_uMPl6iV0QI\"}\r\n\r\n"
     headers: {}
     status:
       code: 200

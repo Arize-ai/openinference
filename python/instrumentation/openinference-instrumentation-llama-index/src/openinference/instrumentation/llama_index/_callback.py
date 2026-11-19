@@ -126,7 +126,10 @@ def payload_to_semantic_attributes(
             # the agent step contains a message that is actually the input
             # akin to the query_str
             attributes[INPUT_VALUE] = _message_payload_to_str(messages[0])
-    if response := (payload.get(EventPayload.RESPONSE) or payload.get(EventPayload.COMPLETION)):
+    response = payload.get(EventPayload.RESPONSE)
+    if response is None:
+        response = payload.get(EventPayload.COMPLETION)
+    if response is not None:
         attributes.update(_get_response_output(response))
         if event_type is CBEventType.LLM and (finish_reason := _extract_finish_reason(response)):
             attributes[LLM_FINISH_REASON] = finish_reason
@@ -340,6 +343,9 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
                     f"Failed to convert payload to semantic attributes. "
                     f"event_type={event_type}, payload={payload}",
                 )
+            if OUTPUT_VALUE in event_data.attributes:
+                with self._lock:
+                    self._propagate_output_to_parent(event_data)
             if (
                 _is_streaming_response(response := payload.get(EventPayload.RESPONSE))
                 and response.response_gen is not None
@@ -349,6 +355,13 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
 
         if not is_dispatched:
             _finish_tracing(event_data)
+
+    def _propagate_output_to_parent(self, event_data: _EventData) -> None:
+        if not (parent := self._event_data.get(event_data.parent_id)):
+            return
+        if parent.event_type not in (CBEventType.QUERY, CBEventType.SYNTHESIZE):
+            return
+        parent.attributes.setdefault(OUTPUT_VALUE, event_data.attributes[OUTPUT_VALUE])
 
     def start_trace(
         self,

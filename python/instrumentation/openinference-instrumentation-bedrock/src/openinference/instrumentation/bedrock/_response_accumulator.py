@@ -22,7 +22,7 @@ from openinference.instrumentation.bedrock._trace_collector import (
     TraceNode,
     TraceSpan,
 )
-from openinference.instrumentation.bedrock.utils import _finish
+from openinference.instrumentation.bedrock.utils import _finish, _StreamClosed
 from openinference.semconv.trace import (
     DocumentAttributes,
     OpenInferenceSpanKindValues,
@@ -152,7 +152,7 @@ class _ResponseAccumulator:
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
             try:
                 self._process_traces()
-                self._finish_tracing()
+                self._finish_tracing(closed=isinstance(obj, _StreamClosed))
             except Exception:
                 logger.warning("Failed to finish agent tracing", exc_info=True)
                 self._span.end()
@@ -1005,7 +1005,7 @@ class _ResponseAccumulator:
         if rationale_text := rationale.get("text", ""):
             attributes.output_attributes.update(get_output_attributes(rationale_text))
 
-    def _finish_tracing(self) -> None:
+    def _finish_tracing(self, closed: bool = False) -> None:
         """
         Finish tracing by ending all spans.
 
@@ -1019,7 +1019,7 @@ class _ResponseAccumulator:
         # Use span manager to finish tracing
         # These attributes are removed as these are input values of the request.
         # these are not required to be added to the span.
-        _finish(span=self._span, result=None, request_attributes={})
+        _finish(span=self._span, result=None, request_attributes={}, closed=closed)
         self._is_finished = True
 
 

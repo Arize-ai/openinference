@@ -1,6 +1,7 @@
 import json
 from typing import Any, Dict
 
+import pytest
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_AGENT_NAME,
     GEN_AI_INPUT_MESSAGES,
@@ -147,6 +148,69 @@ def test_token_counts_present_when_no_agent_name_key() -> None:
     assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
     assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 20
     assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 30
+
+
+def test_token_count_details_from_otel_usage_attributes() -> None:
+    """The cache counts come from the OTel names pydantic-ai sets on chat spans."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value,
+        GEN_AI_USAGE_INPUT_TOKENS: 100,
+        GEN_AI_USAGE_OUTPUT_TOKENS: 50,
+        "gen_ai.usage.cache_read.input_tokens": 60,
+        "gen_ai.usage.cache_creation.input_tokens": 30,
+        "gen_ai.usage.details.reasoning_tokens": 20,
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 60
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 30
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] == 20
+
+
+@pytest.mark.parametrize(
+    "reasoning_key",
+    [
+        "gen_ai.usage.details.reasoning_tokens",  # OpenAI, Groq, xAI
+        "gen_ai.usage.details.thinking_tokens",  # Anthropic
+        "gen_ai.usage.details.thoughts_tokens",  # Google
+    ],
+)
+def test_token_count_details_from_usage_details_keys(reasoning_key: str) -> None:
+    """Without the OTel cache names, the gen_ai.usage.details.* copies are used."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value,
+        GEN_AI_USAGE_INPUT_TOKENS: 100,
+        GEN_AI_USAGE_OUTPUT_TOKENS: 50,
+        "gen_ai.usage.details.cache_read_tokens": 60,
+        "gen_ai.usage.details.cache_write_tokens": 30,
+        reasoning_key: 20,
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 60
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 30
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] == 20
+
+
+def test_token_count_details_suppressed_on_agent_spans() -> None:
+    """Agent spans drop the totals, so they must drop the details too."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.INVOKE_AGENT.value,
+        GEN_AI_AGENT_NAME: "my_agent",
+        GEN_AI_USAGE_INPUT_TOKENS: 100,
+        GEN_AI_USAGE_OUTPUT_TOKENS: 50,
+        "gen_ai.usage.cache_read.input_tokens": 60,
+        "gen_ai.usage.cache_creation.input_tokens": 30,
+        "gen_ai.usage.details.reasoning_tokens": 20,
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ not in attributes
+    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE not in attributes
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING not in attributes
 
 
 def test_instrumentation_version_5_default_dotted_keys() -> None:

@@ -1,6 +1,6 @@
 # OpenInference Instrumentation for Claude Agent SDK
 
-OpenTelemetry-based instrumentation for the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) (`@anthropic-ai/claude-agent-sdk`). Produces **AGENT** and **TOOL** spans following [OpenInference semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md).
+OpenTelemetry-based instrumentation for the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) (`@anthropic-ai/claude-agent-sdk`). Produces **AGENT** and **TOOL** spans following [OpenInference semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md).
 
 ## Installation
 

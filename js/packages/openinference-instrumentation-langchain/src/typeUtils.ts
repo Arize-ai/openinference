@@ -19,6 +19,17 @@ export function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
+/**
+ * Returns the value trimmed if it is a string that isn't blank, otherwise undefined.
+ */
+export function getNonBlankString(value: unknown): string | undefined {
+  if (!isString(value)) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
 export function isNumber(value: unknown): value is number {
   return typeof value === "number";
 }

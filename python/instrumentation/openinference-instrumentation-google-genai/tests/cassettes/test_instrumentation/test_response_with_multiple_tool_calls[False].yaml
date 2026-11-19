@@ -12,23 +12,25 @@ interactions:
       {}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"functionCall\": {\n              \"name\": \"get_weather\",\n
-        \             \"args\": {\n                \"location\": \"Boston\"\n              }\n
-        \           }\n          },\n          {\n            \"functionCall\": {\n
-        \             \"name\": \"get_weather\",\n              \"args\": {\n                \"location\":
-        \"New Delhi\"\n              }\n            }\n          }\n        ],\n        \"role\":
-        \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\":
-        -0.011320823972875422\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
-        64,\n    \"candidatesTokenCount\": 11,\n    \"totalTokenCount\": 75,\n    \"promptTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 64\n
-        \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
-        \"TEXT\",\n        \"tokenCount\": 11\n      }\n    ],\n    \"serviceTier\":
-        \"standard\"\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
-        \"ldcEaoCaO72smtkPzqzB8Aw\"\n}\n"
+        \             \"args\": {\n                \"location\": \"Boston\"\n              },\n
+        \             \"id\": \"call_10632467060236544971\"\n            },\n            \"thoughtSignature\":
+        \"Ep8GCpwGAWkUfRO0BqliSrIcJjCEVxHlR4N6crFHoM/FgT6B+0RvZI6NUbErJ3+41Qk5QxbJV0+ivFVfgsGBZ6BLQTOLjGi7onxSsL23JQruacZlKrRi0JuAkriZZ1GXbhchNUCXVcgSi4JiWFWp6BUlfvhuwa/Tu4O33CJdZzE+PCk8MuOBGSQ9sJAtQdfF1ojreyuA2ZB5Phi1mLBmYqlwd04MxcXxrKNHiX/9RPMv90l/X/96+0Q2S0j2+/O5fyzC0mwUrQCn2paaeKw8tuwVr0y3ix22LONcewgdlYQQR6uRQyMrfBSWvTLcKqSA0XZfme39rfQ+uTGgUr0vU5ECI85+cpt1yWiw/kJqdEa5NYnt/mWtT+JQlrd7ZqPCha661kEgW7HTR1YNSZg0mRGioInXEyyK/4W0Q1OY1tklmjSV6yiSiTlZzVl/dxECExIhWdJKrlOdPHCpAXQagydyL8t6qoncWe3DPufRC8Ho/8ToNd8KwQ55rQWslz+k9usgLBYtNVxBiaDPFfjchQ/Y++3rJzoBs67VYOUSVm6ZmXRZjrvVZbc7fRwELK3MFAC+5MHNQKjKMO0RBxPiOeAQRHzC7sRYwp1JYSlVDsUsmXHq/huST1/zjLkI7NXFYePSQ/0G05V7Dt45FKZCoSbrzSGoq3mx/k4EpWmV60CniKWuPdoIUz00f3187FHdRJmtBc2RvyMgpYbusk5adCeOJdKJEC7AovIMB/qVHGVKSq+qIuFdUOchyTDjm2LhRIPWvxCLVZdXu4AtTtKTE5m9MJ1GgoJoK1Hyj0mZogH64IMkfO0q/KKdIji0XgWxprqPQtaSd4VFh/Hwmfc5sek7SzvdCp+5AGjr/a4nuhRbNJvtwphaEoeKstgcs0S0rolP0/rzdvWbMfhSBSTBGQrXYanPxdodNfAK58DEHhTxfANqAnO3UQ4aWS+2c8CU9d/fx8+oXr3K50xOGF1NO2vlHUPGJR6qZWt0NXq2RgypHCKuLwnBK0ujiU2xMHvk5kLorQquw3dSm2Uliv9f1HzNF5RWq5F+0bM0RB1OYQTC0Q==\"\n
+        \         },\n          {\n            \"functionCall\": {\n              \"name\":
+        \"get_weather\",\n              \"args\": {\n                \"location\":
+        \"New Delhi\"\n              },\n              \"id\": \"call_10632467060236545322\"\n
+        \           }\n          }\n        ],\n        \"role\": \"model\"\n      },\n
+        \     \"finishReason\": \"STOP\",\n      \"index\": 0,\n      \"finishMessage\":
+        \"Model generated function call(s).\"\n    }\n  ],\n  \"usageMetadata\": {\n
+        \   \"promptTokenCount\": 120,\n    \"candidatesTokenCount\": 33,\n    \"totalTokenCount\":
+        318,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 120\n      }\n    ],\n    \"thoughtsTokenCount\":
+        165,\n    \"serviceTier\": \"standard\"\n  },\n  \"modelVersion\": \"gemini-3.6-flash\",\n
+        \ \"responseId\": \"3Pr0ao_DNMjJ-sAPxartmAI\"\n}\n"
     headers: {}
     status:
       code: 200

@@ -366,7 +366,7 @@ work through:
    (`MessageContentAttributes.MESSAGE_CONTENT_<TYPE>`) and a nested attribute class
    (`<Type>Attributes` with at minimum `<type>.url` and `<type>.mime_type`) in
    `openinference-semantic-conventions` (mirror in the Go package), plus rows and
-   examples in `spec/semantic_conventions.md` and `spec/multimodal_attributes.md`.
+   examples in `spec/attributes/semantic-conventions.md` and `spec/content/multimodal.md`.
    Nuances seen in drafting: audio already has `AudioAttributes`
    (`audio.url/mime_type/transcript`) but is emitted by one instrumentor under
    instrumentor-local `input.audio.*`/`output.audio.*` keys — promote or migrate
@@ -376,7 +376,7 @@ work through:
    where outputs exist) and an inline budget — either reuse
    `base64_image_max_length`'s pattern or introduce a shared
    `base64_media_max_length` for non-image types — each with an
-   `OPENINFERENCE_*` env var, documented in `spec/configuration.md`.
+   `OPENINFERENCE_*` env var, documented in `spec/configuration/trace-config.md`.
 3. **`mask()` wiring.** Add the hide branches **before** the externalize branch
    (privacy wins by branch order), then extend the size-gated branch: match the
    message-content prefix and `endswith(<Type>Attributes.<TYPE>_URL)` — only the URL

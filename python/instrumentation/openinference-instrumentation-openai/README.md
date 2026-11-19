@@ -23,7 +23,7 @@ pip install 'openinference-instrumentation-openai[instruments]'
 ```
 
 CI tests OpenAI 2.8.0, OpenAI 3.0.0, and the latest available SDK on Python 3.10
-and 3.14. There is no SDK upper bound; the latest lane is a required compatibility
+and 3.15. There is no SDK upper bound; the latest lane is a required compatibility
 check, including when a new major version becomes available.
 
 OpenAI 3 uses `httpx2` as its default HTTP transport. `OpenAIInstrumentor` wraps
@@ -38,7 +38,7 @@ client in normal application use.
 
 Calls to the [Decisions API](https://developers.openai.com/api/docs/guides/decisions)
 (`client.decisions.create`, `openai>=3.26.0`) are recorded as `DECISION` spans
-following the [decision span conventions](https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md).
+following the [decision span conventions](https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md).
 A decision model answers a fixed set of typed questions (`predicate`, `choice`,
 `score`) about the input rather than generating text, so the span identifies the
 model under `decision.*` instead of `llm.*` and carries no `llm.*` attributes:
@@ -69,7 +69,7 @@ From the repository root, run the three SDK lanes (formatting, lint, types, and 
 uvx --with tox-uv tox -c python/tox.ini run -e py310-ci-openai,py310-ci-openai-v3,py310-ci-openai-latest
 ```
 
-Use `py314` in place of `py310` to run the other CI Python version. The baseline
+Use `py315` in place of `py310` to run the other CI Python version. The baseline
 SDK is pinned in `test-requirements.txt`; the `v3` and `latest` overrides live in
 `python/tox.ini` and follow the repository's dependency release-age policy.
 
@@ -157,4 +157,4 @@ python your_file.py
 * [More info on OpenInference and Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)
-* [How prompt cache reads and writes are counted](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md#token-count-details), with a [Phoenix round-trip example](https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-openai/examples/cache_tokens.md)
+* [How prompt cache reads and writes are counted](https://github.com/Arize-ai/openinference/blob/main/spec/spans/llm.md#token-counts), with a [Phoenix round-trip example](https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-openai/examples/cache_tokens.md)

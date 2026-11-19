@@ -1,0 +1,187 @@
+---
+/**
+ * Page markings: gutter rulers
+ * drawn over chosen stretches of the page. Ported as-is from the Arize Labs
+ * site (github.com/arize-labs/website, src/components/PageMarkings.astro).
+ *
+ * The rulers stand on the outer frame (--frame-max apart, centred, holding
+ * --frame-edge from a narrower window's edge; see tokens.css), which the
+ * header also aligns to. Each run is measured from its own start, fades in and out, and marks
+ * the starts of `marks` elements that fall inside it with a registration
+ * cross. Ruler numbers sit outside the line while there is room and flip
+ * inside when there is not. Everything drops out at the phone breakpoint.
+ *
+ * A run edge is [selector, "top" | "middle" | "bottom"] of the first match.
+ * fadeOut below 1 is a fraction of the run's height; otherwise it is pixels.
+ */
+type Edge = [selector: string, side: "top" | "middle" | "bottom"];
+export interface Run {
+  from: Edge;
+  to: Edge;
+  fadeIn?: number;
+  fadeOut?: number;
+}
+export interface Props {
+  runs: Run[];
+  /** Elements whose top edge gets a registration cross. */
+  marks?: string;
+}
+const { runs, marks = "main > section" } = Astro.props;
+---
+
+<div class="page-markings" data-page-markings data-runs={JSON.stringify(runs)} data-marks={marks} aria-hidden="true"></div>
+
+<style>
+  :global(body:has([data-page-markings])) { position: relative; }
+
+  .page-markings {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    /* A ruler's canvas reaches past the window's edge on narrow windows. */
+    overflow: clip;
+  }
+  /* Each ruler is its own narrow canvas, placed by the script. */
+  .page-markings :global(canvas) {
+    position: absolute;
+    opacity: var(--marking-opacity);
+  }
+
+  @media (max-width: 720px) {
+    .page-markings { display: none; }
+  }
+</style>
+
+<script>
+  type Edge = [selector: string, side: "top" | "middle" | "bottom"];
+  type Run = { from: Edge; to: Edge; fadeIn?: number; fadeOut?: number };
+
+  const MINOR = 16, MID = 80, MAJOR = 320, LABEL_ROOM = 48;
+  const phone = matchMedia("(max-width: 720px)");
+
+  const edgeY = ([selector, side]: Edge) => {
+    const el = document.querySelector(selector);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return scrollY + (side === "top" ? r.top : side === "bottom" ? r.bottom : r.top + r.height / 2);
+  };
+
+  function plus(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
+    ctx.beginPath();
+    ctx.moveTo(x - s, y); ctx.lineTo(x + s, y);
+    ctx.moveTo(x, y - s); ctx.lineTo(x, y + s);
+    ctx.stroke();
+  }
+
+  /** Room either side of a ruler for its ticks, numbers and crosses. */
+  const PAD = 56;
+
+  /** The two ruler lines, shared by every run: x in CSS px from the body's left. */
+  interface Frame { left: number; right: number; out: 1 | -1; fg: string; mono: string }
+  /** One run, measured. Crosses are y offsets from the run's start. */
+  interface Measured { top: number; height: number; mask: string; crosses: number[] }
+
+  function measureFrame(): Frame {
+    const styles = getComputedStyle(document.documentElement);
+    const span = parseFloat(styles.getPropertyValue("--frame-max")) || 1400;
+    const edge = parseFloat(styles.getPropertyValue("--frame-edge")) || 40;
+    const width = document.body.clientWidth;
+    const half = Math.min(span / 2, width / 2 - edge);
+    const left = Math.round(width / 2 - half);
+    return {
+      left,
+      right: Math.round(width / 2 + half),
+      out: left >= LABEL_ROOM ? 1 : -1,
+      fg: styles.getPropertyValue("--fg").trim(),
+      mono: styles.getPropertyValue("--font-mono").trim(),
+    };
+  }
+
+  function measureRun({ run, marks }: { run: Run; marks: string }): Measured | null {
+    const top = edgeY(run.from), bottom = edgeY(run.to);
+    const height = top == null || bottom == null ? 0 : Math.round(bottom - top);
+    if (top == null || height < 40 || phone.matches) return null;
+    const fadeIn = run.fadeIn ?? 96;
+    const fadeOutSetting = run.fadeOut ?? 160;
+    const fadeOut = fadeOutSetting < 1 ? fadeOutSetting * height : fadeOutSetting;
+    const crosses = [...document.querySelectorAll(marks)]
+      .map((s) => s.getBoundingClientRect().top + scrollY - top)
+      .filter((y) => y > 0 && y < height)
+      .map(Math.round);
+    return {
+      top,
+      height,
+      mask: `linear-gradient(#0000, #000 ${fadeIn}px, #000 calc(100% - ${fadeOut}px), #0000)`,
+      crosses,
+    };
+  }
+
+  /** One ruler of a run, on a canvas just wide enough for it, centred on the line. */
+  function paintRuler({ canvas, run, frame, dir }: { canvas: HTMLCanvasElement; run: Measured; frame: Frame; dir: -1 | 1 }) {
+    const x = dir < 0 ? frame.left : frame.right;
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    const width = 2 * PAD + 1;
+    Object.assign(canvas.style, { left: `${x - PAD}px`, width: `${width}px`, top: `${run.top}px`, height: `${run.height}px`, maskImage: run.mask });
+    const deviceWidth = Math.round(width * dpr), deviceHeight = Math.round(run.height * dpr);
+    if (canvas.width !== deviceWidth || canvas.height !== deviceHeight) {
+      canvas.width = deviceWidth;
+      canvas.height = deviceHeight;
+    }
+    const ctx = canvas.getContext("2d")!;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, deviceWidth, deviceHeight);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = ctx.strokeStyle = frame.fg;
+    ctx.lineWidth = 1;
+    ctx.font = `400 9px ${frame.mono}`;
+    ctx.textBaseline = "alphabetic";
+    if ("letterSpacing" in ctx) ctx.letterSpacing = "0.54px";
+
+    // The line, in canvas coordinates.
+    const line = PAD;
+    ctx.fillRect(line, 0, 1, run.height);
+    const side = dir * frame.out;
+    ctx.textAlign = side < 0 ? "right" : "left";
+    for (let y = 0; y <= run.height; y += MINOR) {
+      const len = y % MAJOR === 0 ? 12 : y % MID === 0 ? 7 : 3;
+      ctx.fillRect(dir < 0 ? line - len : line + 1, y, len, 1);
+      if (y % MAJOR === 0) ctx.fillText(String(y).padStart(4, "0"), line + side * 18, y + 3);
+    }
+    for (const y of run.crosses) plus(ctx, line + 0.5, y + 0.5, 6);
+  }
+
+  for (const host of document.querySelectorAll<HTMLElement>("[data-page-markings]")) {
+    const runs: Run[] = JSON.parse(host.dataset.runs ?? "[]");
+    const marks = host.dataset.marks!;
+    const rulers = runs.map(() => [-1, 1].map(() => host.appendChild(document.createElement("canvas"))));
+    let pending = false;
+    const redraw = () => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        pending = false;
+        try {
+          // Every read first, then every write, so the layout is measured once.
+          const frame = measureFrame();
+          const measured = runs.map((run) => measureRun({ run, marks }));
+          measured.forEach((run, i) => {
+            const [leftCanvas, rightCanvas] = rulers[i];
+            leftCanvas.hidden = rightCanvas.hidden = !run;
+            if (!run) return;
+            paintRuler({ canvas: leftCanvas, run, frame, dir: -1 });
+            paintRuler({ canvas: rightCanvas, run, frame, dir: 1 });
+          });
+        } catch (e) {
+          console.error("page markings", e);
+        }
+      });
+    };
+    new ResizeObserver(redraw).observe(document.querySelector("main")!);
+    addEventListener("resize", redraw);
+    phone.addEventListener("change", redraw);
+    new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    document.fonts.ready.then(redraw);
+    redraw();
+  }
+</script>

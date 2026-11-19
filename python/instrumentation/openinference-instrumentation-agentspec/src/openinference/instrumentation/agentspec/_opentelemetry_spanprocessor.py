@@ -402,20 +402,23 @@ class _OtelSpanProcessor(AgentSpecSpanProcessor, ABC):
             # but we warn the user
             logger.warning(f"Exception raised during SpanProcessor `shutdown`: {e}")
 
+    # Agent Spec calls the async variants for spans opened with `async with` (e.g. the LangGraph
+    # adapter's async runs). The wrapped OpenTelemetry span processor is synchronous, so they share
+    # the sync implementations.
     async def on_start_async(self, span: AgentSpecSpan) -> None:
-        raise NotImplementedError(f"Async stack not implemented for {self.__class__.__name__} yet")
+        self.on_start(span)
 
     async def on_end_async(self, span: AgentSpecSpan) -> None:
-        raise NotImplementedError(f"Async stack not implemented for {self.__class__.__name__} yet")
+        self.on_end(span)
 
     async def on_event_async(self, event: AgentSpecEvent, span: AgentSpecSpan) -> None:
-        raise NotImplementedError(f"Async stack not implemented for {self.__class__.__name__} yet")
+        self.on_event(event, span)
 
     async def startup_async(self) -> None:
-        raise NotImplementedError(f"Async stack not implemented for {self.__class__.__name__} yet")
+        self.startup()
 
     async def shutdown_async(self) -> None:
-        raise NotImplementedError(f"Async stack not implemented for {self.__class__.__name__} yet")
+        self.shutdown()
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """

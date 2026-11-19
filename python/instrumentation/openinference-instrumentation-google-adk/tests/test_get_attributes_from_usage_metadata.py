@@ -139,6 +139,23 @@ from openinference.instrumentation.google_adk._wrappers import _get_attributes_f
             },
             id="thoughts_token_count_explicit_zero_no_reasoning_detail",
         ),
+        pytest.param(
+            # Cached tokens are a subset of prompt_token_count, so they are only reported
+            # as a prompt detail and are not added to the prompt count again.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=130,
+                prompt_token_count=100,
+                cached_content_token_count=60,
+                candidates_token_count=30,
+            ),
+            {
+                "llm.token_count.total": 130,
+                "llm.token_count.prompt": 100,
+                "llm.token_count.prompt_details.cache_read": 60,
+                "llm.token_count.completion": 30,
+            },
+            id="cached_content_token_count_is_reported_as_cache_read",
+        ),
     ],
 )
 def test_get_attributes_from_usage_metadata(

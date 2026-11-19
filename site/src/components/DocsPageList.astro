@@ -1,0 +1,32 @@
+---
+/**
+ * A docs section's pages as lists of links, the current one marked.
+ * DocsLayout shows it twice: in the left rail on wide screens, and in the
+ * disclosure above the page on narrow ones. Markup only; the layout styles
+ * each place.
+ */
+import type { DocsGroup } from "../lib/docs";
+
+interface Props {
+  groups: DocsGroup[];
+}
+
+const { groups } = Astro.props;
+---
+
+{
+  groups.map((group) => (
+    <>
+      {group.label && <p class="group eyebrow">{group.label}</p>}
+      <ul>
+        {group.items.map((item) => (
+          <li>
+            <a href={item.href} aria-current={item.current ? "page" : undefined}>
+              {item.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </>
+  ))
+}

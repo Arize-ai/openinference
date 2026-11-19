@@ -3,7 +3,7 @@ import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conven
 import { OpenTelemetry } from "@ai-sdk/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { Resource } from "@opentelemetry/resources";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { registerTelemetry } from "ai";
@@ -22,7 +22,7 @@ const phoenixUrl =
   "http://localhost:6006/v1/traces";
 
 export const tracerProvider = new NodeTracerProvider({
-  resource: new Resource({
+  resource: resourceFromAttributes({
     [SEMRESATTRS_PROJECT_NAME]:
       process.env["PHOENIX_PROJECT_NAME"] ?? "openinference-vercel-examples",
   }),

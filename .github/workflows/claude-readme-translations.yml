@@ -14,21 +14,39 @@ on:
 
 permissions: {}
 
-concurrency:
-  # Each run syncs every README.md change since the translations were last
-  # updated, so a newer run fully supersedes an older one.
-  group: readme-translations-sync
-  cancel-in-progress: true
-
 jobs:
+  # claude-code-action rejects `push` events ("Unsupported event type: push"),
+  # so a push to README.md re-dispatches this workflow, and the sync job runs
+  # under `workflow_dispatch`, which the action supports. A dispatch made with
+  # GITHUB_TOKEN still starts a new run.
+  dispatch:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # Dispatch this workflow
+    steps:
+      - name: Dispatch the sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run claude-readme-translations.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
+
   sync:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # On the job, not the workflow, so a dispatched sync never cancels the push
+    # run that dispatched it. Each sync covers every README.md change since the
+    # translations were last updated, so a newer one fully supersedes an older one.
+    concurrency:
+      group: readme-translations-sync
+      cancel-in-progress: true
     permissions:
       # contents: read is all Claude can reach: the read-only workflow token is
       # passed to the action below, and publishing is done by a later step with
       # a PAT.
       contents: read
+      id-token: write # Exchange the GitHub OIDC token for Anthropic credentials
 
     steps:
       - name: Checkout repository
@@ -82,7 +100,9 @@ jobs:
         env:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           # Read-only workflow token: Claude never writes to GitHub here.
           github_token: ${{ github.token }}
           show_full_output: 'true'

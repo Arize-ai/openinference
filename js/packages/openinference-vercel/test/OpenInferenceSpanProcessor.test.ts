@@ -1,5 +1,5 @@
 import type { Attributes } from "@opentelemetry/api";
-import { context, SpanStatusCode, trace, TraceFlags } from "@opentelemetry/api";
+import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { BasicTracerProvider, InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
@@ -24,12 +24,16 @@ import {
   EveOperationNameToSpanKindMap,
   VercelSDKFunctionNameToSpanKindMap,
 } from "../src/constants";
+import { getParentSpanId } from "../src/typeUtils";
 import { VercelAISemanticConventions } from "../src/VercelAISemanticConventions";
 import embedDoEmbedFixture from "./__fixtures__/v6-spans/ai-embed-doEmbed.json";
 import generateObjectDoGenerateFixture from "./__fixtures__/v6-spans/ai-generateObject-doGenerate.json";
 // Import real AI SDK v6 fixtures
 import generateTextDoGenerateFixture from "./__fixtures__/v6-spans/ai-generateText-doGenerate.json";
 import streamTextDoStreamFixture from "./__fixtures__/v6-spans/ai-streamText-doStream.json";
+
+// Spans from SDK 2.x and later expose the parent as `parentSpanContext`.
+const parentSpanIdOf = (span?: object) => (span ? getParentSpanId(span) : undefined);
 
 type SpanProcessorTestCase = [
   string,
@@ -384,6 +388,128 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
       expectedOpenInferenceAttributes: {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
         [SemanticConventions.SESSION_ID]: "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+    },
+  ],
+  [
+    // eve 0.76+: operation.name is "workflow" and the span name moves to resource.name.
+    "eve 0.76 agent.step span",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "operation.name": "workflow",
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.step",
+        "agent.framework.name": "eve",
+        "agent.name": "eve-agent",
+        "agent.step.index": 0,
+        "agent.model.id": "anthropic/claude-sonnet-4.6",
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+        "gen_ai.generation.id": "gen_01M4HDKFBBK6AHEKX0MEJMZAX4",
+        "gen_ai.usage.cost": 0.01799025,
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+    },
+  ],
+  [
+    "eve 0.76 agent.approval span",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "operation.name": "workflow",
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.approval",
+        "agent.approval.kind": "tool-approval",
+        "agent.approval.outcome": "approved",
+        "agent.step.index": 0,
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+    },
+  ],
+  [
+    // eve 0.75 and earlier set both operation.name and resource.name to the span name.
+    "eve 0.75 agent.step span with resource.name",
+    {
+      vercelFunctionName: "agent.step",
+      vercelAttributes: {
+        "operation.name": "agent.step",
+        "resource.name": "agent.step",
+        "agent.framework.name": "eve",
+        "agent.step.index": 0,
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+      },
+    },
+  ],
+  [
+    // An agent identity keeps the eve map from applying, as it does for operation.name.
+    "eve 0.76-shaped span with an agent identity",
+    {
+      vercelFunctionName: "workflow",
+      vercelAttributes: {
+        "operation.name": "workflow",
+        "gen_ai.operation.name": "workflow",
+        "resource.name": "agent.step",
+        "gen_ai.agent.name": "researcher",
+        "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+      },
+    },
+  ],
+  [
+    // A recognized gen_ai.operation.name takes precedence over resource.name.
+    "span with resource.name agent.step and gen_ai.operation.name chat",
+    {
+      vercelFunctionName: "custom.operation",
+      vercelAttributes: {
+        "operation.name": "custom.operation",
+        "gen_ai.operation.name": "chat",
+        "resource.name": "agent.step",
+        "gen_ai.request.model": "gpt-4o",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      },
+    },
+  ],
+  [
+    // Without gen_ai.operation.name "workflow", resource.name is not matched against the eve map.
+    "span with resource.name agent.step and no gen_ai.operation.name",
+    {
+      vercelFunctionName: "custom.operation",
+      vercelAttributes: {
+        "operation.name": "custom.operation",
+        "resource.name": "agent.step",
+        "gen_ai.conversation.id": "conversation-1",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      },
+    },
+  ],
+  [
+    // The AI SDK sets resource.name to the functionId; its operation.name kind still applies.
+    "AI SDK span whose functionId is agent.step",
+    {
+      vercelFunctionName: "ai.generateText",
+      vercelAttributes: {
+        "operation.name": "ai.generateText",
+        "resource.name": "agent.step",
+        "ai.telemetry.functionId": "agent.step",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
       },
     },
   ],
@@ -1281,7 +1407,7 @@ describe.each([
     expect(exportedOperation?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
       OpenInferenceSpanKind.CHAIN,
     );
-    expect(exportedModelCall?.parentSpanId).toBe(operation.spanContext().spanId);
+    expect(parentSpanIdOf(exportedModelCall)).toBe(operation.spanContext().spanId);
     expect(exportedModelCall?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
       OpenInferenceSpanKind.DECISION,
     );
@@ -1336,6 +1462,42 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
       expect(spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(spanKind);
       memoryExporter.reset();
     });
+  });
+
+  it("should give eve 0.76 control-flow spans the same attributes as eve 0.75", () => {
+    const tracer = trace.getTracer("test-tracer");
+    // The attributes eve sets on an agent.step span other than its operation names.
+    const shared = {
+      "resource.name": "agent.step",
+      "agent.framework.name": "eve",
+      "agent.name": "eve-agent",
+      "agent.step.index": 0,
+      "agent.model.id": "anthropic/claude-sonnet-4.6",
+      "agent.usage.input_tokens": 4582,
+      "agent.usage.output_tokens": 54,
+      "gen_ai.conversation.id": "wrun_01M4HDKF0PZ70MMZ0EJ9VD6E56",
+      "gen_ai.generation.id": "gen_01M4HDKFBBK6AHEKX0MEJMZAX4",
+      "gen_ai.usage.cost": 0.01799025,
+    };
+    const v075 = tracer.startSpan("agent.step");
+    v075.setAttributes({ ...shared, "operation.name": "agent.step" });
+    v075.end();
+    const v076 = tracer.startSpan("agent.step");
+    v076.setAttributes({
+      ...shared,
+      "operation.name": "workflow",
+      "gen_ai.operation.name": "workflow",
+    });
+    v076.end();
+    const [span075, span076] = memoryExporter.getFinishedSpans();
+    const { "operation.name": _op075, ...rest075 } = span075.attributes;
+    const {
+      "operation.name": _op076,
+      "gen_ai.operation.name": _genAIOp076,
+      ...rest076
+    } = span076.attributes;
+    expect(rest076).toEqual(rest075);
+    expect(rest076[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(OpenInferenceSpanKind.CHAIN);
   });
 
   test.each(generateVercelAttributeTestCases())(
@@ -1875,7 +2037,7 @@ describe("Trace aggregate behavior", () => {
       const spans = memoryExporter.getFinishedSpans();
 
       // Find the root span (no parent)
-      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      const exportedRootSpan = spans.find((s) => parentSpanIdOf(s) == null);
       expect(exportedRootSpan).toBeDefined();
       expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.ERROR);
       expect(exportedRootSpan!.status.message).toBe("Test error");
@@ -1901,12 +2063,12 @@ describe("Trace aggregate behavior", () => {
       const spans = memoryExporter.getFinishedSpans();
 
       // Find the root span
-      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      const exportedRootSpan = spans.find((s) => parentSpanIdOf(s) == null);
       expect(exportedRootSpan).toBeDefined();
       expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.OK);
 
       // Find the child span - should also have OK status
-      const exportedChildSpan = spans.find((s) => s.parentSpanId != null);
+      const exportedChildSpan = spans.find((s) => parentSpanIdOf(s) != null);
       expect(exportedChildSpan).toBeDefined();
       expect(exportedChildSpan!.status.code).toBe(SpanStatusCode.OK);
     });
@@ -1928,7 +2090,7 @@ describe("Trace aggregate behavior", () => {
       await processor.forceFlush();
       const spans = memoryExporter.getFinishedSpans();
 
-      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      const exportedRootSpan = spans.find((s) => parentSpanIdOf(s) == null);
       expect(exportedRootSpan).toBeDefined();
       expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.ERROR);
     });
@@ -1950,7 +2112,7 @@ describe("Trace aggregate behavior", () => {
       await processor.forceFlush();
       const spans = memoryExporter.getFinishedSpans();
 
-      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      const exportedRootSpan = spans.find((s) => parentSpanIdOf(s) == null);
       expect(exportedRootSpan).toBeDefined();
       expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.ERROR);
     });
@@ -1977,7 +2139,7 @@ describe("Trace aggregate behavior", () => {
       await processor.forceFlush();
       const spans = memoryExporter.getFinishedSpans();
 
-      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      const exportedRootSpan = spans.find((s) => parentSpanIdOf(s) == null);
       expect(exportedRootSpan).toBeDefined();
       // Status should remain OK since it was explicitly set
       expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.OK);
@@ -2013,7 +2175,7 @@ describe("Trace aggregate behavior", () => {
 
       // Find the AI root span
       const exportedRootSpan = spans.find(
-        (s) => s.parentSpanId == null && s.attributes["operation.name"] === "ai.generateText",
+        (s) => parentSpanIdOf(s) == null && s.attributes["operation.name"] === "ai.generateText",
       );
       expect(exportedRootSpan).toBeDefined();
       expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.ERROR);
@@ -2036,7 +2198,7 @@ describe("Trace aggregate behavior", () => {
       await processor.forceFlush();
       const spans = memoryExporter.getFinishedSpans();
 
-      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      const exportedRootSpan = spans.find((s) => parentSpanIdOf(s) == null);
       expect(exportedRootSpan).toBeDefined();
       // Status should remain UNSET for non-AI SDK spans
       expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.UNSET);
@@ -2060,7 +2222,7 @@ describe("Trace aggregate behavior", () => {
       await processor.forceFlush();
       const spans = memoryExporter.getFinishedSpans();
 
-      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      const exportedRootSpan = spans.find((s) => parentSpanIdOf(s) == null);
       expect(exportedRootSpan).toBeDefined();
       expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.ERROR);
     });
@@ -2155,10 +2317,10 @@ describe.each([
       // Non-AI HTTP span filtered out; AI spans exported.
       expect(spans.find((s) => s.name === "GET /chat")).toBeUndefined();
       const top = spans.find((s) => s.name === "ai.generateText");
-      expect(top?.parentSpanId).toBeUndefined(); // re-rooted
+      expect(parentSpanIdOf(top)).toBeUndefined(); // re-rooted
       // Subtree intact: the LLM child stays parented to the (now-root) top AI span.
       const llm = spans.find((s) => s.name === "ai.generateText.doGenerate");
-      expect(llm?.parentSpanId).toBe(topId);
+      expect(parentSpanIdOf(llm)).toBe(topId);
     });
 
     it("leaves the top AI span orphaned when reparentOrphanedSpans is off (default)", async () => {
@@ -2172,7 +2334,7 @@ describe.each([
       expect(spans.find((s) => s.name === "GET /chat")).toBeUndefined();
       const top = spans.find((s) => s.name === "ai.generateText");
       // Still points at the filtered-out HTTP parent → orphaned.
-      expect(top?.parentSpanId).toBe(httpId);
+      expect(parentSpanIdOf(top)).toBe(httpId);
     });
 
     it("re-roots multiple sibling AI spans under one non-AI parent", async () => {
@@ -2204,7 +2366,7 @@ describe.each([
       const aiSpans = spans.filter((s) => s.name.startsWith("ai.generateText"));
       expect(aiSpans).toHaveLength(2);
       // Both sibling AI spans are re-rooted (neither is orphaned).
-      expect(aiSpans.every((s) => s.parentSpanId == null)).toBe(true);
+      expect(aiSpans.every((s) => parentSpanIdOf(s) == null)).toBe(true);
     });
 
     it("does not re-root an AI span nested under an AI parent", async () => {
@@ -2227,7 +2389,7 @@ describe.each([
 
       const child = spans.find((s) => s.name === "ai.streamText.doStream");
       // Parent is an AI span → the child keeps its parent (subtree preserved).
-      expect(child?.parentSpanId).toBe(top.spanContext().spanId);
+      expect(parentSpanIdOf(child)).toBe(top.spanContext().spanId);
     });
 
     it("preserves a kind-less AI wrapper root (e.g. ai.eve.turn) as a promoted AGENT root", async () => {
@@ -2262,14 +2424,14 @@ describe.each([
       // The kind-less wrapper is re-rooted AND promoted to an AGENT so it survives the filter.
       const promoted = spans.find((s) => s.name === "ai.eve.turn");
       expect(promoted).toBeDefined();
-      expect(promoted?.parentSpanId).toBeUndefined();
+      expect(parentSpanIdOf(promoted)).toBeUndefined();
       expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
         OpenInferenceSpanKind.AGENT,
       );
 
       // The LLM child stays attached to the promoted root.
       const child = spans.find((s) => s.name === "ai.streamText.doStream");
-      expect(child?.parentSpanId).toBe(promoted?.spanContext().spanId);
+      expect(parentSpanIdOf(child)).toBe(promoted?.spanContext().spanId);
     });
 
     // Real-world eve shape: the per-turn wrapper's `operation.name` is "eve" (NOT ai.*),
@@ -2316,14 +2478,14 @@ describe.each([
       // renamed to their operation.name, so match by spanId rather than name.)
       const promoted = spans.find((s) => s.spanContext().spanId === turnId);
       expect(promoted).toBeDefined();
-      expect(promoted?.parentSpanId).toBeUndefined();
+      expect(parentSpanIdOf(promoted)).toBeUndefined();
       expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
         OpenInferenceSpanKind.AGENT,
       );
 
       // The agent child stays nested under the turn — NOT re-rooted into its own root.
       const child = spans.find((s) => s.spanContext().spanId === agentId);
-      expect(child?.parentSpanId).toBe(turnId);
+      expect(parentSpanIdOf(child)).toBe(turnId);
     });
 
     // The root-span rename surfaces the AI SDK operation.name (e.g. "ai.generateText <fnId>").
@@ -2396,12 +2558,12 @@ describe.each([
       await provider.shutdown();
 
       // Exactly one root: the turn wrapper.
-      const roots = spans.filter((s) => s.parentSpanId == null);
+      const roots = spans.filter((s) => parentSpanIdOf(s) == null);
       expect(roots).toHaveLength(1);
       expect(roots[0]?.spanContext().spanId).toBe(turnId);
       // Both invoke_agent children stay nested under it — neither is re-rooted.
-      expect(spans.find((s) => s.spanContext().spanId === aId)?.parentSpanId).toBe(turnId);
-      expect(spans.find((s) => s.spanContext().spanId === bId)?.parentSpanId).toBe(turnId);
+      expect(parentSpanIdOf(spans.find((s) => s.spanContext().spanId === aId))).toBe(turnId);
+      expect(parentSpanIdOf(spans.find((s) => s.spanContext().spanId === bId))).toBe(turnId);
     });
 
     // Across an async/durable boundary (e.g. eve workflow steps) a later AI span starts with
@@ -2436,7 +2598,7 @@ describe.each([
 
       // The child stays attached to the exported turn — NOT re-rooted into a second root.
       const child = spans.find((s) => s.spanContext().spanId === agentId);
-      expect(child?.parentSpanId).toBe(turnId);
+      expect(parentSpanIdOf(child)).toBe(turnId);
     });
 
     // Proves the AGENT promotion is keyed off the `ai.` shape, NOT the `ai.eve.turn` name:
@@ -2474,7 +2636,7 @@ describe.each([
 
         const promoted = spans.find((s) => s.name === wrapperName);
         if (expectPromoted) {
-          expect(promoted?.parentSpanId).toBeUndefined();
+          expect(parentSpanIdOf(promoted)).toBeUndefined();
           expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
             OpenInferenceSpanKind.AGENT,
           );
@@ -2518,7 +2680,7 @@ describe.each([
       expect(
         wrappers.every(
           (s) =>
-            s.parentSpanId == null &&
+            parentSpanIdOf(s) == null &&
             s.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
               OpenInferenceSpanKind.AGENT,
         ),
@@ -2527,9 +2689,7 @@ describe.each([
       const wrapperIds = new Set(wrappers.map((s) => s.spanContext().spanId));
       const llms = spans.filter((s) => s.name.startsWith("ai.streamText.doStream"));
       expect(llms).toHaveLength(2);
-      expect(llms.every((s) => s.parentSpanId != null && wrapperIds.has(s.parentSpanId))).toBe(
-        true,
-      );
+      expect(llms.every((s) => wrapperIds.has(parentSpanIdOf(s) ?? ""))).toBe(true);
     });
 
     it("re-roots a recognized AI span (ai.embed) while keeping its mapped kind (CHAIN, not AGENT)", async () => {
@@ -2553,7 +2713,7 @@ describe.each([
 
       expect(spans.find((s) => s.name === "GET /embed")).toBeUndefined();
       const reRooted = spans.find((s) => s.name.startsWith("ai.embed"));
-      expect(reRooted?.parentSpanId).toBeUndefined(); // re-rooted
+      expect(parentSpanIdOf(reRooted)).toBeUndefined(); // re-rooted
       // Kept CHAIN from the kind map — NOT overridden to AGENT by promotion.
       expect(reRooted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
         OpenInferenceSpanKind.CHAIN,
@@ -2715,7 +2875,7 @@ describe.each([
       // HTTP parent dropped by the filter.
       expect(spans.find((s) => s.name === "GET /chat")).toBeUndefined();
       const root = spans.find(
-        (s) => s.name.startsWith("ai.generateText") && s.parentSpanId == null,
+        (s) => s.name.startsWith("ai.generateText") && parentSpanIdOf(s) == null,
       );
       expect(root).toBeDefined();
       expect(root?.attributes[SemanticConventions.SESSION_ID]).toBe("session-xyz");
@@ -2731,25 +2891,24 @@ describe.each([
   ["OpenInferenceSimpleSpanProcessor", OpenInferenceSimpleSpanProcessor],
   ["OpenInferenceBatchSpanProcessor", OpenInferenceBatchSpanProcessor],
 ] as [string, typeof OpenInferenceSimpleSpanProcessor | typeof OpenInferenceBatchSpanProcessor][])(
-  "%s — OpenTelemetry SDK 2.x span shape",
+  "%s — OpenTelemetry SDK 1.x span shape",
   (_name, Processor) => {
-    // OpenTelemetry JS SDK 2.x removed `ReadableSpan.parentSpanId`; the parent is only
-    // available as `parentSpanContext`. This processor runs first and rewrites each span
-    // into that shape so the OpenInference processor sees what it would see under SDK 2.x.
-    const toSdk2SpanShape: SpanProcessor = {
+    // OpenTelemetry JS SDK 1.x exposed the parent as `parentSpanIdOf(ReadableSpan)`; 2.x
+    // replaced it with `parentSpanContext`. The rest of this suite runs on the 2.x+ shape,
+    // so this processor runs first and rewrites each span into the 1.x shape, which an
+    // app still produces when it passes these processors to an SDK 1.x tracer provider.
+    const toSdk1SpanShape: SpanProcessor = {
       onStart: (span) => {
-        const parentSpanId: unknown = Reflect.get(span, "parentSpanId");
-        Reflect.deleteProperty(span, "parentSpanId");
+        const parentSpanContext: unknown = Reflect.get(span, "parentSpanContext");
+        const parentSpanId: unknown =
+          typeof parentSpanContext === "object" && parentSpanContext !== null
+            ? Reflect.get(parentSpanContext, "spanId")
+            : undefined;
+        Reflect.deleteProperty(span, "parentSpanContext");
         Reflect.set(
           span,
-          "parentSpanContext",
-          typeof parentSpanId === "string"
-            ? {
-                traceId: span.spanContext().traceId,
-                spanId: parentSpanId,
-                traceFlags: TraceFlags.SAMPLED,
-              }
-            : undefined,
+          "parentSpanId",
+          typeof parentSpanId === "string" ? parentSpanId : undefined,
         );
       },
       onEnd: () => {},
@@ -2765,7 +2924,7 @@ describe.each([
         spanFilter,
       });
       const provider = new BasicTracerProvider({
-        spanProcessors: [toSdk2SpanShape, openInferenceSpanProcessor],
+        spanProcessors: [toSdk1SpanShape, openInferenceSpanProcessor],
       });
       return { exporter, provider, tracer: provider.getTracer("test") };
     };
@@ -2865,14 +3024,13 @@ describe.each([
 
       expect(spans.find((exportedSpan) => exportedSpan.name === "vercel.workflow")).toBeUndefined();
       const promoted = spans.find((exportedSpan) => exportedSpan.name === "ai.eve.turn");
-      expect(Reflect.get(promoted ?? {}, "parentSpanContext")).toBeUndefined();
+      expect(promoted).toBeDefined();
+      expect(Reflect.get(promoted ?? {}, "parentSpanId")).toBeUndefined();
       expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
         OpenInferenceSpanKind.AGENT,
       );
       const child = spans.find((exportedSpan) => exportedSpan.name === "ai.streamText.doStream");
-      expect(Reflect.get(child ?? {}, "parentSpanContext")).toMatchObject({
-        spanId: turn.spanContext().spanId,
-      });
+      expect(Reflect.get(child ?? {}, "parentSpanId")).toBe(turn.spanContext().spanId);
     });
   },
 );
