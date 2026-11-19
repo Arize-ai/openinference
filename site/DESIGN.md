@@ -485,12 +485,22 @@ the reader's.
   down to 48px); the description in `--soft`, at most two lines. A package
   name's shared start (`@arizeai/openinference-instrumentation-`) is set back
   in a fainter tone, so the part that names the package reads first.
-- **Landing card.** The tagline in its two whole lines and the lede, beside
-  the trace hero's run, finished, drawn as the hero draws it: kind glyphs and
-  hairline tree lines, solid bars in each kind's colour (`--kind-*`, light),
-  the failed request hatched in the accent, dotted
-  gridlines a second apart. The trace ends on the foot's hairline. The
-  failed request is the card's one accent.
+- **Landing card.** Drawn by [`src/lib/og/dial.ts`](./src/lib/og/dial.ts),
+  and nothing on it but the name and the run. The wordmark, its caps centred
+  on the card's centre line, flush left; on the same line, the bolt of the
+  Keyway, which stands as tall as the frame at 9% ink, its right flat on the
+  right margin. The trace hero's run is wound once round the bolt in
+  hairlines: one orbit per level of the span tree, each span a thin arc in
+  its kind's colour with a tick down to its parent where it starts, the
+  agent's glyph at the hub. The run sweeps 300° and its dead zone sits over
+  the keyway, as a knob's travel leaves one at the bottom; a hairline scale
+  outside it ticks every 100 ms, longer at 500 ms and 1 s, each second
+  numbered. One marker per kind leads out past the scale to the kind's
+  glyph; the failed request's leads to its duration, in the accent, the
+  card's one accent. No legend, no tagline, no address. The rulers cross on
+  the centre line. The same art at 1280 × 640 is `og/github.png`, the
+  repository's social preview: upload it in the repository's Settings →
+  General → Social preview when it changes.
 
 To see a card, run `pnpm dev` and open `/openinference/og/<page>.png`.
 

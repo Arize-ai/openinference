@@ -1,10 +1,8 @@
 /**
  * Draws a social card (see cards.ts) as a PNG: satori lays out the type in
  * the site's own faces, as outlines, and sharp rasterises it. The landing
- * card's trace is the trace hero's run (components/hero/model.ts), finished,
- * drawn as the hero draws it: glyphs and a span tree beside solid bars in
- * each kind's colour, the failed request hatched in
- * the accent. See DESIGN.md ("Social cards").
+ * card's art is drawn by dial.ts: the Keyway with the trace hero's run wound
+ * round its bolt. See DESIGN.md ("Social cards").
  */
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -14,34 +12,11 @@ import sharp from "sharp";
 
 import markSvg from "../../assets/brand/openinference-mark.svg?raw";
 import wordmarkSvg from "../../assets/brand/openinference-wordmark.svg?raw";
-import { GLYPHS } from "../../components/hero/glyphs";
-import { SPANS, T, type Kind } from "../../components/hero/model";
-import { palette } from "../mark.mjs";
 import { CARD_SIZE, type Card } from "./cards";
+import { drawLandingArt, type Label } from "./dial";
+import { COLOR } from "./palette";
 
-/** The light theme's values from tokens.css: the card is always paper. */
-const COLOR = {
-  bg: palette.paper,
-  fg: palette.ink,
-  soft: "#4b4745",
-  dim: "#6f6b66",
-  rule: "#d8d5ce",
-  /** A step past --dim, for the shared start of a package name: large type needs less contrast to recede. */
-  faint: "#aaa59e",
-  accent: "#ff5a1f",
-};
-const KIND: Record<Kind, string> = {
-  AGENT: COLOR.soft,
-  LLM: "#ee8700",
-  TOOL: "#e7b700",
-  RETRIEVER: "#049690",
-  EMBEDDING: "#647cf6",
-  RERANKER: "#019c23",
-  GUARDRAIL: "#d23fd6",
-  HTTP: COLOR.dim,
-};
-
-/* The card's geometry, in pixels: the margin, the wordmark, and the trace. */
+/* The card's geometry, in pixels: the margin, the wordmark, and the mark. */
 const { width: W, height: H } = CARD_SIZE;
 const PAD_X = 72;
 const PAD_Y = 64;
@@ -50,23 +25,6 @@ const WORDMARK_HEIGHT = 40;
 const MARK_HEIGHT = 56;
 /** The foot: its hairline, the gap under it, and the address. */
 const FOOT_HEIGHT = 46;
-const TRACE = {
-  /** The trace's left edge and width, in the card's right half. */
-  x: 664,
-  width: W - PAD_X - 664,
-  /** The tree's width: glyph, indent and name; the timeline takes the rest. */
-  tree: 196,
-  indent: 14,
-  glyph: 14,
-  /** Row pitch, and the bar's height within it. */
-  row: 21,
-  bar: 10,
-  /** The time axis over the rows. */
-  axis: 26,
-};
-const TRACE_HEIGHT = TRACE.axis + SPANS.length * TRACE.row;
-/** The trace ends on the foot's hairline, leaving the mark its clear space above. */
-const TRACE_Y = H - (PAD_Y - 8) - FOOT_HEIGHT - TRACE_HEIGHT;
 
 const fontsDir = (pkg: string) => {
   const require = createRequire(import.meta.url);
@@ -78,6 +36,7 @@ const FONTS = [
   { name: "Urbanist", data: urbanist("urbanist-latin-500-normal.woff"), weight: 500 as const, style: "normal" as const },
   { name: "Urbanist", data: urbanist("urbanist-latin-600-normal.woff"), weight: 600 as const, style: "normal" as const },
   { name: "Geist Mono", data: geistMono("geist-mono-latin-500-normal.woff"), weight: 500 as const, style: "normal" as const },
+  { name: "Geist Mono", data: geistMono("geist-mono-latin-600-normal.woff"), weight: 600 as const, style: "normal" as const },
 ];
 
 /* ---------- A tiny element builder for satori. ---------- */
@@ -215,144 +174,54 @@ function pageCard(card: Card): Node {
 
 /* ---------- The landing card. ---------- */
 
-/** The trace's geometry, drawn as SVG: gridlines, tree lines, glyphs and bars. */
-function traceSvg(): string {
-  const { width, tree, indent, glyph, row, bar, axis } = TRACE;
-  const timeline = { x: tree, width: width - tree };
-  const xOf = (ms: number) => timeline.x + (ms / T) * timeline.width;
-  const rowY = (i: number) => axis + i * row;
-  const glyphX = (depth: number) => depth * indent;
-  const parts: string[] = [];
+/**
+ * Where a line of Geist Mono's baseline sits in its box, as a fraction of the
+ * size, at line-height 1: satori places boxes, the art places baselines.
+ */
+const MONO_BASELINE = 0.86;
 
-  // Dotted gridlines, one a second, and the axis rule.
-  for (let s = 0; s * 1000 <= T; s += 1) {
-    const x = xOf(s * 1000);
-    parts.push(
-      `<line x1="${x}" y1="${axis - 6}" x2="${x}" y2="${rowY(SPANS.length)}" stroke="${COLOR.rule}" stroke-width="1" stroke-dasharray="1 3"/>`,
-    );
-  }
-  parts.push(`<line x1="0" y1="${axis - 6}" x2="${width}" y2="${axis - 6}" stroke="${COLOR.rule}" stroke-width="1"/>`);
-
-  // Tree lines: from under the parent's glyph down to the child's, then across.
-  SPANS.forEach((span, i) => {
-    if (span.depth === 0) return;
-    let parent = i - 1;
-    while (SPANS[parent].depth >= span.depth) parent -= 1;
-    const x = glyphX(SPANS[parent].depth) + glyph / 2;
-    const top = rowY(parent) + row / 2 + glyph / 2 + 2;
-    const mid = rowY(i) + row / 2;
-    parts.push(
-      `<path d="M${x} ${top}V${mid}H${glyphX(span.depth) - 3}" fill="none" stroke="${COLOR.rule}" stroke-width="1"/>`,
-    );
-  });
-
-  // The hatch for the failed request: the accent on the diagonal.
-  parts.push(
-    `<defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
-      `<rect width="4" height="4" fill="${COLOR.accent}" fill-opacity=".18"/><line x1="0" y1="0" x2="0" y2="4" stroke="${COLOR.accent}" stroke-width="2"/></pattern></defs>`,
-  );
-
-  SPANS.forEach((span, i) => {
-    const color = KIND[span.kind];
-    const y = rowY(i) + row / 2;
-    // The kind's glyph, stroked in its colour; `.fill` parts filled.
-    const body = GLYPHS[span.kind].replace(/class="fill"/g, `fill="${color}" stroke="none"`);
-    parts.push(
-      `<g transform="translate(${glyphX(span.depth)} ${y - glyph / 2}) scale(${glyph / 16})" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${body}</g>`,
-    );
-    // The bar: solid, every span having ended; the failed request hatched.
-    const x0 = xOf(span.start);
-    const x1 = Math.max(xOf(span.end), x0 + 2);
-    const top = y - bar / 2;
-    if (span.error) {
-      parts.push(
-        `<rect x="${x0 + 0.5}" y="${top + 0.5}" width="${x1 - x0 - 1}" height="${bar - 1}" fill="url(#hatch)" stroke="${COLOR.accent}" stroke-width="1"/>`,
-      );
-    } else {
-      parts.push(`<rect x="${x0}" y="${top}" width="${x1 - x0}" height="${bar}" fill="${color}"/>`);
-    }
-  });
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${TRACE_HEIGHT}" viewBox="0 0 ${width} ${TRACE_HEIGHT}">${parts.join("")}</svg>`;
-}
-
-/** The trace's type, laid out by satori over the SVG: the ticks and the span names. */
-function traceLabels(): Node[] {
-  const { x, width, tree, indent, glyph, row, axis } = TRACE;
-  const timeline = { x: tree, width: width - tree };
-  const label = (style: Style, text: string) =>
-    div({ position: "absolute", fontFamily: "Geist Mono", fontWeight: 500, fontSize: 13, ...style }, text);
-  const ticks = [0, 2, 4, 6].map((s) =>
-    label(
-      { left: x + timeline.x + ((s * 1000) / T) * timeline.width + 5, top: TRACE_Y, fontSize: 11, color: COLOR.dim },
-      `${s}s`,
-    ),
-  );
-  const names = SPANS.map((span, i) =>
-    label(
-      {
-        left: x + span.depth * indent + glyph + 7,
-        top: TRACE_Y + axis + i * row + row / 2 - 9,
-        height: 18,
-        alignItems: "center",
-        color: span.error ? COLOR.accent : COLOR.soft,
-      },
-      span.note ? `${span.name} ${span.note}` : span.name,
-    ),
-  );
-  return [...ticks, ...names];
-}
-
-function landingCard(card: Card): Node {
-  const column = TRACE.x - PAD_X - 56;
-  const at = card.title.indexOf(" for ");
-  const [lineOne, lineTwo] = at < 0 ? [card.title, ""] : [card.title.slice(0, at), card.title.slice(at + 1)];
-  const size = 54;
+/** A label from the art (dial.ts), laid out by satori on its baseline. */
+function label({ x, y, text, color, size, anchor, weight = 500, tracking = 0 }: Label): Node {
+  const box = 240;
+  const left = anchor === "start" ? x : anchor === "middle" ? x - box / 2 : x - box;
   return div(
-    { width: W, height: H, backgroundColor: COLOR.bg, fontFamily: "Urbanist", position: "relative" },
-    head(W - 2 * PAD_X),
-    div(
-      {
-        position: "absolute",
-        left: PAD_X,
-        top: PAD_Y,
-        bottom: PAD_Y - 8,
-        width: column,
-        flexDirection: "column",
-        justifyContent: "space-between",
-      },
-      // Room for the head, which spans the card.
-      div({ height: MARK_HEIGHT }),
-      div(
-        { flexDirection: "column" },
-        div(
-          { flexDirection: "column", fontSize: size, fontWeight: 600, lineHeight: 1.06, letterSpacing: -0.04 * size, color: COLOR.fg },
-          div({}, lineOne),
-          div({}, lineTwo),
-        ),
-        div(
-          { marginTop: 24, fontSize: 26, fontWeight: 500, lineHeight: 1.4, color: COLOR.soft, maxWidth: column },
-          card.description,
-        ),
-      ),
-      foot(card, column),
-    ),
-    h("img", {
-      src: svgUrl(traceSvg()),
-      width: TRACE.width,
-      height: TRACE_HEIGHT,
-      style: { position: "absolute", left: TRACE.x, top: TRACE_Y },
-    }),
-    ...traceLabels(),
+    {
+      position: "absolute",
+      left,
+      top: y - MONO_BASELINE * size,
+      width: box,
+      height: size,
+      justifyContent: anchor === "start" ? "flex-start" : anchor === "middle" ? "center" : "flex-end",
+      fontFamily: "Geist Mono",
+      fontWeight: weight,
+      fontSize: size,
+      lineHeight: 1,
+      letterSpacing: tracking,
+      color,
+      whiteSpace: "nowrap",
+    },
+    text,
+  );
+}
+
+/** The landing card: the Keyway, large, with the run wound round its bolt (dial.ts). */
+function landingCard(card: Card): Node {
+  const { width, height } = card.size ?? CARD_SIZE;
+  const art = drawLandingArt({ width, height }, wordmarkSvg);
+  return div(
+    { width, height, backgroundColor: COLOR.bg, position: "relative" },
+    h("img", { src: svgUrl(art.svg), width, height, style: { position: "absolute", left: 0, top: 0 } }),
+    ...art.labels.map(label),
   );
 }
 
 /** The card as a PNG. */
 export async function renderCard(card: Card): Promise<Buffer> {
+  const size = card.size ?? CARD_SIZE;
   const tree = card.variant === "landing" ? landingCard(card) : pageCard(card);
-  const svg = await satori(tree as Parameters<typeof satori>[0], { ...CARD_SIZE, fonts: FONTS });
+  const svg = await satori(tree as Parameters<typeof satori>[0], { ...size, fonts: FONTS });
   return sharp(Buffer.from(svg), { density: 144 })
-    .resize(CARD_SIZE.width, CARD_SIZE.height)
+    .resize(size.width, size.height)
     .png({ compressionLevel: 9 })
     .toBuffer();
 }

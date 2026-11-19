@@ -5,6 +5,9 @@
  * Each card is drawn from the same data as its page (the spec's markdown,
  * the API references' JSON, the news posts' frontmatter), so a page and its card can't disagree. A page
  * with no card of its own (a README translation) shares the landing card.
+ *
+ * One card belongs to no page: `github`, the landing card at GitHub's 1280 ×
+ * 640, uploaded as the repository's social preview (Settings → General).
  */
 import { packages as jsPackages } from "../js-api";
 import { packages as pythonPackages } from "../python-api";
@@ -25,6 +28,8 @@ export interface Card {
   description: string;
   /** The page's address, without the scheme, for the card's foot. */
   url: string;
+  /** A card drawn at another size than CARD_SIZE: the repository's social preview. */
+  size?: { width: number; height: number };
 }
 
 /** The card id for a page's pathname: `/spec/spans/llm.html` → `spec/spans/llm`. */
@@ -110,8 +115,12 @@ export function getCards(): Promise<Card[]> {
       ),
     ];
 
+    /** The repository's social preview: the landing card at GitHub's size. */
+    const github: Card = { ...landing, id: "github", size: GITHUB_SIZE };
+
     return [
       landing,
+      github,
       ...spec,
       ...api,
       ...news,
@@ -134,3 +143,5 @@ export async function cardFor(pathname: string): Promise<Card> {
 export const imagePathOf = (card: Card) => `${base}og/${card.id}.png`;
 
 export const CARD_SIZE = { width: 1200, height: 630 } as const;
+/** GitHub's recommended social preview size. */
+export const GITHUB_SIZE = { width: 1280, height: 640 } as const;
