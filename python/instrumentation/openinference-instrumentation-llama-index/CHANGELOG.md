@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.8...python-openinference-instrumentation-llama-index-v4.7.9) (2026-11-19)
+
+
+### Bug Fixes
+
+* **llama_index:** end a streamed LLM span when its stream ends ([#4261](https://github.com/Arize-ai/openinference/issues/4261)) ([0f013df](https://github.com/Arize-ai/openinference/commit/0f013dfe58282b7406f784788607608573fe191a))
+
 ## [4.7.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.7...python-openinference-instrumentation-llama-index-v4.7.8) (2026-11-19)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.81](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.80...python-openinference-instrumentation-v0.1.81) (2026-11-19)
+
+
+### Bug Fixes
+
+* **instrumentation:** don't call str attribute values as lazy values ([#4272](https://github.com/Arize-ai/openinference/issues/4272)) ([72a3f55](https://github.com/Arize-ai/openinference/commit/72a3f554ef4e827681f719b8c1a016ef41e0e912))
+
 ## [0.1.80](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.79...python-openinference-instrumentation-v0.1.80) (2026-11-19)
 
 

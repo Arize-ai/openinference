@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.2...python-openinference-instrumentation-agno-v1.2.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* **agno:** keep the tool span current while a generator tool is consumed ([#4353](https://github.com/Arize-ai/openinference/issues/4353)) ([4b5e982](https://github.com/Arize-ai/openinference/commit/4b5e982aba40235f4764122583e02a34c631fb2e))
+
 ## [1.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.1...python-openinference-instrumentation-agno-v1.2.2) (2026-11-19)
 
 
