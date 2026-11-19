@@ -26,7 +26,7 @@ attributes, derived at span end from the span's OpenInference attributes.
 uv run python/openinference-instrumentation/scripts/conformance/run.py
 ```
 
-Runs each provider against a mock server with the flag on and checks the spans with Weaver `registry live-check`
+Runs each provider against a mock server with the flag on and checks the spans with [Weaver](https://github.com/open-telemetry/weaver) `registry live-check`
 against the GenAI semconv registry. Non-registry OpenInference attributes are expected; only `gen_ai.*` is judged.
 See the [harness README](https://github.com/Arize-ai/openinference/blob/main/python/openinference-instrumentation/scripts/conformance/README.md).
 New language implementations SHOULD add an equivalent harness.
