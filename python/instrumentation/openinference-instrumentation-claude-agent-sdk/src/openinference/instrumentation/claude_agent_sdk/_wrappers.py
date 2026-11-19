@@ -333,10 +333,16 @@ class _TurnUsageAccumulator:
     per message_id rather than counting those snapshots repeatedly. ResultMessage
     cost is a session total on resumed CLI sessions, so per-turn cost is omitted
     unless the SDK exposes a per-message cost source.
+
+    Assistant message output_tokens is only an early placeholder, so output
+    tokens come from each result message instead, added up across results.
     """
 
     def __init__(self, parent_tool_use_id: Any = None) -> None:
         self._usage_by_message_id: dict[str, Mapping[str, Any]] = {}
+        # Placeholder output counts for messages not yet covered by a result.
+        self._pending_output_by_message_id: dict[str, int] = {}
+        self._result_output_tokens: int | None = None
         self._cli_version: tuple[int, ...] | None = None
         self._parent_tool_use_id = parent_tool_use_id
 
@@ -354,15 +360,28 @@ class _TurnUsageAccumulator:
                     self._cli_version = tuple(int(part) for part in version.split("."))
                 except ValueError:
                     self._cli_version = None
+        if _get_field(message, "parent_tool_use_id") != self._parent_tool_use_id:
+            return
+        if _is_result_success_message(message) or _is_result_error_message(message):
+            self._add_result(message)
+            return
         message_id = _get_field(message, "message_id")
         usage = _get_field(message, "usage")
-        if (
-            message_id is None
-            or not isinstance(usage, MappingABC)
-            or _get_field(message, "parent_tool_use_id") != self._parent_tool_use_id
-        ):
+        if message_id is None or not isinstance(usage, MappingABC):
             return
         self._usage_by_message_id[str(message_id)] = usage
+        output_tokens = _safe_int(usage.get("output_tokens"))
+        if output_tokens is not None:
+            self._pending_output_by_message_id[str(message_id)] = output_tokens
+
+    def _add_result(self, message: Any) -> None:
+        usage = _get_field(message, "usage")
+        output_tokens = _safe_int(_coerce_usage(usage).get("output_tokens")) if usage else None
+        if not output_tokens:
+            # A crashed run can report zeroed usage; keep the step counts we saw.
+            output_tokens = sum(self._pending_output_by_message_id.values())
+        self._result_output_tokens = (self._result_output_tokens or 0) + output_tokens
+        self._pending_output_by_message_id.clear()
 
     @property
     def cli_version(self) -> tuple[int, ...] | None:
@@ -396,6 +415,12 @@ class _TurnUsageAccumulator:
                 value = attributes.get(key)
                 if isinstance(value, int):
                     totals[key] = totals.get(key, 0) + value
+        if totals and self._result_output_tokens is not None:
+            completion = self._result_output_tokens + sum(
+                self._pending_output_by_message_id.values()
+            )
+            totals[LLM_TOKEN_COUNT_COMPLETION] = completion
+            totals[LLM_TOKEN_COUNT_TOTAL] = totals.get(LLM_TOKEN_COUNT_PROMPT, 0) + completion
         return totals
 
 
