@@ -2,7 +2,7 @@ import { getCollection } from "astro:content";
 
 import { GITHUB_URL, siteRoute } from "../plugins/rehype-repo-links.mjs";
 
-/** The site's base path, with a trailing slash (`/openinference/`). */
+/** The site's base path, with a trailing slash (`/`). */
 export const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
 
 /** The route of a markdown file the site publishes, by its repository path. */

@@ -27,7 +27,7 @@ export interface Card {
   url: string;
 }
 
-/** The card id for a page's pathname: `/openinference/spec/spans/llm.html` → `spec/spans/llm`. */
+/** The card id for a page's pathname: `/spec/spans/llm.html` → `spec/spans/llm`. */
 export function cardIdOf(pathname: string): string {
   const route = pathname.startsWith(base) ? pathname.slice(base.length) : pathname.replace(/^\//, "");
   return route.replace(/\.html$/, "").replace(/(^|\/)$/, "$1index");

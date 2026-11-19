@@ -12,7 +12,7 @@ JavaScript packages, and the project's [mission](../../MISSION.md).
 
 Important project updates will be posted here: new instrumentation, changes
 to the spec, and the releases worth knowing about. To follow along,
-subscribe to the [RSS feed](https://arize-ai.github.io/openinference/news/rss.xml).
+subscribe to the [RSS feed](https://openinf.dev/news/rss.xml).
 
 Release notes for every package stay on
 [GitHub](https://github.com/Arize-ai/openinference/releases).
