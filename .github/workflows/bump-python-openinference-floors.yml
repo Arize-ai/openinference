@@ -19,20 +19,50 @@ on:
 permissions:
   contents: read
 
-# Serialize runs so two releases from one release-please merge cannot push the
-# shared branch at the same time. Never cancel: the queued run carries the
-# newer manifest.
+# Serialize core-package runs so two releases from one release-please merge
+# cannot push the shared branch at the same time. Never cancel: the queued run
+# carries the newer manifest.
+#
+# The group is computed from the tag because every release in the repo starts
+# this workflow, and the job's `if` is evaluated only after the run has joined
+# the group. GitHub keeps a single pending run per group, so unrelated releases
+# sharing it would cancel the pending core run. Each unrelated release gets a
+# group of its own instead. Keep this predicate in sync with the job's `if`.
+#
+# `python-openinference-instrumentation-v` also prefixes the vertexai
+# instrumentor's tags, so those are excluded explicitly. The tag check step
+# below catches any other instrumentor whose name starts with `v`.
 concurrency:
-  group: bump-python-openinference-floors
+  group: >-
+    ${{ ((startsWith(github.event.release.tag_name, 'python-openinference-instrumentation-v') &&
+          !startsWith(github.event.release.tag_name, 'python-openinference-instrumentation-vertexai-v')) ||
+         startsWith(github.event.release.tag_name, 'python-openinference-semantic-conventions-v'))
+        && 'bump-python-openinference-floors'
+        || format('bump-python-openinference-floors-unrelated-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
   bump-version:
     if: >-
-      startsWith(github.event.release.tag_name, 'python-openinference-instrumentation-v') ||
+      (startsWith(github.event.release.tag_name, 'python-openinference-instrumentation-v') &&
+       !startsWith(github.event.release.tag_name, 'python-openinference-instrumentation-vertexai-v')) ||
       startsWith(github.event.release.tag_name, 'python-openinference-semantic-conventions-v')
     runs-on: ubuntu-latest
     steps:
+      # Expressions have no regex, so the prefix filter above can still let in
+      # an instrumentor named `v...`. Fail loudly rather than spend the PyPI
+      # waits: such a run also shares the concurrency group and could cancel a
+      # pending core run, so its prefix needs adding to the exclusions above.
+      - name: Check the release tag is a core package release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^python-openinference-(instrumentation|semantic-conventions)-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release $RELEASE_TAG is not a core package release. Exclude its prefix in this workflow's concurrency group and job if."
+            exit 1
+          fi
+
       - name: Mint factory app token
         id: factory-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
