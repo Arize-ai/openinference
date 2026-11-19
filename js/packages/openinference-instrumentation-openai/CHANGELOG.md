@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.6.0
+
+### Minor Changes
+
+- e35372b: Capture span-level image attributes for OpenAI image workflows. The OpenAI instrumentation records input and output images for Images API calls and output images from Responses image generation. The OpenAI Agents instrumentation records output images on response spans.
+
 ## 4.5.1
 
 ### Patch Changes
