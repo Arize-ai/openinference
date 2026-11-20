@@ -1,6 +1,6 @@
 # GenAI Semantic Conventions Export
 
-**Experimental.** `OPENINFERENCE_ENABLE_GENAI_SEMCONV` (bool, default `false`; `TraceConfig(enable_genai_semconv=True)`)
+**Experimental.** `OPENINFERENCE_ENABLE_GENAI_SEMCONV` (bool, default `false`; Python `TraceConfig(enable_genai_semconv=True)`, JavaScript `traceConfig: { enableGenAISemconv: true }`)
 makes an instrumentation also emit OTel [GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) `gen_ai.*`
 attributes, derived at span end from the span's OpenInference attributes.
 
@@ -14,7 +14,7 @@ attributes, derived at span end from the span's OpenInference attributes.
 | Language | Flag | Weaver conformance |
 | --- | --- | --- |
 | Python | ✅ | ✅ Anthropic, OpenAI, Google GenAI |
-| JavaScript | 🗓️ [#2983](https://github.com/Arize-ai/openinference/issues/2983) | 🗓️ [#3114](https://github.com/Arize-ai/openinference/issues/3114) |
+| JavaScript | ✅ spans created through `OITracer` (`@arizeai/openinference-core`) | 🗓️ [#3114](https://github.com/Arize-ai/openinference/issues/3114) |
 | Java | 🗓️ [#2983](https://github.com/Arize-ai/openinference/issues/2983) | 🗓️ [#3114](https://github.com/Arize-ai/openinference/issues/3114) |
 | Go | 🗓️ [#2983](https://github.com/Arize-ai/openinference/issues/2983) | 🗓️ [#3114](https://github.com/Arize-ai/openinference/issues/3114) |
 
