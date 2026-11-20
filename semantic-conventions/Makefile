@@ -77,17 +77,20 @@ SPEC_DIR := ../spec
 # Language packages whose constants are generated from the model, as
 # <template directory under templates/registry>:<output directory>.
 CODE_TARGETS := \
-	python:../python/openinference-semantic-conventions/src/openinference/semconv/trace \
+	python:../python/openinference-semantic-conventions/src/openinference/semconv \
 	go:../go/openinference-semantic-conventions \
-	typescript:../js/packages/openinference-semantic-conventions/src/trace \
+	typescript:../js/packages/openinference-semantic-conventions/src \
 	java:../java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace
 # The files those templates write, for the staleness check.
 CODE_OUTPUTS := \
 	../python/openinference-semantic-conventions/src/openinference/semconv/trace/__init__.py \
+	../python/openinference-semantic-conventions/src/openinference/semconv/resource/__init__.py \
 	../go/openinference-semantic-conventions/attributes.go \
 	../go/openinference-semantic-conventions/enums.go \
 	../js/packages/openinference-semantic-conventions/src/trace/SemanticConventions.ts \
-	../java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticConventions.java
+	../js/packages/openinference-semantic-conventions/src/resource/SemanticResourceAttributes.ts \
+	../java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticConventions.java \
+	../java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticResourceAttributes.java
 PACKAGE_OUTPUT := $(BUILD)/package
 
 # Registry to compare against for the backwards-compatibility policies. Empty

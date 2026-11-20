@@ -163,3 +163,36 @@ List of floats
 {%- if attribute.deprecated %}Deprecated{% if attribute.deprecated.note %}: {{ spec_text(attribute.deprecated.note) }}{% else %}.{% endif %} {% endif -%}
 {{ spec_text(attribute.brief) }}{% if attribute.note %} {{ spec_text(attribute.note) }}{% endif %}
 {%- endmacro %}
+
+{# The level alone; any condition goes in the notes column. #}
+{% macro spec_requirement(level) -%}
+{%- if level == "required" -%}
+Required
+{%- elif level == "recommended" or (level is mapping and level.recommended) -%}
+Recommended
+{%- elif level == "opt_in" or (level is mapping and level.opt_in) -%}
+Opt-In
+{%- elif level is mapping and level.conditionally_required -%}
+Conditionally Required
+{%- else -%}
+{{ level }}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro spec_condition(level) -%}
+{%- if level is mapping -%}
+{{ spec_text(level.conditionally_required or level.recommended or level.opt_in) }}
+{%- endif -%}
+{%- endmacro %}
+
+{# Notes for an attribute of a span. The span kind is a fixed value per span:
+   the upper-cased last segment of the span type (`openinference.llm` -> LLM). #}
+{% macro spec_span_note(attribute, span) -%}
+{%- if attribute.key == "openinference.span.kind" -%}
+`"{{ span | split(".") | last | upper }}"`
+{%- else -%}
+{%- set brief = spec_text(attribute.brief) -%}
+{%- set condition = spec_condition(attribute.requirement_level) -%}
+{{ brief }}{% if condition %}{% if not brief.endswith(".") %}.{% endif %} {{ condition }}{% endif %}
+{%- endif -%}
+{%- endmacro %}

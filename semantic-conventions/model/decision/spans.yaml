@@ -19,6 +19,15 @@ spans:
         **Span name** is not constrained. It SHOULD identify the operation.
     attributes:
       - ref_group: attributes.openinference.common
+      # What the common input and output attributes hold on this kind of span.
+      - ref: input.value
+        brief: The raw request as a JSON string, including the candidate options.
+      - ref: input.mime_type
+        brief: MIME type of `input.value`, usually `application/json`.
+      - ref: output.value
+        brief: The raw response as a JSON string, including the selection or scores.
+      - ref: output.mime_type
+        brief: MIME type of `output.value`, usually `application/json`.
       - ref: decision.system
         requirement_level: required
       - ref: decision.model_name

@@ -75,6 +75,10 @@ To change the conventions:
   from the OpenTelemetry registry (a dependency in [`model/manifest.yaml`](model/manifest.yaml)), not redefined.
   Run `make vendor` after referencing another one.
 - **Well-known values** are enum `members`. Enums are open: a custom value may be used when no member applies.
+- **Resource attributes.** An attribute recorded on the OpenTelemetry resource, not on spans, is the identity or
+  description of an entity in [`model/openinference/entities.yaml`](model/openinference/entities.yaml). The language
+  packages then expose it as a resource attribute (`ResourceAttributes.PROJECT_NAME`, `SEMRESATTRS_PROJECT_NAME`)
+  and leave it out of the span attribute classes.
 - **Structured values.** OTLP span attributes cannot hold objects, so OpenInference flattens them or serializes them
   to JSON. The model records which, in an annotation that policies check and tools can read:
 
@@ -107,9 +111,15 @@ is between them:
 <!-- endweaver -->
 ```
 
-The marker holds a [jq](https://jqlang.org/) query over the resolved registry. It must produce either
-`{attributes: [...]}` for an attribute table or `{members: [...]}` for a table of well-known values; the rendering is
-in [`templates/registry/markdown/snippet.md.j2`](templates/registry/markdown/snippet.md.j2). Most tables select a key
+The marker holds a [jq](https://jqlang.org/) query over the resolved registry. It must produce one of:
+
+- `{attributes: [...]}` for an attribute table,
+- `{members: [...]}` for a table of well-known values, or
+- `{span: <type>, span_attributes: [...]}` for the requirement levels of a span's attributes, as in
+  [`spec/spans/llm.md`](../spec/spans/llm.md). Its notes column shows the attribute's description on that span,
+  which a span definition can override (`- ref: input.value` with its own `brief`).
+
+The rendering is in [`templates/registry/markdown/snippet.md.j2`](templates/registry/markdown/snippet.md.j2). Most tables select a key
 prefix, so a new attribute under that prefix appears on its own. Tables that list keys explicitly, to keep a curated
 order, need the new key added to the marker. To add a table to any page under `spec/`, add a marker pair and run
 `make generate-spec`.
@@ -120,10 +130,10 @@ order, need the new key added to the marker. To add a table to any page under `s
 
 | Language | Template | Generated file |
 | --- | --- | --- |
-| Python | [`templates/registry/python`](templates/registry/python) | `python/openinference-semantic-conventions/src/openinference/semconv/trace/__init__.py` |
+| Python | [`templates/registry/python`](templates/registry/python) | `trace/__init__.py` and `resource/__init__.py` in `python/openinference-semantic-conventions/src/openinference/semconv` |
 | Go | [`templates/registry/go`](templates/registry/go) | `go/openinference-semantic-conventions/attributes.go`, `enums.go` |
-| TypeScript | [`templates/registry/typescript`](templates/registry/typescript) | `js/packages/openinference-semantic-conventions/src/trace/SemanticConventions.ts` |
-| Java | [`templates/registry/java`](templates/registry/java) | `java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticConventions.java` |
+| TypeScript | [`templates/registry/typescript`](templates/registry/typescript) | `trace/SemanticConventions.ts` and `resource/SemanticResourceAttributes.ts` in `js/packages/openinference-semantic-conventions/src` |
+| Java | [`templates/registry/java`](templates/registry/java) | `SemanticConventions.java` and `SemanticResourceAttributes.java` in `java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace` |
 
 Generation is hermetic: its only inputs are files in this repository and Weaver at the pinned version.
 

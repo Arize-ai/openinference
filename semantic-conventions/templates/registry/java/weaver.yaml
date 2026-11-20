@@ -1,19 +1,35 @@
-# Generates SemanticConventions.java in
+# Generates SemanticConventions.java and SemanticResourceAttributes.java in
 # java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace.
 #
 # See templates/registry/python/weaver.yaml for the shape of the context.
 templates:
   - template: SemanticConventions.java.j2
     filter: >
-      {
+      ([.registry.entities[] | (.identity + (.description // []))[] | .key] | unique) as $resource_keys
+      | {
         attributes: (
           (.registry.attributes + [.registry.spans[].attributes[] | select(.provenance.path == null)])
           | unique_by(.key)
+          | map(select(.key as $key | $resource_keys | index($key) | not))
           | map(. + {const_key: (.annotations.openinference.constant_key // .key)})
         )
       }
     application_mode: single
     file_name: SemanticConventions.java
+
+  # Attributes of entities are recorded on the resource. Their constants are
+  # SEMRESATTRS_ plus the key without the `openinference.` prefix.
+  - template: SemanticResourceAttributes.java.j2
+    filter: >
+      {
+        attributes: (
+          [.registry.entities[] | (.identity + (.description // []))[]]
+          | unique_by(.key)
+          | map(. + {const_key: (.key | ltrimstr("openinference."))})
+        )
+      }
+    application_mode: single
+    file_name: SemanticResourceAttributes.java
 
 whitespace_control:
   trim_blocks: true

@@ -5,4 +5,7 @@ python/openinference-semantic-conventions/src/openinference/semconv/trace/__init
 go/openinference-semantic-conventions/attributes.go linguist-generated=true
 go/openinference-semantic-conventions/enums.go linguist-generated=true
 js/packages/openinference-semantic-conventions/src/trace/SemanticConventions.ts linguist-generated=true
+js/packages/openinference-semantic-conventions/src/resource/SemanticResourceAttributes.ts linguist-generated=true
+python/openinference-semantic-conventions/src/openinference/semconv/resource/__init__.py linguist-generated=true
+java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticResourceAttributes.java linguist-generated=true
 java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticConventions.java linguist-generated=true

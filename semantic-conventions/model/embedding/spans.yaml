@@ -18,6 +18,15 @@ spans:
         **Span name** MUST be `CreateEmbeddings`.
     attributes:
       - ref_group: attributes.openinference.common
+      # What the common input and output attributes hold on this kind of span.
+      - ref: input.value
+        brief: The raw input as a JSON string (text strings or token ID arrays).
+      - ref: input.mime_type
+        brief: MIME type of `input.value`, usually `application/json`.
+      - ref: output.value
+        brief: The raw output (embedding vectors as JSON or base64-encoded).
+      - ref: output.mime_type
+        brief: MIME type of `output.value`, usually `application/json`.
       - ref: embedding.model_name
         requirement_level: recommended
       - ref: embedding.embeddings

@@ -10,7 +10,7 @@
 
 ## Notes
 
-- `openinference.project.name`: Recorded as a resource attribute, not a span attribute.
+- `openinference.project.name`: Recorded as a resource attribute, not a span attribute. Identifies the `openinference.project` entity.
 - `openinference.span.kind`: Required on every OpenInference span. It is distinct from OpenTelemetry's own `SpanKind`. See [Span Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/general/span-kinds.md).
 
 ## `openinference.span.kind` values

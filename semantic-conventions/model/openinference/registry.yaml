@@ -59,6 +59,6 @@ attributes:
   - key: openinference.project.name
     type: string
     brief: "The name of the project that the telemetry belongs to."
-    note: "Recorded as a resource attribute, not a span attribute."
+    note: "Recorded as a resource attribute, not a span attribute. Identifies the `openinference.project` entity."
     examples: ["default", "my-llm-app"]
     stability: development

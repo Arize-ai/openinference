@@ -1,6 +1,13 @@
-const PROJECT_NAME = "openinference.project.name";
+/**
+ * Semantic conventions for OpenInference resource attributes
+ *
+ * Generated from the semantic convention registry in semantic-conventions/model.
+ * Do not edit by hand: change the model or
+ * semantic-conventions/templates/registry/typescript, then run
+ * `make -C semantic-conventions generate`.
+ */
 
 /**
- * The project name to group traces under for openinference compatible services
+ * The name of the project that the telemetry belongs to.
  */
-export const SEMRESATTRS_PROJECT_NAME = PROJECT_NAME;
+export const SEMRESATTRS_PROJECT_NAME = "openinference.project.name";

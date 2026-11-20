@@ -92,6 +92,15 @@ spans:
         **Span name** is not constrained. It SHOULD identify the operation, e.g. `ChatCompletion`.
     attributes:
       - ref_group: attributes.openinference.common
+      # What the common input and output attributes hold on this kind of span.
+      - ref: input.value
+        brief: The raw input, usually a JSON string.
+      - ref: input.mime_type
+        brief: MIME type of `input.value`, usually `application/json`.
+      - ref: output.value
+        brief: The raw output, usually a JSON string.
+      - ref: output.mime_type
+        brief: MIME type of `output.value`, usually `application/json`.
       - ref_group: attributes.llm.model
       - ref_group: attributes.llm.token_count
       - ref_group: attributes.llm.cost

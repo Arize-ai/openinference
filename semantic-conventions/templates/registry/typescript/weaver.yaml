@@ -1,18 +1,35 @@
-# Generates js/packages/openinference-semantic-conventions/src/trace/SemanticConventions.ts.
+# Generates trace/SemanticConventions.ts and resource/SemanticResourceAttributes.ts
+# in js/packages/openinference-semantic-conventions/src.
 #
 # See templates/registry/python/weaver.yaml for the shape of the context.
 templates:
   - template: SemanticConventions.ts.j2
     filter: >
-      {
+      ([.registry.entities[] | (.identity + (.description // []))[] | .key] | unique) as $resource_keys
+      | {
         attributes: (
           (.registry.attributes + [.registry.spans[].attributes[] | select(.provenance.path == null)])
           | unique_by(.key)
+          | map(select(.key as $key | $resource_keys | index($key) | not))
           | map(. + {const_key: (.annotations.openinference.constant_key // .key)})
         )
       }
     application_mode: single
-    file_name: SemanticConventions.ts
+    file_name: trace/SemanticConventions.ts
+
+  # Attributes of entities are recorded on the resource. Their constants are
+  # SEMRESATTRS_ plus the key without the `openinference.` prefix.
+  - template: SemanticResourceAttributes.ts.j2
+    filter: >
+      {
+        attributes: (
+          [.registry.entities[] | (.identity + (.description // []))[]]
+          | unique_by(.key)
+          | map(. + {const_key: (.key | ltrimstr("openinference."))})
+        )
+      }
+    application_mode: single
+    file_name: resource/SemanticResourceAttributes.ts
 
 whitespace_control:
   trim_blocks: true

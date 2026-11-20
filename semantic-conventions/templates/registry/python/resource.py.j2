@@ -1,0 +1,17 @@
+{% macro text(value) -%}
+{{ value | default("", true) | trim | replace("\\", "\\\\") | replace('"""', "'''") | replace("\n", " ") }}
+{%- endmacro %}
+# ruff: noqa: E501
+# Generated from the semantic convention registry in semantic-conventions/model.
+# Do not edit by hand: change the model or semantic-conventions/templates/registry/python,
+# then run `make -C semantic-conventions generate`.
+
+
+class ResourceAttributes:
+{% for attribute in ctx.attributes %}
+    {{ attribute.const_key | screaming_snake_case }} = "{{ attribute.key }}"
+    """{{ text(attribute.brief) }}"""
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}

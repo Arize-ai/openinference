@@ -4,6 +4,8 @@
 
      {attributes: [<attribute>, ...]}   -> an attribute table
      {members: [<enum member>, ...]}    -> a table of well-known values
+     {span: <span type>, span_attributes: [<attribute>, ...]}
+                                        -> the requirement levels of a span's attributes
 #}
 {% import 'macros.j2' as m %}
 <!-- Generated from semantic-conventions/model. Do not edit by hand: change the model and run `make -C semantic-conventions generate`. -->
@@ -13,6 +15,12 @@
 | --- | --- | --- | --- |
 {% for attribute in attributes %}
 | `{{ attribute.key }}` | {{ m.spec_type(attribute) }} | {{ m.spec_description(attribute) }} | {{ m.spec_examples(attribute) }} |
+{% endfor %}
+{% elif span_attributes is defined %}
+| Attribute | Requirement level | Notes |
+| --- | --- | --- |
+{% for attribute in span_attributes %}
+| `{{ attribute.key }}` | {{ m.spec_requirement(attribute.requirement_level) }} | {{ m.spec_span_note(attribute, span) }} |
 {% endfor %}
 {% elif members is defined %}
 | Value | Description |

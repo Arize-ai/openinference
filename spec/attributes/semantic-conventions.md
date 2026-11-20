@@ -19,7 +19,7 @@ Types marked "List of objects" are [flattened](./conventions.md#flattening) with
 
 | Attribute | Type | Description | Examples |
 | --- | --- | --- | --- |
-| `openinference.project.name` | String | The name of the project that the telemetry belongs to. Recorded as a resource attribute, not a span attribute. | `"default"`, `"my-llm-app"` |
+| `openinference.project.name` | String | The name of the project that the telemetry belongs to. Recorded as a resource attribute, not a span attribute. Identifies the `openinference.project` entity. | `"default"`, `"my-llm-app"` |
 | `openinference.span.kind` | String | The role an operation plays in an AI application. Required on every OpenInference span. It is distinct from OpenTelemetry's own `SpanKind`. See [Span Kinds](../general/span-kinds.md). | `"LLM"`, `"EMBEDDING"`, `"CHAIN"`, `"RETRIEVER"`, `"RERANKER"`, `"TOOL"`, `"AGENT"`, `"GUARDRAIL"`, `"EVALUATOR"`, `"PROMPT"`, `"DECISION"`, `"UNKNOWN"` |
 
 <!-- endweaver -->
