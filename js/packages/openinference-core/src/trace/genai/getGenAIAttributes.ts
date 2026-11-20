@@ -8,6 +8,15 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
+import {
+  isArray,
+  isDefined,
+  isNullish,
+  isNumber,
+  isRecord,
+  isString,
+  isUndefined,
+} from "../../utils";
 import type { UnknownRecord } from "./conversionUtils";
 import {
   coerceBoolean,
@@ -15,7 +24,6 @@ import {
   coerceNumber,
   coerceStringArray,
   getIndexedBuckets,
-  isRecord,
   parseJSONArray,
   parseJSONIfString,
   parseJSONRecord,
@@ -141,7 +149,7 @@ const REQUEST_PARAMETER_MAPPINGS: RequestParameterMapping[] = [
 
 function getSpanKind(attributes: UnknownRecord): string | undefined {
   const spanKind = attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
-  return typeof spanKind === "string" ? spanKind.toUpperCase() : undefined;
+  return isString(spanKind) ? spanKind.toUpperCase() : undefined;
 }
 
 function hasCompletionsAttributes(attributes: UnknownRecord): boolean {
@@ -168,11 +176,11 @@ function getOperationName(attributes: UnknownRecord): string | undefined {
       ? GenAIOperationName.TEXT_COMPLETION
       : GenAIOperationName.CHAT;
   }
-  return spanKind === undefined ? undefined : OPERATION_NAME_BY_SPAN_KIND[spanKind];
+  return isUndefined(spanKind) ? undefined : OPERATION_NAME_BY_SPAN_KIND[spanKind];
 }
 
 function toLowerCaseString(value: unknown): string | undefined {
-  return typeof value === "string" ? value.toLowerCase() : undefined;
+  return isString(value) ? value.toLowerCase() : undefined;
 }
 
 function getProviderName(attributes: UnknownRecord): string | undefined {
@@ -186,10 +194,9 @@ function getProviderName(attributes: UnknownRecord): string | undefined {
   if (provider === LLMProvider.GOOGLE && system === LLMSystem.VERTEXAI) {
     return GenAIProviderName.GCP_VERTEX_AI;
   }
-  const mappedProviderName =
-    provider === undefined
-      ? PROVIDER_NAME_BY_SYSTEM[system ?? ""]
-      : PROVIDER_NAME_BY_PROVIDER[provider];
+  const mappedProviderName = isUndefined(provider)
+    ? PROVIDER_NAME_BY_SYSTEM[system ?? ""]
+    : PROVIDER_NAME_BY_PROVIDER[provider];
   return mappedProviderName ?? (system || provider || undefined);
 }
 
@@ -213,7 +220,7 @@ function getRequestParameterAttributes(invocationParameters: UnknownRecord): Att
       const coercedValue = coerce(invocationParameters[sourceKey]);
       const isDefaultChoiceCount =
         genAIKey === GenAIAttributes.GEN_AI_REQUEST_CHOICE_COUNT && coercedValue === 1;
-      if (coercedValue === undefined || isDefaultChoiceCount) {
+      if (isUndefined(coercedValue) || isDefaultChoiceCount) {
         continue;
       }
       genAIAttributes[genAIKey] = coercedValue;
@@ -228,7 +235,7 @@ function getOutputType(invocationParameters: UnknownRecord): string | undefined 
   const responseFormatType = isRecord(responseFormat)
     ? toOptionalString(responseFormat.type)
     : toLowerCaseString(responseFormat);
-  if (responseFormatType === undefined) {
+  if (isUndefined(responseFormatType)) {
     return undefined;
   }
   if (JSON_RESPONSE_FORMATS.includes(responseFormatType)) {
@@ -260,7 +267,7 @@ function getUsageAttributes(attributes: UnknownRecord): Attributes {
   const genAIAttributes: Attributes = {};
   for (const [openInferenceKey, genAIKey] of USAGE_ATTRIBUTE_MAPPINGS) {
     const tokenCount = attributes[openInferenceKey];
-    if (typeof tokenCount === "number") {
+    if (isNumber(tokenCount)) {
       genAIAttributes[genAIKey] = tokenCount;
     }
   }
@@ -386,7 +393,7 @@ function normalizeDocument(document: unknown): UnknownRecord | undefined {
     fieldName: "metadata",
   });
   const normalizedDocument: UnknownRecord = {
-    id: documentId === undefined ? undefined : toOptionalString(documentId),
+    id: isUndefined(documentId) ? undefined : toOptionalString(documentId),
     score: getDocumentField({
       document,
       attributeKey: SemanticConventions.DOCUMENT_SCORE,
@@ -397,22 +404,22 @@ function normalizeDocument(document: unknown): UnknownRecord | undefined {
       attributeKey: SemanticConventions.DOCUMENT_CONTENT,
       fieldName: "content",
     }),
-    metadata: metadata === undefined ? undefined : parseJSONIfString(metadata),
+    metadata: isUndefined(metadata) ? undefined : parseJSONIfString(metadata),
   };
-  const hasFields = Object.values(normalizedDocument).some((value) => value !== undefined);
+  const hasFields = Object.values(normalizedDocument).some(isDefined);
   return hasFields ? normalizedDocument : undefined;
 }
 
 function getRetrievalDocuments(attributes: UnknownRecord): UnknownRecord[] {
   const rootDocuments = parseJSONArray(attributes[SemanticConventions.RETRIEVAL_DOCUMENTS])
     .map(normalizeDocument)
-    .filter((document) => document !== undefined);
+    .filter(isDefined);
   if (rootDocuments.length > 0) {
     return rootDocuments;
   }
   return getIndexedBuckets({ attributes, prefix: SemanticConventions.RETRIEVAL_DOCUMENTS })
     .map(normalizeDocument)
-    .filter((document) => document !== undefined);
+    .filter(isDefined);
 }
 
 function getRetrievalAttributes(attributes: UnknownRecord): Attributes {
@@ -436,7 +443,7 @@ function getEmbeddingDimensionCount(attributes: UnknownRecord): number | undefin
       continue;
     }
     const vector = embedding[SemanticConventions.EMBEDDING_VECTOR] || embedding.vector;
-    if (Array.isArray(vector)) {
+    if (isArray(vector)) {
       return vector.length;
     }
   }
@@ -447,7 +454,7 @@ function getEmbeddingDimensionCount(attributes: UnknownRecord): number | undefin
       continue;
     }
     const vector = parseJSONIfString(value);
-    if (Array.isArray(vector)) {
+    if (isArray(vector)) {
       return vector.length;
     }
   }
@@ -469,7 +476,7 @@ function removeUndefinedValues<Value>(
 ): Record<string, Value> {
   const definedValues: Record<string, Value> = {};
   for (const [key, value] of Object.entries(record)) {
-    if (value !== undefined) {
+    if (isDefined(value)) {
       definedValues[key] = value;
     }
   }
@@ -509,7 +516,7 @@ function removeUndefinedValues<Value>(
  * @returns The derived `gen_ai.*` attributes
  */
 export function getGenAIAttributes(attributes?: Attributes | null): Attributes {
-  if (attributes == null) {
+  if (isNullish(attributes)) {
     return {};
   }
   const sourceAttributes: UnknownRecord = removeUndefinedValues(attributes);

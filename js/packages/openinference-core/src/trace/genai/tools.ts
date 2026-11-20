@@ -1,10 +1,10 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+import { isDefined, isNullish, isPresent, isRecord, isUndefined } from "../../utils";
 import type { UnknownRecord } from "./conversionUtils";
 import {
   getIndexedBuckets,
   isEmptyValue,
-  isRecord,
   parseJSONArray,
   parseJSONIfString,
   toNonEmptyString,
@@ -14,8 +14,8 @@ import { GenAIToolType } from "./genAIAttributes";
 const TOOL_DEFINITION_FIELDS = ["name", "parameters", "description"];
 
 function withDefaultToolType(toolDefinition: UnknownRecord): UnknownRecord {
-  const hasToolFields = TOOL_DEFINITION_FIELDS.some((field) => toolDefinition[field] != null);
-  if (toolDefinition.type == null && hasToolFields) {
+  const hasToolFields = TOOL_DEFINITION_FIELDS.some((field) => isPresent(toolDefinition[field]));
+  if (isNullish(toolDefinition.type) && hasToolFields) {
     return { ...toolDefinition, type: GenAIToolType.FUNCTION };
   }
   return toolDefinition;
@@ -62,7 +62,7 @@ function normalizeProviderToolDefinition(toolDefinition: UnknownRecord): Unknown
     return normalizeOpenAIToolDefinition({ toolDefinition, functionDefinition });
   }
   const isAnthropicToolDefinition =
-    toolDefinition.input_schema != null && toolDefinition.parameters == null;
+    isPresent(toolDefinition.input_schema) && isNullish(toolDefinition.parameters);
   if (isAnthropicToolDefinition) {
     return normalizeAnthropicToolDefinition(toolDefinition);
   }
@@ -81,13 +81,13 @@ function normalizeOpenInferenceToolDefinition(
   );
   const name = toNonEmptyString(toolDefinition[SemanticConventions.TOOL_NAME]);
   const description = toNonEmptyString(toolDefinition[SemanticConventions.TOOL_DESCRIPTION]);
-  if (normalizedSchema === undefined && name === undefined) {
+  if (isUndefined(normalizedSchema) && isUndefined(name)) {
     return undefined;
   }
   return {
     ...(normalizedSchema ?? { type: GenAIToolType.FUNCTION }),
-    ...(name !== undefined ? { name } : {}),
-    ...(description !== undefined ? { description } : {}),
+    ...(isDefined(name) ? { name } : {}),
+    ...(isDefined(description) ? { description } : {}),
   };
 }
 
@@ -114,11 +114,11 @@ function normalizeToolDefinition(toolDefinition: unknown): UnknownRecord | undef
 export function getToolDefinitions(attributes: UnknownRecord): UnknownRecord[] {
   const rootToolDefinitions = parseJSONArray(attributes[SemanticConventions.LLM_TOOLS])
     .map(normalizeToolDefinition)
-    .filter((toolDefinition) => toolDefinition !== undefined);
+    .filter(isDefined);
   if (rootToolDefinitions.length > 0) {
     return rootToolDefinitions;
   }
   return getIndexedBuckets({ attributes, prefix: SemanticConventions.LLM_TOOLS })
     .map(normalizeToolDefinition)
-    .filter((toolDefinition) => toolDefinition !== undefined);
+    .filter(isDefined);
 }

@@ -1,9 +1,9 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+import { isArray, isDefined, isRecord, isString, isUndefined } from "../../utils";
 import type { UnknownRecord } from "./conversionUtils";
 import {
   getIndexedBuckets,
-  isRecord,
   parseJSONIfString,
   toNonEmptyString,
   toOptionalString,
@@ -44,7 +44,7 @@ export type GenAIMessage = {
 };
 
 function normalizeMessageRole(role: string | undefined): string | undefined {
-  if (role === undefined) {
+  if (isUndefined(role)) {
     return undefined;
   }
   const loweredRole = role.toLowerCase();
@@ -58,7 +58,7 @@ function normalizeMessageRole(role: string | undefined): string | undefined {
 }
 
 function normalizeFinishReason(finishReason: string | undefined): string | undefined {
-  if (finishReason === undefined) {
+  if (isUndefined(finishReason)) {
     return undefined;
   }
   const loweredFinishReason = finishReason.toLowerCase();
@@ -70,7 +70,7 @@ function normalizeFinishReason(finishReason: string | undefined): string | undef
 
 function hasToolCallPart(parts: unknown): boolean {
   return (
-    Array.isArray(parts) &&
+    isArray(parts) &&
     parts.some(
       (part) => isRecord(part) && toOptionalString(part.type) === GenAIMessagePartType.TOOL_CALL,
     )
@@ -86,7 +86,7 @@ function buildTextPart(content: string): GenAIMessagePart {
 }
 
 function buildImagePart(url: string | undefined): GenAIMessagePart | undefined {
-  if (url === undefined) {
+  if (isUndefined(url)) {
     return undefined;
   }
   const dataUrlMatch = DATA_URL_PATTERN.exec(url);
@@ -109,9 +109,9 @@ function getMessageContentParts(bucket: UnknownRecord): GenAIMessagePart[] {
     prefix: SemanticConventions.MESSAGE_CONTENTS,
   })) {
     const contentType = toOptionalString(content[SemanticConventions.MESSAGE_CONTENT_TYPE]);
-    if (contentType !== undefined && TEXT_CONTENT_TYPES.includes(contentType)) {
+    if (isDefined(contentType) && TEXT_CONTENT_TYPES.includes(contentType)) {
       const text = toOptionalString(content[SemanticConventions.MESSAGE_CONTENT_TEXT]);
-      if (text !== undefined) {
+      if (isDefined(text)) {
         parts.push(buildTextPart(text));
       }
     } else if (contentType === "image") {
@@ -131,7 +131,7 @@ function getMessageToolCallParts(bucket: UnknownRecord): GenAIMessagePart[] {
     prefix: SemanticConventions.MESSAGE_TOOL_CALLS,
   })) {
     const functionName = toOptionalString(toolCall[SemanticConventions.TOOL_CALL_FUNCTION_NAME]);
-    if (functionName === undefined) {
+    if (isUndefined(functionName)) {
       continue;
     }
     const part: GenAIMessagePart = {
@@ -171,7 +171,7 @@ function getBucketToolResponse({
   content: string | undefined;
   contentParts: GenAIMessagePart[];
 }): unknown {
-  if (content !== undefined) {
+  if (isDefined(content)) {
     return parseJSONIfString(content);
   }
   const [firstPart] = contentParts;
@@ -195,7 +195,7 @@ function getBucketParts({ bucket, role }: { bucket: UnknownRecord; role: string 
     ];
   }
   const shouldPrependContent =
-    content !== undefined && !isContentDuplicated({ content, parts: contentParts });
+    isDefined(content) && !isContentDuplicated({ content, parts: contentParts });
   return [
     ...(shouldPrependContent ? [buildTextPart(content)] : []),
     ...contentParts,
@@ -221,7 +221,7 @@ function buildMessageFromBucket({
   fallbackFinishReason?: string;
 }): GenAIMessage | undefined {
   const role = normalizeMessageRole(toOptionalString(bucket[SemanticConventions.MESSAGE_ROLE]));
-  if (role === undefined) {
+  if (isUndefined(role)) {
     return undefined;
   }
   const parts = getBucketParts({ bucket, role });
@@ -251,7 +251,7 @@ function convertMarshaledContents(contents: unknown[]): GenAIMessagePart[] {
       continue;
     }
     const contentType = toOptionalString(content.type);
-    if (contentType !== undefined && TEXT_CONTENT_TYPES.includes(contentType)) {
+    if (isDefined(contentType) && TEXT_CONTENT_TYPES.includes(contentType)) {
       const text = toNonEmptyString(content.text);
       if (text) {
         parts.push(buildTextPart(text));
@@ -269,7 +269,7 @@ function convertMarshaledContents(contents: unknown[]): GenAIMessagePart[] {
 }
 
 function convertMarshaledToolCalls(toolCalls: unknown): GenAIMessagePart[] {
-  if (!Array.isArray(toolCalls)) {
+  if (!isArray(toolCalls)) {
     return [];
   }
   const parts: GenAIMessagePart[] = [];
@@ -293,14 +293,14 @@ function convertMarshaledToolCalls(toolCalls: unknown): GenAIMessagePart[] {
 
 function getMarshaledParts(message: UnknownRecord): GenAIMessagePart[] {
   const rawParts = message.parts;
-  if (Array.isArray(rawParts) && rawParts.every(isRecord)) {
+  if (isArray(rawParts) && rawParts.every(isRecord)) {
     return rawParts.map((part) => ({ ...part }));
   }
   const content = toNonEmptyString(message.content);
   if (content) {
     return [buildTextPart(content)];
   }
-  if (Array.isArray(message.contents)) {
+  if (isArray(message.contents)) {
     return convertMarshaledContents(message.contents);
   }
   return [];
@@ -311,7 +311,7 @@ function getMarshaledToolResponse(message: UnknownRecord): unknown {
   if (content) {
     return parseJSONIfString(content);
   }
-  if (Array.isArray(message.parts)) {
+  if (isArray(message.parts)) {
     return [...message.parts];
   }
   return "";
@@ -347,7 +347,7 @@ function buildMessageFromMarshaled({
   }
 
   const role = normalizeMessageRole(toOptionalString(message.role));
-  if (role === undefined) {
+  if (isUndefined(role)) {
     return undefined;
   }
   const toolCallId = toNonEmptyString(message.tool_call_id);
@@ -384,13 +384,13 @@ function parseMarshaledMessages({
   isOutput: boolean;
 }): GenAIMessage[] {
   const parsedValue = parseJSONIfString(value);
-  if (!Array.isArray(parsedValue)) {
+  if (!isArray(parsedValue)) {
     return [];
   }
   return parsedValue
     .filter(isRecord)
     .map((message) => buildMessageFromMarshaled({ message, isOutput }))
-    .filter((message) => message !== undefined);
+    .filter(isDefined);
 }
 
 /**
@@ -398,13 +398,13 @@ function parseMarshaledMessages({
  */
 export function getExplicitFinishReasons(attributes: UnknownRecord): string[] {
   const finishReason = attributes[SemanticConventions.LLM_FINISH_REASON];
-  if (typeof finishReason === "string") {
+  if (isString(finishReason)) {
     return [normalizeFinishReason(finishReason) || GenAIFinishReason.STOP];
   }
-  if (Array.isArray(finishReason)) {
+  if (isArray(finishReason)) {
     return finishReason
       .map((rawFinishReason) => normalizeFinishReason(String(rawFinishReason)))
-      .filter((normalizedFinishReason) => normalizedFinishReason !== undefined)
+      .filter(isDefined)
       .filter((normalizedFinishReason) => normalizedFinishReason !== "");
   }
   return [];
@@ -444,7 +444,7 @@ function getMessages({
   const fallbackFinishReason = isOutput ? getDefaultOutputFinishReason(attributes) : undefined;
   return buckets
     .map((bucket) => buildMessageFromBucket({ bucket, isOutput, fallbackFinishReason }))
-    .filter((message) => message !== undefined);
+    .filter(isDefined);
 }
 
 /**
@@ -461,12 +461,12 @@ function getCompletionTexts({
   textKey: string;
 }): string[] {
   const parsedTexts = parseJSONIfString(attributes[prefix]);
-  if (Array.isArray(parsedTexts)) {
+  if (isArray(parsedTexts)) {
     return parsedTexts.map((text) => toOptionalString(text) ?? String(text));
   }
   return getIndexedBuckets({ attributes, prefix })
     .map((bucket) => toOptionalString(bucket[textKey]))
-    .filter((text) => text !== undefined);
+    .filter(isDefined);
 }
 
 export function getInputMessages(attributes: UnknownRecord): GenAIMessage[] {

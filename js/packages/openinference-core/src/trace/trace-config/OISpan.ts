@@ -10,6 +10,7 @@ import type {
 } from "@opentelemetry/api";
 import { diag } from "@opentelemetry/api";
 
+import { isPresent } from "../../utils";
 import { getGenAIAttributes } from "../genai";
 import { mask } from "./maskingRules";
 import type { TraceConfig } from "./types";
@@ -39,7 +40,7 @@ export class OISpan implements Span {
 
   setAttribute(key: string, value: AttributeValue): this {
     const maskedValue = mask({ config: this.config, key, value });
-    if (maskedValue != null) {
+    if (isPresent(maskedValue)) {
       this.span.setAttribute(key, maskedValue);
       this.recordAttribute({ key, value: maskedValue });
     }
@@ -86,7 +87,7 @@ export class OISpan implements Span {
   }
 
   private recordAttribute({ key, value }: { key: string; value?: AttributeValue }): void {
-    if (this.config.enableGenAISemconv && value != null) {
+    if (this.config.enableGenAISemconv && isPresent(value)) {
       this.recordedAttributes[key] = value;
     }
   }
@@ -102,7 +103,7 @@ export class OISpan implements Span {
     try {
       const genAIAttributes = getGenAIAttributes(this.recordedAttributes);
       for (const [key, value] of Object.entries(genAIAttributes)) {
-        if (value != null && !(key in this.recordedAttributes)) {
+        if (isPresent(value) && !(key in this.recordedAttributes)) {
           this.span.setAttribute(key, value);
         }
       }

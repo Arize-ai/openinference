@@ -302,6 +302,6 @@ src/
       constants.ts                  # Environment variable names and defaults
   utils/
     index.ts                        # withSafety, safelyJSONStringify, safelyJSONParse
-    typeUtils.ts                    # isPromise, isAttributes, etc.
+    typeUtils.ts                    # isString, isRecord, isDefined, isPromise, etc.
     types.ts                        # GenericFunction, SafeFunction
 ```

@@ -1,20 +1,25 @@
-import { safelyJSONStringify } from "../../utils";
+import {
+  isArray,
+  isBigInt,
+  isBoolean,
+  isNullish,
+  isNumber,
+  isRecord,
+  isString,
+  safelyJSONStringify,
+} from "../../utils";
 
 export type UnknownRecord = Record<string, unknown>;
 
 const DIGITS_PATTERN = /^\d+$/;
 const INTEGER_PATTERN = /^[+-]?\d+$/;
 
-export function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 /**
  * Parses a string as JSON, returning the original value when it is not a
  * string or is not valid JSON.
  */
 export function parseJSONIfString(value: unknown): unknown {
-  if (typeof value !== "string") {
+  if (!isString(value)) {
     return value;
   }
   try {
@@ -31,7 +36,7 @@ export function parseJSONRecord(value: unknown): UnknownRecord {
 
 export function parseJSONArray(value: unknown): unknown[] {
   const parsedValue = parseJSONIfString(value);
-  return Array.isArray(parsedValue) ? parsedValue : [];
+  return isArray(parsedValue) ? parsedValue : [];
 }
 
 export function stringifyJSON(value: unknown): string | undefined {
@@ -43,13 +48,13 @@ export function stringifyJSON(value: unknown): string | undefined {
  * Returns undefined for null and undefined.
  */
 export function toOptionalString(value: unknown): string | undefined {
-  if (value == null) {
+  if (isNullish(value)) {
     return undefined;
   }
-  if (typeof value === "string") {
+  if (isString(value)) {
     return value;
   }
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+  if (isNumber(value) || isBoolean(value) || isBigInt(value)) {
     return String(value);
   }
   return stringifyJSON(value);
@@ -74,10 +79,10 @@ export function toNonEmptyString(value: unknown): string | undefined {
  */
 export function serializeJSONLikeValue(value: unknown): string | undefined {
   const parsedValue = parseJSONIfString(value);
-  if (typeof parsedValue === "string") {
+  if (isString(parsedValue)) {
     return parsedValue;
   }
-  return typeof value === "string" ? value : stringifyJSON(parsedValue);
+  return isString(value) ? value : stringifyJSON(parsedValue);
 }
 
 /**
@@ -85,7 +90,7 @@ export function serializeJSONLikeValue(value: unknown): string | undefined {
  * null, undefined, false, 0, "", [] or {}.
  */
 export function isEmptyValue(value: unknown): boolean {
-  if (Array.isArray(value)) {
+  if (isArray(value)) {
     return value.length === 0;
   }
   if (isRecord(value)) {
@@ -181,10 +186,10 @@ export function unflattenAttributes({
 }
 
 export function coerceNumber(value: unknown): number | undefined {
-  if (typeof value === "number") {
+  if (isNumber(value)) {
     return Number.isFinite(value) ? value : undefined;
   }
-  if (typeof value === "string" && value.trim() !== "") {
+  if (isString(value) && value.trim() !== "") {
     const parsedNumber = Number(value);
     return Number.isFinite(parsedNumber) ? parsedNumber : undefined;
   }
@@ -192,20 +197,20 @@ export function coerceNumber(value: unknown): number | undefined {
 }
 
 export function coerceInteger(value: unknown): number | undefined {
-  if (typeof value === "number") {
+  if (isNumber(value)) {
     return Number.isInteger(value) ? value : undefined;
   }
-  if (typeof value === "string" && INTEGER_PATTERN.test(value.trim())) {
+  if (isString(value) && INTEGER_PATTERN.test(value.trim())) {
     return Number(value);
   }
   return undefined;
 }
 
 export function coerceBoolean(value: unknown): boolean | undefined {
-  if (typeof value === "boolean") {
+  if (isBoolean(value)) {
     return value;
   }
-  if (typeof value === "string") {
+  if (isString(value)) {
     const loweredValue = value.toLowerCase();
     if (loweredValue === "true") {
       return true;
@@ -218,10 +223,10 @@ export function coerceBoolean(value: unknown): boolean | undefined {
 }
 
 export function coerceStringArray(value: unknown): string[] | undefined {
-  if (typeof value === "string") {
+  if (isString(value)) {
     return [value];
   }
-  if (Array.isArray(value)) {
+  if (isArray(value)) {
     return value.map((item) => toOptionalString(item) ?? String(item));
   }
   return undefined;
