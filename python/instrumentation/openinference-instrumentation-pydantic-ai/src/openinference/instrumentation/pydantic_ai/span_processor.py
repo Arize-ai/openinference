@@ -5,8 +5,10 @@ from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import Span, Status, StatusCode
 
+from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.pydantic_ai.semantic_conventions import get_attributes
 from openinference.instrumentation.pydantic_ai.utils import SpanFilter, should_export_span
+from openinference.semconv.trace import SpanAttributes
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +49,15 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         self._span_filter = span_filter
 
     def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
-        """Called when a span starts. No processing needed at start."""
-        pass
+        """Propagate OpenInference context attributes (session, user, metadata, tags) from
+        the caller's context onto the span, same as every other OpenInference instrumentor.
+
+        pydantic-ai creates these spans with its own tracer, not an OITracer, so nothing
+        else copies these attributes over.
+        """
+        context_attributes = dict(get_attributes_from_context())
+        if context_attributes:
+            span.set_attributes(context_attributes)
 
     def on_end(self, span: ReadableSpan) -> None:
         """Process a span when it ends by enhancing it with OpenInference attributes."""
@@ -59,6 +68,12 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             # Get the openinference attributes from the span
             openinference_attributes_iter = get_attributes(span.attributes)
             openinference_attributes = dict(openinference_attributes_iter)
+
+            # A caller-supplied session.id, propagated from context in on_start, takes
+            # priority over pydantic-ai's own gen_ai.conversation.id (mapped to session.id
+            # by get_attributes above) so it isn't silently overwritten.
+            if span.attributes.get(SpanAttributes.SESSION_ID) is not None:
+                openinference_attributes.pop(SpanAttributes.SESSION_ID, None)
 
             # Combine the attributes with the openinference attributes
             span._attributes = {**span.attributes, **openinference_attributes}
