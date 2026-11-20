@@ -1,0 +1,42 @@
+# Generates trace/__init__.py and resource/__init__.py in
+# python/openinference-semantic-conventions/src/openinference/semconv.
+#
+# The context is every attribute an OpenInference span can carry: the ones this
+# registry defines plus the ones it references from OpenTelemetry (`session.id`,
+# `user.id`), which only appear resolved inside span definitions. Attributes of
+# entities are left out: they are resource attributes.
+# `const_key` is the key that constant names are derived from; it differs from
+# the attribute key only where `annotations.openinference.constant_key` keeps a
+# name that predates the registry.
+templates:
+  - template: trace.py.j2
+    filter: >
+      ([.registry.entities[] | (.identity + (.description // []))[] | .key] | unique) as $resource_keys
+      | {
+        attributes: (
+          (.registry.attributes + [.registry.spans[].attributes[] | select(.provenance.path == null)])
+          | unique_by(.key)
+          | map(select(.key as $key | $resource_keys | index($key) | not))
+          | map(. + {const_key: (.annotations.openinference.constant_key // .key)})
+        )
+      }
+    application_mode: single
+    file_name: trace/__init__.py
+
+  # Attributes of entities are recorded on the resource. Their constants drop
+  # the `openinference.` prefix: `openinference.project.name` is PROJECT_NAME.
+  - template: resource.py.j2
+    filter: >
+      {
+        attributes: (
+          [.registry.entities[] | (.identity + (.description // []))[]]
+          | unique_by(.key)
+          | map(. + {const_key: (.key | ltrimstr("openinference."))})
+        )
+      }
+    application_mode: single
+    file_name: resource/__init__.py
+
+whitespace_control:
+  trim_blocks: true
+  lstrip_blocks: true

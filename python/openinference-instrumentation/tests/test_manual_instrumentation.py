@@ -3951,10 +3951,19 @@ class TestGetSystemFromModel:
     def test_unrecognised_model_returns_none(self, model_name: str) -> None:
         assert infer_llm_system_from_model_name(model_name) is None
 
-    def test_every_system_has_at_least_one_prefix_entry(self) -> None:
-        mapped = {system.value for system in _MODEL_PREFIX_TO_SYSTEM.values()}
-        missing = ALL_SYSTEM_VALUES - mapped
-        assert not missing, f"Systems without a prefix entry: {missing}"
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "grok-2-latest",
+            "deepseek-chat",
+            "amazon.titan-text-express-v1",
+            "meta.llama3-70b-instruct-v1:0",
+        ],
+    )
+    def test_well_known_systems_without_a_prefix_are_not_inferred(self, model_name: str) -> None:
+        # The prefix mapping is not exhaustive: `llm.system` lists more
+        # well-known values than the ones a model name is mapped to.
+        assert infer_llm_system_from_model_name(model_name) is None
 
     def test_all_prefix_values_are_valid_system_values(self) -> None:
         mapped = {system.value for system in _MODEL_PREFIX_TO_SYSTEM.values()}

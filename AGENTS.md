@@ -117,14 +117,15 @@ pnpm changeset
 **See `semantic-conventions/README.md` for the model layout and modeling rules.**
 
 The YAML under `semantic-conventions/model` is the source of truth for attribute keys, types, and well-known values.
-The tables in `spec/` are generated from it; never edit them by hand.
-To add or change an attribute, edit the model, regenerate, then update the language packages.
+Generated from it, and never edited by hand: the attribute tables in `spec/attributes/semantic-conventions.md` and the
+constants in the Python, Go, TypeScript, and Java `openinference-semantic-conventions` packages.
+To add or change an attribute, edit the model and regenerate.
 
 ```bash
 # Run everything CI runs (needs weaver or docker/podman, and uv)
 make -C semantic-conventions check-all
 
-# Regenerate the registry docs and the spec tables after changing the model
+# Regenerate the registry docs, the spec tables, and the language packages after changing the model
 make -C semantic-conventions generate
 ```
 

@@ -1,3 +1,6 @@
+// Generated from the semantic convention registry in semantic-conventions/model.
+// Do not edit by hand: change the model or semantic-conventions/templates/registry/java,
+// then run `make -C semantic-conventions generate`.
 package com.arize.semconv.trace;
 
 import lombok.experimental.UtilityClass;
@@ -7,10 +10,8 @@ import lombok.experimental.UtilityClass;
  */
 @UtilityClass
 public class SemanticResourceAttributes {
-    private static final String PROJECT_NAME = "openinference.project.name";
-
     /**
-     * The project name to group traces under for openinference compatible services
+     * The name of the project that the telemetry belongs to.
      */
-    public static final String SEMRESATTRS_PROJECT_NAME = PROJECT_NAME;
+    public static final String SEMRESATTRS_PROJECT_NAME = "openinference.project.name";
 }
