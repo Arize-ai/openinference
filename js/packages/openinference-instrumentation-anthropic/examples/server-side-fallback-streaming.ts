@@ -3,8 +3,8 @@ import { shutdownTracing } from "./instrumentation";
 
 import Anthropic from "@anthropic-ai/sdk";
 
-const requestedModel = "claude-fable-5";
-const fallbackModel = "claude-opus-4-8";
+const requestedModel = "claude-fable-5-2";
+const fallbackModel = "claude-opus-5";
 
 function createMidStreamFallbackFetch(): typeof fetch {
   const events: Array<Record<string, unknown> & { type: string }> = [
