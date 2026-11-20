@@ -43,6 +43,7 @@ For internal diagnostics use `diag` from `@opentelemetry/api` (`diag.debug`/`dia
 
 - Vite with **manual module mocking**: `instrumentation._modules[0].moduleExports = module`
 - Tests must cover: suppress tracing, context propagation, trace config
+- Prefer **network recordings** over hand-written response fixtures: record real SDK calls with nock and replay them. Copy `test/helpers/recordings.ts` from the OpenAI or Anthropic instrumentation; its header explains usage and how to re-record (`NOCK_BACK_MODE=record`)
 
 ## Core Helpers
 
