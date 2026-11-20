@@ -1,5 +1,12 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 4.2.3
+
+### Patch Changes
+
+- Updated dependencies [5f72487]
+  - @arizeai/openinference-core@2.9.0
+
 ## 4.2.2
 
 ### Patch Changes
