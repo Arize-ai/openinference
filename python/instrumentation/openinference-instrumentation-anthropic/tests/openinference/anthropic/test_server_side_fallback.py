@@ -2,6 +2,7 @@
 
 import functools
 import json
+import os
 from typing import Any, Dict
 
 import httpx2
@@ -201,7 +202,7 @@ def _assert_fallback_content_block_span(span: Any) -> None:
                 {"type": "text", "text": "Partial response"},
                 {
                     "type": "fallback",
-                    "from_": {"model": REQUESTED_MODEL},
+                    "from": {"model": REQUESTED_MODEL},
                     "to": {"model": FALLBACK_MODEL},
                     "trigger": {"type": "refusal", "category": "reasoning_extraction"},
                 },
@@ -233,6 +234,14 @@ def _assert_fallback_content_block_span(span: Any) -> None:
         == "Partial response"
     )
     assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "fallback"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}")
+        == f"{REQUESTED_MODEL} -> {FALLBACK_MODEL} (refusal: reasoning_extraction)"
+    )
+    assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}")
         == "text"
     )
@@ -254,9 +263,9 @@ def test_anthropic_instrumentation_beta_messages_streaming_fallback(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    """Sticky routing: fallback decided before generation, signaled only via
-    usage.iterations, with no `fallback` content block."""
-    client = Anthropic(api_key="sk-ant-fake")
+    """Upfront refusal: the requested model declines before generating, so the stream opens
+    with a `fallback` content block and usage.iterations records both hops."""
+    client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "sk-ant-fake"))
 
     stream = client.beta.messages.create(
         model=REQUESTED_MODEL,
@@ -289,17 +298,28 @@ def test_anthropic_instrumentation_beta_messages_streaming_fallback(
     assert_output_value_contains(
         output_value,
         {
-            "id": "msg_011CeTagmyNvN137DEtAYN5K",
+            "id": "msg_011CgT5Eb77QBxM6GeEhe2Jv",
             "model": FALLBACK_MODEL,
             "role": "assistant",
             "stop_reason": "max_tokens",
             "stop_sequence": None,
             "type": "message",
-            "content": [{"type": "text"}],
+            "content": [
+                {
+                    "type": "fallback",
+                    "from": {"model": REQUESTED_MODEL},
+                    "to": {"model": FALLBACK_MODEL},
+                    "trigger": {"type": "refusal", "category": "reasoning_extraction"},
+                },
+                {"type": "text"},
+            ],
             "usage": {
                 "input_tokens": 42,
                 "output_tokens": 128,
-                "iterations": [{"type": "fallback_message", "model": FALLBACK_MODEL}],
+                "iterations": [
+                    {"type": "message", "model": REQUESTED_MODEL, "output_tokens": 0},
+                    {"type": "fallback_message", "model": FALLBACK_MODEL, "output_tokens": 128},
+                ],
             },
         },
     )
@@ -319,16 +339,36 @@ def test_anthropic_instrumentation_beta_messages_streaming_fallback(
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "fallback"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == f"{REQUESTED_MODEL} -> {FALLBACK_MODEL} (refusal: reasoning_extraction)"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
         == "text"
     )
     assert isinstance(
-        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"),
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"),
         str,
     )
 
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 42
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 128
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 170
+    # a reasoning count of 0, reported when thinking did not run, is left out
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING not in attributes
+    # the fallback that served the response is in the metadata, among the usage iterations
+    assert_json_contains(
+        json.loads(str(attributes.pop(SpanAttributes.METADATA))),
+        {
+            "usage_iterations": [
+                {"type": "message", "model": REQUESTED_MODEL},
+                {"type": "fallback_message", "model": FALLBACK_MODEL},
+            ]
+        },
+    )
 
     assert attributes.pop(LLM_REQUEST_MODEL_NAME) == REQUESTED_MODEL
     assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == FALLBACK_MODEL

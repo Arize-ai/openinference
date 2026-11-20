@@ -1,0 +1,13 @@
+---
+import { getEntry, render } from "astro:content";
+
+import ReadmeLayout from "../layouts/ReadmeLayout.astro";
+
+const entry = await getEntry("root", "README");
+if (!entry) throw new Error("README.md not found");
+const { Content } = await render(entry);
+---
+
+<ReadmeLayout>
+  <Content />
+</ReadmeLayout>

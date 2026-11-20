@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, cast
 
@@ -28,6 +29,7 @@ from openinference.instrumentation.bedrock.utils._extract_invoke_model_attribute
     _build_nova_input_messages,
     _build_nova_output_messages,
     _build_nova_tools,
+    _nova_prompt_tokens,
     get_openai_output_attributes,
     set_input_attributes,
 )
@@ -38,10 +40,16 @@ if TYPE_CHECKING:
 from openinference.instrumentation.bedrock._converse_stream_callback import _ConverseStreamCallback
 from openinference.instrumentation.bedrock._rag_wrappers import _RagEventStream
 from openinference.instrumentation.bedrock._response_accumulator import _ResponseAccumulator
-from openinference.instrumentation.bedrock.utils import _EventStream, _finish, _use_span
+from openinference.instrumentation.bedrock.utils import (
+    _EventStream,
+    _finish,
+    _StreamClosed,
+    _use_span,
+)
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _AnthropicMessagesCallback,
 )
+from openinference.instrumentation.bedrock.utils.json_utils import parse_invoke_model_body
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -51,6 +59,20 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+
+def _end_span_on_stream_end(span: Span) -> Callable[[Any], Any]:
+    def callback(obj: Any) -> Any:
+        if isinstance(obj, (StopIteration, StopAsyncIteration)):
+            _finish(span, None, {}, isinstance(obj, _StreamClosed))
+        elif isinstance(obj, BaseException):
+            _finish(span, obj, {})
+        return obj
+
+    return callback
 
 
 class _NovaStreamCallback:
@@ -105,7 +127,7 @@ class _NovaStreamCallback:
                     pass
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
             self._finalize_output()
-            _finish(span, None, {})
+            _finish(span, None, {}, isinstance(obj, _StreamClosed))
         elif isinstance(obj, BaseException):
             _finish(span, obj, {})
         return obj
@@ -144,17 +166,17 @@ class _NovaStreamCallback:
                 self._stop_reason = stop_reason
         if metadata := payload.get("metadata"):
             usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}
-            input_tokens = usage.get("inputTokens") if isinstance(usage, dict) else None
+            prompt_tokens = _nova_prompt_tokens(usage) if isinstance(usage, dict) else None
             output_tokens = usage.get("outputTokens") if isinstance(usage, dict) else None
-            if input_tokens is not None:
-                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
+            if prompt_tokens is not None:
+                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
             if output_tokens is not None:
                 span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
             # Nova streaming metadata omits ``totalTokens``; derive it when possible
             # so consumers don't have to reconstruct the sum themselves.
             total = usage.get("totalTokens") if isinstance(usage, dict) else None
-            if total is None and input_tokens is not None and output_tokens is not None:
-                total = input_tokens + output_tokens
+            if total is None and prompt_tokens is not None and output_tokens is not None:
+                total = prompt_tokens + output_tokens
             if total is not None:
                 span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total)
             if isinstance(usage, dict):
@@ -253,7 +275,7 @@ class _OpenAIStreamCallback:
                 if isinstance(value := self._usage.get(key), int):
                     span.set_attribute(attribute, value)
             span.set_attributes(get_openai_output_attributes(self._output_messages()))
-            _finish(span, None, {})
+            _finish(span, None, {}, isinstance(obj, _StreamClosed))
         elif isinstance(obj, BaseException):
             _finish(span, obj, {})
         return obj
@@ -386,9 +408,31 @@ class _InvokeModelWithResponseStream(_WithTracer):
     def handle_response(response: Any, kwargs: Mapping[str, Any], span: Span) -> Any:
         from botocore.eventstream import EventStream
 
-        # Request body is InvokeModel payload (blob: str or bytes); json.loads accepts both.
-        # Construct a parsed view of the request rather than mutating kwargs in place.
-        body = json.loads(kwargs["body"])
+        # Request body is InvokeModel payload (blob: str, bytes, or seekable
+        # file-like object); parse without mutating kwargs in place. Telemetry
+        # must never raise into the application after the request was sent.
+        try:
+            body = parse_invoke_model_body(kwargs["body"])
+        except Exception:
+            logger.warning("Failed to extract input attributes", exc_info=True)
+            try:
+                span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
+                if isinstance(response.get("body"), EventStream):
+                    response["body"] = _EventStream(
+                        response["body"],
+                        _end_span_on_stream_end(span),
+                        _use_span(span),
+                    )
+                    return response
+                span.end()
+                return response
+            except Exception:
+                logger.exception("Failed to finalize span after input parsing failure")
+                try:
+                    span.end()
+                except Exception:
+                    pass
+                return response
         if isinstance(response["body"], EventStream):
             if "anthropic_version" in body:
                 parsed_request: Mapping[str, Any] = {**kwargs, "body": body}
@@ -433,8 +477,21 @@ class _InvokeModelWithResponseStream(_WithTracer):
             self._name,
             end_on_exit=False,
         ) as span:
-            response = wrapped(*args, **kwargs)
-            self.handle_response(response, kwargs, span)
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise
+            try:
+                self.handle_response(response, kwargs, span)
+            except Exception:
+                logger.exception("Failed to finalize streaming span")
+                try:
+                    span.end()
+                except Exception:
+                    pass
             return response
 
     async def _async_call(
@@ -456,7 +513,14 @@ class _InvokeModelWithResponseStream(_WithTracer):
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
                 raise
-            self.handle_response(response, kwargs, span)
+            try:
+                self.handle_response(response, kwargs, span)
+            except Exception:
+                logger.exception("Failed to finalize streaming span")
+                try:
+                    span.end()
+                except Exception:
+                    pass
             return response
 
 
@@ -467,7 +531,8 @@ class _ConverseStream(_WithTracer):
     This class wraps the Bedrock converse_stream API, starting a tracing span for each invocation.
     It attaches request attributes to the span, and if the response contains a streaming
     EventStream, it wraps the stream to enable span-aware streaming instrumentation.
-    The span is ended when the stream is fully consumed or if the response is not a stream.
+    The span is ended when the stream is fully consumed, closed, or dropped, or if the
+    response is not a stream.
     """
 
     _name = "bedrock.converse_stream"

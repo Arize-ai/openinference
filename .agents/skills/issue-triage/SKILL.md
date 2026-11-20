@@ -504,7 +504,9 @@ Rules for that comment:
 - Say plainly what you are unsure about. A confident wrong pointer costs more
   than no pointer, and it is public.
 - Post at most one triage comment per issue. If one already exists, only add
-  another when you have materially new information.
+  another when you have materially new information. A factory triage report
+  (a comment headed `## Factory triage`) counts: it already investigated and
+  tried to reproduce the issue.
 
 ## Stage 7 — Formatting
 
@@ -593,7 +595,9 @@ the run log.
   `clear_triage` is on, the contributor gate labels in stage 2, and a gate
   label in stage 8. Never remove any other label.
 - **Labels you may never add:** `good-agent-issue` and `agent-fix` outside an
-  explicitly enabled gate policy — both start GitHub Actions. `agent-in-progress`,
+  explicitly enabled gate policy — both start GitHub Actions. `factory`,
+  `factory-candidate` and `factory-review`, which belong to the factory
+  (`factory/README.md`). `agent-in-progress`,
   `lgtm`, `autorelease: *`, `dependencies`, `python`/`javascript`/`java`,
   `size:XS`/`XL`/`XXL`, `priority: *`, `blocked`, `stale`, `duplicate`,
   `wontfix`, `invalid`, `cannot reproduce`, `customer request`, `roadmap`,

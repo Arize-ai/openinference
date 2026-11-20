@@ -44,6 +44,28 @@ logger.addHandler(logging.NullHandler())
 _GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
 _GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
 
+# Usage keys set by pydantic-ai's `RequestUsage.opentelemetry_attributes()`. The cache counts are
+# emitted under the OTel names and again under `gen_ai.usage.details.*`; reasoning counts only
+# under `gen_ai.usage.details.*`, with a provider-specific key. The first key present wins.
+_TOKEN_COUNT_DETAILS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    (
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+        ("gen_ai.usage.cache_read.input_tokens", "gen_ai.usage.details.cache_read_tokens"),
+    ),
+    (
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+        ("gen_ai.usage.cache_creation.input_tokens", "gen_ai.usage.details.cache_write_tokens"),
+    ),
+    (
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+        (
+            "gen_ai.usage.details.reasoning_tokens",  # OpenAI, Groq, xAI
+            "gen_ai.usage.details.thinking_tokens",  # Anthropic
+            "gen_ai.usage.details.thoughts_tokens",  # Google
+        ),
+    ),
+)
+
 
 # Many event related conventions are not in the opentelemetry-python package yet
 class OTELConventions:
@@ -318,6 +340,13 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
             gen_ai_attrs[GEN_AI_USAGE_INPUT_TOKENS] + gen_ai_attrs[GEN_AI_USAGE_OUTPUT_TOKENS]
         )
         yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+    if not ignore_token_counts:
+        for oi_key, gen_ai_keys in _TOKEN_COUNT_DETAILS:
+            for gen_ai_key in gen_ai_keys:
+                if isinstance(value := gen_ai_attrs.get(gen_ai_key), int):
+                    yield oi_key, value
+                    break
 
     if GenAIConversationID.CONVERSATION_ID in gen_ai_attrs:
         yield SpanAttributes.SESSION_ID, gen_ai_attrs[GenAIConversationID.CONVERSATION_ID]

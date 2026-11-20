@@ -43,6 +43,29 @@ from openinference.instrumentation.google_adk._wrappers import (
 )
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
+
+def _adk_schema_version() -> int:
+    from google.adk.telemetry._schema_version import resolve_schema_version
+
+    return resolve_schema_version()
+
+
+def _pop_adk_schema_call_llm_attributes(attributes: dict[str, Any]) -> None:
+    """Pops the ADK-native `call_llm` attributes that depend on ADK's telemetry schema.
+
+    google-adk >= 2.13 defaults to schema v2, which drops ADK's request/response
+    payload attributes and replaces `gen_ai.system` with `gen_ai.provider.name`.
+    """
+    if _adk_schema_version() < 2:
+        assert attributes.pop("gcp.vertex.agent.llm_request", None)
+        assert attributes.pop("gcp.vertex.agent.llm_response", None)
+        assert attributes.pop("gcp.vertex.agent.session_id", None)
+        assert attributes.pop("gen_ai.system", None) == "gcp.vertex.agent"
+    else:
+        assert attributes.pop("gen_ai.provider.name", None)
+        attributes.pop("gen_ai.tool.definitions", None)
+
+
 _WEATHER_QUESTION = "What is the weather in New York?"
 _CODE_EXECUTION_QUESTION = (
     "What is the sum of the first 50 prime numbers? "
@@ -144,6 +167,15 @@ class _StreamFailureLlm(BaseLlm):
             partial=True,
         )
         raise RuntimeError("stream failed")
+
+
+class _TextLlm(BaseLlm):
+    """A fake model that answers with a single text chunk."""
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        yield LlmResponse(content=types.Content(role="model", parts=[types.Part(text="hello")]))
 
 
 def _failing_tool() -> dict[str, str]:
@@ -438,6 +470,50 @@ async def test_call_llm_span_ends_error_on_real_adk_stream_exception(
         s for s in in_memory_span_exporter.get_finished_spans() if s.name == "call_llm"
     ]
     assert call_llm_span.status.status_code == trace_api.StatusCode.ERROR
+
+
+async def test_adk_native_spans_do_not_leak_when_adk_tracer_exports(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADK's own tracer exports wherever the global tracer provider does. Point it
+    at the test exporter, as a global provider would, and check that a plain
+    agent run still produces only the OpenInference span tree."""
+    from google.adk import runners
+    from google.adk.flows.llm_flows.tools import _batch_executor
+    from google.adk.telemetry import node_tracing, tracing
+
+    adk_tracer = tracer_provider.get_tracer("gcp.vertex.agent")
+    for module in (runners, tracing, node_tracing, _batch_executor):
+        monkeypatch.setattr(module, "tracer", adk_tracer, raising=False)
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        agent = Agent(name=f"agent{token_hex(4)}", model=_TextLlm(model="fake-model"))
+        runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+        session = await runner.session_service.create_session(app_name=runner.app_name, user_id="u")
+        async for _ in runner.run_async(
+            user_id="u",
+            session_id=session.id,
+            new_message=types.Content(role="user", parts=[types.Part(text="hi")]),
+        ):
+            pass
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [(span.name, span.instrumentation_scope.name) for span in spans] == [  # type: ignore[union-attr]
+        ("call_llm", _OI_SCOPE),
+        (f"agent_run [{agent.name}]", _OI_SCOPE),
+        (f"invocation [{runner.app_name}]", _OI_SCOPE),
+    ]
+    call_llm_span, agent_run_span, invocation_span = spans
+    assert call_llm_span.parent is not None
+    assert call_llm_span.parent.span_id == agent_run_span.context.span_id
+    assert agent_run_span.parent is not None
+    assert agent_run_span.parent.span_id == invocation_span.context.span_id
+    assert (call_llm_span.attributes or {}).get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
 
 
 async def test_base_agent_run_async_keeps_content_output_after_state_delta_final_event(
@@ -792,11 +868,8 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes0.pop("gcp.vertex.agent.invocation_id", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.llm_request", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.llm_response", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.session_id", None)
+    _pop_adk_schema_call_llm_attributes(call_llm_attributes0)
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 107
     assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 6
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
@@ -827,13 +900,16 @@ async def test_google_adk_instrumentor(
     assert tool_attributes.pop("tool.name", None) == "get_weather"
     assert tool_attributes.pop("tool.parameters", None) == '{"city": "New York"}'
     assert tool_attributes.pop("gcp.vertex.agent.event_id", None)
-    assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
-    assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
-    assert tool_attributes.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "New York"}'
-    assert (
-        tool_attributes.pop("gcp.vertex.agent.tool_response", None)
-        == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-    )
+    if _adk_schema_version() < 2:
+        assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
+        assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
+        assert (
+            tool_attributes.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "New York"}'
+        )
+        assert (
+            tool_attributes.pop("gcp.vertex.agent.tool_response", None)
+            == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
+        )
     _pop_tool_span_id(tool_attributes)
     # GenAI attributes set by google-adk library
     tool_attributes.pop("gen_ai.operation.name", None)
@@ -914,11 +990,8 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
     assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes1.pop("gcp.vertex.agent.invocation_id", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.llm_request", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.llm_response", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.session_id", None)
+    _pop_adk_schema_call_llm_attributes(call_llm_attributes1)
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 141
     assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 24
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
@@ -1068,11 +1141,8 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes0.pop("gcp.vertex.agent.invocation_id", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.llm_request", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.llm_response", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.session_id", None)
+    _pop_adk_schema_call_llm_attributes(call_llm_attributes0)
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
-    assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 136
     # Output tokens include reasoning tokens.
     assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 92
@@ -1105,13 +1175,16 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert tool_attributes.pop("tool.name", None) == "get_weather"
     assert tool_attributes.pop("tool.parameters", None) == '{"city": "New York"}'
     assert tool_attributes.pop("gcp.vertex.agent.event_id", None)
-    assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
-    assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
-    assert tool_attributes.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "New York"}'
-    assert (
-        tool_attributes.pop("gcp.vertex.agent.tool_response", None)
-        == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-    )
+    if _adk_schema_version() < 2:
+        assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
+        assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
+        assert (
+            tool_attributes.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "New York"}'
+        )
+        assert (
+            tool_attributes.pop("gcp.vertex.agent.tool_response", None)
+            == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
+        )
     _pop_tool_span_id(tool_attributes)
     # GenAI attributes set by google-adk library
     tool_attributes.pop("gen_ai.operation.name", None)
@@ -1196,11 +1269,8 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
     assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes1.pop("gcp.vertex.agent.invocation_id", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.llm_request", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.llm_response", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.session_id", None)
+    _pop_adk_schema_call_llm_attributes(call_llm_attributes1)
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
-    assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 194
     assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 15
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
@@ -1232,13 +1302,14 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert tool_attributes1.pop("tool.name", None) == "get_weather"
     assert tool_attributes1.pop("tool.parameters", None) == '{"city": "London"}'
     assert tool_attributes1.pop("gcp.vertex.agent.event_id", None)
-    assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
-    assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
-    assert tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "London"}'
-    assert (
-        tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
-        == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-    )
+    if _adk_schema_version() < 2:
+        assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
+        assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
+        assert tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "London"}'
+        assert (
+            tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
+            == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
+        )
     _pop_tool_span_id(tool_attributes1)
     # GenAI attributes set by google-adk library
     tool_attributes1.pop("gen_ai.operation.name", None)
@@ -1342,11 +1413,8 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes2.pop("llm.provider", None) == "google"
     assert call_llm_attributes2.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes2.pop("gcp.vertex.agent.invocation_id", None)
-    assert call_llm_attributes2.pop("gcp.vertex.agent.llm_request", None)
-    assert call_llm_attributes2.pop("gcp.vertex.agent.llm_response", None)
-    assert call_llm_attributes2.pop("gcp.vertex.agent.session_id", None)
+    _pop_adk_schema_call_llm_attributes(call_llm_attributes2)
     assert call_llm_attributes2.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
-    assert call_llm_attributes2.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) == 250
     assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) == 43
     call_llm_attributes2.pop("gen_ai.response.finish_reasons", None)
@@ -1600,11 +1668,8 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes0.pop("gcp.vertex.agent.invocation_id", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.llm_request", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.llm_response", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.session_id", None)
+    _pop_adk_schema_call_llm_attributes(call_llm_attributes0)
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 323
     assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 11
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
@@ -1635,15 +1700,17 @@ async def test_google_adk_instrumentor_multi_agent(
         transfer_tool_attributes.pop("tool.parameters", None) == '{"agent_name": "weather_agent"}'
     )
     assert transfer_tool_attributes.pop("gcp.vertex.agent.event_id", None)
-    assert transfer_tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
-    assert transfer_tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
-    assert (
-        transfer_tool_attributes.pop("gcp.vertex.agent.tool_call_args", None)
-        == '{"agent_name": "weather_agent"}'
-    )
-    assert (
-        transfer_tool_attributes.pop("gcp.vertex.agent.tool_response", None) == '{"result": null}'
-    )
+    if _adk_schema_version() < 2:
+        assert transfer_tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
+        assert transfer_tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
+        assert (
+            transfer_tool_attributes.pop("gcp.vertex.agent.tool_call_args", None)
+            == '{"agent_name": "weather_agent"}'
+        )
+        assert (
+            transfer_tool_attributes.pop("gcp.vertex.agent.tool_response", None)
+            == '{"result": null}'
+        )
     _pop_tool_span_id(transfer_tool_attributes)
     # GenAI attributes set by google-adk library
     transfer_tool_attributes.pop("gen_ai.operation.name", None)
@@ -1777,11 +1844,8 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
     assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes1.pop("gcp.vertex.agent.invocation_id", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.llm_request", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.llm_response", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.session_id", None)
+    _pop_adk_schema_call_llm_attributes(call_llm_attributes1)
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 453
     assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 6
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
@@ -1814,16 +1878,17 @@ async def test_google_adk_instrumentor_multi_agent(
     assert get_weather_tool_attributes.pop("tool.name", None) == "get_weather"
     assert get_weather_tool_attributes.pop("tool.parameters", None) == '{"city": "New York"}'
     assert get_weather_tool_attributes.pop("gcp.vertex.agent.event_id", None)
-    assert get_weather_tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
-    assert get_weather_tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
-    assert (
-        get_weather_tool_attributes.pop("gcp.vertex.agent.tool_call_args", None)
-        == '{"city": "New York"}'
-    )
-    assert (
-        get_weather_tool_attributes.pop("gcp.vertex.agent.tool_response", None)
-        == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-    )
+    if _adk_schema_version() < 2:
+        assert get_weather_tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
+        assert get_weather_tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
+        assert (
+            get_weather_tool_attributes.pop("gcp.vertex.agent.tool_call_args", None)
+            == '{"city": "New York"}'
+        )
+        assert (
+            get_weather_tool_attributes.pop("gcp.vertex.agent.tool_response", None)
+            == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
+        )
     _pop_tool_span_id(get_weather_tool_attributes)
     # GenAI attributes set by google-adk library
     get_weather_tool_attributes.pop("gen_ai.operation.name", None)
@@ -1955,11 +2020,8 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes2.pop("llm.provider", None) == "google"
     assert call_llm_attributes2.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes2.pop("gcp.vertex.agent.invocation_id", None)
-    assert call_llm_attributes2.pop("gcp.vertex.agent.llm_request", None)
-    assert call_llm_attributes2.pop("gcp.vertex.agent.llm_response", None)
-    assert call_llm_attributes2.pop("gcp.vertex.agent.session_id", None)
+    _pop_adk_schema_call_llm_attributes(call_llm_attributes2)
     assert call_llm_attributes2.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes2.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) == 487
     assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) == 25
     call_llm_attributes2.pop("gen_ai.response.finish_reasons", None)
@@ -2173,11 +2235,8 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert call_llm_attributes.pop("llm.provider", None) == "google"
     assert call_llm_attributes.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes.pop("gcp.vertex.agent.invocation_id", None)
-    assert call_llm_attributes.pop("gcp.vertex.agent.llm_request", None)
-    assert call_llm_attributes.pop("gcp.vertex.agent.llm_response", None)
-    assert call_llm_attributes.pop("gcp.vertex.agent.session_id", None)
+    _pop_adk_schema_call_llm_attributes(call_llm_attributes)
     assert call_llm_attributes.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert call_llm_attributes.pop("gen_ai.usage.input_tokens", None) == 608
     assert call_llm_attributes.pop("gen_ai.usage.output_tokens", None) == 115
     call_llm_attributes.pop("gen_ai.response.finish_reasons", None)
@@ -2204,13 +2263,14 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert tool_attributes.pop("tool.name", None) == "load_remote_image"
     assert tool_attributes.pop("tool.parameters", None) == '{"file_path": "sample.png"}'
     assert tool_attributes.pop("gcp.vertex.agent.event_id", None)
-    assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
-    assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
-    assert (
-        tool_attributes.pop("gcp.vertex.agent.tool_call_args", None)
-        == '{"file_path": "sample.png"}'
-    )
-    assert tool_attributes.pop("gcp.vertex.agent.tool_response", None)
+    if _adk_schema_version() < 2:
+        assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
+        assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
+        assert (
+            tool_attributes.pop("gcp.vertex.agent.tool_call_args", None)
+            == '{"file_path": "sample.png"}'
+        )
+        assert tool_attributes.pop("gcp.vertex.agent.tool_response", None)
     _pop_tool_span_id(tool_attributes)
     # GenAI attributes set by google-adk library
     tool_attributes.pop("gen_ai.operation.name", None)
@@ -2237,13 +2297,14 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert tool_attributes1.pop("tool.name", None) == "load_artifacts"
     assert tool_attributes1.pop("tool.parameters", None) == '{"artifact_names": ["sample.png"]}'
     assert tool_attributes1.pop("gcp.vertex.agent.event_id", None)
-    assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
-    assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
-    assert (
-        tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None)
-        == '{"artifact_names": ["sample.png"]}'
-    )
-    assert tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
+    if _adk_schema_version() < 2:
+        assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
+        assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
+        assert (
+            tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None)
+            == '{"artifact_names": ["sample.png"]}'
+        )
+        assert tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
     _pop_tool_span_id(tool_attributes1)
     # GenAI attributes set by google-adk library
     tool_attributes1.pop("gen_ai.operation.name", None)
@@ -2835,8 +2896,12 @@ async def test_google_adk_instrumentor_compaction_span_error_preserves_input(
 
     GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
     try:
-        with pytest.raises(RuntimeError, match="boom"):
+        # google-adk >= 2.12 logs compaction failures and continues the turn;
+        # earlier versions propagate the exception.
+        try:
             await _run_compaction_query(app, app_name)
+        except RuntimeError as e:
+            assert str(e) == "boom"
     finally:
         GoogleADKInstrumentor().uninstrument()
 

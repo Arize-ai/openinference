@@ -5,6 +5,40 @@ from json import JSONDecodeError
 from typing import Any
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+
+def parse_invoke_model_body(body: Any) -> Any:
+    """
+    Parse an InvokeModel request body that may be str, bytes, or a file-like object.
+
+    boto3 documents ``body`` as "bytes or seekable file-like object". A file-like body is
+    read from its current position, where botocore also starts sending. If it was already
+    read to the end, as it is once the request is sent, it is read again from the start.
+    Its position is restored afterwards so the request is unaffected.
+    """
+    if isinstance(body, dict):
+        return body
+    if isinstance(body, (str, bytes, bytearray)):
+        return json.loads(body)
+    if not callable(getattr(body, "read", None)):
+        return json.loads(body)
+    try:
+        position = body.tell()
+    except Exception:
+        position = None
+    try:
+        content = body.read()
+        if not content and position:
+            body.seek(0)
+            content = body.read()
+        return json.loads(content)
+    finally:
+        if position is not None:
+            try:
+                body.seek(position)
+            except Exception:
+                pass
 
 
 def fix_loose_json_string(s: str) -> list[dict[str, Any]]:

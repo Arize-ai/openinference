@@ -1,5 +1,90 @@
 # Changelog
 
+## [4.7.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.8...python-openinference-instrumentation-llama-index-v4.7.9) (2026-11-19)
+
+
+### Bug Fixes
+
+* **llama_index:** end a streamed LLM span when its stream ends ([#4261](https://github.com/Arize-ai/openinference/issues/4261)) ([0f013df](https://github.com/Arize-ai/openinference/commit/0f013dfe58282b7406f784788607608573fe191a))
+
+## [4.7.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.7...python-openinference-instrumentation-llama-index-v4.7.8) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.79 ([#4335](https://github.com/Arize-ai/openinference/issues/4335)) ([e03fde3](https://github.com/Arize-ai/openinference/commit/e03fde31a743fedd77fa3e2ab043bfa9b95b7058))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.46 ([#4334](https://github.com/Arize-ai/openinference/issues/4334)) ([70ce76a](https://github.com/Arize-ai/openinference/commit/70ce76aefaf3daa99292bf3d456e496ff75742bd))
+
+## [4.7.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.6...python-openinference-instrumentation-llama-index-v4.7.7) (2026-11-16)
+
+
+### Bug Fixes
+
+* **llama_index:** make the span current while each step of an LLM stream runs ([#4115](https://github.com/Arize-ai/openinference/issues/4115)) ([2890f81](https://github.com/Arize-ai/openinference/commit/2890f8164e3c5bdb5f4a544561936f86bea4c1b9))
+
+## [4.7.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.5...python-openinference-instrumentation-llama-index-v4.7.6) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+
+## [4.7.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.4...python-openinference-instrumentation-llama-index-v4.7.5) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+
+## [4.7.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.3...python-openinference-instrumentation-llama-index-v4.7.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
+## [4.7.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.2...python-openinference-instrumentation-llama-index-v4.7.3) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+
+## [4.7.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.1...python-openinference-instrumentation-llama-index-v4.7.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **llama_index:** Preserve Complete Gemini Token Usage ([#4227](https://github.com/Arize-ai/openinference/issues/4227)) ([d2738f8](https://github.com/Arize-ai/openinference/commit/d2738f869fada28f7786e09ba36a473a4689caf6))
+
+## [4.7.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.0...python-openinference-instrumentation-llama-index-v4.7.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
+## [4.7.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.6.2...python-openinference-instrumentation-llama-index-v4.7.0) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [4.6.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.6.1...python-openinference-instrumentation-llama-index-v4.6.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
+## [4.6.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.6.0...python-openinference-instrumentation-llama-index-v4.6.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **llama_index:** make spans current so OpenAIInstrumentor nests under them ([#4058](https://github.com/Arize-ai/openinference/issues/4058)) ([c8144e4](https://github.com/Arize-ai/openinference/commit/c8144e4b9ce45fb8ce86099fc2de143b4d25b239))
+
 ## [4.6.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.5.4...python-openinference-instrumentation-llama-index-v4.6.0) (2026-10-09)
 
 

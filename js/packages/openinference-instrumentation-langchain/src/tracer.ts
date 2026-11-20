@@ -14,7 +14,9 @@ import {
   safelyFormatInputMessages,
   safelyFormatIO,
   safelyFormatLLMParams,
+  safelyFormatLLMProvider,
   safelyFormatMetadata,
+  safelyFormatModelName,
   safelyFormatOutputMessages,
   safelyFormatPromptTemplate,
   safelyFormatRetrievalDocuments,
@@ -125,6 +127,8 @@ export class LangChainTracer extends BaseTracer {
     const attributes = safelyFlattenAttributes({
       ...safelyFormatIO({ io: run.inputs, ioType: "input" }),
       ...safelyFormatIO({ io: run.outputs, ioType: "output" }),
+      ...safelyFormatModelName(run),
+      ...safelyFormatLLMProvider(run.extra),
       ...safelyFormatLLMParams(run.extra),
       ...safelyFormatPromptTemplate(run),
       ...safelyFormatTokenCounts(run.outputs),

@@ -5,17 +5,18 @@ interactions:
       1, "thinkingConfig": {"thinking_budget": 100}}}'
     headers: {}
     method: POST
-    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+    uri: https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
-        [\n          {\n            \"text\": \"this is a test\"\n          }\n        ],\n
-        \       \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n
-        \     \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
-        7,\n    \"candidatesTokenCount\": 4,\n    \"totalTokenCount\": 31,\n    \"promptTokensDetails\":
+        [\n          {\n            \"text\": \"this is a test\",\n            \"thoughtSignature\":
+        \"EmkKZwFpFH0TdHVVkA5Z5X8Jd9xXfOqXZqvGVh7w5md9yFxU3ZMc5FyilecrWT2ZXfKUaAlTqJSGW5ZoVhajisvfLq+AN5NwpRVwlsYtZvdTYvq2nStW1Ue3ZA6KoGGUBltpStzBKNrFtM0=\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        7,\n    \"candidatesTokenCount\": 4,\n    \"totalTokenCount\": 11,\n    \"promptTokensDetails\":
         [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 7\n      }\n
-        \   ],\n    \"thoughtsTokenCount\": 20,\n    \"serviceTier\": \"standard\"\n
-        \ },\n  \"modelVersion\": \"gemini-2.5-flash\",\n  \"responseId\": \"htcEapOIObi0qtsPwqazsA8\"\n}\n"
+        \   ],\n    \"serviceTier\": \"standard\"\n  },\n  \"modelVersion\": \"gemini-3.6-flash\",\n
+        \ \"responseId\": \"0Pr0asbeJtea9MoP-q3JkAY\"\n}\n"
     headers: {}
     status:
       code: 200

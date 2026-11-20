@@ -25,6 +25,9 @@ def vcr_config() -> Dict[str, Any]:
         "before_record_response": _strip_response_headers,
         "decode_compressed_response": True,
         "record_mode": "once",
+        # together>=3 sends chat completions to api-inference.together.ai; match on path
+        # so the cassettes replay against whichever host the installed SDK targets.
+        "match_on": ["method", "scheme", "port", "path", "query"],
     }
 
 

@@ -1,6 +1,7 @@
+import asyncio
 import gc
 import json
-from typing import Any, Iterator
+from typing import Any, AsyncIterator, Dict, Iterator
 
 import ollama
 import pytest
@@ -294,6 +295,149 @@ def test_chat_error_records_model_name(in_memory_span_exporter: InMemorySpanExpo
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "nonexistent-model:latest"
 
 
+def _assert_interrupted_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+    name: str,
+    exception_type: "type[BaseException]",
+) -> Dict[str, Any]:
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == name
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.status.description is not None
+    assert span.status.description.startswith(f"{exception_type.__name__}:")
+    assert [event.name for event in span.events] == ["exception"]
+    event_type = str(dict(span.events[0].attributes or {})["exception.type"])
+    assert event_type.rsplit(".", 1)[-1] == exception_type.__name__
+    assert "Calling end() on an ended span" not in caplog.text
+    attrs = dict(span.attributes or {})
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    return attrs
+
+
+def test_chat_keyboard_interrupt_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    interrupt = KeyboardInterrupt()
+
+    def _interrupted(self: Any, *a: Any, **k: Any) -> Any:
+        raise interrupt
+
+    monkeypatch.setattr(Client, "_request", _interrupted)
+
+    with pytest.raises(KeyboardInterrupt) as excinfo:
+        ollama.chat(model=MODEL, messages=[{"role": "user", "content": "hi"}])
+
+    assert excinfo.value is interrupt
+    attrs = _assert_interrupted_span(in_memory_span_exporter, caplog, "Chat", KeyboardInterrupt)
+    assert SpanAttributes.OUTPUT_VALUE not in attrs
+
+
+async def test_async_chat_cancelled_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    started = asyncio.Event()
+
+    async def _hang(self: Any, *a: Any, **k: Any) -> Any:
+        started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(AsyncClient, "_request", _hang)
+
+    task = asyncio.create_task(
+        AsyncClient().chat(model=MODEL, messages=[{"role": "user", "content": "hi"}])
+    )
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert task.cancelled()
+    attrs = _assert_interrupted_span(
+        in_memory_span_exporter, caplog, "AsyncChat", asyncio.CancelledError
+    )
+    assert SpanAttributes.OUTPUT_VALUE not in attrs
+
+
+def test_chat_stream_keyboard_interrupt_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    interrupt = KeyboardInterrupt()
+
+    def _stream_chunks(self: Any, *a: Any, **k: Any) -> Iterator[ChatResponse]:
+        yield ChatResponse(
+            model=MODEL,
+            message=Message(role="assistant", content="The sky "),
+            done=False,
+        )
+        raise interrupt
+
+    monkeypatch.setattr(Client, "_request", _stream_chunks)
+
+    stream = ollama.chat(model=MODEL, messages=[{"role": "user", "content": "hi"}], stream=True)
+    with pytest.raises(KeyboardInterrupt) as excinfo:
+        list(stream)
+
+    assert excinfo.value is interrupt
+    attrs = _assert_interrupted_span(in_memory_span_exporter, caplog, "Chat", KeyboardInterrupt)
+    assert (
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "The sky "
+    )
+
+
+async def test_async_chat_stream_cancelled_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    first_chunk = asyncio.Event()
+
+    async def _stream_chunks() -> AsyncIterator[ChatResponse]:
+        yield ChatResponse(
+            model=MODEL,
+            message=Message(role="assistant", content="The sky "),
+            done=False,
+        )
+        await asyncio.Event().wait()
+
+    async def _request(self: Any, *a: Any, **k: Any) -> AsyncIterator[ChatResponse]:
+        return _stream_chunks()
+
+    monkeypatch.setattr(AsyncClient, "_request", _request)
+
+    async def _consume() -> None:
+        stream = await AsyncClient().chat(
+            model=MODEL, messages=[{"role": "user", "content": "hi"}], stream=True
+        )
+        async for _ in stream:
+            first_chunk.set()
+
+    task = asyncio.create_task(_consume())
+    await first_chunk.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert task.cancelled()
+    attrs = _assert_interrupted_span(
+        in_memory_span_exporter, caplog, "AsyncChat", asyncio.CancelledError
+    )
+    assert (
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "The sky "
+    )
+
+
 @pytest.mark.vcr
 def test_suppress_tracing(in_memory_span_exporter: InMemorySpanExporter) -> None:
     from openinference.instrumentation import suppress_tracing
@@ -551,3 +695,36 @@ def test_uninstrument_deactivates_captured_aliases(
     finally:
         # Restore for the autouse fixture's teardown symmetry.
         OllamaInstrumentor().instrument()
+
+
+def test_options_model_recorded_like_mapping(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ollama.Options` must land in the span the way the equivalent mapping does.
+
+    `Client.chat` accepts either, and both send the same request body, so the
+    recorded invocation parameters should not depend on which one the caller
+    chose. Dumping the model with `str()` recorded its repr, carrying every
+    unset field along with it.
+    """
+    monkeypatch.setattr(
+        Client,
+        "_request",
+        lambda self, *a, **k: ChatResponse(
+            model=MODEL, message=Message(role="assistant", content="hi"), done=True
+        ),
+    )
+    messages = [{"role": "user", "content": "hi"}]
+
+    ollama.chat(model=MODEL, messages=messages, options={"temperature": 0.1})
+    ollama.chat(model=MODEL, messages=messages, options=ollama.Options(temperature=0.1))
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    from_mapping, from_model = (
+        json.loads(str(dict(span.attributes or {})[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
+        for span in spans
+    )
+    assert from_mapping["options"] == {"temperature": 0.1}
+    assert from_model["options"] == {"temperature": 0.1}

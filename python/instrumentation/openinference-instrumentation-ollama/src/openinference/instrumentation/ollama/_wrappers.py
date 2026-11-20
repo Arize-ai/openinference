@@ -141,7 +141,9 @@ class _ChatWrapper(_ChatWrapperBase):
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
+                # Includes KeyboardInterrupt and asyncio.CancelledError, which are
+                # not ``Exception`` subclasses but must still end the span.
                 self._record_exception(span, exception)
                 raise
             if isinstance(response, IteratorABC):
@@ -175,7 +177,9 @@ class _AsyncChatWrapper(_ChatWrapperBase):
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
+                # Includes KeyboardInterrupt and asyncio.CancelledError, which are
+                # not ``Exception`` subclasses but must still end the span.
                 self._record_exception(span, exception)
                 raise
             if isinstance(response, AsyncIteratorABC):

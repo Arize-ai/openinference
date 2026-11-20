@@ -1,5 +1,53 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.5.10
+
+### Patch Changes
+
+- 3154e2b: Stop building and publishing the unused `dist/esnext` output and the non-standard `esnext` package field. Entry points resolved through `exports`, `main` and `module` are unchanged.
+- Updated dependencies [3154e2b]
+  - @arizeai/openinference-core@2.8.4
+  - @arizeai/openinference-semantic-conventions@2.17.1
+
+## 0.5.9
+
+### Patch Changes
+
+- 2c36160: fix(bedrock): handle cross-region inference model IDs in extractModelName
+  
+  Cross-region model IDs (e.g., `us.anthropic.claude-haiku-4-5-20251001-v1:0`) have a region prefix before the vendor, resulting in 3 dot-separated segments instead of 2. The previous code used `parts[1]` which returned the vendor name (`"anthropic"`) instead of the actual model name. Changed to `parts[parts.length - 1]` to always pick the last segment (the model name) regardless of prefix count.
+
+## 0.5.8
+
+### Patch Changes
+
+- Updated dependencies [7f295ae]
+  - @arizeai/openinference-semantic-conventions@2.17.0
+  - @arizeai/openinference-core@2.8.3
+
+## 0.5.7
+
+### Patch Changes
+
+- Updated dependencies [10bb8cc]
+  - @arizeai/openinference-semantic-conventions@2.16.0
+  - @arizeai/openinference-core@2.8.2
+
+## 0.5.6
+
+### Patch Changes
+
+- 5c89717: Record the top-level `system` prompt of Anthropic `InvokeModel` requests as the first input message (a string or an array of text blocks), so the conversation's messages start at index 1 when a system prompt is set.
+
+## 0.5.5
+
+### Patch Changes
+
+- Updated dependencies [dc63d01]
+- Updated dependencies [298ff79]
+  - @arizeai/openinference-semantic-conventions@2.15.0
+  - @arizeai/openinference-core@2.8.1
+
 ## 0.5.4
 
 ### Patch Changes

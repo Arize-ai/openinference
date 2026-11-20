@@ -398,7 +398,17 @@ function createSessionProxy(
             }
           }
 
-          return context.with(parentContext, () => wrappedGenerator());
+          // Calling an async generator only creates it; its body runs on each
+          // next()/return()/throw(). Run every step inside the turn context so
+          // SDK work done while iterating is parented on ClaudeAgent.turn.
+          const generator = wrappedGenerator();
+          const next = generator.next.bind(generator);
+          const returnFn = generator.return.bind(generator);
+          const throwFn = generator.throw.bind(generator);
+          generator.next = (...args) => context.with(parentContext, () => next(...args));
+          generator.return = (value) => context.with(parentContext, () => returnFn(value));
+          generator.throw = (error) => context.with(parentContext, () => throwFn(error));
+          return generator;
         };
       }
 

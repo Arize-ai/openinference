@@ -1,6 +1,6 @@
 # OpenInference Instrumentation for OpenAI Agents SDK (Node.js)
 
-OpenTelemetry-based instrumentation for the [OpenAI Agents SDK](https://www.npmjs.com/package/@openai/agents) (`@openai/agents`). Bridges the SDK's native tracing events to OpenTelemetry spans following the [OpenInference semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md), so agent runs can be observed in any OpenTelemetry-compatible backend such as [Arize Phoenix](https://github.com/Arize-ai/phoenix), [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), Jaeger, or your collector of choice.
+OpenTelemetry-based instrumentation for the [OpenAI Agents SDK](https://www.npmjs.com/package/@openai/agents) (`@openai/agents`). Bridges the SDK's native tracing events to OpenTelemetry spans following the [OpenInference semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md), so agent runs can be observed in any OpenTelemetry-compatible backend such as [Arize Phoenix](https://github.com/Arize-ai/phoenix), [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), Jaeger, or your collector of choice.
 
 ## Installation
 
@@ -102,7 +102,7 @@ Each agents SDK span type is mapped to an OpenInference span kind:
 | ------------ | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent`      | `AGENT`                   | `graph.node.id`, `graph.node.parent_id` (on handoff destination)                                                                                                                                                                         |
 | `generation` | `LLM`                     | `llm.model_name`, `llm.invocation_parameters`, `llm.input_messages.*`, `llm.output_messages.*`, `llm.token_count.{prompt,completion,total}`, `llm.token_count.prompt_details.cache_read`, `llm.token_count.completion_details.reasoning` |
-| `response`   | `LLM`                     | All of the above plus `llm.tools.*`, system instructions as input message 0                                                                                                                                                              |
+| `response`   | `LLM`                     | All of the above plus `llm.tools.*`, `output.images.*` for image-generation results, system instructions as input message 0                                                                                                              |
 | `function`   | `TOOL`                    | `tool.name`, `input.value`, `output.value`                                                                                                                                                                                               |
 | `handoff`    | `TOOL`                    | Span name `handoff to <to_agent>`; the destination agent receives `graph.node.parent_id` linking back to the source                                                                                                                      |
 | `mcp_tools`  | `TOOL`                    | `output.value` (JSON list of tool names)                                                                                                                                                                                                 |
@@ -134,5 +134,5 @@ Apache-2.0
 
 OpenAI cache reads (`cached_tokens`) and writes (`cache_write_tokens`) are recorded as
 `llm.token_count.prompt_details.cache_read` and `cache_write`. See the
-[semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md#token-count-details) for how these sub-counts relate to the prompt total, and the
+[semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/spans/llm.md#token-counts) for how these sub-counts relate to the prompt total, and the
 [cache token example](https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-openai/examples/cache_tokens.md) for a Phoenix round trip.

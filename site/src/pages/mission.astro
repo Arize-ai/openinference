@@ -1,0 +1,32 @@
+---
+/**
+ * The mission: the repository's MISSION.md, on the 880px page. One of a kind,
+ * like the credits page: no rails, no hero, just the markdown.
+ */
+import { getEntry, render } from "astro:content";
+
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { pages } from "../lib/site";
+
+const entry = await getEntry("mission", "MISSION");
+if (!entry) throw new Error("MISSION.md not found");
+const { Content } = await render(entry);
+---
+
+<BaseLayout title={pages.mission.title} description={pages.mission.description}>
+  <article class="prose mission" data-markdown>
+    <Content />
+  </article>
+</BaseLayout>
+
+<style>
+  .mission { padding-block: var(--space-8); }
+  /* The mission line under the title, set as the page's lede. */
+  .mission :global(h1 + p) {
+    color: var(--soft);
+    font-size: var(--text-lede);
+    line-height: 1.45;
+    text-wrap: balance;
+  }
+  .mission :global(h1 + p strong) { color: var(--fg); }
+</style>

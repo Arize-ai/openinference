@@ -1,11 +1,15 @@
 import logging
-from typing import Any, Collection, Optional
+from typing import Any, Collection, Optional, Tuple, Type
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import Span
 
 from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.llama_index._llm_stream import (
+    instrument_llm_streams,
+    uninstrument_llm_streams,
+)
 from openinference.instrumentation.llama_index.package import _instruments
 from openinference.instrumentation.llama_index.version import __version__
 
@@ -90,6 +94,10 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
                     break
             else:
                 dispatcher.add_event_handler(self._event_handler)
+            try:
+                instrument_llm_streams(_llm_classes(), self._span_handler.pop_llm_stream_span)
+            except Exception:
+                logger.exception("Failed to wrap the LLM stream methods")
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._use_legacy_callback_handler:
@@ -113,7 +121,18 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
                 lambda h: not isinstance(h, type(self._event_handler)),
                 dispatcher.event_handlers,
             )
+            try:
+                uninstrument_llm_streams(_llm_classes())
+            except Exception:
+                logger.exception("Failed to unwrap the LLM stream methods")
             self._event_handler = None
+
+
+def _llm_classes() -> Tuple[Type[Any], ...]:
+    from llama_index.core.base.llms.base import BaseLLM
+    from llama_index.core.multi_modal_llms import MultiModalLLM
+
+    return BaseLLM, MultiModalLLM
 
 
 def get_current_span() -> Optional[Span]:
