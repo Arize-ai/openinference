@@ -164,7 +164,7 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
         "gen_ai.operation.name": "chat",
         "gen_ai.output.messages": [
           {
-            "finish_reason": "tool_use",
+            "finish_reason": "tool_call",
             "parts": [
               {
                 "content": "Let me check the weather.",
@@ -187,7 +187,7 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
         "gen_ai.request.model": "claude-sonnet-4-6",
         "gen_ai.request.temperature": 0.2,
         "gen_ai.response.finish_reasons": [
-          "tool_use",
+          "tool_call",
         ],
         "gen_ai.response.id": "msg_tool_use",
         "gen_ai.response.model": "claude-sonnet-4-6",
@@ -250,7 +250,7 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
         "gen_ai.operation.name": "chat",
         "gen_ai.output.messages": [
           {
-            "finish_reason": "end_turn",
+            "finish_reason": "stop",
             "parts": [
               {
                 "content": "Hello, world",
@@ -265,7 +265,7 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
         "gen_ai.request.model": "claude-sonnet-4-6",
         "gen_ai.request.stream": true,
         "gen_ai.response.finish_reasons": [
-          "end_turn",
+          "stop",
         ],
         "gen_ai.response.id": "msg_stream",
         "gen_ai.response.model": "claude-sonnet-4-6",
@@ -289,7 +289,7 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
         "gen_ai.request.model": "claude-sonnet-4-6",
         "gen_ai.request.temperature": 0.2,
         "gen_ai.response.finish_reasons": [
-          "tool_use",
+          "tool_call",
         ],
         "gen_ai.response.model": "claude-sonnet-4-6",
         "gen_ai.usage.cache_creation.input_tokens": 8,
