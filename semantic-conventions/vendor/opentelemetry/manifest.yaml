@@ -1,0 +1,14 @@
+# Vendored from the OpenTelemetry semantic conventions. Do not edit by hand.
+#
+# Source:  https://github.com/open-telemetry/semantic-conventions.git@v1.45.0[model]
+# Schema:  https://opentelemetry.io/schemas/1.45.0
+#
+# Only the attributes that the OpenInference model references are copied, so
+# that docs and code can be generated from the model without network access.
+# Refresh with `make -C semantic-conventions vendor` after changing the pinned
+# version in model/manifest.yaml or referencing another OpenTelemetry attribute.
+file_format: definition_manifest/2.0
+name: opentelemetry-vendored
+description: The OpenTelemetry attributes that the OpenInference model references.
+schema_url: https://opentelemetry.io/schemas/1.45.0
+stability: development

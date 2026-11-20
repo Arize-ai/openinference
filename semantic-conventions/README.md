@@ -28,6 +28,7 @@ semantic-conventions/
 ├── templates/registry/     # Weaver templates: markdown/ for docs and spec tables; python/, go/,
 │                           #   typescript/, java/ for the language packages
 ├── docs/registry/          # GENERATED reference (do not edit by hand)
+├── vendor/opentelemetry/   # The OpenTelemetry attributes the model reuses, vendored for offline generation
 ├── tests/live-check/       # Sample wire-format keys that must / must not resolve against the registry
 ├── scripts/                # Checks run by the Makefile
 ├── versions.env            # Pinned Weaver and policy versions
@@ -72,6 +73,7 @@ To change the conventions:
   requests, CI compares the model with the base branch and fails on removals and incompatible changes.
 - **Reuse OpenTelemetry attributes** when one exists for the same concept. `session.id` and `user.id` are referenced
   from the OpenTelemetry registry (a dependency in [`model/manifest.yaml`](model/manifest.yaml)), not redefined.
+  Run `make vendor` after referencing another one.
 - **Well-known values** are enum `members`. Enums are open: a custom value may be used when no member applies.
 - **Structured values.** OTLP span attributes cannot hold objects, so OpenInference flattens them or serializes them
   to JSON. The model records which, in an annotation that policies check and tools can read:
@@ -123,10 +125,22 @@ order, need the new key added to the marker. To add a table to any page under `s
 | TypeScript | [`templates/registry/typescript`](templates/registry/typescript) | `js/packages/openinference-semantic-conventions/src/trace/SemanticConventions.ts` |
 | Java | [`templates/registry/java`](templates/registry/java) | `java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticConventions.java` |
 
-Generation is self-contained. It needs only Weaver at the pinned version (or the container image), not the language
-toolchains: the templates emit code that already satisfies each language's formatter (ruff, gofmt, oxfmt, Spotless),
-and the output is deterministic. CI regenerates and fails on any difference, so a generated file cannot be edited by
-hand or go stale. Each language's own CI then formats, compiles, and tests the result.
+Generation is hermetic: its only inputs are files in this repository and Weaver at the pinned version.
+
+- **No network.** The model reuses a few OpenTelemetry attributes and declares the OpenTelemetry registry as a
+  dependency, which Weaver would otherwise clone. The definitions of exactly those attributes are vendored in
+  [`vendor/opentelemetry`](vendor/opentelemetry), and the `generate-*` targets resolve the dependency from there. When
+  Weaver runs from its container image, they run with `--network none`.
+- **No language toolchain.** The templates emit code that already satisfies each language's formatter (ruff, gofmt,
+  oxfmt, Spotless), so nothing is run after Weaver.
+- **Deterministic.** The same model always produces the same files. CI regenerates everything with the network
+  disabled and fails on any difference, so a generated file cannot be edited by hand or go stale. Each language's own
+  CI then compiles and tests the result.
+
+`model/manifest.yaml` still names the real OpenTelemetry registry, because that is what other registries resolve
+when they depend on this one. `make check-vendor` (needs the network) fails if the vendored copy differs from
+upstream. After changing the pinned OpenTelemetry version or referencing another OpenTelemetry attribute, run
+`make vendor`.
 
 Constant names follow from the attribute key (`llm.model_name` becomes `LLM_MODEL_NAME`, or `LLMModelName` in Go).
 Where a published name differs:
@@ -188,6 +202,7 @@ spans:
 | Check | What it catches |
 | --- | --- |
 | `make check` | A model that does not parse or resolve; violations of the shared OpenTelemetry policies (naming, collisions, stability, deprecation); violations of the OpenInference policies in [`policies/check/openinference`](policies/check/openinference); with a baseline, removed or incompatibly changed attributes and spans |
+| `make check-vendor` | Vendored OpenTelemetry attributes that differ from the pinned upstream version |
 | `make test` | A change to the model (or to Weaver) that stops flattened wire-format keys from resolving to their attribute |
 | `make check-generated` | Docs, spec tables, or language constants not regenerated after a model change, or a generated file edited by hand |
 | `make check-parity` | Model attributes that no table in `spec/attributes/semantic-conventions.md` shows, or that the Python template leaves out of every class |

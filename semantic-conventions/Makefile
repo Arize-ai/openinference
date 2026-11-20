@@ -7,6 +7,11 @@
 # weaver version is pinned in versions.env and, when no suitable local weaver is
 # found, weaver runs from the otel/weaver container image.
 #
+# The generate-* targets and `test` are hermetic: their only inputs are files in
+# this repository and the pinned weaver, and in the container they run with no
+# network. See "Hermetic generation" below. `check`, `vendor`, `check-vendor`,
+# and `package` resolve the real OpenTelemetry registry and need the network.
+#
 # Run from this directory:  make -C semantic-conventions <target>
 
 SHELL := /bin/bash
@@ -16,7 +21,11 @@ SHELL := /bin/bash
 # `make check WEAVER_VERSION=v0.29.0`.
 include versions.env
 
-LOCAL_RAW_VERSION := $(shell weaver --version 2>/dev/null)
+# FORCE_CONTAINER=1 runs weaver from the container image even when a suitable
+# local weaver exists. CI uses it for generation, so that the hermetic targets
+# are proven to work with the network disabled.
+FORCE_CONTAINER ?=
+LOCAL_RAW_VERSION := $(if $(FORCE_CONTAINER),,$(shell weaver --version 2>/dev/null))
 
 ifeq ($(LOCAL_RAW_VERSION),)
     USE_CONTAINER := 1
@@ -36,19 +45,32 @@ endif
 # rewrites tables in ../spec.
 ifeq ($(USE_CONTAINER),1)
 CONTAINER_RUNTIME ?= $(shell command -v docker 2>/dev/null || command -v podman 2>/dev/null)
-WEAVER := $(CONTAINER_RUNTIME) run --rm \
+CONTAINER_RUN := $(CONTAINER_RUNTIME) run --rm \
 	-u $(shell id -u):$(shell id -g) \
 	-v "$(abspath $(CURDIR)/..):/workspace" \
 	-w /workspace/semantic-conventions \
-	-e HOME=/tmp \
-	docker.io/otel/weaver:$(WEAVER_VERSION)
+	-e HOME=/tmp
+WEAVER := $(CONTAINER_RUN) docker.io/otel/weaver:$(WEAVER_VERSION)
+# No network: a hermetic target that reaches for it fails instead of passing.
+WEAVER_OFFLINE := $(CONTAINER_RUN) --network none docker.io/otel/weaver:$(WEAVER_VERSION)
 else
 WEAVER := weaver
+WEAVER_OFFLINE := weaver
 endif
 
 PYTHON ?= python3
 MODEL := ./model
 BUILD := .build
+
+# Hermetic generation. The model depends on the OpenTelemetry registry for the
+# attributes it reuses, and resolving that dependency means cloning it. The
+# definitions of exactly those attributes are vendored in $(VENDOR_DIR) (see
+# scripts/vendor_upstream.py). Generation runs against $(OFFLINE_MODEL): a copy
+# of the model whose dependency points at the vendored copy. model/manifest.yaml
+# itself keeps the real registry, which is what `check` and other registries
+# that depend on this one resolve against; `check-vendor` proves the two agree.
+VENDOR_DIR := vendor/opentelemetry
+OFFLINE_MODEL := $(BUILD)/model
 DOCS_OUTPUT := docs/registry
 # Prose specification whose tables are generated from the model.
 SPEC_DIR := ../spec
@@ -82,7 +104,7 @@ GITHUB_REPOSITORY ?= Arize-ai/openinference
 RELEASE_TAG := semantic-conventions-v$(VERSION)
 RELEASE_DOWNLOAD_URL := https://github.com/$(GITHUB_REPOSITORY)/releases/download/$(RELEASE_TAG)
 
-.PHONY: help check test generate generate-docs generate-spec generate-code check-generated check-parity check-all package print-version clean
+.PHONY: help check offline-model vendor check-vendor test generate generate-docs generate-spec generate-code check-generated check-parity check-all package print-version clean
 
 help: ## Show this help
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-16s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -101,11 +123,28 @@ check: ## Validate the model and run the shared OpenTelemetry + OpenInference po
 		> $(BUILD)/diagnostics.json || code=$$?; \
 	$(PYTHON) scripts/check_policies.py $(BUILD)/diagnostics.json policies/exceptions.json --weaver-exit-code $$code
 
-test: ## Check that sample wire-format keys resolve against the registry
+offline-model: # Copy the model with its dependency pointed at the vendored OpenTelemetry attributes
+	@mkdir -p $(OFFLINE_MODEL)
+	@cp -R model/. $(OFFLINE_MODEL)/
+	@sed 's|registry_path: .*|registry_path: $(VENDOR_DIR)|' model/manifest.yaml > $(OFFLINE_MODEL)/manifest.yaml
+	@grep -q 'registry_path: $(VENDOR_DIR)$$' $(OFFLINE_MODEL)/manifest.yaml \
+		|| { echo "FAIL: could not point the model's dependency at $(VENDOR_DIR)"; exit 1; }
+	@stale=$$(cd $(OFFLINE_MODEL) && find . -type f | while read -r file; do [ -e "$(CURDIR)/model/$$file" ] || echo "$$file"; done); \
+	if [ -n "$$stale" ]; then \
+		echo "FAIL: $(OFFLINE_MODEL) has files that are no longer in model/:"; echo "$$stale"; \
+		echo "Run 'make -C semantic-conventions clean' and try again."; exit 1; fi
+
+vendor: ## Refresh the vendored OpenTelemetry attributes from the pinned upstream version (needs network)
+	@uv run --no-project --with pyyaml==6.0.3 $(PYTHON) scripts/vendor_upstream.py --weaver '$(WEAVER)'
+
+check-vendor: ## Fail if the vendored OpenTelemetry attributes differ from upstream (needs network)
+	@uv run --no-project --with pyyaml==6.0.3 $(PYTHON) scripts/vendor_upstream.py --weaver '$(WEAVER)' --check
+
+test: offline-model ## Check that sample wire-format keys resolve against the registry
 	@mkdir -p $(BUILD)
 	@for kind in known unknown; do \
-		$(WEAVER) registry live-check \
-			-r $(MODEL) \
+		$(WEAVER_OFFLINE) registry live-check \
+			-r $(OFFLINE_MODEL) \
 			--quiet \
 			--input-source tests/live-check/$$kind.json \
 			--input-format json \
@@ -119,11 +158,11 @@ test: ## Check that sample wire-format keys resolve against the registry
 
 generate: generate-docs generate-spec generate-code ## Regenerate everything derived from the model
 
-generate-docs: ## Regenerate the registry reference under docs/registry/
+generate-docs: offline-model ## Regenerate the registry reference under docs/registry/
 	@mkdir -p $(BUILD)
 	rm -rf $(DOCS_OUTPUT)
-	@$(WEAVER) registry generate \
-		-r $(MODEL) \
+	@$(WEAVER_OFFLINE) registry generate \
+		-r $(OFFLINE_MODEL) \
 		--v2 \
 		--quiet \
 		-t ./templates/registry \
@@ -132,10 +171,10 @@ generate-docs: ## Regenerate the registry reference under docs/registry/
 		2> $(BUILD)/generate-docs.log || { cat $(BUILD)/generate-docs.log; exit 1; }
 	@echo "Generated $(DOCS_OUTPUT)"
 
-generate-spec: ## Regenerate the tables in ../spec between `<!-- weaver ... -->` and `<!-- endweaver -->`
+generate-spec: offline-model ## Regenerate the tables in ../spec between `<!-- weaver ... -->` and `<!-- endweaver -->`
 	@mkdir -p $(BUILD)
-	@$(WEAVER) registry update-markdown \
-		-r $(MODEL) \
+	@$(WEAVER_OFFLINE) registry update-markdown \
+		-r $(OFFLINE_MODEL) \
 		--v2 \
 		--quiet \
 		-t ./templates \
@@ -144,12 +183,12 @@ generate-spec: ## Regenerate the tables in ../spec between `<!-- weaver ... -->`
 		2> $(BUILD)/generate-spec.log || { cat $(BUILD)/generate-spec.log; exit 1; }
 	@echo "Generated tables in $(SPEC_DIR)"
 
-generate-code: ## Regenerate the constants in the Python, Go, TypeScript and Java packages
+generate-code: offline-model ## Regenerate the constants in the Python, Go, TypeScript and Java packages
 	@mkdir -p $(BUILD)
 	@for target in $(CODE_TARGETS); do \
 		language=$$(echo $$target | cut -d: -f1); output=$$(echo $$target | cut -d: -f2); \
-		$(WEAVER) registry generate \
-			-r $(MODEL) \
+		$(WEAVER_OFFLINE) registry generate \
+			-r $(OFFLINE_MODEL) \
 			--v2 \
 			--quiet \
 			-t ./templates/registry \
@@ -170,7 +209,7 @@ check-generated: generate ## Fail if anything generated from the model is out of
 check-parity: ## Fail if the model has drifted from spec/ or the language packages
 	uv run --no-project --with pyyaml==6.0.3 $(PYTHON) scripts/check_parity.py
 
-check-all: check test check-generated check-parity ## Run every check CI runs
+check-all: check check-vendor test check-generated check-parity ## Run every check CI runs
 
 package: ## Build the release assets: publication manifest + resolved registry
 	rm -rf $(PACKAGE_OUTPUT)
