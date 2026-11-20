@@ -19,10 +19,8 @@ attributes:
     type: string
     brief: "The MIME type of the audio file."
     examples: ["audio/mpeg"]
+    note: "The specification currently marks this legacy and tells new instrumentors to infer the type from `audio.url`. It is not deprecated here while that guidance is under review."
     stability: development
-    deprecated:
-      reason: uncategorized
-      note: "Infer the type from `audio.url` instead; new instrumentors should not emit this."
   - key: video.url
     type: string
     brief: "The URL, object-store URI, or base64 data URI of a video. Consumers infer MIME type from the path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix."
