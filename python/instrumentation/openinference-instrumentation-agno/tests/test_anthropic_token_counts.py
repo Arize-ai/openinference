@@ -124,16 +124,14 @@ def _token_counts(span: ReadableSpan) -> Dict[str, Any]:
     return {k: v for k, v in (span.attributes or {}).items() if k.startswith("llm.token_count.")}
 
 
-def _assert_counts(span: ReadableSpan, *, total: bool) -> None:
-    expected: Dict[str, Any] = {
+def _assert_counts(span: ReadableSpan) -> None:
+    assert _token_counts(span) == {
         LLM_TOKEN_COUNT_PROMPT: PROMPT,
         LLM_TOKEN_COUNT_COMPLETION: OUTPUT,
+        LLM_TOKEN_COUNT_TOTAL: PROMPT + OUTPUT,
         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: CACHE_READ,
         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: CACHE_WRITE,
     }
-    if total:
-        expected[LLM_TOKEN_COUNT_TOTAL] = PROMPT + OUTPUT
-    assert _token_counts(span) == expected
 
 
 def _sync_model() -> Claude:
@@ -151,31 +149,31 @@ def _async_model() -> Claude:
     return Claude(id=MODEL, async_client=client)
 
 
-def test_invoke_prompt_tokens_include_cache_tokens(
+def test_invoke_prompt_and_total_tokens_include_cache_tokens(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     Agent(model=_sync_model()).run("hi")
-    _assert_counts(_llm_span(in_memory_span_exporter), total=False)
+    _assert_counts(_llm_span(in_memory_span_exporter))
 
 
-def test_invoke_stream_prompt_tokens_include_cache_tokens(
+def test_invoke_stream_prompt_and_total_tokens_include_cache_tokens(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     for _ in Agent(model=_sync_model()).run("hi", stream=True):
         pass
-    _assert_counts(_llm_span(in_memory_span_exporter), total=False)
+    _assert_counts(_llm_span(in_memory_span_exporter))
 
 
 async def test_ainvoke_prompt_and_total_tokens_include_cache_tokens(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     await Agent(model=_async_model()).arun("hi")
-    _assert_counts(_llm_span(in_memory_span_exporter), total=True)
+    _assert_counts(_llm_span(in_memory_span_exporter))
 
 
-async def test_ainvoke_stream_prompt_tokens_include_cache_tokens(
+async def test_ainvoke_stream_prompt_and_total_tokens_include_cache_tokens(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     async for _ in Agent(model=_async_model()).arun("hi", stream=True):
         pass
-    _assert_counts(_llm_span(in_memory_span_exporter), total=False)
+    _assert_counts(_llm_span(in_memory_span_exporter))
