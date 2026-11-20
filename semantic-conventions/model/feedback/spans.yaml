@@ -1,0 +1,30 @@
+file_format: definition/2
+spans:
+  - type: openinference.evaluator
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    annotations:
+      openinference:
+        # The page of the prose specification that covers this span.
+        spec: "[Annotations and Evaluations](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md)"
+    brief: >
+      A call to a function or process that evaluates a language model's
+      outputs, for example assessing the relevance, correctness, or
+      helpfulness of its answers.
+    note: |
+      `openinference.span.kind` MUST be `EVALUATOR`.
+
+      An evaluator span is the recommended carrier for post-hoc feedback. See
+      [Annotations and Evaluations](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md).
+    name:
+      note: |
+        **Span name** is not constrained. It SHOULD identify the evaluator.
+    attributes:
+      - ref_group: attributes.openinference.common
+      - ref: annotations
+        requirement_level:
+          recommended: When the span carries feedback using annotation terminology.
+      - ref: evaluations
+        requirement_level:
+          recommended: When the span carries feedback using evaluation terminology.

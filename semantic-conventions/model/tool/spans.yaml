@@ -1,0 +1,32 @@
+file_format: definition/2
+spans:
+  - type: openinference.tool
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    annotations:
+      openinference:
+        # The page of the prose specification that covers this span.
+        spec: "[Tool Calling](https://github.com/Arize-ai/openinference/blob/main/spec/content/tool-calling.md)"
+    brief: >
+      A call to an external tool such as a calculator or a weather API, or any
+      function execution invoked by an LLM or agent.
+    note: |
+      `openinference.span.kind` MUST be `TOOL`.
+
+      See [Tool Calling](https://github.com/Arize-ai/openinference/blob/main/spec/content/tool-calling.md)
+      for how the LLM side of a tool call is recorded.
+    name:
+      note: |
+        **Span name** is not constrained. It SHOULD be the name of the tool.
+    attributes:
+      - ref_group: attributes.openinference.common
+      - ref: tool.name
+        requirement_level: recommended
+      - ref: tool.description
+        requirement_level: recommended
+      - ref: tool.parameters
+        requirement_level: recommended
+      - ref: tool.id
+        requirement_level:
+          recommended: When the tool is executed in response to a tool call that has an id.

@@ -1,0 +1,18 @@
+file_format: definition/2
+spans:
+  - type: openinference.retriever
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    brief: >
+      A data retrieval step, for example a call to a vector store or a
+      database to fetch documents or information.
+    note: |
+      `openinference.span.kind` MUST be `RETRIEVER`. `input.value` usually holds the query.
+    name:
+      note: |
+        **Span name** is not constrained. It SHOULD identify the retriever.
+    attributes:
+      - ref_group: attributes.openinference.common
+      - ref: retrieval.documents
+        requirement_level: recommended

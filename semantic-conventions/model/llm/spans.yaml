@@ -1,0 +1,129 @@
+file_format: definition/2
+attribute_groups:
+  - id: attributes.llm.model
+    visibility: internal
+    attributes:
+      - ref: llm.system
+        requirement_level: required
+      - ref: llm.model_name
+        requirement_level: recommended
+      - ref: llm.provider
+        requirement_level:
+          recommended: When the hosting provider differs from the system.
+      - ref: llm.request.model_name
+        requirement_level:
+          recommended: When the requested model can differ from the model that served the response.
+      - ref: llm.response.model_name
+        requirement_level:
+          recommended: When the requested model can differ from the model that served the response.
+
+  - id: attributes.llm.token_count
+    visibility: internal
+    attributes:
+      - ref: llm.token_count.prompt
+        requirement_level: recommended
+      - ref: llm.token_count.completion
+        requirement_level: recommended
+      - ref: llm.token_count.total
+        requirement_level: recommended
+      - ref: llm.token_count.prompt_details.audio
+        requirement_level:
+          recommended: When reported by the provider.
+      - ref: llm.token_count.prompt_details.cache_input
+        requirement_level:
+          recommended: When reported by the provider.
+      - ref: llm.token_count.prompt_details.cache_read
+        requirement_level:
+          recommended: When reported by the provider.
+      - ref: llm.token_count.prompt_details.cache_write
+        requirement_level:
+          recommended: When reported by the provider.
+      - ref: llm.token_count.completion_details.audio
+        requirement_level:
+          recommended: When reported by the provider.
+      - ref: llm.token_count.completion_details.reasoning
+        requirement_level:
+          recommended: When reported by the provider.
+
+  - id: attributes.llm.cost
+    visibility: internal
+    attributes:
+      - ref: llm.cost.prompt
+        requirement_level: opt_in
+      - ref: llm.cost.completion
+        requirement_level: opt_in
+      - ref: llm.cost.total
+        requirement_level: opt_in
+      - ref: llm.cost.prompt_details.input
+        requirement_level: opt_in
+      - ref: llm.cost.prompt_details.audio
+        requirement_level: opt_in
+      - ref: llm.cost.prompt_details.cache_input
+        requirement_level: opt_in
+      - ref: llm.cost.prompt_details.cache_read
+        requirement_level: opt_in
+      - ref: llm.cost.prompt_details.cache_write
+        requirement_level: opt_in
+      - ref: llm.cost.completion_details.output
+        requirement_level: opt_in
+      - ref: llm.cost.completion_details.reasoning
+        requirement_level: opt_in
+      - ref: llm.cost.completion_details.audio
+        requirement_level: opt_in
+
+spans:
+  - type: openinference.llm
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    annotations:
+      openinference:
+        # The page of the prose specification that covers this span.
+        spec: "[LLM Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/llm.md)"
+    brief: >
+      A call to a large language model, such as a chat completion or a text
+      completion request. It captures the request sent to the provider and the
+      response that came back.
+    note: |
+      `openinference.span.kind` MUST be `LLM`.
+
+      A completions (non-chat) API call records `llm.prompts` and `llm.choices`
+      in place of `llm.input_messages` and `llm.output_messages`.
+
+      See [LLM Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/llm.md).
+    name:
+      note: |
+        **Span name** is not constrained. It SHOULD identify the operation, e.g. `ChatCompletion`.
+    attributes:
+      - ref_group: attributes.openinference.common
+      # What the common input and output attributes hold on this kind of span.
+      - ref: input.value
+        brief: The raw input, usually a JSON string.
+      - ref: input.mime_type
+        brief: MIME type of `input.value`, usually `application/json`.
+      - ref: output.value
+        brief: The raw output, usually a JSON string.
+      - ref: output.mime_type
+        brief: MIME type of `output.value`, usually `application/json`.
+      - ref_group: attributes.llm.model
+      - ref_group: attributes.llm.token_count
+      - ref_group: attributes.llm.cost
+      - ref: llm.invocation_parameters
+        requirement_level: recommended
+      - ref: llm.finish_reason
+        requirement_level: recommended
+      - ref: llm.input_messages
+        requirement_level:
+          recommended: For chat API calls.
+      - ref: llm.output_messages
+        requirement_level:
+          recommended: For chat API calls.
+      - ref: llm.prompts
+        requirement_level:
+          recommended: For completions (non-chat) API calls.
+      - ref: llm.choices
+        requirement_level:
+          recommended: For completions (non-chat) API calls.
+      - ref: llm.tools
+        requirement_level:
+          recommended: When tools are advertised to the model.

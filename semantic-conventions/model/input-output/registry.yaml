@@ -1,0 +1,76 @@
+file_format: definition/2
+attributes:
+  - key: input.value
+    type: string
+    brief: "The input value to an operation"
+    examples: ["{'query': 'What is the weather today?'}"]
+    stability: development
+  - key: input.mime_type
+    type:
+      members:
+        - id: text
+          value: "text/plain"
+          brief: "Plain text. The default when unspecified."
+          stability: development
+        - id: json
+          value: "application/json"
+          brief: "A string holding serialized JSON."
+          stability: development
+    brief: "MIME type representing the format of `input.value`"
+    examples: ["text/plain", "application/json"]
+    stability: development
+  - key: input.images
+    type: template[any]
+    brief: "Image inputs to an operation, independent of span kind, e.g. `input.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images)"
+    examples: ['[{"image.url": "https://sample-link-to-image.jpg"}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["image"]
+  - key: input.documents
+    type: template[any]
+    brief: "File document (e.g. PDF) inputs to an operation, independent of span kind, e.g. `input.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents)"
+    examples: ['[{"document.url": "https://example.com/report.pdf", "document.mime_type": "application/pdf"}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["document"]
+  - key: output.value
+    type: string
+    brief: "The output value of an operation"
+    examples: ["Hello, World!"]
+    stability: development
+  - key: output.mime_type
+    type:
+      members:
+        - id: text
+          value: "text/plain"
+          brief: "Plain text. The default when unspecified."
+          stability: development
+        - id: json
+          value: "application/json"
+          brief: "A string holding serialized JSON."
+          stability: development
+    brief: "MIME type representing the format of `output.value`"
+    examples: ["text/plain", "application/json"]
+    stability: development
+  - key: output.images
+    type: template[any]
+    brief: "Image outputs of an operation, independent of span kind, e.g. `output.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images)"
+    examples: ['[{"image.url": "data:image/png;base64,iVBORw0KGgo..."}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["image"]
+  - key: output.documents
+    type: template[any]
+    brief: "File document (e.g. PDF) outputs of an operation, independent of span kind, e.g. `output.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents)"
+    examples: ['[{"document.url": "https://example.com/filled-form.pdf", "document.mime_type": "application/pdf"}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["document"]

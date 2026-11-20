@@ -1,0 +1,45 @@
+file_format: definition/2
+spans:
+  - type: openinference.embedding
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    annotations:
+      openinference:
+        # The page of the prose specification that covers this span.
+        spec: "[Embedding Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/embedding.md)"
+    brief: >
+      A call to an LLM or embedding service that converts text or token IDs
+      into dense float vectors.
+    note: |
+      `openinference.span.kind` MUST be `EMBEDDING`.
+
+      Embedding spans do not use `llm.system` or `llm.provider`.
+
+      See [Embedding Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/embedding.md).
+    name:
+      note: |
+        **Span name** MUST be `CreateEmbeddings`.
+    attributes:
+      - ref_group: attributes.openinference.common
+      # What the common input and output attributes hold on this kind of span.
+      - ref: input.value
+        brief: The raw input as a JSON string (text strings or token ID arrays).
+      - ref: input.mime_type
+        brief: MIME type of `input.value`, usually `application/json`.
+      - ref: output.value
+        brief: The raw output (embedding vectors as JSON or base64-encoded).
+      - ref: output.mime_type
+        brief: MIME type of `output.value`, usually `application/json`.
+      - ref: embedding.model_name
+        requirement_level: recommended
+      - ref: embedding.embeddings
+        requirement_level: recommended
+      - ref: embedding.invocation_parameters
+        requirement_level: recommended
+      - ref: llm.token_count.prompt
+        brief: Number of tokens in the input.
+        requirement_level: recommended
+      - ref: llm.token_count.total
+        brief: Total number of tokens used.
+        requirement_level: recommended

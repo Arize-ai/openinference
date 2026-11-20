@@ -1,0 +1,14 @@
+file_format: definition_manifest/2.0
+name: openinference
+description: >
+  OpenInference Semantic Conventions for AI application observability.
+  This registry defines the attributes and span conventions that describe
+  LLM calls, embeddings, retrieval, reranking, tool execution, agents,
+  guardrails, evaluations, prompts, and decision models as OpenTelemetry traces.
+schema_url: https://openinf.dev/schemas/0.0.1 # x-release-please-version
+stability: development
+dependencies:
+  # OpenInference reuses OpenTelemetry attributes where one exists for the same
+  # concept (`session.id`, `user.id`) instead of redefining them.
+  - schema_url: https://opentelemetry.io/schemas/1.45.0
+    registry_path: https://github.com/open-telemetry/semantic-conventions.git@v1.45.0[model]

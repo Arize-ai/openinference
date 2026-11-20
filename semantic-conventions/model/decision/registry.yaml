@@ -1,0 +1,55 @@
+file_format: definition/2
+attributes:
+  - key: decision.system
+    type:
+      members:
+        - id: typesafe
+          value: "typesafe"
+          brief: "[TypeSafe AI System One / Jev API](https://typesafe.ai/blog/introducing-system-one-models-and-jev), including Jev-compatible servers such as vLLM's `/v1/systemone`"
+          stability: development
+        - id: openai
+          value: "openai"
+          brief: "[OpenAI Decisions API](https://openai.com/index/devday-2026-recap/)"
+          stability: development
+    brief: "The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks, as identified by the client or server instrumentation: `typesafe` for the TypeSafe System One / Jev API, `openai` for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible `/v1/systemone` shape is still `typesafe`. Distinct from `decision.provider`, which says who hosts the model. The well-known values alias the matching `llm.system` values."
+    examples: ["typesafe"]
+    stability: development
+  - key: decision.provider
+    type:
+      members:
+        - id: typesafe
+          value: "typesafe"
+          brief: "TypeSafe AI"
+          stability: development
+        - id: openai
+          value: "openai"
+          brief: "OpenAI"
+          stability: development
+    brief: "The hosting provider of the decision model: who runs the hardware that answered, e.g. `typesafe` when calling TypeSafe directly, `openai` for the OpenAI Decisions API, or the cloud or self-hosting provider for a model served elsewhere. Distinct from `decision.system`, which names the API shape. The well-known values alias the matching `llm.provider` values."
+    examples: ["typesafe"]
+    stability: development
+  - key: decision.model_name
+    type: string
+    brief: "The name of the decision model being utilized. Mirrors `llm.model_name` for `DECISION` spans."
+    examples: ["jev-1.13.0"]
+    stability: development
+  - key: decision.request.model_name
+    type: string
+    brief: "The decision model requested by the caller, as sent in the request. May differ from `decision.response.model_name` when the provider resolves an alias or routes the request."
+    examples: ["jev-latest"]
+    stability: development
+  - key: decision.response.model_name
+    type: string
+    brief: "The decision model that actually produced the response, as reported by the provider. May differ from `decision.request.model_name`."
+    examples: ["jev-1.13.0"]
+    stability: development
+  - key: decision.token_count.input
+    type: int
+    brief: "The number of input tokens consumed by a decision model call: the state, questions, and candidate options. Maps to `usage.input_tokens` in TypeSafe System One responses."
+    examples: [412]
+    stability: development
+  - key: decision.token_count.output
+    type: int
+    brief: "The number of output tokens produced by a decision model call. Decision models emit typed answers rather than text, so this is typically small. Maps to `usage.output_tokens` in TypeSafe System One responses."
+    examples: [2]
+    stability: development
