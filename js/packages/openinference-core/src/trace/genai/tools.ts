@@ -11,8 +11,14 @@ import {
 } from "./conversionUtils";
 import { GenAIToolType } from "./genAIAttributes";
 
+/** Fields whose presence marks a record as a tool definition. */
 const TOOL_DEFINITION_FIELDS = ["name", "parameters", "description"];
 
+/**
+ * Adds `type: "function"` to a tool definition that has tool fields but no type.
+ * @param toolDefinition - The tool definition
+ * @returns The tool definition, copied only when a type is added
+ */
 function withDefaultToolType(toolDefinition: UnknownRecord): UnknownRecord {
   const hasToolFields = TOOL_DEFINITION_FIELDS.some((field) => isPresent(toolDefinition[field]));
   if (isNullish(toolDefinition.type) && hasToolFields) {
@@ -21,7 +27,13 @@ function withDefaultToolType(toolDefinition: UnknownRecord): UnknownRecord {
   return toolDefinition;
 }
 
-/** `{ type: "function", function: { name, description, parameters } }` */
+/**
+ * Normalizes an OpenAI tool definition:
+ * `{ type: "function", function: { name, description, parameters } }`.
+ *
+ * @param params.toolDefinition - The tool definition
+ * @param params.functionDefinition - Its nested `function` record
+ */
 function normalizeOpenAIToolDefinition({
   toolDefinition,
   functionDefinition,
@@ -46,7 +58,10 @@ function normalizeOpenAIToolDefinition({
   return normalized;
 }
 
-/** `{ name, description, input_schema }` */
+/**
+ * Normalizes an Anthropic tool definition: `{ name, description, input_schema }`.
+ * @param toolDefinition - The tool definition
+ */
 function normalizeAnthropicToolDefinition(toolDefinition: UnknownRecord): UnknownRecord {
   const { input_schema: inputSchema, ...rest } = toolDefinition;
   return withDefaultToolType({ ...rest, parameters: inputSchema });
@@ -55,6 +70,7 @@ function normalizeAnthropicToolDefinition(toolDefinition: UnknownRecord): Unknow
 /**
  * Normalizes a recognized provider tool definition to the OTel GenAI shape.
  * Unknown provider shapes are preserved so the conversion remains lossless.
+ * @param toolDefinition - The provider tool definition
  */
 function normalizeProviderToolDefinition(toolDefinition: UnknownRecord): UnknownRecord {
   const functionDefinition = toolDefinition.function;
@@ -72,6 +88,8 @@ function normalizeProviderToolDefinition(toolDefinition: UnknownRecord): Unknown
 /**
  * Normalizes an `llm.tools.<index>.tool.*` bucket. `tool.name` and
  * `tool.description` take precedence over the values inside `tool.json_schema`.
+ * @param toolDefinition - The `tool.*` attributes of one tool
+ * @returns The normalized tool definition, or undefined when it has neither a schema nor a name
  */
 function normalizeOpenInferenceToolDefinition(
   toolDefinition: UnknownRecord,
@@ -91,6 +109,12 @@ function normalizeOpenInferenceToolDefinition(
   };
 }
 
+/**
+ * Normalizes one tool definition to the OTel GenAI shape, from either an
+ * OpenInference `tool.*` record or a provider tool definition.
+ * @param toolDefinition - A tool definition, or a string holding it as JSON
+ * @returns The normalized tool definition, or undefined when it is not a record
+ */
 function normalizeToolDefinition(toolDefinition: unknown): UnknownRecord | undefined {
   const parsedToolDefinition = parseJSONIfString(toolDefinition);
   if (!isRecord(parsedToolDefinition)) {
@@ -110,6 +134,7 @@ function normalizeToolDefinition(toolDefinition: unknown): UnknownRecord | undef
  * Converts the tools advertised to the LLM (`llm.tools`) to the value of
  * `gen_ai.tool.definitions`. A JSON-marshaled `llm.tools` value takes
  * precedence over flattened `llm.tools.<index>.*` attributes.
+ * @param attributes - The OpenInference span attributes
  */
 export function getToolDefinitions(attributes: UnknownRecord): UnknownRecord[] {
   const rootToolDefinitions = parseJSONArray(attributes[SemanticConventions.LLM_TOOLS])

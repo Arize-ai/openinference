@@ -31,6 +31,7 @@ export class OISpan implements Span {
    * the OpenTelemetry API offers no way to read attributes back from a span.
    */
   private readonly recordedAttributes: Attributes = {};
+  /** Whether `end` has run, so the `gen_ai.*` attributes are derived only once. */
   private hasEnded = false;
 
   constructor({ span, config }: { span: Span; config: TraceConfig }) {
@@ -86,6 +87,13 @@ export class OISpan implements Span {
     this.span.end(endTime);
   }
 
+  /**
+   * Remembers a masked attribute so the `gen_ai.*` attributes can be derived
+   * from it at span end. Does nothing unless `enableGenAISemconv` is on.
+   *
+   * @param params.key - The attribute key
+   * @param params.value - The masked attribute value
+   */
   private recordAttribute({ key, value }: { key: string; value?: AttributeValue }): void {
     if (this.config.enableGenAISemconv && isPresent(value)) {
       this.recordedAttributes[key] = value;

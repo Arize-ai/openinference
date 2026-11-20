@@ -156,6 +156,7 @@ export function isAttributes(value: unknown): value is Attributes {
  *   }
  * }
  * ```
+ * @param value - The value that should have been narrowed to `never`
  */
 export function assertUnreachable(value: never): never {
   throw new Error(`Unreachable code reached with value: ${String(value)}`);

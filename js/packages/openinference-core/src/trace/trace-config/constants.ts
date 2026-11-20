@@ -40,6 +40,7 @@ export const DEFAULT_HIDE_EMBEDDING_VECTORS = false;
 export const DEFAULT_BASE64_IMAGE_MAX_LENGTH = 32000;
 
 export const DEFAULT_HIDE_PROMPTS = false;
+/** GenAI semantic convention (`gen_ai.*`) attributes are not emitted unless enabled. */
 export const DEFAULT_ENABLE_GENAI_SEMCONV = false;
 
 /** When a value is hidden, it will be replaced by this redacted value */

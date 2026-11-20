@@ -25,10 +25,16 @@ export function withSafety<T extends GenericFunction>({
   };
 }
 
+/** `JSON.parse`, typed to return `unknown` instead of `any`. */
 const unknownJSONParse = (...args: Parameters<typeof JSON.parse>): unknown => {
   return JSON.parse(...args);
 };
 
+/**
+ * `JSON.stringify` that returns null instead of throwing, e.g. for circular
+ * structures or bigints.
+ */
 export const safelyJSONStringify = withSafety({ fn: JSON.stringify });
 
+/** `JSON.parse` that returns null instead of throwing on invalid JSON. */
 export const safelyJSONParse = withSafety({ fn: unknownJSONParse });

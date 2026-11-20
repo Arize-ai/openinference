@@ -9,14 +9,19 @@ import {
   safelyJSONStringify,
 } from "../../utils";
 
+/** A record whose values have not been narrowed yet, e.g. span attributes or parsed JSON. */
 export type UnknownRecord = Record<string, unknown>;
 
+/** Matches a non-negative integer index, e.g. the `0` in `llm.tools.0.tool.name`. */
 const DIGITS_PATTERN = /^\d+$/;
+/** Matches an optionally signed integer written as a string. */
 const INTEGER_PATTERN = /^[+-]?\d+$/;
 
 /**
  * Parses a string as JSON, returning the original value when it is not a
  * string or is not valid JSON.
+ * @param value - The value to parse
+ * @returns The parsed JSON, or the original value
  */
 export function parseJSONIfString(value: unknown): unknown {
   if (!isString(value)) {
@@ -29,16 +34,31 @@ export function parseJSONIfString(value: unknown): unknown {
   }
 }
 
+/**
+ * Parses a value that is a record or a JSON encoded record.
+ * @param value - A record, or a string holding a JSON object
+ * @returns The record, or an empty record when the value is anything else
+ */
 export function parseJSONRecord(value: unknown): UnknownRecord {
   const parsedValue = parseJSONIfString(value);
   return isRecord(parsedValue) ? parsedValue : {};
 }
 
+/**
+ * Parses a value that is an array or a JSON encoded array.
+ * @param value - An array, or a string holding a JSON array
+ * @returns The array, or an empty array when the value is anything else
+ */
 export function parseJSONArray(value: unknown): unknown[] {
   const parsedValue = parseJSONIfString(value);
   return isArray(parsedValue) ? parsedValue : [];
 }
 
+/**
+ * JSON encodes a value without throwing.
+ * @param value - The value to encode
+ * @returns The JSON string, or undefined when the value cannot be encoded
+ */
 export function stringifyJSON(value: unknown): string | undefined {
   return safelyJSONStringify(value) ?? undefined;
 }
@@ -46,6 +66,8 @@ export function stringifyJSON(value: unknown): string | undefined {
 /**
  * Converts a value to a string, preserving empty strings.
  * Returns undefined for null and undefined.
+ * @param value - The value to convert
+ * @returns The string, or undefined for null and undefined
  */
 export function toOptionalString(value: unknown): string | undefined {
   if (isNullish(value)) {
@@ -63,6 +85,8 @@ export function toOptionalString(value: unknown): string | undefined {
 /**
  * Converts a value to a string, returning undefined for null, undefined, and
  * empty strings.
+ * @param value - The value to convert
+ * @returns The string, or undefined when it would be empty
  */
 export function toNonEmptyString(value: unknown): string | undefined {
   return toOptionalString(value) || undefined;
@@ -76,6 +100,8 @@ export function toNonEmptyString(value: unknown): string | undefined {
  * A string that holds JSON is never re-encoded: a parse and stringify round
  * trip is lossy in JavaScript, e.g. for integers above
  * `Number.MAX_SAFE_INTEGER`.
+ * @param value - The value to serialize
+ * @returns The serialized value, or undefined when it cannot be encoded
  */
 export function serializeJSONLikeValue(value: unknown): string | undefined {
   const parsedValue = parseJSONIfString(value);
@@ -88,6 +114,7 @@ export function serializeJSONLikeValue(value: unknown): string | undefined {
 /**
  * Whether a value is empty in the sense that it carries no information:
  * null, undefined, false, 0, "", [] or {}.
+ * @param value - The value to check
  */
 export function isEmptyValue(value: unknown): boolean {
   if (isArray(value)) {
@@ -185,6 +212,11 @@ export function unflattenAttributes({
   return unflattened;
 }
 
+/**
+ * Reads a finite number from a number or a numeric string.
+ * @param value - The value to read
+ * @returns The number, or undefined when the value is not a finite number
+ */
 export function coerceNumber(value: unknown): number | undefined {
   if (isNumber(value)) {
     return Number.isFinite(value) ? value : undefined;
@@ -196,6 +228,11 @@ export function coerceNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+/**
+ * Reads an integer from a number or an integer string.
+ * @param value - The value to read
+ * @returns The integer, or undefined when the value is not an integer
+ */
 export function coerceInteger(value: unknown): number | undefined {
   if (isNumber(value)) {
     return Number.isInteger(value) ? value : undefined;
@@ -206,6 +243,11 @@ export function coerceInteger(value: unknown): number | undefined {
   return undefined;
 }
 
+/**
+ * Reads a boolean from a boolean or the strings `"true"` and `"false"`, ignoring case.
+ * @param value - The value to read
+ * @returns The boolean, or undefined when the value is not a boolean
+ */
 export function coerceBoolean(value: unknown): boolean | undefined {
   if (isBoolean(value)) {
     return value;
@@ -222,6 +264,12 @@ export function coerceBoolean(value: unknown): boolean | undefined {
   return undefined;
 }
 
+/**
+ * Reads a list of strings. A single string becomes a one-item list, and
+ * non-string items are converted to strings.
+ * @param value - A string or an array
+ * @returns The strings, or undefined when the value is neither
+ */
 export function coerceStringArray(value: unknown): string[] | undefined {
   if (isString(value)) {
     return [value];

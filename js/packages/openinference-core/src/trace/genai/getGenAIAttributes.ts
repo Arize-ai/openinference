@@ -49,9 +49,16 @@ import {
 } from "./messages";
 import { getToolDefinitions } from "./tools";
 
+/** `embedding.invocation_parameters`, the embedding counterpart of `llm.invocation_parameters`. */
 const EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters";
+/** `response_format` values that mean the model was asked for JSON output. */
 const JSON_RESPONSE_FORMATS = ["json", "json_object", "json_schema"];
 
+/**
+ * The `gen_ai.operation.name` for each OpenInference span kind that maps to
+ * exactly one operation. LLM spans are resolved separately, since they are
+ * either chat or text completions.
+ */
 const OPERATION_NAME_BY_SPAN_KIND: Partial<Record<string, string>> = {
   [OpenInferenceSpanKind.TOOL]: GenAIOperationName.EXECUTE_TOOL,
   [OpenInferenceSpanKind.EMBEDDING]: GenAIOperationName.EMBEDDINGS,
@@ -59,6 +66,9 @@ const OPERATION_NAME_BY_SPAN_KIND: Partial<Record<string, string>> = {
   [OpenInferenceSpanKind.AGENT]: GenAIOperationName.INVOKE_AGENT,
 };
 
+/**
+ * The `gen_ai.provider.name` for each `llm.provider` value whose GenAI name differs or is well known.
+ */
 const PROVIDER_NAME_BY_PROVIDER: Partial<Record<string, string>> = {
   [LLMProvider.AWS]: GenAIProviderName.AWS_BEDROCK,
   [LLMProvider.GOOGLE]: GenAIProviderName.GCP_GEN_AI,
@@ -81,6 +91,7 @@ const PROVIDER_NAME_BY_SYSTEM: Partial<Record<string, string>> = {
   [LLMSystem.MISTRALAI]: GenAIProviderName.MISTRAL_AI,
 };
 
+/** Pairs of OpenInference token count attribute and the `gen_ai.usage.*` attribute it maps to. */
 const USAGE_ATTRIBUTE_MAPPINGS = [
   [SemanticConventions.LLM_TOKEN_COUNT_PROMPT, GenAIAttributes.GEN_AI_USAGE_INPUT_TOKENS],
   [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, GenAIAttributes.GEN_AI_USAGE_OUTPUT_TOKENS],
@@ -94,13 +105,17 @@ const USAGE_ATTRIBUTE_MAPPINGS = [
   ],
 ] as const;
 
+/** How one `gen_ai.request.*` attribute is read from the invocation parameters. */
 type RequestParameterMapping = {
+  /** The `gen_ai.request.*` attribute to set */
   genAIKey: string;
   /** Invocation parameter names, in order of precedence */
   sourceKeys: string[];
+  /** Converts a raw parameter to the attribute value, or undefined to skip it */
   coerce: (value: unknown) => AttributeValue | undefined;
 };
 
+/** The `gen_ai.request.*` attributes derived from the invocation parameters. */
 const REQUEST_PARAMETER_MAPPINGS: RequestParameterMapping[] = [
   {
     genAIKey: GenAIAttributes.GEN_AI_REQUEST_TEMPERATURE,
@@ -147,11 +162,21 @@ const REQUEST_PARAMETER_MAPPINGS: RequestParameterMapping[] = [
   },
 ];
 
+/**
+ * Reads the OpenInference span kind, upper-cased so it compares against {@link OpenInferenceSpanKind}.
+ * @param attributes - The OpenInference span attributes
+ * @returns The span kind, or undefined when the span has none
+ */
 function getSpanKind(attributes: UnknownRecord): string | undefined {
   const spanKind = attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
   return isString(spanKind) ? spanKind.toUpperCase() : undefined;
 }
 
+/**
+ * Whether the span carries legacy completions attributes (`llm.prompts` or
+ * `llm.choices`), which marks an LLM span as a text completion and not a chat.
+ * @param attributes - The OpenInference span attributes
+ */
 function hasCompletionsAttributes(attributes: UnknownRecord): boolean {
   return Object.keys(attributes).some((key) =>
     [SemanticConventions.LLM_PROMPTS, LLM_CHOICES].some(
@@ -164,6 +189,8 @@ function hasCompletionsAttributes(attributes: UnknownRecord): boolean {
  * Resolves `gen_ai.operation.name`. An operation name set explicitly on the
  * span wins, since the OpenInference span kind cannot express every operation.
  * Otherwise the operation is derived from the span kind.
+ * @param attributes - The OpenInference span attributes
+ * @returns The operation name, or undefined when the span kind maps to no operation
  */
 function getOperationName(attributes: UnknownRecord): string | undefined {
   const explicitOperationName = toNonEmptyString(attributes[GenAIAttributes.GEN_AI_OPERATION_NAME]);
@@ -179,10 +206,22 @@ function getOperationName(attributes: UnknownRecord): string | undefined {
   return isUndefined(spanKind) ? undefined : OPERATION_NAME_BY_SPAN_KIND[spanKind];
 }
 
+/**
+ * Lower-cases a string value.
+ * @param value - The value to read
+ * @returns The lower-cased string, or undefined when the value is not a string
+ */
 function toLowerCaseString(value: unknown): string | undefined {
   return isString(value) ? value.toLowerCase() : undefined;
 }
 
+/**
+ * Resolves `gen_ai.provider.name` from `llm.provider` and `llm.system`. Azure
+ * and Vertex AI need both attributes; other providers map by `llm.provider`,
+ * then by `llm.system`, and unmapped values pass through unchanged.
+ * @param attributes - The OpenInference span attributes
+ * @returns The provider name, or undefined when neither attribute is set
+ */
 function getProviderName(attributes: UnknownRecord): string | undefined {
   const provider = toLowerCaseString(attributes[SemanticConventions.LLM_PROVIDER]);
   const system = toLowerCaseString(attributes[SemanticConventions.LLM_SYSTEM]);
@@ -200,6 +239,10 @@ function getProviderName(attributes: UnknownRecord): string | undefined {
   return mappedProviderName ?? (system || provider || undefined);
 }
 
+/**
+ * The attributes every GenAI span can carry: operation, provider, conversation and agent.
+ * @param attributes - The OpenInference span attributes
+ */
 function getBaseAttributes(attributes: UnknownRecord): Attributes {
   return {
     [GenAIAttributes.GEN_AI_OPERATION_NAME]: getOperationName(attributes),
@@ -213,6 +256,11 @@ function getBaseAttributes(attributes: UnknownRecord): Attributes {
   };
 }
 
+/**
+ * Derives the `gen_ai.request.*` parameters. The first source key with a
+ * usable value wins, and a choice count of 1 is omitted because it is the default.
+ * @param invocationParameters - The parsed LLM and embedding invocation parameters
+ */
 function getRequestParameterAttributes(invocationParameters: UnknownRecord): Attributes {
   const genAIAttributes: Attributes = {};
   for (const { genAIKey, sourceKeys, coerce } of REQUEST_PARAMETER_MAPPINGS) {
@@ -230,6 +278,11 @@ function getRequestParameterAttributes(invocationParameters: UnknownRecord): Att
   return genAIAttributes;
 }
 
+/**
+ * Resolves `gen_ai.output.type` from the `response_format` invocation parameter.
+ * @param invocationParameters - The parsed invocation parameters
+ * @returns `json` or `text`, or undefined for any other or missing format
+ */
 function getOutputType(invocationParameters: UnknownRecord): string | undefined {
   const responseFormat = invocationParameters.response_format;
   const responseFormatType = isRecord(responseFormat)
@@ -244,6 +297,11 @@ function getOutputType(invocationParameters: UnknownRecord): string | undefined 
   return responseFormatType === "text" ? GenAIOutputType.TEXT : undefined;
 }
 
+/**
+ * The `gen_ai.request.*` attributes and `gen_ai.output.type`. LLM invocation
+ * parameters take precedence over embedding invocation parameters.
+ * @param attributes - The OpenInference span attributes
+ */
 function getRequestAttributes(attributes: UnknownRecord): Attributes {
   const llmParameters = parseJSONRecord(attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS]);
   const embeddingParameters = parseJSONRecord(attributes[EMBEDDING_INVOCATION_PARAMETERS]);
@@ -263,6 +321,10 @@ function getRequestAttributes(attributes: UnknownRecord): Attributes {
   };
 }
 
+/**
+ * The `gen_ai.usage.*` token counts. Only numeric token counts are converted.
+ * @param attributes - The OpenInference span attributes
+ */
 function getUsageAttributes(attributes: UnknownRecord): Attributes {
   const genAIAttributes: Attributes = {};
   for (const [openInferenceKey, genAIKey] of USAGE_ATTRIBUTE_MAPPINGS) {
@@ -277,6 +339,9 @@ function getUsageAttributes(attributes: UnknownRecord): Attributes {
 /**
  * `gen_ai.input.messages` and `gen_ai.output.messages`. These are `any`-typed
  * in the GenAI semantic conventions, so they are JSON encoded on spans.
+ *
+ * @param params.attributes - The OpenInference span attributes
+ * @param params.outputMessages - The already converted output messages
  */
 function getMessageAttributes({
   attributes,
@@ -294,6 +359,12 @@ function getMessageAttributes({
   };
 }
 
+/**
+ * The `gen_ai.response.*` attributes: finish reasons, response id and response model.
+ *
+ * @param params.attributes - The OpenInference span attributes
+ * @param params.outputMessages - The already converted output messages
+ */
 function getResponseAttributes({
   attributes,
   outputMessages,
@@ -321,6 +392,12 @@ function getResponseAttributes({
   return genAIAttributes;
 }
 
+/**
+ * Resolves `gen_ai.tool.call.arguments` from `tool.parameters`, which is either
+ * a single value or flattened into `tool.parameters.*` attributes.
+ * @param attributes - The OpenInference span attributes
+ * @returns The JSON encoded arguments, or undefined when the span has none
+ */
 function getToolCallArguments(attributes: UnknownRecord): string | undefined {
   if (SemanticConventions.TOOL_PARAMETERS in attributes) {
     return serializeJSONLikeValue(attributes[SemanticConventions.TOOL_PARAMETERS]);
@@ -334,6 +411,11 @@ function getToolCallArguments(attributes: UnknownRecord): string | undefined {
     : undefined;
 }
 
+/**
+ * The `gen_ai.tool.*` attributes. Tool definitions are derived for any span;
+ * the tool call attributes only for TOOL spans.
+ * @param attributes - The OpenInference span attributes
+ */
 function getToolAttributes(attributes: UnknownRecord): Attributes {
   const toolDefinitions = getToolDefinitions(attributes);
   const genAIAttributes: Attributes = {
@@ -365,6 +447,10 @@ function getToolAttributes(attributes: UnknownRecord): Attributes {
 /**
  * Reads the first non-nullish value from a document, preferring the
  * OpenInference attribute name over the plain field name.
+ *
+ * @param params.document - The document to read from
+ * @param params.attributeKey - The OpenInference attribute name, e.g. `document.id`
+ * @param params.fieldName - The plain field name, e.g. `id`
  */
 function getDocumentField({
   document,
@@ -378,6 +464,11 @@ function getDocumentField({
   return document[attributeKey] ?? document[fieldName] ?? undefined;
 }
 
+/**
+ * Converts a retrieved document to the shape of a `gen_ai.retrieval.documents` entry.
+ * @param document - A document keyed by `document.*` attributes or by plain field names
+ * @returns The document, or undefined when it is not a record or has no known fields
+ */
 function normalizeDocument(document: unknown): UnknownRecord | undefined {
   if (!isRecord(document)) {
     return undefined;
@@ -410,6 +501,11 @@ function normalizeDocument(document: unknown): UnknownRecord | undefined {
   return hasFields ? normalizedDocument : undefined;
 }
 
+/**
+ * Reads the retrieved documents. A JSON-marshaled `retrieval.documents` value
+ * takes precedence over flattened `retrieval.documents.<index>.*` attributes.
+ * @param attributes - The OpenInference span attributes
+ */
 function getRetrievalDocuments(attributes: UnknownRecord): UnknownRecord[] {
   const rootDocuments = parseJSONArray(attributes[SemanticConventions.RETRIEVAL_DOCUMENTS])
     .map(normalizeDocument)
@@ -422,6 +518,11 @@ function getRetrievalDocuments(attributes: UnknownRecord): UnknownRecord[] {
     .filter(isDefined);
 }
 
+/**
+ * The `gen_ai.retrieval.*` attributes of a RETRIEVER span. The query text is
+ * omitted when the input is JSON, since it is then not a plain query.
+ * @param attributes - The OpenInference span attributes
+ */
 function getRetrievalAttributes(attributes: UnknownRecord): Attributes {
   if (getSpanKind(attributes) !== OpenInferenceSpanKind.RETRIEVER) {
     return {};
@@ -437,6 +538,12 @@ function getRetrievalAttributes(attributes: UnknownRecord): Attributes {
   };
 }
 
+/**
+ * Reads the length of the first embedding vector, from either a JSON-marshaled
+ * `embedding.embeddings` value or flattened `embedding.embeddings.<index>.embedding.vector` attributes.
+ * @param attributes - The OpenInference span attributes
+ * @returns The dimension count, or undefined when the span has no vector
+ */
 function getEmbeddingDimensionCount(attributes: UnknownRecord): number | undefined {
   for (const embedding of parseJSONArray(attributes[SemanticConventions.EMBEDDING_EMBEDDINGS])) {
     if (!isRecord(embedding)) {
@@ -461,6 +568,10 @@ function getEmbeddingDimensionCount(attributes: UnknownRecord): number | undefin
   return undefined;
 }
 
+/**
+ * The `gen_ai.embeddings.*` attributes of an EMBEDDING span.
+ * @param attributes - The OpenInference span attributes
+ */
 function getEmbeddingAttributes(attributes: UnknownRecord): Attributes {
   if (getSpanKind(attributes) !== OpenInferenceSpanKind.EMBEDDING) {
     return {};
@@ -471,6 +582,11 @@ function getEmbeddingAttributes(attributes: UnknownRecord): Attributes {
   };
 }
 
+/**
+ * Copies a record without its undefined values.
+ * @param record - The record to copy
+ * @returns A new record holding only the defined values
+ */
 function removeUndefinedValues<Value>(
   record: Record<string, Value | undefined>,
 ): Record<string, Value> {
