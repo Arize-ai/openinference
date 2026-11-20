@@ -280,6 +280,10 @@ You can also configure masking with environment variables:
 - `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH`
 - `OPENINFERENCE_HIDE_PROMPTS`
 
+### GenAI semantic conventions (experimental)
+
+Set `OPENINFERENCE_ENABLE_GENAI_SEMCONV=true` (or `traceConfig: { enableGenAISemconv: true }`) to also emit OpenTelemetry [GenAI semantic convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) `gen_ai.*` attributes on every span created through an `OITracer`. They are derived at span end from the span's masked OpenInference attributes, and never overwrite `gen_ai.*` attributes you set yourself. See [Trace Configuration and Data Masking](https://github.com/Arize-ai/openinference/blob/main/js/packages/openinference-core/docs/trace-config-and-masking.md#genai-semantic-conventions-export) for the mapping.
+
 ## Utility Helpers
 
 - `withSafety({ fn, onError? })`: wraps a function and returns `null` on error

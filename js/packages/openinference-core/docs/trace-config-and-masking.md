@@ -86,6 +86,7 @@ to redact or remove specific data.
 | `hideEmbeddingVectors` | boolean | false | Removes all `embedding.embeddings.*.embedding.vector` attributes |
 | `base64ImageMaxLength` | number | 32000 | Redacts base64-encoded image URLs longer than this character count, in input messages and under `input.images.*` / `output.images.*` |
 | `hidePrompts` | boolean | false | Redacts `llm.prompts` attribute |
+| `enableGenAISemconv` | boolean | false | Not a masking option. Also emits OpenTelemetry GenAI `gen_ai.*` attributes (experimental, see [GenAI Semantic Conventions Export](#genai-semantic-conventions-export)) |
 
 ### Redacted vs Removed
 
@@ -115,6 +116,7 @@ string `"true"`/`"false"` for booleans and numeric strings for numbers.
 | `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` | `base64ImageMaxLength` | number |
 | `OPENINFERENCE_HIDE_PROMPTS` | `hidePrompts` | boolean |
 | `OPENINFERENCE_HIDE_LLM_TOOLS` | `hideLLMTools` | boolean |
+| `OPENINFERENCE_ENABLE_GENAI_SEMCONV` | `enableGenAISemconv` | boolean |
 
 ### Precedence
 
@@ -129,6 +131,74 @@ If you pass `hideInputs: false` in `TraceConfigOptions`, it overrides
 
 ```bash
 OPENINFERENCE_HIDE_INPUTS=true OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH=8000 node app.js
+```
+
+## GenAI Semantic Conventions Export
+
+**Experimental.** Set `enableGenAISemconv: true` (or
+`OPENINFERENCE_ENABLE_GENAI_SEMCONV=true`) to make every span created through an
+`OITracer` also carry OpenTelemetry
+[GenAI semantic convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+`gen_ai.*` attributes alongside its OpenInference attributes. Because the
+conversion lives in `OITracer`, every OpenInference instrumentation built on it
+picks the setting up without code changes.
+
+```bash
+OPENINFERENCE_ENABLE_GENAI_SEMCONV=true node app.js
+```
+
+```typescript
+const tracer = new OITracer({
+  tracer: trace.getTracer("my-service"),
+  traceConfig: { enableGenAISemconv: true },
+});
+```
+
+The `gen_ai.*` attributes are derived when the span ends, from the OpenInference
+attributes set on it:
+
+- `gen_ai.*` attributes you set yourself are never overwritten.
+- Derivation runs after data masking, so hidden content stays hidden: a redacted
+  message is redacted in `gen_ai.input.messages` too, and a removed one is absent.
+- Only attributes set through the `OISpan` are converted. Attributes written to
+  the underlying OpenTelemetry span directly are not seen.
+
+| OpenInference | GenAI |
+|---------------|-------|
+| `openinference.span.kind` | `gen_ai.operation.name` (`chat`, `text_completion`, `embeddings`, `execute_tool`, `retrieval`, `invoke_agent`) |
+| `llm.provider`, `llm.system` | `gen_ai.provider.name` |
+| `session.id` | `gen_ai.conversation.id` |
+| `agent.name` | `gen_ai.agent.name` |
+| `llm.model_name`, `embedding.model_name` | `gen_ai.request.model` |
+| `llm.invocation_parameters` | `gen_ai.request.*` (temperature, top_p, top_k, max_tokens, penalties, seed, stream, stop_sequences, choice.count), `gen_ai.output.type` |
+| `llm.token_count.*` | `gen_ai.usage.*` |
+| `llm.input_messages.*`, `llm.prompts` | `gen_ai.input.messages` (JSON) |
+| `llm.output_messages.*`, `llm.choices` | `gen_ai.output.messages` (JSON), `gen_ai.response.finish_reasons` |
+| `output.value` (JSON, LLM spans) | `gen_ai.response.id`, `gen_ai.response.model` |
+| `llm.tools.*` | `gen_ai.tool.definitions` (JSON) |
+| `tool.*`, `output.value` (TOOL spans) | `gen_ai.tool.name`, `gen_ai.tool.type`, `gen_ai.tool.description`, `gen_ai.tool.call.id`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` |
+| `retrieval.documents.*`, `input.value` (RETRIEVER spans) | `gen_ai.retrieval.documents` (JSON), `gen_ai.retrieval.query.text` |
+| `embedding.embeddings.*` (EMBEDDING spans) | `gen_ai.embeddings.dimension.count` |
+
+### getGenAIAttributes
+
+The conversion itself is exported for span processors and other code that does
+not create spans through an `OITracer`. It returns the derived attributes and
+leaves merging to the caller:
+
+```typescript
+import { getGenAIAttributes } from "@arizeai/openinference-core";
+
+const genAIAttributes = getGenAIAttributes({
+  "openinference.span.kind": "LLM",
+  "llm.model_name": "gpt-4o",
+  "llm.provider": "openai",
+});
+// {
+//   "gen_ai.operation.name": "chat",
+//   "gen_ai.provider.name": "openai",
+//   "gen_ai.request.model": "gpt-4o",
+// }
 ```
 
 ## generateTraceConfig
