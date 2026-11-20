@@ -6,11 +6,17 @@ import pytest
 from groq import AsyncGroq, Groq
 from groq._base_client import _StreamT
 from groq._types import Body, RequestFiles, RequestOptions, ResponseT
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 from opentelemetry.util.types import AttributeValue
-
-from openinference.semconv.trace import SpanAttributes
 
 MODEL = "llama-3.1-8b-instant"
 
@@ -169,6 +175,41 @@ def test_async_path_records_only_the_parameters_the_caller_passed(
     }
 
 
+def _assert_interrupted_span(span: ReadableSpan, exception_type: Type[BaseException]) -> None:
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description is not None
+    assert span.status.description.startswith(f"{exception_type.__name__}:")
+    assert len(span.events) == 1
+    exception_event = span.events[0]
+    assert exception_event.name == "exception"
+    assert exception_event.attributes is not None
+    expected_exception_types = (
+        {"CancelledError", "asyncio.exceptions.CancelledError"}
+        if exception_type is asyncio.CancelledError
+        else {exception_type.__name__}
+    )
+    assert exception_event.attributes["exception.type"] in expected_exception_types
+
+    attributes = dict(span.attributes or {})
+    assert (
+        attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    )
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == OpenInferenceLLMProviderValues.GROQ.value
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(cast(str, attributes.pop(SpanAttributes.INPUT_VALUE))) == {
+        "messages": [{"role": "user", "content": "hi"}],
+        "model": MODEL,
+    }
+    assert json.loads(cast(str, attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS))) == {
+        "model": MODEL
+    }
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_CONTENT}") == "hi"
+    assert not attributes
+
+
 def test_sync_call_interrupted_by_base_exception_ends_span(
     setup_groq_instrumentation: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -185,7 +226,7 @@ def test_sync_call_interrupted_by_base_exception_ends_span(
         )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code == StatusCode.ERROR
+    _assert_interrupted_span(spans[0], KeyboardInterrupt)
 
 
 def test_async_call_cancelled_ends_span(
@@ -208,4 +249,4 @@ def test_async_call_cancelled_ends_span(
         asyncio.run(call())
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code == StatusCode.ERROR
+    _assert_interrupted_span(spans[0], asyncio.CancelledError)
