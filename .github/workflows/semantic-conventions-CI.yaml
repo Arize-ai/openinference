@@ -119,6 +119,9 @@ jobs:
       - name: Check parity with the spec and language packages
         run: make check-parity
 
+      - name: Build the registry the docs site serves (no network)
+        run: make site-schemas FORCE_CONTAINER=1
+
       # Rehearses the release workflow up to, but not including, the upload:
       # the same target, with the tag the next release would have.
       - name: Rehearse the release

@@ -93,6 +93,9 @@ CODE_OUTPUTS := \
 	../java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticConventions.java \
 	../java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticResourceAttributes.java
 PACKAGE_OUTPUT := $(BUILD)/package
+# Where the docs site reads the registry it serves at the schema URL. Not
+# committed; see site/src/lib/schemas.ts.
+SITE_SCHEMAS := ../site/src/generated/schemas
 
 # Registry to compare against for the backwards-compatibility policies. Empty
 # skips the comparison. CI passes the model on the pull request's base branch;
@@ -104,11 +107,12 @@ BASELINE_FLAG := $(if $(BASELINE_REGISTRY),--baseline-registry '$(BASELINE_REGIS
 # X.Y.Z from the schema_url in model/manifest.yaml, the single source of truth
 # for the registry version. release-please bumps it.
 VERSION := $(shell awk '/^schema_url:/ { n = split($$2, parts, "/"); print parts[n]; exit }' model/manifest.yaml)
+SCHEMA_URL := $(shell awk '/^schema_url:/ { print $$2; exit }' model/manifest.yaml)
 GITHUB_REPOSITORY ?= Arize-ai/openinference
 RELEASE_TAG := semantic-conventions-v$(VERSION)
 RELEASE_DOWNLOAD_URL := https://github.com/$(GITHUB_REPOSITORY)/releases/download/$(RELEASE_TAG)
 
-.PHONY: help check offline-model vendor check-vendor test generate generate-docs generate-spec generate-code check-generated check-parity check-all package release-assets print-version clean
+.PHONY: help check offline-model vendor check-vendor test generate generate-docs generate-spec generate-code check-generated check-parity check-all package release-assets site-schemas print-version clean
 
 help: ## Show this help
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-16s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -216,7 +220,7 @@ check-generated: generate ## Fail if anything generated from the model is out of
 check-parity: ## Fail if the model has drifted from spec/ or the language packages
 	uv run --no-project --with pyyaml==6.0.3 $(PYTHON) scripts/check_parity.py
 
-check-all: check check-vendor test check-generated check-parity ## Run every check CI runs
+check-all: check check-vendor test check-generated check-parity site-schemas ## Run every check CI runs
 	@$(MAKE) --no-print-directory release-assets TAG=$(RELEASE_TAG)
 
 package: ## Build the release assets: publication manifest + resolved registry
@@ -249,6 +253,24 @@ release-assets: ## Validate and build the assets for release TAG (e.g. TAG=seman
 	@grep -q '^resolved_registry_uri: $(RELEASE_DOWNLOAD_URL)/registry.yaml$$' $(PACKAGE_OUTPUT)/manifest.yaml \
 		|| { echo "FAIL: packaged manifest does not point at $(RELEASE_DOWNLOAD_URL)/registry.yaml."; exit 1; }
 	@echo "OK: release assets for $(TAG) are in $(PACKAGE_OUTPUT)."
+
+# Hermetic, like the other generate targets. The manifest points at the copy of
+# the resolved registry that the site serves next to it. The `unreleased`
+# marker tells the site that these files do not come from a release: the deploy
+# workflow only uses this target for a version that has none.
+site-schemas: offline-model ## Build the registry the docs site serves at the schema URL
+	@mkdir -p $(BUILD) $(SITE_SCHEMAS)/$(VERSION)
+	@$(WEAVER_OFFLINE) registry package \
+		-r $(OFFLINE_MODEL) \
+		--v2 \
+		--quiet \
+		--resolved-registry-uri '$(SCHEMA_URL)/registry.yaml' \
+		-o ./$(BUILD)/site-schemas \
+		2> $(BUILD)/site-schemas.log || { cat $(BUILD)/site-schemas.log; exit 1; }
+	@cp $(BUILD)/site-schemas/manifest.yaml $(SITE_SCHEMAS)/$(VERSION)/manifest.yaml
+	@cp $(BUILD)/site-schemas/resolved.yaml $(SITE_SCHEMAS)/$(VERSION)/registry.yaml
+	@echo "Built from the model, not downloaded from a release." > $(SITE_SCHEMAS)/$(VERSION)/unreleased
+	@echo "Wrote the registry for $(VERSION) to $(SITE_SCHEMAS)/$(VERSION)"
 
 print-version: ## Print the registry version
 	@echo $(VERSION)
