@@ -3927,6 +3927,12 @@ class TestGetSystemFromModel:
             ("jev-latest", OpenInferenceLLMSystemValues.TYPESAFE),
             ("jev-1.13.0", OpenInferenceLLMSystemValues.TYPESAFE),
             ("typesafe/jev", OpenInferenceLLMSystemValues.TYPESAFE),
+            ("grok-2-latest", OpenInferenceLLMSystemValues.XAI),
+            ("xai/grok-3", OpenInferenceLLMSystemValues.XAI),
+            ("deepseek-chat", OpenInferenceLLMSystemValues.DEEPSEEK),
+            ("amazon.titan-text-express-v1", OpenInferenceLLMSystemValues.AMAZON),
+            ("meta.llama3-70b-instruct-v1:0", OpenInferenceLLMSystemValues.META),
+            ("ai21.jamba-1-5-large-v1:0", OpenInferenceLLMSystemValues.AI21),
         ],
     )
     def test_known_models(self, model_name: str, expected: OpenInferenceLLMSystemValues) -> None:

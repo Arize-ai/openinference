@@ -165,6 +165,23 @@ if _typesafe_system := getattr(OpenInferenceLLMSystemValues, "TYPESAFE", None):
     _MODEL_PREFIX_TO_SYSTEM["jev"] = _typesafe_system
     _MODEL_PREFIX_TO_SYSTEM["typesafe"] = _typesafe_system
 
+# XAI, DEEPSEEK, AMAZON, META and AI21 joined OpenInferenceLLMSystemValues after
+# semconv 0.1.46; same guard. Each maps the vendor's own name, which is how
+# hosted model ids are prefixed (e.g. "amazon.titan-text-express-v1",
+# "meta.llama3-70b-instruct-v1:0", "ai21.jamba-1-5-large-v1:0"), plus xAI's
+# "grok" family. A bare open-weight name such as "llama-3-70b" stays unmapped:
+# it does not say whose API served it.
+for _system_name, _prefixes in (
+    ("XAI", ("xai", "grok")),
+    ("DEEPSEEK", ("deepseek",)),
+    ("AMAZON", ("amazon",)),
+    ("META", ("meta",)),
+    ("AI21", ("ai21",)),
+):
+    if _system := getattr(OpenInferenceLLMSystemValues, _system_name, None):
+        for _prefix in _prefixes:
+            _MODEL_PREFIX_TO_SYSTEM[_prefix] = _system
+
 
 def infer_llm_provider_from_host(host: str) -> Optional[OpenInferenceLLMProviderValues]:
     """Return the LLM provider name for the given API hostname."""
