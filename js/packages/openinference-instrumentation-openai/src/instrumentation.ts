@@ -384,6 +384,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
               [SemanticConventions.LLM_MODEL_NAME]: body.model,
+              [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
               [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
               [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
@@ -422,6 +423,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
+                [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
                 ...getChatCompletionLLMOutputMessagesAttributes(result),
                 ...getChatCompletionFinishReasonAttributes(result),
                 ...getUsageAttributes(result),
@@ -462,6 +464,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
               [SemanticConventions.LLM_MODEL_NAME]: body.model,
+              [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
@@ -492,6 +495,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
+                [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
                 ...getCompletionOutputValueAndMimeType(result),
                 ...getUsageAttributes(result),
               });
@@ -586,6 +590,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               attributes: {
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
                 [SemanticConventions.LLM_MODEL_NAME]: body.model,
+                [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
                 [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
                 [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
                 [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
@@ -624,6 +629,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                   // Override the model from the value sent by the server
                   [SemanticConventions.LLM_MODEL_NAME]: result.model,
+                  [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
                   ...getResponsesOutputMessagesAttributes(result),
                   ...getResponsesOutputImageAttributes({ response: result, body }),
                   ...getResponsesUsageAttributes(result),
@@ -744,6 +750,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           attributes: {
             [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
             [SemanticConventions.LLM_MODEL_NAME]: body.model ?? undefined,
+            [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model ?? undefined,
             ...getInputAttributes({ value: JSON.stringify(requestBody), mimeType: MimeType.JSON }),
             [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
             [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
