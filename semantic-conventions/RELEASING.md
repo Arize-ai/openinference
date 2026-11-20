@@ -57,10 +57,10 @@ target on every change with the tag the next release would have, so the only ste
 
 ## First release
 
-The registry starts at `0.0.1`. `.release-please-manifest.json` records `0.0.0` for this package, and the repository
-bumps the patch version for a `feat` while below 1.0, so the first release pull request proposes `0.0.1` with no
-special configuration. `model/manifest.yaml` already carries that version, so the release changes only
-`CHANGELOG.md` and `version.txt`.
+The registry starts at `0.0.1`. release-please would otherwise make the first release of a package `1.0.0`, so
+`release-please-config.json` sets `"initial-version": "0.0.1"` for this package. The setting only applies while the
+package has no release, so nothing has to be removed afterwards. `model/manifest.yaml` already carries that version,
+so the first release changes only `CHANGELOG.md` and `version.txt`.
 
 A `release-please release-pr --dry-run` against the branch that introduced the registry planned the release and
 listed `CHANGELOG.md`, `version.txt`, and `model/manifest.yaml` as the files it updates, and release-please's updater
