@@ -237,6 +237,9 @@ attributes:
     brief: "Template used to generate prompts (e.g., using `{variable}` placeholder syntax)"
     examples: ["Weather forecast for {city} on {date}"]
     stability: development
+    annotations:
+      openinference:
+        constant_key: llm.prompt_template
   - key: llm.prompt_template.variables
     type: string
     brief: "JSON of key value pairs applied to the prompt template"

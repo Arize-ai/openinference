@@ -1,0 +1,20 @@
+# Generates SemanticConventions.java in
+# java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace.
+#
+# See templates/registry/python/weaver.yaml for the shape of the context.
+templates:
+  - template: SemanticConventions.java.j2
+    filter: >
+      {
+        attributes: (
+          (.registry.attributes + [.registry.spans[].attributes[] | select(.provenance.path == null)])
+          | unique_by(.key)
+          | map(. + {const_key: (.annotations.openinference.constant_key // .key)})
+        )
+      }
+    application_mode: single
+    file_name: SemanticConventions.java
+
+whitespace_control:
+  trim_blocks: true
+  lstrip_blocks: true

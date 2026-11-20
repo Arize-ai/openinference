@@ -10,8 +10,9 @@ of the repository from diverging from it. It compares the model against:
   the model (`make generate-spec`), so their contents cannot drift; what this
   catches is a model attribute that no table on the page selects.
 - `python/openinference-semantic-conventions`: every attribute key constant and
-  every enum value. The Go package is in turn pinned to the Python one by
-  `scripts/check_go_semconv.py`.
+  every enum value. That module is generated from the model too
+  (`make generate-code`), so this guards the template: a class that stops
+  selecting an attribute, or an enum that is not wired up.
 
 Comparison is on wire-format values (attribute keys and enum values), never on
 constant names. Differences that exist today are listed in `KNOWN_DRIFT` with
@@ -69,12 +70,6 @@ KNOWN_DRIFT: set[tuple[str, str, str]] = {
     ("attribute", "llm.token_count.prompt_details", "model"),
     ("attribute", "llm.cost.prompt_details", "model"),
     ("attribute", "llm.cost.completion_details", "model"),
-    # Well-known `llm.system` values in the spec that Python does not expose.
-    ("llm.system", "xai", "python"),
-    ("llm.system", "deepseek", "python"),
-    ("llm.system", "amazon", "python"),
-    ("llm.system", "meta", "python"),
-    ("llm.system", "ai21", "python"),
 }
 
 

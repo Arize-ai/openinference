@@ -1,0 +1,19 @@
+# Generates js/packages/openinference-semantic-conventions/src/trace/SemanticConventions.ts.
+#
+# See templates/registry/python/weaver.yaml for the shape of the context.
+templates:
+  - template: SemanticConventions.ts.j2
+    filter: >
+      {
+        attributes: (
+          (.registry.attributes + [.registry.spans[].attributes[] | select(.provenance.path == null)])
+          | unique_by(.key)
+          | map(. + {const_key: (.annotations.openinference.constant_key // .key)})
+        )
+      }
+    application_mode: single
+    file_name: SemanticConventions.ts
+
+whitespace_control:
+  trim_blocks: true
+  lstrip_blocks: true

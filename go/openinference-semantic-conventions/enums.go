@@ -1,98 +1,191 @@
+// Code generated from the semantic convention registry in semantic-conventions/model. DO NOT EDIT.
+// Change the model or semantic-conventions/templates/registry/go, then run
+// `make -C semantic-conventions generate`.
+
 package semconv
 
-// Values for the OpenInferenceSpanKind attribute. Pick the value that best
-// describes the span: LLM for raw provider API calls, CHAIN for orchestration
-// boundaries, TOOL for function/tool execution, RETRIEVER for vector-store
-// lookups, EMBEDDING for embedding API calls, AGENT for an autonomous
-// sub-agent run nested inside a larger chain, RERANKER for rerank API calls,
-// GUARDRAIL for guardrail/policy checks, EVALUATOR for online eval calls,
-// PROMPT for a prompt-registry lookup, DECISION for a decision-model call that
-// scores or selects among candidate options.
+// Well-known values for the openinference.span.kind attribute.
 const (
-	SpanKindLLM       = "LLM"
-	SpanKindChain     = "CHAIN"
-	SpanKindDecision  = "DECISION"
-	SpanKindTool      = "TOOL"
-	SpanKindRetriever = "RETRIEVER"
+	// SpanKindLLM: A call to a large language model.
+	SpanKindLLM = "LLM"
+
+	// SpanKindEmbedding: Generation of vector embeddings.
 	SpanKindEmbedding = "EMBEDDING"
-	SpanKindAgent     = "AGENT"
-	SpanKindReranker  = "RERANKER"
+
+	// SpanKindChain: A link between application steps, or the start of a request.
+	SpanKindChain = "CHAIN"
+
+	// SpanKindRetriever: A query to a vector store, search engine, or database.
+	SpanKindRetriever = "RETRIEVER"
+
+	// SpanKindReranker: Reordering of candidate documents by relevance.
+	SpanKindReranker = "RERANKER"
+
+	// SpanKindTool: Execution of a tool or function.
+	SpanKindTool = "TOOL"
+
+	// SpanKindAgent: A reasoning step that acts on tools using an LLM's guidance.
+	SpanKindAgent = "AGENT"
+
+	// SpanKindGuardrail: An input or output moderation check.
 	SpanKindGuardrail = "GUARDRAIL"
+
+	// SpanKindEvaluator: An evaluation of a model's output.
 	SpanKindEvaluator = "EVALUATOR"
-	SpanKindPrompt    = "PROMPT"
-	SpanKindUnknown   = "UNKNOWN"
+
+	// SpanKindPrompt: The rendering of a prompt template.
+	SpanKindPrompt = "PROMPT"
+
+	// SpanKindDecision: A call to a decision model.
+	SpanKindDecision = "DECISION"
+
+	// SpanKindUnknown: Fallback used by SDKs when the kind of an operation cannot be determined.
+	SpanKindUnknown = "UNKNOWN"
 )
 
-// Values for AnnotationAnnotatorKind and EvaluationAnnotatorKind.
+// Well-known values for the annotation.annotator_kind attribute.
 const (
+	// AnnotatorKindHuman: A human reviewer.
 	AnnotatorKindHuman = "HUMAN"
-	AnnotatorKindLLM   = "LLM"
-	AnnotatorKindCode  = "CODE"
+
+	// AnnotatorKindLLM: An LLM judge.
+	AnnotatorKindLLM = "LLM"
+
+	// AnnotatorKindCode: A code-based evaluator.
+	AnnotatorKindCode = "CODE"
 )
 
-// Values for the InputMimeType / OutputMimeType attributes.
+// Well-known values for the input.mime_type attribute.
 const (
+	// MimeTypeText: Plain text. The default when unspecified.
 	MimeTypeText = "text/plain"
+
+	// MimeTypeJSON: A string holding serialized JSON.
 	MimeTypeJSON = "application/json"
 )
 
-// Values for the LLMSystem attribute (the AI product as identified by the
-// client or server).
+// Well-known values for the llm.system attribute.
 const (
-	LLMSystemOpenAI    = "openai"
+	// LLMSystemAnthropic: Anthropic
 	LLMSystemAnthropic = "anthropic"
-	LLMSystemCohere    = "cohere"
+
+	// LLMSystemOpenAI: OpenAI
+	LLMSystemOpenAI = "openai"
+
+	// LLMSystemVertexAI: Vertex AI
+	LLMSystemVertexAI = "vertexai"
+
+	// LLMSystemCohere: Cohere
+	LLMSystemCohere = "cohere"
+
+	// LLMSystemMistralAI: Mistral AI
 	LLMSystemMistralAI = "mistralai"
-	LLMSystemVertexAI  = "vertexai"
-	LLMSystemTypeSafe  = "typesafe"
+
+	// LLMSystemXAI: xAI (Grok)
+	LLMSystemXAI = "xai"
+
+	// LLMSystemDeepSeek: DeepSeek
+	LLMSystemDeepSeek = "deepseek"
+
+	// LLMSystemAmazon: Amazon Bedrock native
+	LLMSystemAmazon = "amazon"
+
+	// LLMSystemMeta: Meta (Llama)
+	LLMSystemMeta = "meta"
+
+	// LLMSystemAI21: AI21 Labs
+	LLMSystemAI21 = "ai21"
+
+	// LLMSystemTypeSafe: TypeSafe AI
+	LLMSystemTypeSafe = "typesafe"
 )
 
-// Values for the LLMProvider attribute (the company providing the model —
-// often the same as the system, but distinct for providers that resell
-// models from elsewhere, e.g. Azure → OpenAI).
+// Well-known values for the llm.provider attribute.
 const (
-	LLMProviderOpenAI     = "openai"
-	LLMProviderAnthropic  = "anthropic"
-	LLMProviderCohere     = "cohere"
-	LLMProviderMistralAI  = "mistralai"
-	LLMProviderGoogle     = "google"
-	LLMProviderAzure      = "azure"
-	LLMProviderAWS        = "aws"
-	LLMProviderXAI        = "xai"
-	LLMProviderDeepSeek   = "deepseek"
-	LLMProviderGroq       = "groq"
-	LLMProviderFireworks  = "fireworks"
-	LLMProviderMoonshot   = "moonshot"
-	LLMProviderCerebras   = "cerebras"
+	// LLMProviderAnthropic: Anthropic
+	LLMProviderAnthropic = "anthropic"
+
+	// LLMProviderOpenAI: OpenAI
+	LLMProviderOpenAI = "openai"
+
+	// LLMProviderCohere: Cohere
+	LLMProviderCohere = "cohere"
+
+	// LLMProviderMistralAI: Mistral AI
+	LLMProviderMistralAI = "mistralai"
+
+	// LLMProviderAzure: Azure
+	LLMProviderAzure = "azure"
+
+	// LLMProviderGoogle: Google (Vertex)
+	LLMProviderGoogle = "google"
+
+	// LLMProviderAWS: AWS Bedrock
+	LLMProviderAWS = "aws"
+
+	// LLMProviderXAI: xAI
+	LLMProviderXAI = "xai"
+
+	// LLMProviderDeepSeek: DeepSeek
+	LLMProviderDeepSeek = "deepseek"
+
+	// LLMProviderGroq: Groq
+	LLMProviderGroq = "groq"
+
+	// LLMProviderFireworks: Fireworks AI
+	LLMProviderFireworks = "fireworks"
+
+	// LLMProviderMoonshot: Moonshot AI
+	LLMProviderMoonshot = "moonshot"
+
+	// LLMProviderCerebras: Cerebras
+	LLMProviderCerebras = "cerebras"
+
+	// LLMProviderPerplexity: Perplexity
 	LLMProviderPerplexity = "perplexity"
-	LLMProviderTogether   = "together"
-	LLMProviderOllama     = "ollama"
-	LLMProviderMeta       = "meta"
-	LLMProviderZAI        = "zai"
-	LLMProviderMiniMax    = "minimax"
-	LLMProviderOracle     = "oracle"
-	LLMProviderIBM        = "ibm"
-	LLMProviderTypeSafe   = "typesafe"
+
+	// LLMProviderTogether: Together AI
+	LLMProviderTogether = "together"
+
+	// LLMProviderOllama: Ollama
+	LLMProviderOllama = "ollama"
+
+	// LLMProviderMeta: Meta AI
+	LLMProviderMeta = "meta"
+
+	// LLMProviderZAI: Z.ai (GLM)
+	LLMProviderZAI = "zai"
+
+	// LLMProviderMiniMax: MiniMax
+	LLMProviderMiniMax = "minimax"
+
+	// LLMProviderTypeSafe: TypeSafe AI
+	LLMProviderTypeSafe = "typesafe"
+
+	// LLMProviderOracle: Oracle (OCI Generative AI)
+	LLMProviderOracle = "oracle"
+
+	// LLMProviderIBM: IBM (watsonx.ai)
+	LLMProviderIBM = "ibm"
+
+	// LLMProviderDoubleword: Doubleword
 	LLMProviderDoubleword = "doubleword"
 )
 
-// Values for the DecisionSystem attribute: the decision API ecosystem a
-// DECISION span conforms to. Each constant aliases the LLMSystem* constant
-// for the same vendor, so the same string names the same vendor on LLM and
-// DECISION spans. The list is the subset of vendors currently known to offer
-// a decision API.
+// Well-known values for the decision.system attribute.
 const (
-	// DecisionSystemTypeSafe is the TypeSafe AI System One / Jev API,
-	// including Jev-compatible servers.
-	DecisionSystemTypeSafe = LLMSystemTypeSafe
-	// DecisionSystemOpenAI is the OpenAI Decisions API.
-	DecisionSystemOpenAI = LLMSystemOpenAI
+	// DecisionSystemTypeSafe: [TypeSafe AI System One / Jev API](https://typesafe.ai/blog/introducing-system-one-models-and-jev), including Jev-compatible servers such as vLLM's `/v1/systemone`
+	DecisionSystemTypeSafe = "typesafe"
+
+	// DecisionSystemOpenAI: [OpenAI Decisions API](https://openai.com/index/devday-2026-recap/)
+	DecisionSystemOpenAI = "openai"
 )
 
-// Values for the DecisionProvider attribute: who hosts the decision model
-// that answered. Each constant aliases the LLMProvider* constant for the
-// same vendor.
+// Well-known values for the decision.provider attribute.
 const (
-	DecisionProviderTypeSafe = LLMProviderTypeSafe
-	DecisionProviderOpenAI   = LLMProviderOpenAI
+	// DecisionProviderTypeSafe: TypeSafe AI
+	DecisionProviderTypeSafe = "typesafe"
+
+	// DecisionProviderOpenAI: OpenAI
+	DecisionProviderOpenAI = "openai"
 )

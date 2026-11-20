@@ -1,0 +1,24 @@
+# Generates attributes.go and enums.go in go/openinference-semantic-conventions.
+#
+# See templates/registry/python/weaver.yaml for the shape of the context.
+templates:
+  - template: attributes.go.j2
+    filter: >
+      {
+        attributes: (
+          (.registry.attributes + [.registry.spans[].attributes[] | select(.provenance.path == null)])
+          | unique_by(.key)
+          | map(. + {const_key: (.annotations.openinference.constant_key // .key)})
+        )
+      }
+    application_mode: single
+    file_name: attributes.go
+
+  - template: enums.go.j2
+    filter: "{attributes: .registry.attributes}"
+    application_mode: single
+    file_name: enums.go
+
+whitespace_control:
+  trim_blocks: true
+  lstrip_blocks: true

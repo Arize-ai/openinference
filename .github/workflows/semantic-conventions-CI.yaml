@@ -36,8 +36,11 @@ jobs:
               - "semantic-conventions/**"
               # Tables in the spec are generated from the model.
               - "spec/**"
-              # The parity check compares the model against the Python package.
+              # Constants in the language packages are generated from the model.
               - "python/openinference-semantic-conventions/src/openinference/semconv/**"
+              - "go/openinference-semantic-conventions/*.go"
+              - "js/packages/openinference-semantic-conventions/src/**"
+              - "java/openinference-semantic-conventions/src/main/**"
 
   ci:
     name: CI Semantic Conventions
@@ -99,8 +102,8 @@ jobs:
       - name: Check sample wire-format keys against the registry
         run: make test
 
-      - name: Check generated registry docs and spec tables are up to date
-        run: make check-docs
+      - name: Check generated docs, spec tables, and language constants are up to date
+        run: make check-generated
 
       - name: Check parity with the spec and language packages
         run: make check-parity

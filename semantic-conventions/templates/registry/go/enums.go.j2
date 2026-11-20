@@ -1,0 +1,31 @@
+{% import 'naming.j2' as n %}
+{# Constant name prefix for the well-known values of each enum attribute. #}
+{% set enums = [
+  {"prefix": "SpanKind", "key": "openinference.span.kind"},
+  {"prefix": "AnnotatorKind", "key": "annotation.annotator_kind"},
+  {"prefix": "MimeType", "key": "input.mime_type"},
+  {"prefix": "LLMSystem", "key": "llm.system"},
+  {"prefix": "LLMProvider", "key": "llm.provider"},
+  {"prefix": "DecisionSystem", "key": "decision.system"},
+  {"prefix": "DecisionProvider", "key": "decision.provider"},
+] %}
+// Code generated from the semantic convention registry in semantic-conventions/model. DO NOT EDIT.
+// Change the model or semantic-conventions/templates/registry/go, then run
+// `make -C semantic-conventions generate`.
+
+package semconv
+{% for enum in enums %}
+{% for attribute in ctx.attributes if attribute.key == enum["key"] %}
+
+// Well-known values for the {{ attribute.key }} attribute.
+const (
+{% for member in attribute.type.members %}
+	// {{ enum["prefix"] }}{{ n.go_name(member.id) }}: {{ n.doc(member.brief) }}
+	{{ enum["prefix"] }}{{ n.go_name(member.id) }} = "{{ member.value }}"
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+)
+{% endfor %}
+{% endfor %}

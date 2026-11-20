@@ -9,7 +9,8 @@ policies as [`semantic-conventions-genai`](https://github.com/open-telemetry/sem
 conventions versioned, checkable, and consumable by other registries.
 
 The prose specification is in [`spec/`](../spec/README.md). The model here is the source of truth for attribute keys,
-types, and well-known values; the spec explains them, and its attribute tables are generated from the model.
+types, and well-known values. The spec's attribute tables and the constants in the Python, Go, TypeScript, and Java
+semantic convention packages are generated from it.
 
 ## Layout
 
@@ -24,7 +25,8 @@ semantic-conventions/
 ├── policies/
 │   ├── check/openinference/  # OpenInference-specific Rego policies
 │   └── exceptions.json       # Accepted findings from the shared OpenTelemetry policies, each with a reason
-├── templates/registry/     # Weaver templates for the generated reference
+├── templates/registry/     # Weaver templates: markdown/ for docs and spec tables; python/, go/,
+│                           #   typescript/, java/ for the language packages
 ├── docs/registry/          # GENERATED reference (do not edit by hand)
 ├── tests/live-check/       # Sample wire-format keys that must / must not resolve against the registry
 ├── scripts/                # Checks run by the Makefile
@@ -45,7 +47,7 @@ check also needs [uv](https://github.com/astral-sh/uv).
 make -C semantic-conventions check-all       # everything CI runs
 make -C semantic-conventions check           # validate the model and run the policies
 make -C semantic-conventions test            # check sample keys against the registry
-make -C semantic-conventions generate        # regenerate docs/registry/ and the spec tables after changing the model
+make -C semantic-conventions generate        # regenerate docs, spec tables, and language packages after changing the model
 make -C semantic-conventions check-parity    # compare the model with spec/ and the Python package
 make -C semantic-conventions help            # all targets
 ```
@@ -54,11 +56,11 @@ To change the conventions:
 
 1. Edit the YAML under `model/`. Add new attributes to the `registry.yaml` of their domain, and reference them from the
    `spans.yaml` of every span kind that carries them.
-2. Run `make generate` and commit the result: the reference in `docs/registry/` and the tables in
-   [`spec/attributes/semantic-conventions.md`](../spec/attributes/semantic-conventions.md).
-3. Update the prose in [`spec/`](../spec/README.md) where the change needs explaining, and the language packages.
-   `make check-parity` fails until the Python package agrees with the model, and if a new attribute is not picked up
-   by any table in the spec (see [Spec tables](#spec-tables)).
+2. Run `make generate` and commit the result: the reference in `docs/registry/`, the tables in
+   [`spec/attributes/semantic-conventions.md`](../spec/attributes/semantic-conventions.md), and the constants in the
+   four language packages (see [Language packages](#language-packages)).
+3. Update the prose in [`spec/`](../spec/README.md) where the change needs explaining. `make check-parity` fails if
+   a new attribute is not picked up by any table in the spec (see [Spec tables](#spec-tables)).
 4. Use a conventional commit scoped to this directory so the change lands in the registry changelog, e.g.
    `feat(semantic-conventions): add llm.reasoning_effort`.
 
@@ -110,6 +112,35 @@ prefix, so a new attribute under that prefix appears on its own. Tables that lis
 order, need the new key added to the marker. To add a table to any page under `spec/`, add a marker pair and run
 `make generate-spec`.
 
+### Language packages
+
+`make generate-code` writes the constants of the four semantic convention packages from the model:
+
+| Language | Template | Generated file |
+| --- | --- | --- |
+| Python | [`templates/registry/python`](templates/registry/python) | `python/openinference-semantic-conventions/src/openinference/semconv/trace/__init__.py` |
+| Go | [`templates/registry/go`](templates/registry/go) | `go/openinference-semantic-conventions/attributes.go`, `enums.go` |
+| TypeScript | [`templates/registry/typescript`](templates/registry/typescript) | `js/packages/openinference-semantic-conventions/src/trace/SemanticConventions.ts` |
+| Java | [`templates/registry/java`](templates/registry/java) | `java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticConventions.java` |
+
+Generation is self-contained. It needs only Weaver at the pinned version (or the container image), not the language
+toolchains: the templates emit code that already satisfies each language's formatter (ruff, gofmt, oxfmt, Spotless),
+and the output is deterministic. CI regenerates and fails on any difference, so a generated file cannot be edited by
+hand or go stale. Each language's own CI then formats, compiles, and tests the result.
+
+Constant names follow from the attribute key (`llm.model_name` becomes `LLM_MODEL_NAME`, or `LLMModelName` in Go).
+Where a published name differs:
+
+- A name that differs in every language is recorded once in the model, as
+  `annotations.openinference.constant_key` (`tool_call.function.arguments` is named as if it were
+  `tool_call.function.arguments_json`).
+- A name that differs in one language is in that language's template (`legacy_names`), next to the other things
+  that are specific to a package: which class an attribute belongs to, constants for key prefixes, enum members that
+  are not in the registry, and the casing of Go identifiers.
+
+Those tables are public API. Add to them; do not rename or remove entries. Enum members follow the model, so adding
+a well-known value adds a member in every language.
+
 ## Using the registry
 
 Released versions are tagged `semantic-conventions-vX.Y.Z`. Each release has the publication manifest
@@ -158,9 +189,8 @@ spans:
 | --- | --- |
 | `make check` | A model that does not parse or resolve; violations of the shared OpenTelemetry policies (naming, collisions, stability, deprecation); violations of the OpenInference policies in [`policies/check/openinference`](policies/check/openinference); with a baseline, removed or incompatibly changed attributes and spans |
 | `make test` | A change to the model (or to Weaver) that stops flattened wire-format keys from resolving to their attribute |
-| `make check-docs` | `docs/registry/` or the tables in `spec/` not regenerated after a model change, or a generated table edited by hand |
-| `make check-parity` | Attribute keys or well-known values that differ between the model and the Python package; model attributes that no table in `spec/attributes/semantic-conventions.md` shows |
+| `make check-generated` | Docs, spec tables, or language constants not regenerated after a model change, or a generated file edited by hand |
+| `make check-parity` | Model attributes that no table in `spec/attributes/semantic-conventions.md` shows, or that the Python template leaves out of every class |
 
-The differences that exist today are listed in `KNOWN_DRIFT` in [`scripts/check_parity.py`](scripts/check_parity.py).
-The JavaScript and Java packages are not compared yet: they compose keys from prefixes, so they need to be generated
-from the model rather than parsed. The Go package is pinned to the Python one by `scripts/check_go_semconv.py`.
+The remaining entries in `KNOWN_DRIFT` in [`scripts/check_parity.py`](scripts/check_parity.py) are the key-prefix
+constants, which are constants in the packages but not attributes in the model.

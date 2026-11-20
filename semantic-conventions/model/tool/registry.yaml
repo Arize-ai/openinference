@@ -48,6 +48,7 @@ attributes:
     stability: development
     annotations:
       openinference:
+        constant_key: tool_call.function.arguments_json
         encoding: json
   - key: tool_call.reasoning_signature
     type: string
