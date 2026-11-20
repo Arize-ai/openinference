@@ -1,6 +1,8 @@
 import type { Attributes } from "@opentelemetry/api";
 import { isAttributeValue } from "@opentelemetry/core";
 
+import type { UnknownRecord } from "../types";
+
 /**
  * Type guard to determine whether or not a value is a string.
  * @param value
@@ -105,7 +107,7 @@ export function isStringArray(value: unknown): value is string[] {
  * @param value
  * @returns true if the value is a record, false otherwise.
  */
-export function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !isArray(value);
 }
 

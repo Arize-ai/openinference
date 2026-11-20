@@ -8,6 +8,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
+import type { UnknownRecord } from "../../types";
 import {
   isArray,
   isDefined,
@@ -46,7 +47,6 @@ import {
   toOptionalString,
 } from "./serializationUtils";
 import { getToolDefinitions } from "./tools";
-import type { UnknownRecord } from "./types";
 
 /** `embedding.invocation_parameters`, the embedding counterpart of `llm.invocation_parameters`. */
 const EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters";

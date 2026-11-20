@@ -1,3 +1,4 @@
+import type { UnknownRecord } from "../../types";
 import {
   isArray,
   isBigInt,
@@ -8,7 +9,6 @@ import {
   isString,
   safelyJSONStringify,
 } from "../../utils";
-import type { UnknownRecord } from "./types";
 
 /** Matches an optionally signed integer written as a string. */
 const INTEGER_PATTERN = /^[+-]?\d+$/;

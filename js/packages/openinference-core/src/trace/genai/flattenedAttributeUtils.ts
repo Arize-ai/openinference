@@ -1,5 +1,5 @@
+import type { UnknownRecord } from "../../types";
 import { isRecord } from "../../utils";
-import type { UnknownRecord } from "./types";
 
 /** Matches a non-negative integer index, e.g. the `0` in `llm.tools.0.tool.name`. */
 const DIGITS_PATTERN = /^\d+$/;

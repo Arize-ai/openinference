@@ -1,5 +1,6 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+import type { UnknownRecord } from "../../types";
 import { isDefined, isNullish, isPresent, isRecord, isUndefined } from "../../utils";
 import { getIndexedBuckets } from "./flattenedAttributeUtils";
 import { GenAIToolType } from "./genAIAttributes";
@@ -9,7 +10,6 @@ import {
   parseJSONIfString,
   toNonEmptyString,
 } from "./serializationUtils";
-import type { UnknownRecord } from "./types";
 
 /** Fields whose presence marks a record as a tool definition. */
 const TOOL_DEFINITION_FIELDS = ["name", "parameters", "description"];

@@ -1,5 +1,6 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+import type { UnknownRecord } from "../../types";
 import { isArray, isDefined, isRecord, isString, isUndefined } from "../../utils";
 import { getIndexedBuckets } from "./flattenedAttributeUtils";
 import {
@@ -9,7 +10,6 @@ import {
   GenAIRole,
 } from "./genAIAttributes";
 import { parseJSONIfString, toNonEmptyString, toOptionalString } from "./serializationUtils";
-import type { UnknownRecord } from "./types";
 
 /** `llm.choices`, the legacy completions counterpart of `llm.prompts` */
 export const LLM_CHOICES = "llm.choices";

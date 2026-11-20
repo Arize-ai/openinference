@@ -300,8 +300,9 @@ src/
       maskingRules.ts               # Masking rule definitions
       types.ts                      # TraceConfigOptions, TraceConfig, MaskingRule
       constants.ts                  # Environment variable names and defaults
+  types/
+    index.ts                        # Shared types: GenericFunction, SafeFunction, UnknownRecord
   utils/
     index.ts                        # withSafety, safelyJSONStringify, safelyJSONParse
     typeUtils.ts                    # isString, isRecord, isDefined, isPromise, etc.
-    types.ts                        # GenericFunction, SafeFunction
 ```
