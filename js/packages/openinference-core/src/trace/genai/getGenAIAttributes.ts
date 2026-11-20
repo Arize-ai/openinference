@@ -190,7 +190,7 @@ function getProviderName(attributes: UnknownRecord): string | undefined {
     provider === undefined
       ? PROVIDER_NAME_BY_SYSTEM[system ?? ""]
       : PROVIDER_NAME_BY_PROVIDER[provider];
-  return mappedProviderName ?? (system || provider);
+  return mappedProviderName ?? (system || provider || undefined);
 }
 
 function getBaseAttributes(attributes: UnknownRecord): Attributes {
@@ -241,7 +241,10 @@ function getRequestAttributes(attributes: UnknownRecord): Attributes {
   const llmParameters = parseJSONRecord(attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS]);
   const embeddingParameters = parseJSONRecord(attributes[EMBEDDING_INVOCATION_PARAMETERS]);
   const invocationParameters = { ...embeddingParameters, ...llmParameters };
+  // `llm.model_name` mirrors the response model once a response arrives, so the
+  // model the caller asked for is read from `llm.request.model_name` first.
   const requestModel =
+    toNonEmptyString(attributes[SemanticConventions.LLM_REQUEST_MODEL_NAME]) ||
     toNonEmptyString(attributes[SemanticConventions.LLM_MODEL_NAME]) ||
     toNonEmptyString(attributes[SemanticConventions.EMBEDDING_MODEL_NAME]) ||
     toNonEmptyString(llmParameters.model) ||
@@ -299,12 +302,15 @@ function getResponseAttributes({
   const hasJSONResponse =
     getSpanKind(attributes) === OpenInferenceSpanKind.LLM &&
     attributes[SemanticConventions.OUTPUT_MIME_TYPE] === MimeType.JSON;
-  if (!hasJSONResponse) {
-    return genAIAttributes;
-  }
-  const responsePayload = parseJSONRecord(attributes[SemanticConventions.OUTPUT_VALUE]);
+  const responsePayload = hasJSONResponse
+    ? parseJSONRecord(attributes[SemanticConventions.OUTPUT_VALUE])
+    : {};
   genAIAttributes[GenAIAttributes.GEN_AI_RESPONSE_ID] = toNonEmptyString(responsePayload.id);
-  genAIAttributes[GenAIAttributes.GEN_AI_RESPONSE_MODEL] = toNonEmptyString(responsePayload.model);
+  // An explicit `llm.response.model_name` wins over the model in the payload,
+  // which is only available when the output is a JSON provider response.
+  genAIAttributes[GenAIAttributes.GEN_AI_RESPONSE_MODEL] =
+    toNonEmptyString(attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME]) ||
+    toNonEmptyString(responsePayload.model);
   return genAIAttributes;
 }
 

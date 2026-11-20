@@ -162,6 +162,11 @@ attributes set on it:
   message is redacted in `gen_ai.input.messages` too, and a removed one is absent.
 - Only attributes set through the `OISpan` are converted. Attributes written to
   the underlying OpenTelemetry span directly are not seen.
+- The derived attributes count against the span's attribute limits. A span that
+  has already reached its attribute count limit (128 by default) when it ends
+  gets no `gen_ai.*` attributes, which can happen on LLM spans with long
+  conversations. Raise `spanLimits.attributeCountLimit` on the tracer provider
+  (or `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT`) for those workloads.
 
 | OpenInference | GenAI |
 |---------------|-------|
@@ -169,12 +174,13 @@ attributes set on it:
 | `llm.provider`, `llm.system` | `gen_ai.provider.name` |
 | `session.id` | `gen_ai.conversation.id` |
 | `agent.name` | `gen_ai.agent.name` |
-| `llm.model_name`, `embedding.model_name` | `gen_ai.request.model` |
+| `llm.request.model_name`, `llm.model_name`, `embedding.model_name` | `gen_ai.request.model` |
 | `llm.invocation_parameters` | `gen_ai.request.*` (temperature, top_p, top_k, max_tokens, penalties, seed, stream, stop_sequences, choice.count), `gen_ai.output.type` |
 | `llm.token_count.*` | `gen_ai.usage.*` |
 | `llm.input_messages.*`, `llm.prompts` | `gen_ai.input.messages` (JSON) |
 | `llm.output_messages.*`, `llm.choices` | `gen_ai.output.messages` (JSON), `gen_ai.response.finish_reasons` |
-| `output.value` (JSON, LLM spans) | `gen_ai.response.id`, `gen_ai.response.model` |
+| `llm.response.model_name`, `output.value` (JSON, LLM spans) | `gen_ai.response.model` |
+| `output.value` (JSON, LLM spans) | `gen_ai.response.id` |
 | `llm.tools.*` | `gen_ai.tool.definitions` (JSON) |
 | `tool.*`, `output.value` (TOOL spans) | `gen_ai.tool.name`, `gen_ai.tool.type`, `gen_ai.tool.description`, `gen_ai.tool.call.id`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` |
 | `retrieval.documents.*`, `input.value` (RETRIEVER spans) | `gen_ai.retrieval.documents` (JSON), `gen_ai.retrieval.query.text` |

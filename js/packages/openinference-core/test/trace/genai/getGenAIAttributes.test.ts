@@ -250,6 +250,29 @@ describe("getGenAIAttributes", () => {
     ])("should map %j to %s", (attributes, providerName) => {
       expect(getGenAIAttributes(attributes)["gen_ai.provider.name"]).toBe(providerName);
     });
+
+    it("should not emit an empty provider name", () => {
+      expect(getGenAIAttributes({ "llm.provider": "" })).toEqual({});
+    });
+  });
+
+  describe("model names", () => {
+    it("should read the request and response models from their own attributes", () => {
+      // llm.model_name mirrors the response model, e.g. after a server-side fallback
+      expect(
+        getGenAIAttributes({
+          "openinference.span.kind": "LLM",
+          "llm.model_name": "fallback-model",
+          "llm.request.model_name": "requested-model",
+          "llm.response.model_name": "fallback-model",
+          "output.value": "streamed text",
+        }),
+      ).toEqual({
+        "gen_ai.operation.name": "chat",
+        "gen_ai.request.model": "requested-model",
+        "gen_ai.response.model": "fallback-model",
+      });
+    });
   });
 
   describe("tool definitions", () => {
@@ -322,6 +345,32 @@ describe("getGenAIAttributes", () => {
         "gen_ai.tool.call.id": "call_1",
         "gen_ai.tool.call.arguments": '{"city":"Paris"}',
         "gen_ai.tool.call.result": "sunny",
+      });
+    });
+
+    it("should not re-encode JSON arguments and results", () => {
+      // a parse and stringify round trip would round these integers
+      expect(
+        getGenAIAttributes({
+          "openinference.span.kind": "TOOL",
+          "tool.parameters": '{"user_id": 1234567890123456789}',
+          "output.value": "12345678901234567890",
+        }),
+      ).toMatchObject({
+        "gen_ai.tool.call.arguments": '{"user_id": 1234567890123456789}',
+        "gen_ai.tool.call.result": "12345678901234567890",
+      });
+    });
+
+    it("should not write to Object.prototype when unflattening tool parameters", () => {
+      const genAIAttributes = getGenAIAttributes({
+        "openinference.span.kind": "TOOL",
+        "tool.parameters.__proto__.polluted": "yes",
+        "tool.parameters.city": "Paris",
+      });
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+      expect(parseJSONAttribute(genAIAttributes["gen_ai.tool.call.arguments"])).toMatchObject({
+        city: "Paris",
       });
     });
 

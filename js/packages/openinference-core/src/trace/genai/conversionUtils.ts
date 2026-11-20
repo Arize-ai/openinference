@@ -64,15 +64,20 @@ export function toNonEmptyString(value: unknown): string | undefined {
 }
 
 /**
- * Serializes a value that may already be a JSON string. Plain (non-JSON)
- * strings are returned as-is; everything else is JSON encoded.
+ * Serializes a value that may already be a JSON string. A JSON encoded string
+ * is unwrapped, any other string is returned as-is, and everything else is
+ * JSON encoded.
+ *
+ * A string that holds JSON is never re-encoded: a parse and stringify round
+ * trip is lossy in JavaScript, e.g. for integers above
+ * `Number.MAX_SAFE_INTEGER`.
  */
 export function serializeJSONLikeValue(value: unknown): string | undefined {
   const parsedValue = parseJSONIfString(value);
   if (typeof parsedValue === "string") {
     return parsedValue;
   }
-  return stringifyJSON(parsedValue);
+  return typeof value === "string" ? value : stringifyJSON(parsedValue);
 }
 
 /**
@@ -151,7 +156,10 @@ export function unflattenAttributes({
   attributes: UnknownRecord;
   prefix: string;
 }): UnknownRecord {
-  const unflattened: UnknownRecord = {};
+  // Path segments come from attribute keys, so the containers have no
+  // prototype: a `__proto__` segment is then an ordinary key instead of a way
+  // to reach and write to `Object.prototype`.
+  const unflattened: UnknownRecord = Object.create(null);
   for (const [key, value] of Object.entries(attributes)) {
     if (!key.startsWith(prefix)) {
       continue;
@@ -161,7 +169,9 @@ export function unflattenAttributes({
     let current = unflattened;
     for (const segment of path.slice(0, -1)) {
       const existingValue = current[segment];
-      const nextValue: UnknownRecord = isRecord(existingValue) ? existingValue : {};
+      const nextValue: UnknownRecord = isRecord(existingValue)
+        ? existingValue
+        : Object.create(null);
       current[segment] = nextValue;
       current = nextValue;
     }
