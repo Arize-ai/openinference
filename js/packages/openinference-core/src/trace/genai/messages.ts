@@ -1,19 +1,15 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 import { isArray, isDefined, isRecord, isString, isUndefined } from "../../utils";
-import type { UnknownRecord } from "./conversionUtils";
-import {
-  getIndexedBuckets,
-  parseJSONIfString,
-  toNonEmptyString,
-  toOptionalString,
-} from "./conversionUtils";
+import { getIndexedBuckets } from "./flattenedAttributeUtils";
 import {
   GenAIFinishReason,
   GenAIMessagePartType,
   GenAIModality,
   GenAIRole,
 } from "./genAIAttributes";
+import { parseJSONIfString, toNonEmptyString, toOptionalString } from "./serializationUtils";
+import type { UnknownRecord } from "./types";
 
 /** `llm.choices`, the legacy completions counterpart of `llm.prompts` */
 export const LLM_CHOICES = "llm.choices";
@@ -27,8 +23,25 @@ const MESSAGE_FINISH_REASON = "message.finish_reason";
 const MESSAGE_ATTRIBUTE_PREFIX = "message.";
 /** Matches a base64 data URL, capturing its MIME type and its base64 content. */
 const DATA_URL_PATTERN = /^data:([^;]+);base64,(.+)$/;
-/** Provider finish reasons that mean the model stopped to call a tool. */
-const TOOL_CALL_FINISH_REASON_ALIASES = ["tool_calls", "function_call"];
+/**
+ * Provider finish reasons, lower-cased, and the GenAI finish reason each one
+ * means. Reasons that are not listed pass through unchanged.
+ */
+const FINISH_REASON_BY_PROVIDER_FINISH_REASON: Partial<Record<string, string>> = {
+  // OpenAI
+  tool_calls: GenAIFinishReason.TOOL_CALL,
+  function_call: GenAIFinishReason.TOOL_CALL,
+  // Anthropic and Bedrock
+  tool_use: GenAIFinishReason.TOOL_CALL,
+  end_turn: GenAIFinishReason.STOP,
+  stop_sequence: GenAIFinishReason.STOP,
+  max_tokens: GenAIFinishReason.LENGTH,
+  refusal: GenAIFinishReason.CONTENT_FILTER,
+  content_filtered: GenAIFinishReason.CONTENT_FILTER,
+  guardrail_intervened: GenAIFinishReason.CONTENT_FILTER,
+  // Gemini
+  safety: GenAIFinishReason.CONTENT_FILTER,
+};
 /**
  * `message_content.type` values that carry text. The OpenAI Responses API names
  * its text blocks `input_text` and `output_text`, and instrumentations record
@@ -42,6 +55,7 @@ export type GenAIMessagePart = UnknownRecord;
 /**
  * A message in the shape of the OTel GenAI `gen_ai.input.messages` /
  * `gen_ai.output.messages` JSON schemas.
+ * @see https://github.com/open-telemetry/semantic-conventions-genai
  */
 export type GenAIMessage = {
   /** Who sent the message, e.g. `user`, `assistant` or `tool` */
@@ -75,7 +89,8 @@ function normalizeMessageRole(role: string | undefined): string | undefined {
 }
 
 /**
- * Lower-cases a finish reason and maps the provider tool call aliases to `tool_call`.
+ * Lower-cases a finish reason and maps provider-specific reasons to the GenAI
+ * ones, e.g. `tool_use` to `tool_call` and `max_tokens` to `length`.
  * @param finishReason - The recorded finish reason
  * @returns The GenAI finish reason, or undefined when there is none
  */
@@ -84,10 +99,7 @@ function normalizeFinishReason(finishReason: string | undefined): string | undef
     return undefined;
   }
   const loweredFinishReason = finishReason.toLowerCase();
-  if (TOOL_CALL_FINISH_REASON_ALIASES.includes(loweredFinishReason)) {
-    return GenAIFinishReason.TOOL_CALL;
-  }
-  return loweredFinishReason;
+  return FINISH_REASON_BY_PROVIDER_FINISH_REASON[loweredFinishReason] ?? loweredFinishReason;
 }
 
 /**

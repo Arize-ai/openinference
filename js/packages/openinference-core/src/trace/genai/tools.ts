@@ -1,15 +1,15 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 import { isDefined, isNullish, isPresent, isRecord, isUndefined } from "../../utils";
-import type { UnknownRecord } from "./conversionUtils";
+import { getIndexedBuckets } from "./flattenedAttributeUtils";
+import { GenAIToolType } from "./genAIAttributes";
 import {
-  getIndexedBuckets,
   isEmptyValue,
   parseJSONArray,
   parseJSONIfString,
   toNonEmptyString,
-} from "./conversionUtils";
-import { GenAIToolType } from "./genAIAttributes";
+} from "./serializationUtils";
+import type { UnknownRecord } from "./types";
 
 /** Fields whose presence marks a record as a tool definition. */
 const TOOL_DEFINITION_FIELDS = ["name", "parameters", "description"];
@@ -68,6 +68,17 @@ function normalizeAnthropicToolDefinition(toolDefinition: UnknownRecord): Unknow
 }
 
 /**
+ * Normalizes a Bedrock Converse tool definition:
+ * `{ toolSpec: { name, description, inputSchema: { json } } }`.
+ * @param toolSpec - The nested `toolSpec` record of the tool definition
+ */
+function normalizeBedrockToolDefinition(toolSpec: UnknownRecord): UnknownRecord {
+  const { inputSchema, ...rest } = toolSpec;
+  const parameters = isRecord(inputSchema) ? inputSchema.json : undefined;
+  return withDefaultToolType({ ...rest, ...(isPresent(parameters) ? { parameters } : {}) });
+}
+
+/**
  * Normalizes a recognized provider tool definition to the OTel GenAI shape.
  * Unknown provider shapes are preserved so the conversion remains lossless.
  * @param toolDefinition - The provider tool definition
@@ -76,6 +87,10 @@ function normalizeProviderToolDefinition(toolDefinition: UnknownRecord): Unknown
   const functionDefinition = toolDefinition.function;
   if (isRecord(functionDefinition) && !isEmptyValue(functionDefinition)) {
     return normalizeOpenAIToolDefinition({ toolDefinition, functionDefinition });
+  }
+  const toolSpec = toolDefinition.toolSpec;
+  if (isRecord(toolSpec) && !isEmptyValue(toolSpec)) {
+    return normalizeBedrockToolDefinition(toolSpec);
   }
   const isAnthropicToolDefinition =
     isPresent(toolDefinition.input_schema) && isNullish(toolDefinition.parameters);

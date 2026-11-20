@@ -17,22 +17,7 @@ import {
   isString,
   isUndefined,
 } from "../../utils";
-import type { UnknownRecord } from "./conversionUtils";
-import {
-  coerceBoolean,
-  coerceInteger,
-  coerceNumber,
-  coerceStringArray,
-  getIndexedBuckets,
-  parseJSONArray,
-  parseJSONIfString,
-  parseJSONRecord,
-  serializeJSONLikeValue,
-  stringifyJSON,
-  toNonEmptyString,
-  toOptionalString,
-  unflattenAttributes,
-} from "./conversionUtils";
+import { getIndexedBuckets, unflattenAttributes } from "./flattenedAttributeUtils";
 import {
   GenAIAttributes,
   GenAIOperationName,
@@ -47,7 +32,21 @@ import {
   getResponseFinishReasons,
   LLM_CHOICES,
 } from "./messages";
+import {
+  coerceBoolean,
+  coerceInteger,
+  coerceNumber,
+  coerceStringArray,
+  parseJSONArray,
+  parseJSONIfString,
+  parseJSONRecord,
+  serializeJSONLikeValue,
+  stringifyJSON,
+  toNonEmptyString,
+  toOptionalString,
+} from "./serializationUtils";
 import { getToolDefinitions } from "./tools";
+import type { UnknownRecord } from "./types";
 
 /** `embedding.invocation_parameters`, the embedding counterpart of `llm.invocation_parameters`. */
 const EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters";
@@ -115,28 +114,46 @@ type RequestParameterMapping = {
   coerce: (value: unknown) => AttributeValue | undefined;
 };
 
-/** The `gen_ai.request.*` attributes derived from the invocation parameters. */
+/**
+ * The `gen_ai.request.*` attributes derived from the invocation parameters.
+ * Source keys cover both the snake_case names of the OpenAI and Anthropic APIs
+ * and the camelCase names of the Bedrock Converse and Gemini APIs.
+ */
 const REQUEST_PARAMETER_MAPPINGS: RequestParameterMapping[] = [
   {
     genAIKey: GenAIAttributes.GEN_AI_REQUEST_TEMPERATURE,
     sourceKeys: ["temperature"],
     coerce: coerceNumber,
   },
-  { genAIKey: GenAIAttributes.GEN_AI_REQUEST_TOP_P, sourceKeys: ["top_p"], coerce: coerceNumber },
-  { genAIKey: GenAIAttributes.GEN_AI_REQUEST_TOP_K, sourceKeys: ["top_k"], coerce: coerceNumber },
+  {
+    genAIKey: GenAIAttributes.GEN_AI_REQUEST_TOP_P,
+    sourceKeys: ["top_p", "topP"],
+    coerce: coerceNumber,
+  },
+  {
+    genAIKey: GenAIAttributes.GEN_AI_REQUEST_TOP_K,
+    sourceKeys: ["top_k", "topK"],
+    coerce: coerceNumber,
+  },
   {
     genAIKey: GenAIAttributes.GEN_AI_REQUEST_MAX_TOKENS,
-    sourceKeys: ["max_tokens", "max_completion_tokens", "max_output_tokens"],
+    sourceKeys: [
+      "max_tokens",
+      "max_completion_tokens",
+      "max_output_tokens",
+      "maxTokens",
+      "maxOutputTokens",
+    ],
     coerce: coerceInteger,
   },
   {
     genAIKey: GenAIAttributes.GEN_AI_REQUEST_FREQUENCY_PENALTY,
-    sourceKeys: ["frequency_penalty"],
+    sourceKeys: ["frequency_penalty", "frequencyPenalty"],
     coerce: coerceNumber,
   },
   {
     genAIKey: GenAIAttributes.GEN_AI_REQUEST_PRESENCE_PENALTY,
-    sourceKeys: ["presence_penalty"],
+    sourceKeys: ["presence_penalty", "presencePenalty"],
     coerce: coerceNumber,
   },
   { genAIKey: GenAIAttributes.GEN_AI_REQUEST_SEED, sourceKeys: ["seed"], coerce: coerceInteger },
@@ -147,12 +164,12 @@ const REQUEST_PARAMETER_MAPPINGS: RequestParameterMapping[] = [
   },
   {
     genAIKey: GenAIAttributes.GEN_AI_REQUEST_STOP_SEQUENCES,
-    sourceKeys: ["stop_sequences", "stop"],
+    sourceKeys: ["stop_sequences", "stop", "stopSequences"],
     coerce: coerceStringArray,
   },
   {
     genAIKey: GenAIAttributes.GEN_AI_REQUEST_CHOICE_COUNT,
-    sourceKeys: ["n", "choice_count", "candidate_count"],
+    sourceKeys: ["n", "choice_count", "candidate_count", "candidateCount"],
     coerce: coerceInteger,
   },
   {
@@ -611,6 +628,7 @@ function removeUndefinedValues<Value>(
  * @experimental The GenAI semantic conventions are still in development and the
  * mapping may change.
  * @see https://opentelemetry.io/docs/specs/semconv/gen-ai/
+ * @see https://github.com/open-telemetry/semantic-conventions-genai
  *
  * @example
  * ```typescript

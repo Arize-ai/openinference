@@ -186,6 +186,12 @@ attributes set on it:
 | `retrieval.documents.*`, `input.value` (RETRIEVER spans) | `gen_ai.retrieval.documents` (JSON), `gen_ai.retrieval.query.text` |
 | `embedding.embeddings.*` (EMBEDDING spans) | `gen_ai.embeddings.dimension.count` |
 
+Provider vocabularies are normalized on the way:
+
+- **Request parameters** are read by their snake_case names (OpenAI, Anthropic) and their camelCase names (Bedrock Converse, Gemini), e.g. `max_tokens`, `max_completion_tokens`, `maxTokens` and `maxOutputTokens` all become `gen_ai.request.max_tokens`.
+- **Finish reasons** are mapped to the GenAI values: `tool_calls`, `function_call` and `tool_use` become `tool_call`; `end_turn` and `stop_sequence` become `stop`; `max_tokens` becomes `length`; `refusal`, `content_filtered`, `guardrail_intervened` and `safety` become `content_filter`. Other reasons pass through lower-cased.
+- **Tool definitions** in the OpenAI (`function`), Anthropic (`input_schema`) and Bedrock Converse (`toolSpec`) shapes are converted to `{ type, name, description, parameters }`.
+
 ### getGenAIAttributes
 
 The conversion itself is exported for span processors and other code that does

@@ -10,7 +10,12 @@
  * conventions upgrade that renames one fails the test.
  *
  * Only add a constant here when the conversion emits it.
+ *
+ * The GenAI conventions are now developed in the
+ * `open-telemetry/semantic-conventions-genai` repository, which is the source
+ * to check for new and renamed attributes.
  * @see https://opentelemetry.io/docs/specs/semconv/gen-ai/
+ * @see https://github.com/open-telemetry/semantic-conventions-genai
  */
 
 // ---------------------------------------------------------------------------
@@ -125,6 +130,8 @@ export const GenAIModality = {
 
 /** Output message `finish_reason` values. */
 export const GenAIFinishReason = {
+  CONTENT_FILTER: "content_filter",
+  LENGTH: "length",
   STOP: "stop",
   TOOL_CALL: "tool_call",
 } as const;

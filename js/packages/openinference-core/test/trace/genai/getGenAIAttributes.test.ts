@@ -445,4 +445,86 @@ describe("getGenAIAttributes", () => {
       }),
     ).toEqual({ "gen_ai.operation.name": "chat" });
   });
+
+  describe("provider vocabularies", () => {
+    it.each([
+      ["tool_calls", "tool_call"],
+      ["function_call", "tool_call"],
+      ["tool_use", "tool_call"],
+      ["end_turn", "stop"],
+      ["stop_sequence", "stop"],
+      ["max_tokens", "length"],
+      ["MAX_TOKENS", "length"],
+      ["length", "length"],
+      ["refusal", "content_filter"],
+      ["content_filtered", "content_filter"],
+      ["guardrail_intervened", "content_filter"],
+      ["SAFETY", "content_filter"],
+      ["pause_turn", "pause_turn"],
+    ])("should map the finish reason %s to %s", (providerFinishReason, finishReason) => {
+      const genAIAttributes = getGenAIAttributes({
+        "openinference.span.kind": "LLM",
+        "llm.finish_reason": providerFinishReason,
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.content": "done",
+      });
+      expect(genAIAttributes["gen_ai.response.finish_reasons"]).toEqual([finishReason]);
+      expect(parseJSONAttribute(genAIAttributes["gen_ai.output.messages"])).toEqual([
+        {
+          role: "assistant",
+          parts: [{ type: "text", content: "done" }],
+          finish_reason: finishReason,
+        },
+      ]);
+    });
+
+    it("should read camelCase request parameters", () => {
+      expect(
+        getGenAIAttributes({
+          "openinference.span.kind": "LLM",
+          "llm.invocation_parameters": JSON.stringify({
+            maxTokens: 150,
+            temperature: 0.7,
+            topP: 0.9,
+            topK: 40,
+            stopSequences: ["END", "STOP"],
+            frequencyPenalty: 0.1,
+            presencePenalty: 0.2,
+            candidateCount: 2,
+          }),
+        }),
+      ).toEqual({
+        "gen_ai.operation.name": "chat",
+        "gen_ai.request.max_tokens": 150,
+        "gen_ai.request.temperature": 0.7,
+        "gen_ai.request.top_p": 0.9,
+        "gen_ai.request.top_k": 40,
+        "gen_ai.request.stop_sequences": ["END", "STOP"],
+        "gen_ai.request.frequency_penalty": 0.1,
+        "gen_ai.request.presence_penalty": 0.2,
+        "gen_ai.request.choice.count": 2,
+      });
+    });
+
+    it("should normalize a Bedrock Converse tool definition", () => {
+      const genAIAttributes = getGenAIAttributes({
+        "openinference.span.kind": "LLM",
+        "llm.tools.0.tool.json_schema": JSON.stringify({
+          toolSpec: {
+            name: "get_weather",
+            description: "Get current weather for a location",
+            inputSchema: { json: { type: "object", properties: { location: { type: "string" } } } },
+          },
+        }),
+      });
+      expect(parseJSONAttribute(genAIAttributes["gen_ai.tool.definitions"])).toEqual([
+        {
+          type: "function",
+          name: "get_weather",
+          description: "Get current weather for a location",
+          parameters: { type: "object", properties: { location: { type: "string" } } },
+        },
+      ]);
+    });
+  });
 });
