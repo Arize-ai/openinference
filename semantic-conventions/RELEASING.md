@@ -8,7 +8,7 @@ The registry is versioned independently of the language packages, with the same
 The version is the last path segment of `schema_url` in [`model/manifest.yaml`](model/manifest.yaml):
 
 ```yaml
-schema_url: https://openinf.dev/schemas/0.1.0 # x-release-please-version
+schema_url: https://openinf.dev/schemas/0.0.1 # x-release-please-version
 ```
 
 release-please rewrites that line, [`version.txt`](version.txt), and `CHANGELOG.md` in its release pull request. Do not
@@ -57,13 +57,14 @@ target on every change with the tag the next release would have, so the only ste
 
 ## First release
 
-`release-please-config.json` sets `"release-as": "0.1.0"` for this package so that the first release is `0.1.0`. After
-that release is published:
+The registry starts at `0.0.1`. `.release-please-manifest.json` records `0.0.0` for this package, and the repository
+bumps the patch version for a `feat` while below 1.0, so the first release pull request proposes `0.0.1` with no
+special configuration. `model/manifest.yaml` already carries that version, so the release changes only
+`CHANGELOG.md` and `version.txt`.
 
-- Remove the `release-as` line, or every later release will also be `0.1.0`.
-- Check that the release pull request changed `model/manifest.yaml` as expected. A `release-please release-pr
-  --dry-run` against this branch plans `semantic-conventions: 0.1.0` and lists `CHANGELOG.md`, `version.txt`, and
-  `model/manifest.yaml` as the files it updates, and release-please's updater rewrites the `schema_url` line, so
-  this is expected to work; the first real release is the confirmation.
-- Pin `BASELINE_REGISTRY` in local runs to the released tag when you want to compare against it (see the
-  [`Makefile`](Makefile)).
+A `release-please release-pr --dry-run` against the branch that introduced the registry planned the release and
+listed `CHANGELOG.md`, `version.txt`, and `model/manifest.yaml` as the files it updates, and release-please's updater
+rewrites the `schema_url` line when the version changes. The first real release is the confirmation.
+
+After it, pin `BASELINE_REGISTRY` in local runs to the released tag when you want to compare against it (see the
+[`Makefile`](Makefile)).

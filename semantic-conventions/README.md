@@ -191,7 +191,7 @@ Check telemetry against the conventions:
 
 ```bash
 weaver registry live-check \
-  -r 'https://github.com/Arize-ai/openinference.git@semantic-conventions-v0.1.0[semantic-conventions/model]'
+  -r 'https://github.com/Arize-ai/openinference.git@semantic-conventions-v0.0.1[semantic-conventions/model]'
 ```
 
 Build another registry on top of OpenInference by declaring it as a dependency, then `ref` its attributes. This
@@ -204,8 +204,8 @@ file_format: definition_manifest/2.0
 name: acme
 schema_url: https://example.com/schemas/1.0.0
 dependencies:
-  - schema_url: https://openinf.dev/schemas/0.1.0
-    registry_path: https://github.com/Arize-ai/openinference.git@semantic-conventions-v0.1.0[semantic-conventions/model]
+  - schema_url: https://openinf.dev/schemas/0.0.1
+    registry_path: https://github.com/Arize-ai/openinference.git@semantic-conventions-v0.0.1[semantic-conventions/model]
 ```
 
 ```yaml

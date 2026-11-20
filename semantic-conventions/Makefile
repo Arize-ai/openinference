@@ -100,7 +100,7 @@ SITE_SCHEMAS := ../site/src/generated/schemas
 # Registry to compare against for the backwards-compatibility policies. Empty
 # skips the comparison. CI passes the model on the pull request's base branch;
 # locally, compare against a release:
-#   make check BASELINE_REGISTRY='https://github.com/Arize-ai/openinference.git@semantic-conventions-v0.1.0[semantic-conventions/model]'
+#   make check BASELINE_REGISTRY='https://github.com/Arize-ai/openinference.git@semantic-conventions-v0.0.1[semantic-conventions/model]'
 BASELINE_REGISTRY ?=
 BASELINE_FLAG := $(if $(BASELINE_REGISTRY),--baseline-registry '$(BASELINE_REGISTRY)',)
 
@@ -240,7 +240,7 @@ package: ## Build the release assets: publication manifest + resolved registry
 # Everything the release workflow does before uploading. CI runs the same
 # target as a rehearsal on every change, with the tag the next release would
 # have, so the release path is exercised before a release exists.
-release-assets: ## Validate and build the assets for release TAG (e.g. TAG=semantic-conventions-v0.1.0)
+release-assets: ## Validate and build the assets for release TAG (e.g. TAG=semantic-conventions-v0.0.1)
 	@if [ "$(TAG)" != "$(RELEASE_TAG)" ]; then \
 		echo "FAIL: tag '$(TAG)' does not match model/manifest.yaml schema_url (expected '$(RELEASE_TAG)')."; exit 1; fi
 	@$(MAKE) --no-print-directory check

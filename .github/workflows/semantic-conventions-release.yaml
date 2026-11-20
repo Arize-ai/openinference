@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to (re)attach the registry to, e.g. semantic-conventions-v0.1.0"
+        description: "Release tag to (re)attach the registry to, e.g. semantic-conventions-v0.0.1"
         required: true
         type: string
 

@@ -6,7 +6,6 @@
         "semantic-conventions": {
             "package-name": "semantic-conventions",
             "release-type": "simple",
-            "release-as": "0.1.0",
             "extra-files": [
                 {
                     "type": "generic",
