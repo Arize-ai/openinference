@@ -1,0 +1,39 @@
+# Markdown templates for the generated registry reference under docs/registry/.
+#
+# Templates receive the v2 resolved registry (`weaver registry generate --v2`):
+#   semconv_grouped_attributes({"v2":true}) -- locally defined attributes,
+#       grouped by the first segment of the key (`root_namespace`).
+#   semconv_signal("span"; {"v2":true})     -- span definitions with their
+#       attributes fully resolved (requirement level, brief, type, ...).
+templates:
+  - template: readme.md.j2
+    filter: >
+      {
+        schema_url: .schema_url,
+        namespaces: semconv_grouped_attributes({"v2":true}),
+        spans: (semconv_signal("span"; {"v2":true}) | sort_by(.type))
+      }
+    application_mode: single
+    file_name: README.md
+
+  - template: attribute_namespace.md.j2
+    filter: semconv_grouped_attributes({"v2":true})
+    application_mode: each
+    file_name: "attributes/{{ ctx.root_namespace | kebab_case }}.md"
+
+  - template: span.md.j2
+    filter: semconv_signal("span"; {"v2":true})
+    application_mode: each
+    file_name: "spans/{{ ctx.type | replace('openinference.', '') | kebab_case }}.md"
+
+acronyms:
+  - AI
+  - ID
+  - JSON
+  - LLM
+  - OpenInference
+  - URL
+
+whitespace_control:
+  trim_blocks: true
+  lstrip_blocks: true

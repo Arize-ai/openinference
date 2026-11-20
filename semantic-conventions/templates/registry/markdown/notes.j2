@@ -1,0 +1,12 @@
+{# Numbered notes for a table. `add` records a note and renders its reference
+   (` [3]`); `render` writes the collected notes under the table. The numbering
+   continues across the tables of one page. #}
+{%- set state = namespace(notes=[], offset=0) -%}
+{%- macro add(name, text) %}{% if text and text | trim %}{% set state.notes = state.notes + [{"name": name, "text": text | trim}] %} [{{ state.notes | length + state.offset }}]{% endif %}{% endmacro -%}
+{%- macro render() %}
+{% for note in state.notes %}
+
+**[{{ state.offset + loop.index }}] `{{ note.name }}`:** {{ note.text }}
+{% endfor %}
+{% set state.offset = state.offset + (state.notes | length) %}{% set state.notes = [] %}
+{% endmacro -%}

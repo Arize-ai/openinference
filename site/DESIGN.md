@@ -346,7 +346,9 @@ All rendered markdown sits in `.prose`, styled in
   `.table-scroll` box, so a wide table scrolls inside itself and the page
   never scrolls sideways.
 - **Badges.** shields.io badges are greyscale, since their blue isn't in the
-  palette, and regain their colour on hover.
+  palette, and regain their colour on hover. The exception is the stability
+  badges in the spec's tables (development, stable, deprecated): their
+  colour is the information, so they keep it.
 - **Quotes.** `>` blockquotes: a 2px accent rule on the left, `--soft` text.
 
 ## Type

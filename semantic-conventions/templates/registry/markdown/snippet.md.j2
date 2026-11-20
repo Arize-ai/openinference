@@ -1,0 +1,44 @@
+{# Renders the block between a `<!-- weaver <jq> -->` marker and
+   `<!-- endweaver -->` in the prose specification (spec/). The result of the
+   jq query is the root context. Two shapes are supported:
+
+     {attributes: [<attribute>, ...]}   -> an attribute table
+     {members: [<enum member>, ...]}    -> a table of well-known values
+     {span: <span type>, span_attributes: [<attribute>, ...]}
+                                        -> the requirement levels of a span's attributes
+     {span_kinds: [{value, brief, spec}, ...]}
+                                        -> the table of span kinds
+     {characteristic: [<key or key prefix>, ...]}
+                                        -> the attributes that set a span kind apart
+#}
+{% import 'macros.j2' as m %}
+<!-- Generated from semantic-conventions/model. Do not edit by hand: change the model and run `make -C semantic-conventions generate`. -->
+
+{% if attributes is defined %}
+| Attribute | Stability | Type | Description | Examples |
+| --- | --- | --- | --- | --- |
+{% for attribute in attributes %}
+| `{{ attribute.key }}` | {{ m.spec_badge(attribute) }} | {{ m.spec_type(attribute) }} | {{ m.spec_description(attribute) }} | {{ m.spec_examples(attribute) }} |
+{% endfor %}
+{% elif span_attributes is defined %}
+| Attribute | Stability | Requirement level | Type | Notes |
+| --- | --- | --- | --- | --- |
+{% for attribute in span_attributes %}
+| `{{ attribute.key }}` | {{ m.spec_badge(attribute) }} | {{ m.spec_requirement(attribute.requirement_level) }} | {{ m.spec_type(attribute) }} | {{ m.spec_span_note(attribute, span) }} |
+{% endfor %}
+{% elif span_kinds is defined %}
+| Value | Represents | Conventions |
+| --- | --- | --- |
+{% for kind in span_kinds %}
+| [`{{ kind.value }}`](#{{ kind.value | lower }}) | {{ m.spec_text(kind.brief) }} | {{ m.spec_text(kind.spec) }} |
+{% endfor %}
+{% elif characteristic is defined %}
+Characteristic attributes: {% for key in characteristic %}`{{ key }}`{% if not loop.last %}, {% endif %}{% else %}`input.value`, `output.value`{% endfor %}.
+{% elif members is defined %}
+| Value | Description | Stability |
+| --- | --- | --- |
+{% for member in members if not member.deprecated %}
+| `{{ member.value }}` | {{ m.spec_text(member.brief) }} | {{ m.spec_badge(member) }} |
+{% endfor %}
+{% endif %}
+
