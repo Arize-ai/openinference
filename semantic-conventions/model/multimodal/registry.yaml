@@ -19,7 +19,6 @@ attributes:
     type: string
     brief: "The MIME type of the audio file."
     examples: ["audio/mpeg"]
-    note: "The specification currently marks this legacy and tells new instrumentors to infer the type from `audio.url`. It is not deprecated here while that guidance is under review."
     stability: development
   - key: video.url
     type: string
