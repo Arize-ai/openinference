@@ -144,7 +144,7 @@ vendor: ## Refresh the vendored OpenTelemetry attributes from the pinned upstrea
 check-vendor: ## Fail if the vendored OpenTelemetry attributes differ from upstream (needs network)
 	@uv run --no-project --with pyyaml==6.0.3 $(PYTHON) scripts/vendor_upstream.py --weaver '$(WEAVER)' --check
 
-test: offline-model ## Check that sample wire-format keys resolve against the registry
+test: offline-model ## Check that sample keys resolve against the registry and that a dependent registry resolves
 	@mkdir -p $(BUILD)
 	@for kind in known unknown; do \
 		$(WEAVER_OFFLINE) registry live-check \
@@ -159,6 +159,9 @@ test: offline-model ## Check that sample wire-format keys resolve against the re
 			|| { cat $(BUILD)/live-$$kind.log; exit 1; }; \
 		$(PYTHON) scripts/check_live.py $$kind $(BUILD)/live-$$kind.json || exit 1; \
 	done
+	@$(WEAVER_OFFLINE) registry check -r tests/consumer --v2 --quiet \
+		> $(BUILD)/consumer.log 2>&1 || { cat $(BUILD)/consumer.log; exit 1; }
+	@echo "OK: a registry that depends on this one resolves (tests/consumer)."
 
 generate: generate-docs generate-spec generate-code ## Regenerate everything derived from the model
 

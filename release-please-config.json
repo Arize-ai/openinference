@@ -11,6 +11,10 @@
                 {
                     "type": "generic",
                     "path": "/semantic-conventions/model/manifest.yaml"
+                },
+                {
+                    "type": "generic",
+                    "path": "/semantic-conventions/tests/consumer/manifest.yaml"
                 }
             ]
         },

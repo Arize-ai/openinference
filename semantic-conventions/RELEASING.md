@@ -46,6 +46,9 @@ model on the base branch.
 
 If the workflow did not run or failed, rerun it from the Actions tab with the tag as input.
 
+Other registries depend on a release by its tag, not by these assets; see
+[Using the registry](README.md#using-the-registry) for why.
+
 To build the assets locally: `make package` writes them to `.build/package/`.
 
 ## First release
@@ -54,7 +57,9 @@ To build the assets locally: `make package` writes them to `.build/package/`.
 that release is published:
 
 - Remove the `release-as` line, or every later release will also be `0.1.0`.
-- Check that the release pull request changed `model/manifest.yaml` as expected. The `extra-files` path for it is
-  written relative to the repository root (`/semantic-conventions/model/manifest.yaml`).
+- Check that the release pull request changed `model/manifest.yaml` as expected. A `release-please release-pr
+  --dry-run` against this branch plans `semantic-conventions: 0.1.0` and lists `CHANGELOG.md`, `version.txt`, and
+  `model/manifest.yaml` as the files it updates, and release-please's updater rewrites the `schema_url` line, so
+  this is expected to work; the first real release is the confirmation.
 - Pin `BASELINE_REGISTRY` in local runs to the released tag when you want to compare against it (see the
   [`Makefile`](Makefile)).

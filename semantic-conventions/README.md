@@ -30,6 +30,7 @@ semantic-conventions/
 ├── docs/registry/          # GENERATED reference (do not edit by hand)
 ├── vendor/opentelemetry/   # The OpenTelemetry attributes the model reuses, vendored for offline generation
 ├── tests/live-check/       # Sample wire-format keys that must / must not resolve against the registry
+├── tests/consumer/         # A registry that depends on this one, to prove that others can
 ├── scripts/                # Checks run by the Makefile
 ├── versions.env            # Pinned Weaver and policy versions
 └── Makefile
@@ -188,7 +189,9 @@ weaver registry live-check \
   -r 'https://github.com/Arize-ai/openinference.git@semantic-conventions-v0.1.0[semantic-conventions/model]'
 ```
 
-Build another registry on top of OpenInference by declaring it as a dependency, then `ref` its attributes:
+Build another registry on top of OpenInference by declaring it as a dependency, then `ref` its attributes. This
+also gives the dependent registry the OpenTelemetry attributes that OpenInference reuses, such as `session.id`.
+[`tests/consumer`](tests/consumer) is a working example that `make test` checks.
 
 ```yaml
 # manifest.yaml
@@ -218,13 +221,19 @@ spans:
         requirement_level: recommended
 ```
 
+Depend on the tagged source, as above. The `manifest.yaml` and `registry.yaml` attached to each release are the
+published form of the same registry, but Weaver cannot resolve them as a dependency yet: a published manifest names
+its own dependencies by schema URL only, and OpenTelemetry does not serve a registry at
+`https://opentelemetry.io/schemas/<version>`. The assets are still the right input for tools that read a resolved
+registry directly.
+
 ## What is checked
 
 | Check | What it catches |
 | --- | --- |
 | `make check` | A model that does not parse or resolve; violations of the shared OpenTelemetry policies (naming, collisions, stability, deprecation); violations of the OpenInference policies in [`policies/check/openinference`](policies/check/openinference); with a baseline, removed or incompatibly changed attributes and spans |
 | `make check-vendor` | Vendored OpenTelemetry attributes that differ from the pinned upstream version |
-| `make test` | A change to the model (or to Weaver) that stops flattened wire-format keys from resolving to their attribute |
+| `make test` | A change to the model (or to Weaver) that stops flattened wire-format keys from resolving to their attribute, or that stops a registry depending on this one from resolving |
 | `make check-generated` | Docs, spec tables, or language constants not regenerated after a model change, or a generated file edited by hand |
 | `make check-parity` | Model attributes that no table in `spec/attributes/semantic-conventions.md` shows, or that the Python template leaves out of every class |
 
