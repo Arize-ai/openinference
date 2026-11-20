@@ -58,6 +58,27 @@ attributes:
       openinference:
         encoding: flattened_list
         item_namespaces: ["nowhere"]
+  - key: fixturebare
+    type: string
+    brief: "A key with no namespace, like `metadata`; breaks no rule here."
+    stability: development
+  - key: fixture.list_of_bare_key
+    type: template[any]
+    brief: "A flattened list whose item namespace is only a bare key, not a namespace."
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["fixturebare"]
+  - key: fixture.list_with_scalar_items
+    type: template[any]
+    brief: "A flattened list whose item namespaces are a string, not a list."
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: fixture
+        item_attributes: ["fixture.item.name"]
   - key: fixture.list_of_unknown_attribute
     type: template[any]
     brief: "A flattened list whose item attribute is not in the registry."

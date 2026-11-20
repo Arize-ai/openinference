@@ -3,29 +3,25 @@ attributes:
   - key: llm.system
     type:
       members:
-        - id: anthropic
-          value: "anthropic"
-          brief: "Anthropic"
-          stability: development
         - id: openai
           value: "openai"
           brief: "OpenAI"
           stability: development
-        - id: vertexai
-          value: "vertexai"
-          brief: "Vertex AI"
-          stability: development
-        - id: cohere
-          value: "cohere"
-          brief: "Cohere"
+        - id: anthropic
+          value: "anthropic"
+          brief: "Anthropic"
           stability: development
         - id: mistralai
           value: "mistralai"
           brief: "Mistral AI"
           stability: development
-        - id: xai
-          value: "xai"
-          brief: "xAI (Grok)"
+        - id: cohere
+          value: "cohere"
+          brief: "Cohere"
+          stability: development
+        - id: vertexai
+          value: "vertexai"
+          brief: "Vertex AI"
           stability: development
         - id: deepseek
           value: "deepseek"
@@ -47,31 +43,31 @@ attributes:
           value: "typesafe"
           brief: "TypeSafe AI"
           stability: development
+        - id: xai
+          value: "xai"
+          brief: "xAI (Grok)"
+          stability: development
     brief: "The AI product as identified by the client or server instrumentation. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-system-values)."
     examples: ["anthropic", "openai"]
     stability: development
   - key: llm.provider
     type:
       members:
-        - id: anthropic
-          value: "anthropic"
-          brief: "Anthropic"
-          stability: development
         - id: openai
           value: "openai"
           brief: "OpenAI"
           stability: development
-        - id: cohere
-          value: "cohere"
-          brief: "Cohere"
+        - id: anthropic
+          value: "anthropic"
+          brief: "Anthropic"
           stability: development
         - id: mistralai
           value: "mistralai"
           brief: "Mistral AI"
           stability: development
-        - id: azure
-          value: "azure"
-          brief: "Azure"
+        - id: cohere
+          value: "cohere"
+          brief: "Cohere"
           stability: development
         - id: google
           value: "google"
@@ -80,6 +76,10 @@ attributes:
         - id: aws
           value: "aws"
           brief: "AWS Bedrock"
+          stability: development
+        - id: azure
+          value: "azure"
+          brief: "Azure"
           stability: development
         - id: xai
           value: "xai"
@@ -129,10 +129,6 @@ attributes:
           value: "minimax"
           brief: "MiniMax"
           stability: development
-        - id: typesafe
-          value: "typesafe"
-          brief: "TypeSafe AI"
-          stability: development
         - id: oracle
           value: "oracle"
           brief: "Oracle (OCI Generative AI)"
@@ -140,6 +136,10 @@ attributes:
         - id: ibm
           value: "ibm"
           brief: "IBM (watsonx.ai)"
+          stability: development
+        - id: typesafe
+          value: "typesafe"
+          brief: "TypeSafe AI"
           stability: development
         - id: doubleword
           value: "doubleword"

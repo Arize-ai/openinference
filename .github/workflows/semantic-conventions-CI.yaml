@@ -40,7 +40,8 @@ jobs:
   ci:
     name: CI Semantic Conventions
     needs: changes
-    if: ${{ needs.changes.outputs.diff == 'true' }}
+    # A manual run always checks: the path filter only sees the last commit there.
+    if: ${{ needs.changes.outputs.diff == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:

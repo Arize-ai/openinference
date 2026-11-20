@@ -22,7 +22,7 @@ SHELL := /bin/bash
 include versions.env
 
 # FORCE_CONTAINER=1 runs weaver from the container image even when a suitable
-# local weaver exists. CI uses it for generation, so that the hermetic targets
+# local weaver exists. CI uses it for `make test`, so that the hermetic targets
 # are proven to work with the network disabled.
 FORCE_CONTAINER ?=
 LOCAL_RAW_VERSION := $(if $(FORCE_CONTAINER),,$(shell weaver --version 2>/dev/null))
@@ -177,9 +177,9 @@ release-assets: ## Validate and build the assets for release TAG (e.g. TAG=seman
 	@$(MAKE) --no-print-directory package
 	@for asset in manifest.yaml registry.yaml; do \
 		[ -s $(PACKAGE_OUTPUT)/$$asset ] || { echo "FAIL: $(PACKAGE_OUTPUT)/$$asset was not built."; exit 1; }; done
-	@grep -q '^schema_url: .*/$(VERSION)$$' $(PACKAGE_OUTPUT)/manifest.yaml \
+	@grep -q '^schema_url: .*/$(subst .,\.,$(VERSION))$$' $(PACKAGE_OUTPUT)/manifest.yaml \
 		|| { echo "FAIL: packaged manifest does not carry version $(VERSION)."; exit 1; }
-	@grep -q '^resolved_registry_uri: $(RELEASE_DOWNLOAD_URL)/registry.yaml$$' $(PACKAGE_OUTPUT)/manifest.yaml \
+	@grep -qxF 'resolved_registry_uri: $(RELEASE_DOWNLOAD_URL)/registry.yaml' $(PACKAGE_OUTPUT)/manifest.yaml \
 		|| { echo "FAIL: packaged manifest does not point at $(RELEASE_DOWNLOAD_URL)/registry.yaml."; exit 1; }
 	@echo "OK: release assets for $(TAG) are in $(PACKAGE_OUTPUT)."
 

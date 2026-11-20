@@ -16,6 +16,7 @@ import rego.v1
 #       item_namespaces: [message]   # flattened_* only: any `message.*` attribute
 #       item_attributes: [tool.name] # flattened_* only: exactly these attributes
 #       also_accepts: [int]          # other OTLP types consumers must accept for this key
+#       constant_key: llm.prompt_template # key a published constant is named after, when not its own
 
 encodings := {"flattened_list", "flattened_object", "json"}
 
@@ -25,15 +26,28 @@ oi_annotations(attr) := object.get(object.get(attr, "annotations", {}), "openinf
 
 encoding(attr) := object.get(oi_annotations(attr), "encoding", "")
 
-item_namespaces(attr) := object.get(oi_annotations(attr), "item_namespaces", [])
+list_annotations := {"item_namespaces", "item_attributes", "also_accepts"}
 
-item_attributes(attr) := object.get(oi_annotations(attr), "item_attributes", [])
+# A list annotation written as a scalar (`item_namespaces: message`) reads as an
+# empty list, so that the rules below can iterate it; it is reported on its own.
+list_annotation(attr, name) := value if {
+    value := object.get(oi_annotations(attr), name, [])
+    is_array(value)
+} else := []
+
+item_namespaces(attr) := list_annotation(attr, "item_namespaces")
+
+item_attributes(attr) := list_annotation(attr, "item_attributes")
 
 attribute_keys contains attr.key if some attr in input.registry.attributes
 
+# A key with no dot (`metadata`, `annotations`) has no namespace, so it does not
+# make its own name one: `annotations` is not the `annotation.*` namespace.
 root_namespaces contains ns if {
     some attr in input.registry.attributes
-    ns := split(attr.key, ".")[0]
+    parts := split(attr.key, ".")
+    count(parts) > 1
+    ns := parts[0]
 }
 
 # A `template[any]` attribute is a key prefix with arbitrary suffixes. In this
@@ -156,13 +170,28 @@ also_accepts_types := {"string", "int", "double", "boolean"}
 
 deny contains finding if {
     some attr in input.registry.attributes
-    some accepted in object.get(oi_annotations(attr), "also_accepts", [])
+    some accepted in list_annotation(attr, "also_accepts")
     not accepted in also_accepts_types
 
     finding := {
         "id": "openinference_also_accepts_unknown",
         "context": {"attribute": attr.key, "also_accepts": accepted},
         "message": sprintf("Attribute '%s' lists unknown type '%s' in annotations.openinference.also_accepts. Expected one of: string, int, double, boolean.", [attr.key, accepted]),
+        "level": "violation",
+    }
+}
+
+# The list annotations are lists, even of one item.
+deny contains finding if {
+    some attr in input.registry.attributes
+    some name in list_annotations
+    value := object.get(oi_annotations(attr), name, [])
+    not is_array(value)
+
+    finding := {
+        "id": "openinference_annotation_not_a_list",
+        "context": {"attribute": attr.key, "annotation": name},
+        "message": sprintf("Attribute '%s' must write annotations.openinference.%s as a list.", [attr.key, name]),
         "level": "violation",
     }
 }

@@ -71,6 +71,8 @@ To change the conventions:
   from the OpenTelemetry registry (a dependency in [`model/manifest.yaml`](model/manifest.yaml)), not redefined.
   Run `make vendor` after referencing another one.
 - **Well-known values** are enum `members`. Enums are open: a custom value may be used when no member applies.
+  Members are append-only: add a new member at the end and never reorder. The generated Java enums take their
+  ordinals from this order, and the existing order is that of the published Java enums.
 - **Resource attributes.** An attribute recorded on the OpenTelemetry resource, not on spans, is the identity or
   description of an entity in [`model/openinference/entities.yaml`](model/openinference/entities.yaml). The language
   packages then expose it as a resource attribute (`ResourceAttributes.PROJECT_NAME`, `SEMRESATTRS_PROJECT_NAME`)
@@ -98,6 +100,10 @@ To change the conventions:
 - **Types Weaver cannot express.** When instrumentations record more than one primitive type for a key, give the
   attribute its main type and list the others in `annotations.openinference.also_accepts`, e.g. `[int]` on
   `document.id`.
+- **Constant names.** The language packages name a constant after its key (`llm.model_name` is `LLM_MODEL_NAME`).
+  Where a published constant is named differently, record the key its name derives from in
+  `annotations.openinference.constant_key`, e.g. `tool_call.function.arguments_json` on
+  `tool_call.function.arguments` (`TOOL_CALL_FUNCTION_ARGUMENTS_JSON`).
 - **Naming exceptions.** `metadata`, `annotations`, and `evaluations` have no namespace, which the shared naming policy
   rejects. They predate the registry and cannot be renamed, so they are listed in
   [`policies/exceptions.json`](policies/exceptions.json). Do not add to that list for new attributes.
