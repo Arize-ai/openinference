@@ -1474,10 +1474,15 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   const toolAndFunctionCallAttributes: Attributes = {};
   const getToolCallIndex = createStreamToolCallIndexResolver();
   let finishReason: string | undefined;
+  // The model that served the stream, which every chunk repeats
+  let responseModel: string | undefined;
   let streamFailed = false;
   let streamError: unknown;
   try {
     for await (const chunk of stream) {
+      if (chunk.model) {
+        responseModel = chunk.model;
+      }
       // With `stream_options.include_usage`, the final chunk carries the request's
       // usage and an empty `choices` array, so read it before the guard below.
       if (chunk.usage) {
@@ -1522,6 +1527,11 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   };
   if (finishReason) {
     attributes[SemanticConventions.LLM_FINISH_REASON] = finishReason;
+  }
+  if (responseModel) {
+    // Override the model from the value sent by the server
+    attributes[SemanticConventions.LLM_MODEL_NAME] = responseModel;
+    attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = responseModel;
   }
   // Add the tool and function call attributes
   for (const [key, value] of Object.entries(toolAndFunctionCallAttributes)) {

@@ -233,9 +233,15 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
       mockAPIPromise(openai, () => {
         const iterator = () =>
           (async function* () {
-            yield { choices: [{ delta: { role: "assistant", content: "This is " } }] };
-            yield { choices: [{ delta: { content: "a test." } }] };
-            yield { choices: [{ delta: {}, finish_reason: "stop" }] };
+            const model = "gpt-4o-2024-08-06";
+            yield { model, choices: [{ delta: { role: "assistant", content: "This is " } }] };
+            yield { model, choices: [{ delta: { content: "a test." } }] };
+            yield { model, choices: [{ delta: {}, finish_reason: "stop" }] };
+            yield {
+              model,
+              choices: [],
+              usage: { prompt_tokens: 13, completion_tokens: 7, total_tokens: 20 },
+            };
           })();
         return new Stream(iterator, new AbortController());
       }),
@@ -282,6 +288,9 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
         "gen_ai.response.finish_reasons": [
           "stop",
         ],
+        "gen_ai.response.model": "gpt-4o-2024-08-06",
+        "gen_ai.usage.input_tokens": 13,
+        "gen_ai.usage.output_tokens": 7,
       }
     `);
   });
