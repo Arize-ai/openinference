@@ -92,6 +92,11 @@ module = [
 module = "tests.test_span_attribute_helpers"
 warn_unused_ignores = false
 
+# openai 2 accepts httpx.AsyncClient, while newer versions annotate httpx2.AsyncClient.
+[[tool.mypy.overrides]]
+module = "tests.test_root_span_status"
+warn_unused_ignores = false
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
