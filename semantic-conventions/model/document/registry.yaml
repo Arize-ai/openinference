@@ -2,10 +2,13 @@ file_format: definition/2
 attributes:
   - key: document.id
     type: string
-    brief: "Unique identifier for a document: a retrieved document or chunk in a retrieval system, or the provider file id (e.g. an OpenAI or Anthropic Files API id) for a document passed to a model"
+    brief: "Unique identifier for a document: a retrieved document or chunk in a retrieval system, or the provider file id (e.g. an OpenAI or Anthropic Files API id) for a document passed to a model."
     note: "Instrumentations MAY record an integer id; consumers SHOULD accept both strings and integers."
     examples: ["1234", "1", "file-abc123"]
     stability: development
+    annotations:
+      openinference:
+        also_accepts: [int]
   - key: document.content
     type: string
     brief: "The text content of a document: a retrieved passage, or an inline text document passed to a model (e.g. an Anthropic `text` source)"

@@ -1,0 +1,24 @@
+{# Renders the block between a `<!-- weaver <jq> -->` marker and
+   `<!-- endweaver -->` in the prose specification (spec/). The result of the
+   jq query is the root context. Two shapes are supported:
+
+     {attributes: [<attribute>, ...]}   -> an attribute table
+     {members: [<enum member>, ...]}    -> a table of well-known values
+#}
+{% import 'macros.j2' as m %}
+<!-- Generated from semantic-conventions/model. Do not edit by hand: change the model and run `make -C semantic-conventions generate`. -->
+
+{% if attributes is defined %}
+| Attribute | Type | Description | Examples |
+| --- | --- | --- | --- |
+{% for attribute in attributes %}
+| `{{ attribute.key }}` | {{ m.spec_type(attribute) }} | {{ m.spec_description(attribute) }} | {{ m.spec_examples(attribute) }} |
+{% endfor %}
+{% elif members is defined %}
+| Value | Description |
+| --- | --- |
+{% for member in members if not member.deprecated %}
+| `{{ member.value }}` | {{ m.spec_text(member.brief) }} |
+{% endfor %}
+{% endif %}
+

@@ -11,7 +11,7 @@
 | <a id="evaluation-label"></a>`evaluation.label` | string | Categorical result | `hallucinated`, `relevant` | Development |
 | <a id="evaluation-metadata"></a>`evaluation.metadata` | string (JSON) | Additional result or judge data | `{"evaluator":"judge-v2"}` | Development |
 | <a id="evaluation-name"></a>`evaluation.name` | string | Criterion or metric name | `hallucination`, `relevance` | Development |
-| <a id="evaluation-score"></a>`evaluation.score` | double | Numeric result | `1.0`, `0.95` | Development |
+| <a id="evaluation-score"></a>`evaluation.score` | double | Numeric result. | `1.0`, `0.95` | Development |
 
 ## Notes
 

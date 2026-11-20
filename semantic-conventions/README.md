@@ -9,7 +9,7 @@ policies as [`semantic-conventions-genai`](https://github.com/open-telemetry/sem
 conventions versioned, checkable, and consumable by other registries.
 
 The prose specification is in [`spec/`](../spec/README.md). The model here is the source of truth for attribute keys,
-types, and well-known values; the spec explains them.
+types, and well-known values; the spec explains them, and its attribute tables are generated from the model.
 
 ## Layout
 
@@ -45,7 +45,7 @@ check also needs [uv](https://github.com/astral-sh/uv).
 make -C semantic-conventions check-all       # everything CI runs
 make -C semantic-conventions check           # validate the model and run the policies
 make -C semantic-conventions test            # check sample keys against the registry
-make -C semantic-conventions generate-docs   # regenerate docs/registry/ after changing the model
+make -C semantic-conventions generate        # regenerate docs/registry/ and the spec tables after changing the model
 make -C semantic-conventions check-parity    # compare the model with spec/ and the Python package
 make -C semantic-conventions help            # all targets
 ```
@@ -54,9 +54,11 @@ To change the conventions:
 
 1. Edit the YAML under `model/`. Add new attributes to the `registry.yaml` of their domain, and reference them from the
    `spans.yaml` of every span kind that carries them.
-2. Run `make generate-docs` and commit the regenerated `docs/registry/`.
-3. Update the prose in [`spec/`](../spec/README.md) and the language packages. `make check-parity` fails until
-   `spec/attributes/semantic-conventions.md` and the Python package agree with the model.
+2. Run `make generate` and commit the result: the reference in `docs/registry/` and the tables in
+   [`spec/attributes/semantic-conventions.md`](../spec/attributes/semantic-conventions.md).
+3. Update the prose in [`spec/`](../spec/README.md) where the change needs explaining, and the language packages.
+   `make check-parity` fails until the Python package agrees with the model, and if a new attribute is not picked up
+   by any table in the spec (see [Spec tables](#spec-tables)).
 4. Use a conventional commit scoped to this directory so the change lands in the registry changelog, e.g.
    `feat(semantic-conventions): add llm.reasoning_effort`.
 
@@ -83,9 +85,30 @@ To change the conventions:
 
   `template[any]` is what lets Weaver match a flattened key such as `llm.input_messages.0.message.role` to the
   `llm.input_messages` attribute; `item_namespaces` says its items are `message.*` attributes.
+- **Types Weaver cannot express.** When instrumentations record more than one primitive type for a key, give the
+  attribute its main type and list the others in `annotations.openinference.also_accepts`, e.g. `[int]` on
+  `document.id`.
 - **Naming exceptions.** `metadata`, `annotations`, and `evaluations` have no namespace, which the shared naming policy
   rejects. They predate the registry and cannot be renamed, so they are listed in
   [`policies/exceptions.json`](policies/exceptions.json). Do not add to that list for new attributes.
+
+### Spec tables
+
+The tables in the prose spec are filled in by `make generate-spec`. A table is a pair of markers; Weaver replaces what
+is between them:
+
+```markdown
+<!-- weaver {attributes: [.registry.attributes[] | select(.key | startswith("llm.token_count."))]} -->
+...generated table...
+<!-- endweaver -->
+```
+
+The marker holds a [jq](https://jqlang.org/) query over the resolved registry. It must produce either
+`{attributes: [...]}` for an attribute table or `{members: [...]}` for a table of well-known values; the rendering is
+in [`templates/registry/markdown/snippet.md.j2`](templates/registry/markdown/snippet.md.j2). Most tables select a key
+prefix, so a new attribute under that prefix appears on its own. Tables that list keys explicitly, to keep a curated
+order, need the new key added to the marker. To add a table to any page under `spec/`, add a marker pair and run
+`make generate-spec`.
 
 ## Using the registry
 
@@ -135,8 +158,8 @@ spans:
 | --- | --- |
 | `make check` | A model that does not parse or resolve; violations of the shared OpenTelemetry policies (naming, collisions, stability, deprecation); violations of the OpenInference policies in [`policies/check/openinference`](policies/check/openinference); with a baseline, removed or incompatibly changed attributes and spans |
 | `make test` | A change to the model (or to Weaver) that stops flattened wire-format keys from resolving to their attribute |
-| `make check-docs` | `docs/registry/` not regenerated after a model change |
-| `make check-parity` | Attribute keys or well-known values that differ between the model, `spec/attributes/semantic-conventions.md`, and the Python package |
+| `make check-docs` | `docs/registry/` or the tables in `spec/` not regenerated after a model change, or a generated table edited by hand |
+| `make check-parity` | Attribute keys or well-known values that differ between the model and the Python package; model attributes that no table in `spec/attributes/semantic-conventions.md` shows |
 
 The differences that exist today are listed in `KNOWN_DRIFT` in [`scripts/check_parity.py`](scripts/check_parity.py).
 The JavaScript and Java packages are not compared yet: they compose keys from prefixes, so they need to be generated

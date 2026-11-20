@@ -5,11 +5,11 @@ attributes:
       members:
         - id: typesafe
           value: "typesafe"
-          brief: "TypeSafe AI System One / Jev API, including Jev-compatible servers such as vLLM's `/v1/systemone`."
+          brief: "[TypeSafe AI System One / Jev API](https://typesafe.ai/blog/introducing-system-one-models-and-jev), including Jev-compatible servers such as vLLM's `/v1/systemone`"
           stability: development
         - id: openai
           value: "openai"
-          brief: "OpenAI Decisions API."
+          brief: "[OpenAI Decisions API](https://openai.com/index/devday-2026-recap/)"
           stability: development
     brief: "The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks, as identified by the client or server instrumentation: `typesafe` for the TypeSafe System One / Jev API, `openai` for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible `/v1/systemone` shape is still `typesafe`. Distinct from `decision.provider`, which says who hosts the model. The well-known values alias the matching `llm.system` values."
     examples: ["typesafe"]

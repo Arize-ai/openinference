@@ -33,9 +33,9 @@ The reranking of a set of input documents, for example by a cross-encoder that s
 | [`reranker.output_documents`](../attributes/reranker.md) | Recommended | flattened list of `document.*` | List of documents outputted by the reranker |
 | [`reranker.query`](../attributes/reranker.md) | Recommended | string | Query parameter of the reranker |
 | [`reranker.top_k`](../attributes/reranker.md) | Recommended | int | Top K parameter of the reranker |
-| [`session.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/session/) | Recommended: When present in the instrumentation context. | string | A unique ID to identify a session. |
+| [`session.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/session/) | Recommended: When present in the instrumentation context. | string | Unique identifier for a session, such as a multi-turn conversation. |
 | [`tag.tags`](../attributes/tag.md) | Recommended: When present in the instrumentation context. | string[] | List of tags to give the span a category |
-| [`user.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/user/) | Recommended: When present in the instrumentation context. | string | Unique identifier of the user. |
+| [`user.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/user/) | Recommended: When present in the instrumentation context. | string | Unique identifier for a user. |
 | [`annotations`](../attributes/annotations.md) | Opt-In | flattened list of `annotation.*` | Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*` |
 | [`evaluations`](../attributes/evaluations.md) | Opt-In | flattened list of `evaluation.*` | Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*` |
 | [`session.annotations`](../attributes/session.md) | Opt-In | flattened list of `annotation.*` | Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id` |

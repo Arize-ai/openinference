@@ -82,3 +82,84 @@ Opt-In: {{ level.opt_in | trim }}
 {% endfor %}
 {% endfor %}
 {%- endmacro %}
+
+{# ---------------------------------------------------------------------------
+   Helpers for the tables generated into the prose specification (spec/), which
+   uses its own vocabulary for types; see spec/attributes/conventions.md.
+   --------------------------------------------------------------------------- #}
+
+{% macro spec_type(attribute) -%}
+{%- set oi = (attribute.annotations | default({}, true)).openinference | default({}, true) -%}
+{%- if attribute.type is mapping -%}
+String
+{%- elif oi.encoding == "flattened_list" -%}
+List of objects
+{%- elif oi.encoding == "flattened_object" -%}
+{{ oi.item_namespaces | first | title_case }} Object
+{%- elif oi.encoding == "json" -%}
+JSON String
+{%- elif attribute.type == "string" and "int" in (oi.also_accepts | default([])) -%}
+String/Integer
+{%- elif attribute.type == "double" and "int" in (oi.also_accepts | default([])) -%}
+Integer/Float
+{%- elif attribute.type == "string" -%}
+String
+{%- elif attribute.type == "int" -%}
+Integer
+{%- elif attribute.type == "double" -%}
+Float
+{%- elif attribute.type == "boolean" -%}
+Boolean
+{%- elif attribute.type == "string[]" -%}
+List of strings
+{%- elif attribute.type == "double[]" -%}
+List of floats
+{%- else -%}
+{{ attribute.type | trim }}
+{%- endif -%}
+{%- endmacro %}
+
+{# A string as it is written in the spec: double-quoted. Not `tojson`, which
+   escapes quotes and angle brackets for HTML. #}
+{% macro quoted(value) -%}
+"{{ value | string | replace("\\", "\\\\") | replace('"', '\\"') }}"
+{%- endmacro %}
+
+{% macro spec_value(value, raw) -%}
+{%- if raw -%}
+{{ value }}
+{%- elif value is string -%}
+{{ quoted(value) }}
+{%- elif value is sequence -%}
+[{% for item in value %}{% if item is string %}{{ quoted(item) }}{% else %}{{ item }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}]
+{%- else -%}
+{{ value }}
+{%- endif -%}
+{%- endmacro %}
+
+{# Examples of flattened attributes are written in their nested JSON form and
+   shown as they are. Enums without examples show their well-known values. #}
+{% macro spec_examples(attribute) -%}
+{%- set oi = (attribute.annotations | default({}, true)).openinference | default({}, true) -%}
+{%- set raw = oi.encoding in ["flattened_list", "flattened_object"] -%}
+{%- if attribute.examples is sequence and attribute.examples is not string -%}
+{%- for e in attribute.examples %}`{{ spec_value(e, raw) | replace("|", "\\|") }}`{% if not loop.last %}, {% endif %}{% endfor %}
+{%- elif attribute.examples is defined and attribute.examples is not none -%}
+`{{ spec_value(attribute.examples, raw) | replace("|", "\\|") }}`
+{%- elif attribute.type is mapping -%}
+{%- for member in attribute.type.members if not member.deprecated %}`{{ quoted(member.value) }}`{% if not loop.last %}, {% endif %}{% endfor %}
+{%- endif -%}
+{%- endmacro %}
+
+{# The model links to the spec with absolute URLs, because its text is
+   published to other registries. Inside the spec those become relative links,
+   which GitHub and the site both resolve. Every spec page is one directory
+   below spec/, so `../` reaches the spec root from any of them. #}
+{% macro spec_text(text) -%}
+{{ text | default("", true) | trim | replace("\n", " ") | replace("|", "\\|") | replace("https://github.com/Arize-ai/openinference/blob/main/spec/", "../") }}
+{%- endmacro %}
+
+{% macro spec_description(attribute) -%}
+{%- if attribute.deprecated %}Deprecated{% if attribute.deprecated.note %}: {{ spec_text(attribute.deprecated.note) }}{% else %}.{% endif %} {% endif -%}
+{{ spec_text(attribute.brief) }}{% if attribute.note %} {{ spec_text(attribute.note) }}{% endif %}
+{%- endmacro %}

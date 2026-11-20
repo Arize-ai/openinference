@@ -29,9 +29,9 @@ A data retrieval step, for example a call to a vector store or a database to fet
 | [`output.mime_type`](../attributes/output.md) | Recommended: When `output.value` is set and is not plain text. | string (well-known values) | MIME type representing the format of `output.value` |
 | [`output.value`](../attributes/output.md) | Recommended | string | The output value of an operation |
 | [`retrieval.documents`](../attributes/retrieval.md) | Recommended | flattened list of `document.*` | List of retrieved documents |
-| [`session.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/session/) | Recommended: When present in the instrumentation context. | string | A unique ID to identify a session. |
+| [`session.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/session/) | Recommended: When present in the instrumentation context. | string | Unique identifier for a session, such as a multi-turn conversation. |
 | [`tag.tags`](../attributes/tag.md) | Recommended: When present in the instrumentation context. | string[] | List of tags to give the span a category |
-| [`user.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/user/) | Recommended: When present in the instrumentation context. | string | Unique identifier of the user. |
+| [`user.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/user/) | Recommended: When present in the instrumentation context. | string | Unique identifier for a user. |
 | [`annotations`](../attributes/annotations.md) | Opt-In | flattened list of `annotation.*` | Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*` |
 | [`evaluations`](../attributes/evaluations.md) | Opt-In | flattened list of `evaluation.*` | Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*` |
 | [`session.annotations`](../attributes/session.md) | Opt-In | flattened list of `annotation.*` | Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id` |

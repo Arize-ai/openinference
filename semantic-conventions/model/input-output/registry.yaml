@@ -22,6 +22,7 @@ attributes:
   - key: input.images
     type: template[any]
     brief: "Image inputs to an operation, independent of span kind, e.g. `input.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images)"
+    examples: ['[{"image.url": "https://sample-link-to-image.jpg"}]']
     stability: development
     annotations:
       openinference:
@@ -30,6 +31,7 @@ attributes:
   - key: input.documents
     type: template[any]
     brief: "File document (e.g. PDF) inputs to an operation, independent of span kind, e.g. `input.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents)"
+    examples: ['[{"document.url": "https://example.com/report.pdf", "document.mime_type": "application/pdf"}]']
     stability: development
     annotations:
       openinference:
@@ -57,6 +59,7 @@ attributes:
   - key: output.images
     type: template[any]
     brief: "Image outputs of an operation, independent of span kind, e.g. `output.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images)"
+    examples: ['[{"image.url": "data:image/png;base64,iVBORw0KGgo..."}]']
     stability: development
     annotations:
       openinference:
@@ -65,6 +68,7 @@ attributes:
   - key: output.documents
     type: template[any]
     brief: "File document (e.g. PDF) outputs of an operation, independent of span kind, e.g. `output.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents)"
+    examples: ['[{"document.url": "https://example.com/filled-form.pdf", "document.mime_type": "application/pdf"}]']
     stability: development
     annotations:
       openinference:

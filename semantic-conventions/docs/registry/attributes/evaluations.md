@@ -5,4 +5,4 @@
 
 | Key | Type | Description | Examples | Stability |
 | --- | --- | --- | --- | --- |
-| <a id="evaluations"></a>`evaluations` | flattened list of `evaluation.*` | Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*` |  | Development |
+| <a id="evaluations"></a>`evaluations` | flattened list of `evaluation.*` | Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*` | `[{"evaluation.name": "relevance", "evaluation.score": 0.95}]` | Development |

@@ -47,7 +47,7 @@ attributes:
           value: "typesafe"
           brief: "TypeSafe AI"
           stability: development
-    brief: "The AI product as identified by the client or server instrumentation."
+    brief: "The AI product as identified by the client or server instrumentation. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-system-values)."
     examples: ["anthropic", "openai"]
     stability: development
   - key: llm.provider
@@ -145,7 +145,7 @@ attributes:
           value: "doubleword"
           brief: "Doubleword"
           stability: development
-    brief: "The hosting provider of the LLM, e.g. `azure`."
+    brief: "The hosting provider of the LLM, e.g. `azure`. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-provider-values)."
     examples: ["openai", "azure"]
     stability: development
   - key: llm.model_name
@@ -190,6 +190,7 @@ attributes:
   - key: llm.input_messages
     type: template[any]
     brief: "List of messages sent to the LLM in a chat API request, e.g. `llm.input_messages.0.message.role`. See [Messages](https://github.com/Arize-ai/openinference/blob/main/spec/content/messages.md)"
+    examples: ['[{"message.role": "user", "message.content": "hello"}]']
     stability: development
     annotations:
       openinference:
@@ -198,6 +199,7 @@ attributes:
   - key: llm.output_messages
     type: template[any]
     brief: "List of messages received from the LLM in a chat API response, e.g. `llm.output_messages.0.message.role`. See [Messages](https://github.com/Arize-ai/openinference/blob/main/spec/content/messages.md)"
+    examples: ['[{"message.role": "assistant", "message.content": "hello"}]']
     stability: development
     annotations:
       openinference:
@@ -206,6 +208,7 @@ attributes:
   - key: llm.prompts
     type: template[any]
     brief: "Prompts provided to a completions API, e.g. `llm.prompts.0.prompt.text`"
+    examples: ['[{"prompt.text": "def fib(n):..."}]']
     stability: development
     annotations:
       openinference:
@@ -214,6 +217,7 @@ attributes:
   - key: llm.choices
     type: template[any]
     brief: "Text choices returned from a completions API, e.g. `llm.choices.0.completion.text`"
+    examples: ['[{"completion.text": " + fib(n-3)..."}]']
     stability: development
     annotations:
       openinference:
@@ -222,6 +226,7 @@ attributes:
   - key: llm.tools
     type: template[any]
     brief: "List of tools that are advertised to the LLM to be able to call, e.g. `llm.tools.0.tool.name`, `llm.tools.0.tool.description`, `llm.tools.0.tool.json_schema`. See [Tool Calling](https://github.com/Arize-ai/openinference/blob/main/spec/content/tool-calling.md)"
+    examples: ['[{"tool.name": "get_weather", "tool.json_schema": "{\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}}"}]']
     stability: development
     annotations:
       openinference:

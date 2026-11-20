@@ -5,5 +5,5 @@
 
 | Key | Type | Description | Examples | Stability |
 | --- | --- | --- | --- | --- |
-| <a id="trace-annotations"></a>`trace.annotations` | flattened list of `annotation.*` | Trace-scoped feedback using annotation terminology, flattened as `trace.annotations.0.annotation.*` |  | Development |
-| <a id="trace-evaluations"></a>`trace.evaluations` | flattened list of `evaluation.*` | Trace-scoped feedback using evaluation terminology, flattened as `trace.evaluations.0.evaluation.*` |  | Development |
+| <a id="trace-annotations"></a>`trace.annotations` | flattened list of `annotation.*` | Trace-scoped feedback using annotation terminology, flattened as `trace.annotations.0.annotation.*` | `[{"annotation.name": "retrieval_quality", "annotation.score": 0.92}]` | Development |
+| <a id="trace-evaluations"></a>`trace.evaluations` | flattened list of `evaluation.*` | Trace-scoped feedback using evaluation terminology, flattened as `trace.evaluations.0.evaluation.*` | `[{"evaluation.name": "retrieval_quality", "evaluation.score": 0.92}]` | Development |

@@ -17,12 +17,12 @@ attributes:
     stability: development
   - key: audio.mime_type
     type: string
-    brief: "Infer the type from `audio.url` instead; new instrumentors should not emit this."
+    brief: "The MIME type of the audio file."
     examples: ["audio/mpeg"]
     stability: development
     deprecated:
       reason: uncategorized
-      note: "Infer the type from `audio.url` instead."
+      note: "Infer the type from `audio.url` instead; new instrumentors should not emit this."
   - key: video.url
     type: string
     brief: "The URL, object-store URI, or base64 data URI of a video. Consumers infer MIME type from the path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix."

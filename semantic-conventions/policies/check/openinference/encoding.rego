@@ -14,6 +14,7 @@ import rego.v1
 #     openinference:
 #       encoding: flattened_list | flattened_object | json
 #       item_namespaces: [message]   # flattened_* only
+#       also_accepts: [int]          # other OTLP types consumers must accept for this key
 
 encodings := {"flattened_list", "flattened_object", "json"}
 
@@ -111,6 +112,23 @@ deny contains finding if {
         "id": "openinference_item_namespace_unknown",
         "context": {"attribute": attr.key, "item_namespace": ns},
         "message": sprintf("Attribute '%s' lists item namespace '%s', but the registry defines no '%s.*' attributes.", [attr.key, ns, ns]),
+        "level": "violation",
+    }
+}
+
+# `also_accepts` records what the attribute type cannot: that some
+# instrumentations record another primitive (e.g. an integer `document.id`).
+also_accepts_types := {"string", "int", "double", "boolean"}
+
+deny contains finding if {
+    some attr in input.registry.attributes
+    some accepted in object.get(oi_annotations(attr), "also_accepts", [])
+    not accepted in also_accepts_types
+
+    finding := {
+        "id": "openinference_also_accepts_unknown",
+        "context": {"attribute": attr.key, "also_accepts": accepted},
+        "message": sprintf("Attribute '%s' lists unknown type '%s' in annotations.openinference.also_accepts. Expected one of: string, int, double, boolean.", [attr.key, accepted]),
         "level": "violation",
     }
 }

@@ -5,8 +5,8 @@
 
 | Key | Type | Description | Examples | Stability |
 | --- | --- | --- | --- | --- |
-| <a id="output-documents"></a>`output.documents` | flattened list of `document.*` | File document (e.g. PDF) outputs of an operation, independent of span kind, e.g. `output.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents) |  | Development |
-| <a id="output-images"></a>`output.images` | flattened list of `image.*` | Image outputs of an operation, independent of span kind, e.g. `output.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images) |  | Development |
+| <a id="output-documents"></a>`output.documents` | flattened list of `document.*` | File document (e.g. PDF) outputs of an operation, independent of span kind, e.g. `output.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents) | `[{"document.url": "https://example.com/filled-form.pdf", "document.mime_type": "application/pdf"}]` | Development |
+| <a id="output-images"></a>`output.images` | flattened list of `image.*` | Image outputs of an operation, independent of span kind, e.g. `output.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images) | `[{"image.url": "data:image/png;base64,iVBORw0KGgo..."}]` | Development |
 | <a id="output-mime-type"></a>`output.mime_type` | string (well-known values) | MIME type representing the format of `output.value` | `text/plain`, `application/json` | Development |
 | <a id="output-value"></a>`output.value` | string | The output value of an operation | `Hello, World!` | Development |
 

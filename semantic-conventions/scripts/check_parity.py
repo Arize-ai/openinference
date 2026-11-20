@@ -2,12 +2,13 @@
 """Verify that the machine-readable model has not drifted from the rest of the repo.
 
 The model under `semantic-conventions/model` is the source of truth for
-OpenInference attribute keys and well-known values. Until the prose
-specification tables and the language packages are generated from it, this
-check keeps them from diverging. It compares the model against:
+OpenInference attribute keys and well-known values. This check keeps the rest
+of the repository from diverging from it. It compares the model against:
 
 - `spec/attributes/semantic-conventions.md`: every attribute key in the tables
-  and every row of the well-known value tables.
+  and every row of the well-known value tables. Those tables are generated from
+  the model (`make generate-spec`), so their contents cannot drift; what this
+  catches is a model attribute that no table on the page selects.
 - `python/openinference-semantic-conventions`: every attribute key constant and
   every enum value. The Go package is in turn pinned to the Python one by
   `scripts/check_go_semconv.py`.
@@ -63,8 +64,6 @@ ENUMS: dict[str, tuple[str | None, str | None]] = {
 # Fix the drift and delete the entry; do not add entries to make CI pass
 # without a tracking issue.
 KNOWN_DRIFT: set[tuple[str, str, str]] = {
-    # The model defines the resource attribute; the spec has no table for it yet.
-    ("attribute", "openinference.project.name", "spec"),
     # Key prefixes exposed as Python constants. Not attributes in their own
     # right: the spec and model list the concrete `*_details.<kind>` keys.
     ("attribute", "llm.token_count.prompt_details", "model"),

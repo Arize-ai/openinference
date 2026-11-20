@@ -5,4 +5,4 @@
 
 | Key | Type | Description | Examples | Stability |
 | --- | --- | --- | --- | --- |
-| <a id="retrieval-documents"></a>`retrieval.documents` | flattened list of `document.*` | List of retrieved documents |  | Development |
+| <a id="retrieval-documents"></a>`retrieval.documents` | flattened list of `document.*` | List of retrieved documents | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | Development |

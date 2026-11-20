@@ -20,7 +20,7 @@ See [LLM Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/l
 
 | Key | Requirement level | Type | Description |
 | --- | --- | --- | --- |
-| [`llm.system`](../attributes/llm.md) | Required | string (well-known values) | The AI product as identified by the client or server instrumentation. |
+| [`llm.system`](../attributes/llm.md) | Required | string (well-known values) | The AI product as identified by the client or server instrumentation. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-system-values). |
 | [`openinference.span.kind`](../attributes/openinference.md) | Required | string (well-known values) | The role an operation plays in an AI application. |
 | [`input.documents`](../attributes/input.md) | Recommended: When the operation takes file documents as input outside of a message. | flattened list of `document.*` | File document (e.g. PDF) inputs to an operation, independent of span kind, e.g. `input.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents) |
 | [`input.images`](../attributes/input.md) | Recommended: When the operation takes images as input outside of a message. | flattened list of `image.*` | Image inputs to an operation, independent of span kind, e.g. `input.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images) |
@@ -36,7 +36,7 @@ See [LLM Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/l
 | [`llm.prompt_template.variables`](../attributes/llm.md) | Recommended: When present in the instrumentation context. | string (JSON) | JSON of key value pairs applied to the prompt template |
 | [`llm.prompt_template.version`](../attributes/llm.md) | Recommended: When present in the instrumentation context. | string | The version of the prompt template |
 | [`llm.prompts`](../attributes/llm.md) | Recommended: For completions (non-chat) API calls. | flattened list of `prompt.*` | Prompts provided to a completions API, e.g. `llm.prompts.0.prompt.text` |
-| [`llm.provider`](../attributes/llm.md) | Recommended: When the hosting provider differs from the system. | string (well-known values) | The hosting provider of the LLM, e.g. `azure`. |
+| [`llm.provider`](../attributes/llm.md) | Recommended: When the hosting provider differs from the system. | string (well-known values) | The hosting provider of the LLM, e.g. `azure`. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-provider-values). |
 | [`llm.request.model_name`](../attributes/llm.md) | Recommended: When the requested model can differ from the model that served the response. | string | The model requested by the caller, as sent in the request. May differ from `llm.response.model_name` when the provider routes the request to a different model. |
 | [`llm.response.model_name`](../attributes/llm.md) | Recommended: When the requested model can differ from the model that served the response. | string | The model that actually generated the response, as reported by the provider. May differ from `llm.request.model_name` when the provider routes the request to a different model. |
 | [`llm.token_count.completion`](../attributes/llm.md) | Recommended | int | The number of tokens in the completion |
@@ -54,9 +54,9 @@ See [LLM Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/l
 | [`output.images`](../attributes/output.md) | Recommended: When the operation produces images outside of a message. | flattened list of `image.*` | Image outputs of an operation, independent of span kind, e.g. `output.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images) |
 | [`output.mime_type`](../attributes/output.md) | Recommended: When `output.value` is set and is not plain text. | string (well-known values) | MIME type representing the format of `output.value` |
 | [`output.value`](../attributes/output.md) | Recommended | string | The output value of an operation |
-| [`session.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/session/) | Recommended: When present in the instrumentation context. | string | A unique ID to identify a session. |
+| [`session.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/session/) | Recommended: When present in the instrumentation context. | string | Unique identifier for a session, such as a multi-turn conversation. |
 | [`tag.tags`](../attributes/tag.md) | Recommended: When present in the instrumentation context. | string[] | List of tags to give the span a category |
-| [`user.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/user/) | Recommended: When present in the instrumentation context. | string | Unique identifier of the user. |
+| [`user.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/user/) | Recommended: When present in the instrumentation context. | string | Unique identifier for a user. |
 | [`annotations`](../attributes/annotations.md) | Opt-In | flattened list of `annotation.*` | Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*` |
 | [`evaluations`](../attributes/evaluations.md) | Opt-In | flattened list of `evaluation.*` | Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*` |
 | [`llm.cost.completion`](../attributes/llm.md) | Opt-In | double | Total cost of all output tokens generated by the LLM in USD |

@@ -6,7 +6,7 @@
 | Key | Type | Description | Examples | Stability |
 | --- | --- | --- | --- | --- |
 | <a id="document-content"></a>`document.content` | string | The text content of a document: a retrieved passage, or an inline text document passed to a model (e.g. an Anthropic `text` source) | `This is a sample document content.` | Development |
-| <a id="document-id"></a>`document.id` | string | Unique identifier for a document: a retrieved document or chunk in a retrieval system, or the provider file id (e.g. an OpenAI or Anthropic Files API id) for a document passed to a model | `1234`, `1`, `file-abc123` | Development |
+| <a id="document-id"></a>`document.id` | string | Unique identifier for a document: a retrieved document or chunk in a retrieval system, or the provider file id (e.g. an OpenAI or Anthropic Files API id) for a document passed to a model. | `1234`, `1`, `file-abc123` | Development |
 | <a id="document-metadata"></a>`document.metadata` | string (JSON) | Metadata associated with a document | `{'author': 'John Doe', 'date': '2023-09-09'}` | Development |
 | <a id="document-mime-type"></a>`document.mime_type` | string | The MIME type of a file document such as a PDF | `application/pdf` | Development |
 | <a id="document-name"></a>`document.name` | string | The name supplied with a document, copied verbatim: a file name (OpenAI `filename`) or a title (Anthropic `title`, Bedrock `name`, Gemini `display_name`); not a unique identifier | `invoice.pdf` | Development |

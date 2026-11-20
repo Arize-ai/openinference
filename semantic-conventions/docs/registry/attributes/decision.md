@@ -28,5 +28,5 @@
 
 | Value | Description |
 | --- | --- |
-| `typesafe` | TypeSafe AI System One / Jev API, including Jev-compatible servers such as vLLM's `/v1/systemone`. |
-| `openai` | OpenAI Decisions API. |
+| `typesafe` | [TypeSafe AI System One / Jev API](https://typesafe.ai/blog/introducing-system-one-models-and-jev), including Jev-compatible servers such as vLLM's `/v1/systemone` |
+| `openai` | [OpenAI Decisions API](https://openai.com/index/devday-2026-recap/) |

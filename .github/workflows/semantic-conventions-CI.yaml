@@ -34,8 +34,9 @@ jobs:
             diff:
               - ".github/workflows/semantic-conventions-CI.yaml"
               - "semantic-conventions/**"
-              # The parity check compares the model against these.
-              - "spec/attributes/semantic-conventions.md"
+              # Tables in the spec are generated from the model.
+              - "spec/**"
+              # The parity check compares the model against the Python package.
               - "python/openinference-semantic-conventions/src/openinference/semconv/**"
 
   ci:
@@ -98,7 +99,7 @@ jobs:
       - name: Check sample wire-format keys against the registry
         run: make test
 
-      - name: Check generated registry docs are up to date
+      - name: Check generated registry docs and spec tables are up to date
         run: make check-docs
 
       - name: Check parity with the spec and language packages

@@ -31,9 +31,9 @@ The rendering of a prompt template, for example substituting variables into a te
 | [`prompt.id`](../attributes/prompt.md) | Recommended: When the prompt comes from a prompt management system. | string | A vendor-specific id used to identify the prompt. |
 | [`prompt.url`](../attributes/prompt.md) | Recommended: When the prompt comes from a prompt management system. | string | A vendor-specific URL used to locate the prompt via the web |
 | [`prompt.vendor`](../attributes/prompt.md) | Recommended: When the prompt comes from a prompt management system. | string | The vendor or origin of the prompt, e.g. `langsmith`, `portkey`, `arize-phoenix` |
-| [`session.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/session/) | Recommended: When present in the instrumentation context. | string | A unique ID to identify a session. |
+| [`session.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/session/) | Recommended: When present in the instrumentation context. | string | Unique identifier for a session, such as a multi-turn conversation. |
 | [`tag.tags`](../attributes/tag.md) | Recommended: When present in the instrumentation context. | string[] | List of tags to give the span a category |
-| [`user.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/user/) | Recommended: When present in the instrumentation context. | string | Unique identifier of the user. |
+| [`user.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/user/) | Recommended: When present in the instrumentation context. | string | Unique identifier for a user. |
 | [`annotations`](../attributes/annotations.md) | Opt-In | flattened list of `annotation.*` | Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*` |
 | [`evaluations`](../attributes/evaluations.md) | Opt-In | flattened list of `evaluation.*` | Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*` |
 | [`session.annotations`](../attributes/session.md) | Opt-In | flattened list of `annotation.*` | Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id` |

@@ -41,9 +41,11 @@ attribute_groups:
     visibility: internal
     attributes:
       - ref: session.id
+        brief: Unique identifier for a session, such as a multi-turn conversation.
         requirement_level:
           recommended: When present in the instrumentation context.
       - ref: user.id
+        brief: Unique identifier for a user.
         requirement_level:
           recommended: When present in the instrumentation context.
       - ref: metadata

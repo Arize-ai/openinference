@@ -32,12 +32,14 @@ else
     endif
 endif
 
+# The repository root is mounted, not just this directory, because generate-spec
+# rewrites tables in ../spec.
 ifeq ($(USE_CONTAINER),1)
 CONTAINER_RUNTIME ?= $(shell command -v docker 2>/dev/null || command -v podman 2>/dev/null)
 WEAVER := $(CONTAINER_RUNTIME) run --rm \
 	-u $(shell id -u):$(shell id -g) \
-	-v "$(CURDIR):/workspace" \
-	-w /workspace \
+	-v "$(abspath $(CURDIR)/..):/workspace" \
+	-w /workspace/semantic-conventions \
 	-e HOME=/tmp \
 	docker.io/otel/weaver:$(WEAVER_VERSION)
 else
@@ -48,6 +50,8 @@ PYTHON ?= python3
 MODEL := ./model
 BUILD := .build
 DOCS_OUTPUT := docs/registry
+# Prose specification whose tables are generated from the model.
+SPEC_DIR := ../spec
 PACKAGE_OUTPUT := $(BUILD)/package
 
 # Registry to compare against for the backwards-compatibility policies. Empty
@@ -64,7 +68,7 @@ GITHUB_REPOSITORY ?= Arize-ai/openinference
 RELEASE_TAG := semantic-conventions-v$(VERSION)
 RELEASE_DOWNLOAD_URL := https://github.com/$(GITHUB_REPOSITORY)/releases/download/$(RELEASE_TAG)
 
-.PHONY: help check test generate-docs check-docs check-parity check-all package print-version clean
+.PHONY: help check test generate generate-docs generate-spec check-docs check-parity check-all package print-version clean
 
 help: ## Show this help
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-16s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -99,6 +103,8 @@ test: ## Check that sample wire-format keys resolve against the registry
 		$(PYTHON) scripts/check_live.py $$kind $(BUILD)/live-$$kind.json || exit 1; \
 	done
 
+generate: generate-docs generate-spec ## Regenerate everything derived from the model
+
 generate-docs: ## Regenerate the registry reference under docs/registry/
 	@mkdir -p $(BUILD)
 	rm -rf $(DOCS_OUTPUT)
@@ -112,12 +118,24 @@ generate-docs: ## Regenerate the registry reference under docs/registry/
 		2> $(BUILD)/generate-docs.log || { cat $(BUILD)/generate-docs.log; exit 1; }
 	@echo "Generated $(DOCS_OUTPUT)"
 
-check-docs: generate-docs ## Fail if the committed docs/registry/ is out of date
-	@if ! git diff --exit-code -- $(DOCS_OUTPUT); then \
-		echo "FAIL: $(DOCS_OUTPUT) is out of date. Run 'make -C semantic-conventions generate-docs' and commit."; exit 1; fi
+generate-spec: ## Regenerate the tables in ../spec between `<!-- weaver ... -->` and `<!-- endweaver -->`
+	@mkdir -p $(BUILD)
+	@$(WEAVER) registry update-markdown \
+		-r $(MODEL) \
+		--v2 \
+		--quiet \
+		-t ./templates \
+		--target markdown \
+		$(SPEC_DIR) \
+		2> $(BUILD)/generate-spec.log || { cat $(BUILD)/generate-spec.log; exit 1; }
+	@echo "Generated tables in $(SPEC_DIR)"
+
+check-docs: generate ## Fail if the committed docs/registry/ or the tables in ../spec are out of date
+	@if ! git diff --exit-code -- $(DOCS_OUTPUT) $(SPEC_DIR); then \
+		echo "FAIL: generated docs are out of date. Run 'make -C semantic-conventions generate' and commit."; exit 1; fi
 	@untracked=$$(git ls-files --others --exclude-standard -- $(DOCS_OUTPUT)); \
 	if [ -n "$$untracked" ]; then echo "FAIL: untracked generated files:"; echo "$$untracked"; exit 1; fi
-	@echo "OK: $(DOCS_OUTPUT) is up to date."
+	@echo "OK: $(DOCS_OUTPUT) and the tables in $(SPEC_DIR) are up to date."
 
 check-parity: ## Fail if the model has drifted from spec/ or the language packages
 	uv run --no-project --with pyyaml==6.0.3 $(PYTHON) scripts/check_parity.py

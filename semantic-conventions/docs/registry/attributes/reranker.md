@@ -5,8 +5,8 @@
 
 | Key | Type | Description | Examples | Stability |
 | --- | --- | --- | --- | --- |
-| <a id="reranker-input-documents"></a>`reranker.input_documents` | flattened list of `document.*` | List of documents as input to the reranker |  | Development |
+| <a id="reranker-input-documents"></a>`reranker.input_documents` | flattened list of `document.*` | List of documents as input to the reranker | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | Development |
 | <a id="reranker-model-name"></a>`reranker.model_name` | string | Model name of the reranker | `cross-encoder/ms-marco-MiniLM-L-12-v2` | Development |
-| <a id="reranker-output-documents"></a>`reranker.output_documents` | flattened list of `document.*` | List of documents outputted by the reranker |  | Development |
+| <a id="reranker-output-documents"></a>`reranker.output_documents` | flattened list of `document.*` | List of documents outputted by the reranker | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | Development |
 | <a id="reranker-query"></a>`reranker.query` | string | Query parameter of the reranker | `How to format timestamp?` | Development |
 | <a id="reranker-top-k"></a>`reranker.top_k` | int | Top K parameter of the reranker | `3` | Development |

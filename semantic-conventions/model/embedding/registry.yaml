@@ -16,6 +16,7 @@ attributes:
   - key: embedding.embeddings
     type: template[any]
     brief: "List of embedding objects including text and vector data"
+    examples: ['[{"embedding.vector": [...], "embedding.text": "hello"}]']
     stability: development
     annotations:
       openinference:
@@ -29,4 +30,5 @@ attributes:
   - key: embedding.vector
     type: double[]
     brief: "The embedding vector consisting of a list of floats"
+    examples: [[0.123, 0.456]]
     stability: development

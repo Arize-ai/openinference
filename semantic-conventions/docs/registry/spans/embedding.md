@@ -37,9 +37,9 @@ See [Embedding Spans](https://github.com/Arize-ai/openinference/blob/main/spec/s
 | [`output.images`](../attributes/output.md) | Recommended: When the operation produces images outside of a message. | flattened list of `image.*` | Image outputs of an operation, independent of span kind, e.g. `output.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images) |
 | [`output.mime_type`](../attributes/output.md) | Recommended: When `output.value` is set and is not plain text. | string (well-known values) | MIME type representing the format of `output.value` |
 | [`output.value`](../attributes/output.md) | Recommended | string | The output value of an operation |
-| [`session.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/session/) | Recommended: When present in the instrumentation context. | string | A unique ID to identify a session. |
+| [`session.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/session/) | Recommended: When present in the instrumentation context. | string | Unique identifier for a session, such as a multi-turn conversation. |
 | [`tag.tags`](../attributes/tag.md) | Recommended: When present in the instrumentation context. | string[] | List of tags to give the span a category |
-| [`user.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/user/) | Recommended: When present in the instrumentation context. | string | Unique identifier of the user. |
+| [`user.id`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/user/) | Recommended: When present in the instrumentation context. | string | Unique identifier for a user. |
 | [`annotations`](../attributes/annotations.md) | Opt-In | flattened list of `annotation.*` | Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*` |
 | [`evaluations`](../attributes/evaluations.md) | Opt-In | flattened list of `evaluation.*` | Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*` |
 | [`session.annotations`](../attributes/session.md) | Opt-In | flattened list of `annotation.*` | Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id` |

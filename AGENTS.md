@@ -117,14 +117,15 @@ pnpm changeset
 **See `semantic-conventions/README.md` for the model layout and modeling rules.**
 
 The YAML under `semantic-conventions/model` is the source of truth for attribute keys, types, and well-known values.
-When adding or changing an attribute, edit the model first, then the spec and the language packages.
+The attribute tables in `spec/attributes/semantic-conventions.md` are generated from it; never edit them by hand.
+When adding or changing an attribute, edit the model, regenerate, then update the language packages.
 
 ```bash
 # Run everything CI runs (needs weaver or docker/podman, and uv)
 make -C semantic-conventions check-all
 
-# Regenerate semantic-conventions/docs/registry after changing the model
-make -C semantic-conventions generate-docs
+# Regenerate semantic-conventions/docs/registry and the tables in spec/ after changing the model
+make -C semantic-conventions generate
 ```
 
 ### Java

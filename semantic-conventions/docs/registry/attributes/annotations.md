@@ -5,4 +5,4 @@
 
 | Key | Type | Description | Examples | Stability |
 | --- | --- | --- | --- | --- |
-| <a id="annotations"></a>`annotations` | flattened list of `annotation.*` | Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*` |  | Development |
+| <a id="annotations"></a>`annotations` | flattened list of `annotation.*` | Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*` | `[{"annotation.name": "hallucination", "annotation.label": "hallucinated"}]` | Development |
