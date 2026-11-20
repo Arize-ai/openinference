@@ -301,7 +301,7 @@ src/
       types.ts                      # TraceConfigOptions, TraceConfig, MaskingRule
       constants.ts                  # Environment variable names and defaults
   types/
-    index.ts                        # Shared types: GenericFunction, SafeFunction, UnknownRecord
+    index.ts                        # Shared types: SafeFunction, UnknownRecord
   utils/
     index.ts                        # withSafety, safelyJSONStringify, safelyJSONParse
     typeUtils.ts                    # isString, isRecord, isDefined, isPromise, etc.

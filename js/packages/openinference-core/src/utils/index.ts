@@ -1,4 +1,4 @@
-import type { GenericFunction, SafeFunction } from "../types";
+import type { SafeFunction } from "../types";
 export * from "./typeUtils";
 
 /**
@@ -6,16 +6,18 @@ export * from "./typeUtils";
  * @param fn - A function to wrap with a try-catch block.
  * @returns A function that returns null if an error is thrown.
  */
-export function withSafety<T extends GenericFunction>({
+export function withSafety<Fn extends (...args: never[]) => unknown>({
   fn,
   onError,
 }: {
-  fn: T;
+  fn: Fn;
   onError?: (error: unknown) => void;
-}): SafeFunction<T> {
+}): SafeFunction<Fn> {
   return (...args) => {
     try {
-      return fn(...args);
+      // Calling through the constraint yields `unknown`; the result is `ReturnType<Fn>` by definition.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      return fn(...args) as ReturnType<Fn>;
     } catch (error) {
       if (onError) {
         onError(error);
