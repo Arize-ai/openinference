@@ -1,0 +1,10 @@
+file_format: definition/2
+attributes:
+  - key: retrieval.documents
+    type: template[any]
+    brief: "List of retrieved documents"
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["document"]

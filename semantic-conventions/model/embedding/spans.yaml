@@ -1,0 +1,32 @@
+file_format: definition/2
+spans:
+  - type: openinference.embedding
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    brief: >
+      A call to an LLM or embedding service that converts text or token IDs
+      into dense float vectors.
+    note: |
+      `openinference.span.kind` MUST be `EMBEDDING`.
+
+      Embedding spans do not use `llm.system` or `llm.provider`.
+
+      See [Embedding Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/embedding.md).
+    name:
+      note: |
+        **Span name** MUST be `CreateEmbeddings`.
+    attributes:
+      - ref_group: attributes.openinference.common
+      - ref: embedding.model_name
+        requirement_level: recommended
+      - ref: embedding.embeddings
+        requirement_level: recommended
+      - ref: embedding.invocation_parameters
+        requirement_level: recommended
+      - ref: llm.token_count.prompt
+        brief: Number of tokens in the input.
+        requirement_level: recommended
+      - ref: llm.token_count.total
+        brief: Total number of tokens used.
+        requirement_level: recommended

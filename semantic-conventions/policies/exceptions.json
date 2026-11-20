@@ -1,0 +1,17 @@
+[
+  {
+    "id": "naming_convention_attr_has_namespace",
+    "context": { "attribute": "metadata" },
+    "reason": "Predates the registry and is emitted by every OpenInference SDK. Renaming it would break consumers."
+  },
+  {
+    "id": "naming_convention_attr_has_namespace",
+    "context": { "attribute": "annotations" },
+    "reason": "Span-scoped feedback list. The trace- and session-scoped forms are namespaced (`trace.annotations`, `session.annotations`); the span-scoped form is deliberately bare."
+  },
+  {
+    "id": "naming_convention_attr_has_namespace",
+    "context": { "attribute": "evaluations" },
+    "reason": "Span-scoped feedback list. The trace- and session-scoped forms are namespaced (`trace.evaluations`, `session.evaluations`); the span-scoped form is deliberately bare."
+  }
+]

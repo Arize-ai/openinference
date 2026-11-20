@@ -1,0 +1,27 @@
+file_format: definition/2
+attributes:
+  - key: prompt.text
+    type: string
+    brief: "The text of a prompt in a completions API request. Used under `llm.prompts`."
+    examples: ["def fib(n):..."]
+    stability: development
+  - key: prompt.vendor
+    type: string
+    brief: "The vendor or origin of the prompt, e.g. `langsmith`, `portkey`, `arize-phoenix`"
+    examples: ["langchain"]
+    stability: development
+  - key: prompt.id
+    type: string
+    brief: "A vendor-specific id used to identify the prompt."
+    examples: ["1234"]
+    stability: development
+  - key: prompt.url
+    type: string
+    brief: "A vendor-specific URL used to locate the prompt via the web"
+    examples: ["https://smith.langchain.com/prompts/naive-prompt"]
+    stability: development
+  - key: completion.text
+    type: string
+    brief: "The text of a choice returned from a completions API. Used under `llm.choices`."
+    examples: [" + fib(n-3)..."]
+    stability: development

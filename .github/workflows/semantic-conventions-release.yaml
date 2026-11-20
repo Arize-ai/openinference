@@ -1,0 +1,82 @@
+name: Semantic Conventions Release
+
+# Attaches the packaged registry (publication manifest + resolved registry) to
+# a `semantic-conventions-v*` GitHub release, so that other registries and
+# tools can consume a pinned version. release-please creates the release; see
+# semantic-conventions/RELEASING.md.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)attach the registry to, e.g. semantic-conventions-v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  attach-registry:
+    name: Attach registry to release
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.event.release.tag_name, 'semantic-conventions-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # upload release assets
+    defaults:
+      run:
+        working-directory: semantic-conventions
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/tags/${{ github.event.release.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      - name: Load version pins
+        id: versions
+        run: |
+          weaver_version="$(sed -n 's/^WEAVER_VERSION=v\{0,1\}//p' versions.env)"
+          if [[ -z "$weaver_version" ]]; then
+            echo "Failed to load WEAVER_VERSION from versions.env" >&2
+            exit 1
+          fi
+          echo "weaver_version=$weaver_version" >> "$GITHUB_OUTPUT"
+
+      - name: Install Weaver
+        uses: open-telemetry/weaver/.github/actions/setup-weaver@f8e1b42fbd1e09df5263c26b7df6011eaafd454d
+        with:
+          version: ${{ steps.versions.outputs.weaver_version }}
+
+      - name: Verify the tag matches the schema URL version
+        run: |
+          expected="semantic-conventions-v$(make -s print-version)"
+          if [[ "$TAG" != "$expected" ]]; then
+            echo "Tag '$TAG' does not match model/manifest.yaml schema_url (expected '$expected')." >&2
+            exit 1
+          fi
+
+      - name: Validate model and policies
+        run: make check
+
+      - name: Build release package
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: make package
+
+      - name: Upload registry to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release upload "$TAG" \
+            .build/package/manifest.yaml \
+            .build/package/registry.yaml \
+            --clobber
