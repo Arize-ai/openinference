@@ -3,9 +3,12 @@
 
 # `tool_call` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="tool-call-function-arguments"></a>`tool_call.function.arguments` | string (JSON) | The arguments for the function being invoked by a tool call | `{'city': 'London'}` | Development |
-| <a id="tool-call-function-name"></a>`tool_call.function.name` | string | The name of the function being invoked by a tool call | `get_current_weather` | Development |
-| <a id="tool-call-id"></a>`tool_call.id` | string | The id of a tool call (useful when there is more than one call at the same time) | `call_62136355` | Development |
-| <a id="tool-call-reasoning-signature"></a>`tool_call.reasoning_signature` | string | Opaque vendor-issued reasoning echo token attached to a tool call. Used by Gemini, which puts `thoughtSignature` on `functionCall` parts rather than on the reasoning summary. | `CiQB...` | Development |
+| <a id="tool-call-function-arguments" href="#tool-call-function-arguments">`tool_call.function.arguments`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (JSON) | The arguments for the function being invoked by a tool call | `{'city': 'London'}` |
+| <a id="tool-call-function-name" href="#tool-call-function-name">`tool_call.function.name`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The name of the function being invoked by a tool call | `get_current_weather` |
+| <a id="tool-call-id" href="#tool-call-id">`tool_call.id`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The id of a tool call (useful when there is more than one call at the same time) | `call_62136355` |
+| <a id="tool-call-reasoning-signature" href="#tool-call-reasoning-signature">`tool_call.reasoning_signature`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | Opaque vendor-issued reasoning echo token attached to a tool call. Used by Gemini, which puts `thoughtSignature` on `functionCall` parts rather than on the reasoning summary. | `CiQB...` |
+

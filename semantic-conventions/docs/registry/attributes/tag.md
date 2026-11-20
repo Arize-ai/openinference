@@ -3,6 +3,9 @@
 
 # `tag` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="tag-tags"></a>`tag.tags` | string[] | List of tags to give the span a category | `["shopping","travel"]` | Development |
+| <a id="tag-tags" href="#tag-tags">`tag.tags`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string[] | List of tags to give the span a category | `["shopping","travel"]` |
+

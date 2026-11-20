@@ -123,9 +123,9 @@ def load_spec() -> tuple[set[str], dict[str, set[str]]]:
             continue
         cells = split_row(line)
         names = re.findall(r"`([^`]+)`", cells[0])
-        if len(cells) == 4:
+        if len(cells) == 5:  # Attribute | Stability | Type | Description | Examples
             keys.update(names)
-        elif len(cells) == 2 and heading.endswith("Values"):
+        elif len(cells) == 3 and heading.endswith("Values"):  # Value | Description | Stability
             values.setdefault(heading, set()).update(names)
     return keys, values
 

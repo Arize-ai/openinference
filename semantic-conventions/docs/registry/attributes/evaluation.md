@@ -3,26 +3,27 @@
 
 # `evaluation` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="evaluation-annotator-kind"></a>`evaluation.annotator_kind` | string (well-known values) | Judge kind: `HUMAN`, `LLM`, `CODE`, or custom. See [Annotator Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md#annotator-kinds) | `LLM`, `HUMAN` | Development |
-| <a id="evaluation-explanation"></a>`evaluation.explanation` | string | Reason or evidence for the result | `The claim is not supported by the context.` | Development |
-| <a id="evaluation-identifier"></a>`evaluation.identifier` | string | Stable result ID for the same name and target | `judge-v2`, `reviewer-42` | Development |
-| <a id="evaluation-label"></a>`evaluation.label` | string | Categorical result | `hallucinated`, `relevant` | Development |
-| <a id="evaluation-metadata"></a>`evaluation.metadata` | string (JSON) | Additional result or judge data | `{"evaluator":"judge-v2"}` | Development |
-| <a id="evaluation-name"></a>`evaluation.name` | string | Criterion or metric name | `hallucination`, `relevance` | Development |
-| <a id="evaluation-score"></a>`evaluation.score` | double | Numeric result. | `1.0`, `0.95` | Development |
+| <a id="evaluation-annotator-kind" href="#evaluation-annotator-kind">`evaluation.annotator_kind`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (well-known values) | Judge kind: `HUMAN`, `LLM`, `CODE`, or custom. See [Annotator Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md#annotator-kinds) | `LLM`, `HUMAN` |
+| <a id="evaluation-explanation" href="#evaluation-explanation">`evaluation.explanation`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | Reason or evidence for the result | `The claim is not supported by the context.` |
+| <a id="evaluation-identifier" href="#evaluation-identifier">`evaluation.identifier`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | Stable result ID for the same name and target | `judge-v2`, `reviewer-42` |
+| <a id="evaluation-label" href="#evaluation-label">`evaluation.label`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | Categorical result | `hallucinated`, `relevant` |
+| <a id="evaluation-metadata" href="#evaluation-metadata">`evaluation.metadata`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (JSON) | Additional result or judge data | `{"evaluator":"judge-v2"}` |
+| <a id="evaluation-name" href="#evaluation-name">`evaluation.name`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | Criterion or metric name | `hallucination`, `relevance` |
+| <a id="evaluation-score" href="#evaluation-score">`evaluation.score`</a> | ![Development](https://img.shields.io/badge/-development-blue) | double | Numeric result. [1] | `1.0`, `0.95` |
 
-## Notes
+**[1] `evaluation.score`:** Instrumentations MAY record an integer; consumers SHOULD accept both integers and floats.
 
-- `evaluation.score`: Instrumentations MAY record an integer; consumers SHOULD accept both integers and floats.
 
-## `evaluation.annotator_kind` values
+---
 
-`evaluation.annotator_kind` has the following well-known values. If one of them applies, it MUST be used; otherwise, a custom value MAY be used.
+`evaluation.annotator_kind` has the following list of well-known values. If one of them applies, then the respective value MUST be used; otherwise, a custom value MAY be used.
 
-| Value | Description |
-| --- | --- |
-| `HUMAN` | A human reviewer. |
-| `LLM` | An LLM judge. |
-| `CODE` | A code-based evaluator. |
+| Value | Description | Stability |
+| --- | --- | --- |
+| `HUMAN` | A human reviewer. | ![Development](https://img.shields.io/badge/-development-blue) |
+| `LLM` | An LLM judge. | ![Development](https://img.shields.io/badge/-development-blue) |
+| `CODE` | A code-based evaluator. | ![Development](https://img.shields.io/badge/-development-blue) |

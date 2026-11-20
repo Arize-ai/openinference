@@ -3,6 +3,9 @@
 
 # `image` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="image-url"></a>`image.url` | string | The link to the image or its base64 encoding | `https://sample-link-to-image.jpg` | Development |
+| <a id="image-url" href="#image-url">`image.url`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The link to the image or its base64 encoding | `https://sample-link-to-image.jpg` |
+

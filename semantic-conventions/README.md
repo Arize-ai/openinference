@@ -123,7 +123,9 @@ The marker holds a [jq](https://jqlang.org/) query over the resolved registry. I
   kind apart from a plain `CHAIN` span, both in [`spec/general/span-kinds.md`](../spec/general/span-kinds.md). The
   page a kind links to is the span's `annotations.openinference.spec`.
 
-The rendering is in [`templates/registry/markdown/snippet.md.j2`](templates/registry/markdown/snippet.md.j2). Most tables select a key
+The rendering is in [`templates/registry/markdown/snippet.md.j2`](templates/registry/markdown/snippet.md.j2). Every table
+shows each attribute's stability as a badge, as the OpenTelemetry semantic conventions do; a deprecated attribute
+shows the deprecated badge. Most tables select a key
 prefix, so a new attribute under that prefix appears on its own. Tables that list keys explicitly, to keep a curated
 order, need the new key added to the marker. To add a table to any page under `spec/`, add a marker pair and run
 `make generate-spec`.

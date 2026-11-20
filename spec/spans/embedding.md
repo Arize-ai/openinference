@@ -13,18 +13,18 @@ The span name MUST be `"CreateEmbeddings"` for embedding operations.
 <!-- weaver ["openinference.span.kind", "embedding.model_name", "embedding.embeddings", "embedding.invocation_parameters", "input.value", "input.mime_type", "output.value", "output.mime_type", "llm.token_count.prompt", "llm.token_count.total"] as $keys | .registry.spans[] | select(.type == "openinference.embedding") | {span: .type, span_attributes: [$keys[] as $k | .attributes[] | select(.key == $k)]} -->
 <!-- Generated from semantic-conventions/model. Do not edit by hand: change the model and run `make -C semantic-conventions generate`. -->
 
-| Attribute | Requirement level | Notes |
-| --- | --- | --- |
-| `openinference.span.kind` | Required | `"EMBEDDING"` |
-| `embedding.model_name` | Recommended | Name of the embedding model used |
-| `embedding.embeddings` | Recommended | List of embedding objects including text and vector data |
-| `embedding.invocation_parameters` | Recommended | Parameters used during the invocation of an embedding model or API (excluding input) |
-| `input.value` | Recommended | The raw input as a JSON string (text strings or token ID arrays). |
-| `input.mime_type` | Recommended | MIME type of `input.value`, usually `application/json`. When `input.value` is set and is not plain text. |
-| `output.value` | Recommended | The raw output (embedding vectors as JSON or base64-encoded). |
-| `output.mime_type` | Recommended | MIME type of `output.value`, usually `application/json`. When `output.value` is set and is not plain text. |
-| `llm.token_count.prompt` | Recommended | Number of tokens in the input. |
-| `llm.token_count.total` | Recommended | Total number of tokens used. |
+| Attribute | Stability | Requirement level | Type | Notes |
+| --- | --- | --- | --- | --- |
+| `openinference.span.kind` | ![Development](https://img.shields.io/badge/-development-blue) | Required | String | `"EMBEDDING"` |
+| `embedding.model_name` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | Name of the embedding model used |
+| `embedding.embeddings` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | List of objects | List of embedding objects including text and vector data |
+| `embedding.invocation_parameters` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | JSON String | Parameters used during the invocation of an embedding model or API (excluding input) |
+| `input.value` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The raw input as a JSON string (text strings or token ID arrays). |
+| `input.mime_type` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | MIME type of `input.value`, usually `application/json`. When `input.value` is set and is not plain text. |
+| `output.value` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The raw output (embedding vectors as JSON or base64-encoded). |
+| `output.mime_type` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | MIME type of `output.value`, usually `application/json`. When `output.value` is set and is not plain text. |
+| `llm.token_count.prompt` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | Integer | Number of tokens in the input. |
+| `llm.token_count.total` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | Integer | Total number of tokens used. |
 
 <!-- endweaver -->
 

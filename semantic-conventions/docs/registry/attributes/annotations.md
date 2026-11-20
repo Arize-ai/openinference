@@ -3,6 +3,9 @@
 
 # `annotations` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="annotations"></a>`annotations` | flattened list of `annotation.*` | Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*` | `[{"annotation.name": "hallucination", "annotation.label": "hallucinated"}]` | Development |
+| <a id="annotations" href="#annotations">`annotations`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `annotation.*` | Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*` | `[{"annotation.name": "hallucination", "annotation.label": "hallucinated"}]` |
+

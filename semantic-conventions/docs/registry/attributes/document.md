@@ -3,16 +3,17 @@
 
 # `document` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="document-content"></a>`document.content` | string | The text content of a document: a retrieved passage, or an inline text document passed to a model (e.g. an Anthropic `text` source) | `This is a sample document content.` | Development |
-| <a id="document-id"></a>`document.id` | string | Unique identifier for a document: a retrieved document or chunk in a retrieval system, or the provider file id (e.g. an OpenAI or Anthropic Files API id) for a document passed to a model. | `1234`, `1`, `file-abc123` | Development |
-| <a id="document-metadata"></a>`document.metadata` | string (JSON) | Metadata associated with a document | `{'author': 'John Doe', 'date': '2023-09-09'}` | Development |
-| <a id="document-mime-type"></a>`document.mime_type` | string | The MIME type of a file document such as a PDF | `application/pdf` | Development |
-| <a id="document-name"></a>`document.name` | string | The name supplied with a document, copied verbatim: a file name (OpenAI `filename`) or a title (Anthropic `title`, Bedrock `name`, Gemini `display_name`); not a unique identifier | `invoice.pdf` | Development |
-| <a id="document-score"></a>`document.score` | double | Score representing the relevance of a document | `0.98` | Development |
-| <a id="document-url"></a>`document.url` | string | The URL, object-store URI, or base64 data URI of a file document such as a PDF | `https://example.com/report.pdf` | Development |
+| <a id="document-content" href="#document-content">`document.content`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The text content of a document: a retrieved passage, or an inline text document passed to a model (e.g. an Anthropic `text` source) | `This is a sample document content.` |
+| <a id="document-id" href="#document-id">`document.id`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | Unique identifier for a document: a retrieved document or chunk in a retrieval system, or the provider file id (e.g. an OpenAI or Anthropic Files API id) for a document passed to a model. [1] | `1234`, `1`, `file-abc123` |
+| <a id="document-metadata" href="#document-metadata">`document.metadata`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (JSON) | Metadata associated with a document | `{'author': 'John Doe', 'date': '2023-09-09'}` |
+| <a id="document-mime-type" href="#document-mime-type">`document.mime_type`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The MIME type of a file document such as a PDF | `application/pdf` |
+| <a id="document-name" href="#document-name">`document.name`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The name supplied with a document, copied verbatim: a file name (OpenAI `filename`) or a title (Anthropic `title`, Bedrock `name`, Gemini `display_name`); not a unique identifier | `invoice.pdf` |
+| <a id="document-score" href="#document-score">`document.score`</a> | ![Development](https://img.shields.io/badge/-development-blue) | double | Score representing the relevance of a document | `0.98` |
+| <a id="document-url" href="#document-url">`document.url`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The URL, object-store URI, or base64 data URI of a file document such as a PDF | `https://example.com/report.pdf` |
 
-## Notes
+**[1] `document.id`:** Instrumentations MAY record an integer id; consumers SHOULD accept both strings and integers.
 
-- `document.id`: Instrumentations MAY record an integer id; consumers SHOULD accept both strings and integers.

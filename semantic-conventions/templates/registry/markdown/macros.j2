@@ -23,6 +23,46 @@ Deprecated{% if attribute.deprecated.note %}: {{ attribute.deprecated.note | tri
 {%- endif -%}
 {%- endmacro %}
 
+{# Stability as a badge, as the OpenTelemetry semantic conventions render it.
+   A deprecated attribute shows the deprecated badge and what to use instead. #}
+{% macro badge(item) -%}
+{%- if item.deprecated -%}
+![Deprecated](https://img.shields.io/badge/-deprecated-red){% if item.deprecated.note %}<br>{{ item.deprecated.note | trim | replace("\n", " ") | replace("|", "\\|") }}{% endif %}
+{%- elif item.stability == "stable" -%}
+![Stable](https://img.shields.io/badge/-stable-lightgreen)
+{%- elif item.stability == "release_candidate" -%}
+![Release Candidate](https://img.shields.io/badge/-rc-mediumorchid)
+{%- elif item.stability == "beta" -%}
+![Beta](https://img.shields.io/badge/-beta-lightpink)
+{%- elif item.stability == "alpha" -%}
+![Alpha](https://img.shields.io/badge/-alpha-mediumpurple)
+{%- else -%}
+![Development](https://img.shields.io/badge/-development-blue)
+{%- endif -%}
+{%- endmacro %}
+
+{# The requirement level as a code-formatted word; the condition, if any, is
+   returned by `condition` so the caller can inline it or make it a note. #}
+{% macro level(requirement_level) -%}
+{%- if requirement_level == "required" -%}
+`Required`
+{%- elif requirement_level == "recommended" or (requirement_level is mapping and requirement_level.recommended) -%}
+`Recommended`
+{%- elif requirement_level == "opt_in" or (requirement_level is mapping and requirement_level.opt_in) -%}
+`Opt-In`
+{%- elif requirement_level is mapping and requirement_level.conditionally_required -%}
+`Conditionally Required`
+{%- else -%}
+{{ requirement_level }}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro condition(requirement_level) -%}
+{%- if requirement_level is mapping -%}
+{{ (requirement_level.conditionally_required or requirement_level.recommended or requirement_level.opt_in) | trim | replace("\n", " ") }}
+{%- endif -%}
+{%- endmacro %}
+
 {% macro cell(text) -%}
 {{ text | default("", true) | trim | replace("\n", " ") | replace("|", "\\|") }}
 {%- endmacro %}
@@ -71,14 +111,14 @@ Opt-In: {{ level.opt_in | trim }}
 {% macro enum_tables(attributes) -%}
 {% for attribute in attributes | sort(attribute="key") if attribute.type is mapping %}
 
-## `{{ attribute.key }}` values
+---
 
-`{{ attribute.key }}` has the following well-known values. If one of them applies, it MUST be used; otherwise, a custom value MAY be used.
+`{{ attribute.key }}` has the following list of well-known values. If one of them applies, then the respective value MUST be used; otherwise, a custom value MAY be used.
 
-| Value | Description |
-| --- | --- |
+| Value | Description | Stability |
+| --- | --- | --- |
 {% for member in attribute.type.members if not member.deprecated %}
-| `{{ member.value }}` | {{ cell(member.brief) }} |
+| `{{ member.value }}` | {{ cell(member.brief) }} | {{ badge(member) }} |
 {% endfor %}
 {% endfor %}
 {%- endmacro %}
@@ -194,5 +234,15 @@ Conditionally Required
 {%- set brief = spec_text(attribute.brief) -%}
 {%- set condition = spec_condition(attribute.requirement_level) -%}
 {{ brief }}{% if condition %}{% if not brief.endswith(".") %}.{% endif %} {{ condition }}{% endif %}
+{%- endif -%}
+{%- endmacro %}
+
+{# Stability badge for the spec tables. What replaces a deprecated attribute
+   is already in its description, so the badge stands alone. #}
+{% macro spec_badge(item) -%}
+{%- if item.deprecated -%}
+![Deprecated](https://img.shields.io/badge/-deprecated-red)
+{%- else -%}
+{{ badge(item) }}
 {%- endif -%}
 {%- endmacro %}

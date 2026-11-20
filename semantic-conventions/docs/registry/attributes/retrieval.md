@@ -3,6 +3,9 @@
 
 # `retrieval` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="retrieval-documents"></a>`retrieval.documents` | flattened list of `document.*` | List of retrieved documents | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | Development |
+| <a id="retrieval-documents" href="#retrieval-documents">`retrieval.documents`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `document.*` | List of retrieved documents | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` |
+

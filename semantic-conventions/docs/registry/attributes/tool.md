@@ -3,10 +3,13 @@
 
 # `tool` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="tool-description"></a>`tool.description` | string | Description of the tool's purpose and functionality. On a `TOOL` span, the tool being invoked; under `llm.tools.<index>`, an advertised tool definition | `An API to get weather data.` | Development |
-| <a id="tool-id"></a>`tool.id` | string | The identifier for the result of the tool call (corresponding to `tool_call.id`) | `call_62136355` | Development |
-| <a id="tool-json-schema"></a>`tool.json_schema` | string (JSON) | The JSON schema of a tool input | `{'type': 'function', 'function': {'name': 'get_weather'}}` | Development |
-| <a id="tool-name"></a>`tool.name` | string | The name of the tool. On a `TOOL` span, the tool being invoked; under `llm.tools.<index>`, the name of an advertised tool definition | `WeatherAPI` | Development |
-| <a id="tool-parameters"></a>`tool.parameters` | string (JSON) | The parameters definition for invoking the tool | `{ 'a': 'int' }` | Development |
+| <a id="tool-description" href="#tool-description">`tool.description`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | Description of the tool's purpose and functionality. On a `TOOL` span, the tool being invoked; under `llm.tools.<index>`, an advertised tool definition | `An API to get weather data.` |
+| <a id="tool-id" href="#tool-id">`tool.id`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The identifier for the result of the tool call (corresponding to `tool_call.id`) | `call_62136355` |
+| <a id="tool-json-schema" href="#tool-json-schema">`tool.json_schema`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (JSON) | The JSON schema of a tool input | `{'type': 'function', 'function': {'name': 'get_weather'}}` |
+| <a id="tool-name" href="#tool-name">`tool.name`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The name of the tool. On a `TOOL` span, the tool being invoked; under `llm.tools.<index>`, the name of an advertised tool definition | `WeatherAPI` |
+| <a id="tool-parameters" href="#tool-parameters">`tool.parameters`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (JSON) | The parameters definition for invoking the tool | `{ 'a': 'int' }` |
+

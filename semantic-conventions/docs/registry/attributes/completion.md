@@ -3,6 +3,9 @@
 
 # `completion` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="completion-text"></a>`completion.text` | string | The text of a choice returned from a completions API. Used under `llm.choices`. | ` + fib(n-3)...` | Development |
+| <a id="completion-text" href="#completion-text">`completion.text`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The text of a choice returned from a completions API. Used under `llm.choices`. | ` + fib(n-3)...` |
+

@@ -3,10 +3,13 @@
 
 # `reranker` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="reranker-input-documents"></a>`reranker.input_documents` | flattened list of `document.*` | List of documents as input to the reranker | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | Development |
-| <a id="reranker-model-name"></a>`reranker.model_name` | string | Model name of the reranker | `cross-encoder/ms-marco-MiniLM-L-12-v2` | Development |
-| <a id="reranker-output-documents"></a>`reranker.output_documents` | flattened list of `document.*` | List of documents outputted by the reranker | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | Development |
-| <a id="reranker-query"></a>`reranker.query` | string | Query parameter of the reranker | `How to format timestamp?` | Development |
-| <a id="reranker-top-k"></a>`reranker.top_k` | int | Top K parameter of the reranker | `3` | Development |
+| <a id="reranker-input-documents" href="#reranker-input-documents">`reranker.input_documents`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `document.*` | List of documents as input to the reranker | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` |
+| <a id="reranker-model-name" href="#reranker-model-name">`reranker.model_name`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | Model name of the reranker | `cross-encoder/ms-marco-MiniLM-L-12-v2` |
+| <a id="reranker-output-documents" href="#reranker-output-documents">`reranker.output_documents`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `document.*` | List of documents outputted by the reranker | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` |
+| <a id="reranker-query" href="#reranker-query">`reranker.query`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | Query parameter of the reranker | `How to format timestamp?` |
+| <a id="reranker-top-k" href="#reranker-top-k">`reranker.top_k`</a> | ![Development](https://img.shields.io/badge/-development-blue) | int | Top K parameter of the reranker | `3` |
+

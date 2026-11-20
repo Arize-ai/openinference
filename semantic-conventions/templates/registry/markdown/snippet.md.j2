@@ -15,16 +15,16 @@
 <!-- Generated from semantic-conventions/model. Do not edit by hand: change the model and run `make -C semantic-conventions generate`. -->
 
 {% if attributes is defined %}
-| Attribute | Type | Description | Examples |
-| --- | --- | --- | --- |
+| Attribute | Stability | Type | Description | Examples |
+| --- | --- | --- | --- | --- |
 {% for attribute in attributes %}
-| `{{ attribute.key }}` | {{ m.spec_type(attribute) }} | {{ m.spec_description(attribute) }} | {{ m.spec_examples(attribute) }} |
+| `{{ attribute.key }}` | {{ m.spec_badge(attribute) }} | {{ m.spec_type(attribute) }} | {{ m.spec_description(attribute) }} | {{ m.spec_examples(attribute) }} |
 {% endfor %}
 {% elif span_attributes is defined %}
-| Attribute | Requirement level | Notes |
-| --- | --- | --- |
+| Attribute | Stability | Requirement level | Type | Notes |
+| --- | --- | --- | --- | --- |
 {% for attribute in span_attributes %}
-| `{{ attribute.key }}` | {{ m.spec_requirement(attribute.requirement_level) }} | {{ m.spec_span_note(attribute, span) }} |
+| `{{ attribute.key }}` | {{ m.spec_badge(attribute) }} | {{ m.spec_requirement(attribute.requirement_level) }} | {{ m.spec_type(attribute) }} | {{ m.spec_span_note(attribute, span) }} |
 {% endfor %}
 {% elif span_kinds is defined %}
 | Value | Represents | Conventions |
@@ -35,10 +35,10 @@
 {% elif characteristic is defined %}
 Characteristic attributes: {% for key in characteristic %}`{{ key }}`{% if not loop.last %}, {% endif %}{% else %}`input.value`, `output.value`{% endfor %}.
 {% elif members is defined %}
-| Value | Description |
-| --- | --- |
+| Value | Description | Stability |
+| --- | --- | --- |
 {% for member in members if not member.deprecated %}
-| `{{ member.value }}` | {{ m.spec_text(member.brief) }} |
+| `{{ member.value }}` | {{ m.spec_text(member.brief) }} | {{ m.spec_badge(member) }} |
 {% endfor %}
 {% endif %}
 

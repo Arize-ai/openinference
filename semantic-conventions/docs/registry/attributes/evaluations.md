@@ -3,6 +3,9 @@
 
 # `evaluations` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="evaluations"></a>`evaluations` | flattened list of `evaluation.*` | Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*` | `[{"evaluation.name": "relevance", "evaluation.score": 0.95}]` | Development |
+| <a id="evaluations" href="#evaluations">`evaluations`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `evaluation.*` | Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*` | `[{"evaluation.name": "relevance", "evaluation.score": 0.95}]` |
+

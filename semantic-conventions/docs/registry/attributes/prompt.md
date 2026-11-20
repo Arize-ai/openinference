@@ -3,9 +3,12 @@
 
 # `prompt` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="prompt-id"></a>`prompt.id` | string | A vendor-specific id used to identify the prompt. | `1234` | Development |
-| <a id="prompt-text"></a>`prompt.text` | string | The text of a prompt in a completions API request. Used under `llm.prompts`. | `def fib(n):...` | Development |
-| <a id="prompt-url"></a>`prompt.url` | string | A vendor-specific URL used to locate the prompt via the web | `https://smith.langchain.com/prompts/naive-prompt` | Development |
-| <a id="prompt-vendor"></a>`prompt.vendor` | string | The vendor or origin of the prompt, e.g. `langsmith`, `portkey`, `arize-phoenix` | `langchain` | Development |
+| <a id="prompt-id" href="#prompt-id">`prompt.id`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | A vendor-specific id used to identify the prompt. | `1234` |
+| <a id="prompt-text" href="#prompt-text">`prompt.text`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The text of a prompt in a completions API request. Used under `llm.prompts`. | `def fib(n):...` |
+| <a id="prompt-url" href="#prompt-url">`prompt.url`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | A vendor-specific URL used to locate the prompt via the web | `https://smith.langchain.com/prompts/naive-prompt` |
+| <a id="prompt-vendor" href="#prompt-vendor">`prompt.vendor`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The vendor or origin of the prompt, e.g. `langsmith`, `portkey`, `arize-phoenix` | `langchain` |
+

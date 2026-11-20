@@ -3,8 +3,11 @@
 
 # `audio` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="audio-mime-type"></a>`audio.mime_type` | string | The MIME type of the audio file. | `audio/mpeg` | Deprecated: Infer the type from `audio.url` instead; new instrumentors should not emit this. |
-| <a id="audio-transcript"></a>`audio.transcript` | string | The transcript of the audio file (e.g. a Whisper transcription) | `Hello, how are you?` | Development |
-| <a id="audio-url"></a>`audio.url` | string | The URL of an audio file (e.g. cloud storage), or a base64 data URI | `https://storage.com/buckets/1/file.wav` | Development |
+| <a id="audio-mime-type" href="#audio-mime-type">`audio.mime_type`</a> | ![Deprecated](https://img.shields.io/badge/-deprecated-red)<br>Infer the type from `audio.url` instead; new instrumentors should not emit this. | string | The MIME type of the audio file. | `audio/mpeg` |
+| <a id="audio-transcript" href="#audio-transcript">`audio.transcript`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The transcript of the audio file (e.g. a Whisper transcription) | `Hello, how are you?` |
+| <a id="audio-url" href="#audio-url">`audio.url`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The URL of an audio file (e.g. cloud storage), or a base64 data URI | `https://storage.com/buckets/1/file.wav` |
+

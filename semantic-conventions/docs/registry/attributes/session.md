@@ -3,7 +3,10 @@
 
 # `session` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="session-annotations"></a>`session.annotations` | flattened list of `annotation.*` | Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id` | `[{"annotation.name": "conversational_coherence", "annotation.label": "coherent"}]` | Development |
-| <a id="session-evaluations"></a>`session.evaluations` | flattened list of `evaluation.*` | Session-scoped feedback using evaluation terminology, flattened as `session.evaluations.0.evaluation.*`; requires `session.id` | `[{"evaluation.name": "conversational_coherence", "evaluation.label": "coherent"}]` | Development |
+| <a id="session-annotations" href="#session-annotations">`session.annotations`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `annotation.*` | Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id` | `[{"annotation.name": "conversational_coherence", "annotation.label": "coherent"}]` |
+| <a id="session-evaluations" href="#session-evaluations">`session.evaluations`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `evaluation.*` | Session-scoped feedback using evaluation terminology, flattened as `session.evaluations.0.evaluation.*`; requires `session.id` | `[{"evaluation.name": "conversational_coherence", "evaluation.label": "coherent"}]` |
+

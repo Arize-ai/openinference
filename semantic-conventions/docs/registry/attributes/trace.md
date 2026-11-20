@@ -3,7 +3,10 @@
 
 # `trace` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="trace-annotations"></a>`trace.annotations` | flattened list of `annotation.*` | Trace-scoped feedback using annotation terminology, flattened as `trace.annotations.0.annotation.*` | `[{"annotation.name": "retrieval_quality", "annotation.score": 0.92}]` | Development |
-| <a id="trace-evaluations"></a>`trace.evaluations` | flattened list of `evaluation.*` | Trace-scoped feedback using evaluation terminology, flattened as `trace.evaluations.0.evaluation.*` | `[{"evaluation.name": "retrieval_quality", "evaluation.score": 0.92}]` | Development |
+| <a id="trace-annotations" href="#trace-annotations">`trace.annotations`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `annotation.*` | Trace-scoped feedback using annotation terminology, flattened as `trace.annotations.0.annotation.*` | `[{"annotation.name": "retrieval_quality", "annotation.score": 0.92}]` |
+| <a id="trace-evaluations" href="#trace-evaluations">`trace.evaluations`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `evaluation.*` | Trace-scoped feedback using evaluation terminology, flattened as `trace.evaluations.0.evaluation.*` | `[{"evaluation.name": "retrieval_quality", "evaluation.score": 0.92}]` |
+

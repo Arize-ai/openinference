@@ -3,18 +3,21 @@
 
 # `output` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="output-documents"></a>`output.documents` | flattened list of `document.*` | File document (e.g. PDF) outputs of an operation, independent of span kind, e.g. `output.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents) | `[{"document.url": "https://example.com/filled-form.pdf", "document.mime_type": "application/pdf"}]` | Development |
-| <a id="output-images"></a>`output.images` | flattened list of `image.*` | Image outputs of an operation, independent of span kind, e.g. `output.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images) | `[{"image.url": "data:image/png;base64,iVBORw0KGgo..."}]` | Development |
-| <a id="output-mime-type"></a>`output.mime_type` | string (well-known values) | MIME type representing the format of `output.value` | `text/plain`, `application/json` | Development |
-| <a id="output-value"></a>`output.value` | string | The output value of an operation | `Hello, World!` | Development |
+| <a id="output-documents" href="#output-documents">`output.documents`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `document.*` | File document (e.g. PDF) outputs of an operation, independent of span kind, e.g. `output.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents) | `[{"document.url": "https://example.com/filled-form.pdf", "document.mime_type": "application/pdf"}]` |
+| <a id="output-images" href="#output-images">`output.images`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `image.*` | Image outputs of an operation, independent of span kind, e.g. `output.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images) | `[{"image.url": "data:image/png;base64,iVBORw0KGgo..."}]` |
+| <a id="output-mime-type" href="#output-mime-type">`output.mime_type`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (well-known values) | MIME type representing the format of `output.value` | `text/plain`, `application/json` |
+| <a id="output-value" href="#output-value">`output.value`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The output value of an operation | `Hello, World!` |
 
-## `output.mime_type` values
 
-`output.mime_type` has the following well-known values. If one of them applies, it MUST be used; otherwise, a custom value MAY be used.
+---
 
-| Value | Description |
-| --- | --- |
-| `text/plain` | Plain text. The default when unspecified. |
-| `application/json` | A string holding serialized JSON. |
+`output.mime_type` has the following list of well-known values. If one of them applies, then the respective value MUST be used; otherwise, a custom value MAY be used.
+
+| Value | Description | Stability |
+| --- | --- | --- |
+| `text/plain` | Plain text. The default when unspecified. | ![Development](https://img.shields.io/badge/-development-blue) |
+| `application/json` | A string holding serialized JSON. | ![Development](https://img.shields.io/badge/-development-blue) |

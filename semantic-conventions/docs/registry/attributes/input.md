@@ -3,18 +3,21 @@
 
 # `input` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="input-documents"></a>`input.documents` | flattened list of `document.*` | File document (e.g. PDF) inputs to an operation, independent of span kind, e.g. `input.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents) | `[{"document.url": "https://example.com/report.pdf", "document.mime_type": "application/pdf"}]` | Development |
-| <a id="input-images"></a>`input.images` | flattened list of `image.*` | Image inputs to an operation, independent of span kind, e.g. `input.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images) | `[{"image.url": "https://sample-link-to-image.jpg"}]` | Development |
-| <a id="input-mime-type"></a>`input.mime_type` | string (well-known values) | MIME type representing the format of `input.value` | `text/plain`, `application/json` | Development |
-| <a id="input-value"></a>`input.value` | string | The input value to an operation | `{'query': 'What is the weather today?'}` | Development |
+| <a id="input-documents" href="#input-documents">`input.documents`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `document.*` | File document (e.g. PDF) inputs to an operation, independent of span kind, e.g. `input.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents) | `[{"document.url": "https://example.com/report.pdf", "document.mime_type": "application/pdf"}]` |
+| <a id="input-images" href="#input-images">`input.images`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `image.*` | Image inputs to an operation, independent of span kind, e.g. `input.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images) | `[{"image.url": "https://sample-link-to-image.jpg"}]` |
+| <a id="input-mime-type" href="#input-mime-type">`input.mime_type`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (well-known values) | MIME type representing the format of `input.value` | `text/plain`, `application/json` |
+| <a id="input-value" href="#input-value">`input.value`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The input value to an operation | `{'query': 'What is the weather today?'}` |
 
-## `input.mime_type` values
 
-`input.mime_type` has the following well-known values. If one of them applies, it MUST be used; otherwise, a custom value MAY be used.
+---
 
-| Value | Description |
-| --- | --- |
-| `text/plain` | Plain text. The default when unspecified. |
-| `application/json` | A string holding serialized JSON. |
+`input.mime_type` has the following list of well-known values. If one of them applies, then the respective value MUST be used; otherwise, a custom value MAY be used.
+
+| Value | Description | Stability |
+| --- | --- | --- |
+| `text/plain` | Plain text. The default when unspecified. | ![Development](https://img.shields.io/badge/-development-blue) |
+| `application/json` | A string holding serialized JSON. | ![Development](https://img.shields.io/badge/-development-blue) |

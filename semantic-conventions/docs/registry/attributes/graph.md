@@ -3,8 +3,11 @@
 
 # `graph` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="graph-node-id"></a>`graph.node.id` | string | The id of the node in the execution graph. This along with `graph.node.parent_id` are used to visualize the execution graph. | `search_api_0` | Development |
-| <a id="graph-node-name"></a>`graph.node.name` | string | The name of the node in the execution graph. Use this to present a human readable name for the node. Optional | `Search API` | Development |
-| <a id="graph-node-parent-id"></a>`graph.node.parent_id` | string | This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node. | `router_0` | Development |
+| <a id="graph-node-id" href="#graph-node-id">`graph.node.id`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The id of the node in the execution graph. This along with `graph.node.parent_id` are used to visualize the execution graph. | `search_api_0` |
+| <a id="graph-node-name" href="#graph-node-name">`graph.node.name`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The name of the node in the execution graph. Use this to present a human readable name for the node. Optional | `Search API` |
+| <a id="graph-node-parent-id" href="#graph-node-parent-id">`graph.node.parent_id`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node. | `router_0` |
+

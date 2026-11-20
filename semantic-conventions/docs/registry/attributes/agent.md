@@ -3,6 +3,9 @@
 
 # `agent` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="agent-name"></a>`agent.name` | string | The name of the agent that this span represents. | `researcher` | Development |
+| <a id="agent-name" href="#agent-name">`agent.name`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The name of the agent that this span represents. | `researcher` |
+

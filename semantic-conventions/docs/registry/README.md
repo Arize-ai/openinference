@@ -8,19 +8,19 @@ The prose specification lives in [`spec/`](../../../spec/README.md).
 
 ## Spans
 
-| Span | Description |
-| --- | --- |
-| [`openinference.agent`](spans/agent.md) | A span that encompasses calls to LLMs and tools. An agent describes a reasoning block that acts on tools using the guidance of an LLM. |
-| [`openinference.chain`](spans/chain.md) | A starting point or a link between different LLM application steps, for example the beginning of a request to an LLM application, or the glue code that passes context from a retriever to an LLM call. |
-| [`openinference.decision`](spans/decision.md) | A call to a decision model, which scores or selects among candidate options provided in the request rather than generating free-form text. |
-| [`openinference.embedding`](spans/embedding.md) | A call to an LLM or embedding service that converts text or token IDs into dense float vectors. |
-| [`openinference.evaluator`](spans/evaluator.md) | A call to a function or process that evaluates a language model's outputs, for example assessing the relevance, correctness, or helpfulness of its answers. |
-| [`openinference.guardrail`](spans/guardrail.md) | A call to a component that protects against jailbreak prompts or undesirable output, by modifying or rejecting an LLM's input or response. |
-| [`openinference.llm`](spans/llm.md) | A call to a large language model, such as a chat completion or a text completion request. It captures the request sent to the provider and the response that came back. |
-| [`openinference.prompt`](spans/prompt.md) | The rendering of a prompt template, for example substituting variables into a template to produce the final prompt sent to an LLM. |
-| [`openinference.reranker`](spans/reranker.md) | The reranking of a set of input documents, for example by a cross-encoder that scores the documents against a query and returns the top K. |
-| [`openinference.retriever`](spans/retriever.md) | A data retrieval step, for example a call to a vector store or a database to fetch documents or information. |
-| [`openinference.tool`](spans/tool.md) | A call to an external tool such as a calculator or a weather API, or any function execution invoked by an LLM or agent. |
+| Span | Stability | Description |
+| --- | --- | --- |
+| [`openinference.agent`](spans/agent.md) | ![Development](https://img.shields.io/badge/-development-blue) | A span that encompasses calls to LLMs and tools. An agent describes a reasoning block that acts on tools using the guidance of an LLM. |
+| [`openinference.chain`](spans/chain.md) | ![Development](https://img.shields.io/badge/-development-blue) | A starting point or a link between different LLM application steps, for example the beginning of a request to an LLM application, or the glue code that passes context from a retriever to an LLM call. |
+| [`openinference.decision`](spans/decision.md) | ![Development](https://img.shields.io/badge/-development-blue) | A call to a decision model, which scores or selects among candidate options provided in the request rather than generating free-form text. |
+| [`openinference.embedding`](spans/embedding.md) | ![Development](https://img.shields.io/badge/-development-blue) | A call to an LLM or embedding service that converts text or token IDs into dense float vectors. |
+| [`openinference.evaluator`](spans/evaluator.md) | ![Development](https://img.shields.io/badge/-development-blue) | A call to a function or process that evaluates a language model's outputs, for example assessing the relevance, correctness, or helpfulness of its answers. |
+| [`openinference.guardrail`](spans/guardrail.md) | ![Development](https://img.shields.io/badge/-development-blue) | A call to a component that protects against jailbreak prompts or undesirable output, by modifying or rejecting an LLM's input or response. |
+| [`openinference.llm`](spans/llm.md) | ![Development](https://img.shields.io/badge/-development-blue) | A call to a large language model, such as a chat completion or a text completion request. It captures the request sent to the provider and the response that came back. |
+| [`openinference.prompt`](spans/prompt.md) | ![Development](https://img.shields.io/badge/-development-blue) | The rendering of a prompt template, for example substituting variables into a template to produce the final prompt sent to an LLM. |
+| [`openinference.reranker`](spans/reranker.md) | ![Development](https://img.shields.io/badge/-development-blue) | The reranking of a set of input documents, for example by a cross-encoder that scores the documents against a query and returns the top K. |
+| [`openinference.retriever`](spans/retriever.md) | ![Development](https://img.shields.io/badge/-development-blue) | A data retrieval step, for example a call to a vector store or a database to fetch documents or information. |
+| [`openinference.tool`](spans/tool.md) | ![Development](https://img.shields.io/badge/-development-blue) | A call to an external tool such as a calculator or a weather API, or any function execution invoked by an LLM or agent. |
 
 ## Attributes
 

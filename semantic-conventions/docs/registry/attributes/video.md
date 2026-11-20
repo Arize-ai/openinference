@@ -3,6 +3,9 @@
 
 # `video` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="video-url"></a>`video.url` | string | The URL, object-store URI, or base64 data URI of a video. Consumers infer MIME type from the path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix. | `gs://bucket/clip.mp4` | Development |
+| <a id="video-url" href="#video-url">`video.url`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The URL, object-store URI, or base64 data URI of a video. Consumers infer MIME type from the path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix. | `gs://bucket/clip.mp4` |
+

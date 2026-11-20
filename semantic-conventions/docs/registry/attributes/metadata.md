@@ -3,6 +3,9 @@
 
 # `metadata` attributes
 
-| Key | Type | Description | Examples | Stability |
+**Attributes:**
+
+| Key | Stability | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- |
-| <a id="metadata"></a>`metadata` | string (JSON) | Metadata associated with a span | `{'author': 'John Doe', 'date': '2023-09-09'}` | Development |
+| <a id="metadata" href="#metadata">`metadata`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (JSON) | Metadata associated with a span | `{'author': 'John Doe', 'date': '2023-09-09'}` |
+
