@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.82](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.81...python-openinference-instrumentation-v0.1.82) (2026-11-20)
+
+
+### Bug Fixes
+
+* **python:** align GenAI dual-write and conformance harness with semantic-conventions-genai ([#4031](https://github.com/Arize-ai/openinference/issues/4031)) ([9c9f8fe](https://github.com/Arize-ai/openinference/commit/9c9f8fe8f37654d7786b93984100ae4b51317938))
+
+
+### Documentation
+
+* **spec:** document OPENINFERENCE_ENABLE_GENAI_SEMCONV and Weaver conformance ([#4381](https://github.com/Arize-ai/openinference/issues/4381)) ([f845b63](https://github.com/Arize-ai/openinference/commit/f845b631313d2c4437bafe39e71ff2427924bfca))
+
 ## [0.1.81](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.80...python-openinference-instrumentation-v0.1.81) (2026-11-19)
 
 

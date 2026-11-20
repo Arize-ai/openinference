@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.3...python-openinference-instrumentation-agno-v1.2.4) (2026-11-20)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.81 ([#4379](https://github.com/Arize-ai/openinference/issues/4379)) ([b9bd21e](https://github.com/Arize-ai/openinference/commit/b9bd21e3f07985a4d1d8ef195c2c536998e93bd0))
+
 ## [1.2.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.2...python-openinference-instrumentation-agno-v1.2.3) (2026-11-19)
 
 
