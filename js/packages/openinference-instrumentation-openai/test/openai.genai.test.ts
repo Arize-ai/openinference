@@ -2,13 +2,12 @@ import type { Attributes } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import OpenAI, { AzureOpenAI } from "openai";
-import type { CreateEmbeddingResponse } from "openai/resources/embeddings";
-import { Stream } from "openai/streaming";
 import { vi } from "vitest";
 
 import type { TraceConfigOptions } from "@arizeai/openinference-core";
 
 import { OpenAIInstrumentation } from "../src";
+import { getAPIKey, resetRecordings, startRecording } from "./helpers/recordings";
 import { mockAPIPromise } from "./mockAPIPromise";
 
 const GEN_AI_PREFIX = "gen_ai.";
@@ -44,37 +43,21 @@ const tracerProvider = new NodeTracerProvider({
 });
 tracerProvider.register();
 
-const chatCompletion = {
-  id: "chatcmpl-8hhqZDFTRD0vzExhqWnMLE7viVl7E",
-  object: "chat.completion",
-  created: 1705427343,
-  model: "gpt-4o-2024-08-06",
-  choices: [
-    {
-      index: 0,
-      message: {
-        role: "assistant",
-        content: null,
-        tool_calls: [
-          {
-            id: "call_5ERYvu4iTGSvDlcDQjDP3g3J",
-            type: "function",
-            function: { name: "getWeather", arguments: '{"location":"Boston"}' },
-          },
-        ],
-      },
-      logprobs: null,
-      finish_reason: "tool_calls",
+/** The function tool the chat completion tests offer the model. */
+const weatherTool = {
+  type: "function" as const,
+  function: {
+    name: "getWeather",
+    description: "Get the weather for a location",
+    parameters: {
+      type: "object",
+      properties: { location: { type: "string" } },
+      required: ["location"],
     },
-  ],
-  usage: {
-    prompt_tokens: 70,
-    completion_tokens: 7,
-    total_tokens: 77,
-    prompt_tokens_details: { cached_tokens: 32 },
   },
 };
 
+/** A chat completion request the model answers with a call to `getWeather`. */
 const chatRequest = {
   model: "gpt-4o",
   temperature: 0.2,
@@ -83,26 +66,25 @@ const chatRequest = {
     { role: "system" as const, content: "You are a weather assistant." },
     { role: "user" as const, content: "What is the weather in Boston?" },
   ],
-  tools: [
-    {
-      type: "function" as const,
-      function: {
-        name: "getWeather",
-        description: "Get the weather for a location",
-        parameters: {
-          type: "object",
-          properties: { location: { type: "string" } },
-          required: ["location"],
-        },
-      },
-    },
-  ],
+  tools: [weatherTool],
 };
+
+/**
+ * A system prompt long enough to be eligible for prompt caching, which OpenAI
+ * applies to prompts of 1024 tokens or more.
+ */
+const cacheableInstructions = Array.from(
+  { length: 150 },
+  (_, index) =>
+    `Guideline ${index + 1}: when asked about the weather in region ${index + 1}, answer in one short sentence.`,
+).join("\n");
 
 /**
  * Covers the dependent side of the GenAI semantic convention export: the
  * conversion lives in `@arizeai/openinference-core`, and these tests check
- * that it reaches the spans this instrumentation creates.
+ * that it reaches the spans this instrumentation creates. The requests replay
+ * the network recordings in `test/recordings`; see `helpers/recordings.ts` for
+ * how to capture them again.
  */
 describe("OpenAIInstrumentation with enableGenAISemconv", () => {
   let instrumentation: OpenAIInstrumentation | undefined;
@@ -118,7 +100,19 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
     // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
     instrumentation._modules[0].moduleExports = OpenAI;
     instrumentation.enable();
-    openai = new OpenAI({ apiKey: "fake-api-key" });
+    // Retries are off so a request without a recording fails at once.
+    openai = new OpenAI({ apiKey: getAPIKey("OPENAI_API_KEY"), maxRetries: 0 });
+  }
+
+  /**
+   * Reads the `gen_ai.*` attributes of the exported spans.
+   * @param expectedSpanCount - The number of spans the test should have exported
+   * @returns The `gen_ai.*` attributes of each span, in export order
+   */
+  function getExportedGenAIAttributesBySpan(expectedSpanCount: number): Record<string, unknown>[] {
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(expectedSpanCount);
+    return spans.map((span) => getGenAIAttributes(span.attributes));
   }
 
   /**
@@ -126,9 +120,7 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
    * @returns The `gen_ai.*` attributes of the span
    */
   function getExportedGenAIAttributes(): Record<string, unknown> {
-    const spans = memoryExporter.getFinishedSpans();
-    expect(spans.length).toBe(1);
-    return getGenAIAttributes(spans[0].attributes);
+    return getExportedGenAIAttributesBySpan(1)[0];
   }
 
   beforeEach(() => {
@@ -136,23 +128,26 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
   });
   afterEach(() => {
     instrumentation?.disable();
+    resetRecordings();
     vi.clearAllMocks();
   });
 
   it("should not emit gen_ai attributes by default", async () => {
     instrument();
-    vi.spyOn(openai, "post").mockImplementation(mockAPIPromise(openai, () => chatCompletion));
+    const recording = await startRecording("genai-chat-completion-tool-calls");
 
     await openai.chat.completions.create(chatRequest);
+    recording.stop();
 
     expect(getExportedGenAIAttributes()).toEqual({});
   });
 
   it("should emit gen_ai attributes for a chat completion with tool calls", async () => {
     instrument({ enableGenAISemconv: true });
-    vi.spyOn(openai, "post").mockImplementation(mockAPIPromise(openai, () => chatCompletion));
+    const recording = await startRecording("genai-chat-completion-tool-calls");
 
     await openai.chat.completions.create(chatRequest);
+    recording.stop();
 
     expect(getExportedGenAIAttributes()).toMatchInlineSnapshot(`
       {
@@ -185,7 +180,7 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
                 "arguments": {
                   "location": "Boston",
                 },
-                "id": "call_5ERYvu4iTGSvDlcDQjDP3g3J",
+                "id": "call_Wri3i5R1q4TQnj5bMfHiGAo6",
                 "name": "getWeather",
                 "type": "tool_call",
               },
@@ -200,7 +195,7 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
         "gen_ai.response.finish_reasons": [
           "tool_call",
         ],
-        "gen_ai.response.id": "chatcmpl-8hhqZDFTRD0vzExhqWnMLE7viVl7E",
+        "gen_ai.response.id": "chatcmpl-EmQ2huFReYnIm1oKEo5PZArQTxPaw",
         "gen_ai.response.model": "gpt-4o-2024-08-06",
         "gen_ai.tool.definitions": [
           {
@@ -220,41 +215,27 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
             "type": "function",
           },
         ],
-        "gen_ai.usage.cache_read.input_tokens": 32,
-        "gen_ai.usage.input_tokens": 70,
-        "gen_ai.usage.output_tokens": 7,
+        "gen_ai.usage.cache_read.input_tokens": 0,
+        "gen_ai.usage.input_tokens": 57,
+        "gen_ai.usage.output_tokens": 14,
       }
     `);
   });
 
   it("should emit gen_ai attributes for a streamed chat completion", async () => {
     instrument({ enableGenAISemconv: true });
-    vi.spyOn(openai, "post").mockImplementation(
-      mockAPIPromise(openai, () => {
-        const iterator = () =>
-          (async function* () {
-            const model = "gpt-4o-2024-08-06";
-            yield { model, choices: [{ delta: { role: "assistant", content: "This is " } }] };
-            yield { model, choices: [{ delta: { content: "a test." } }] };
-            yield { model, choices: [{ delta: {}, finish_reason: "stop" }] };
-            yield {
-              model,
-              choices: [],
-              usage: { prompt_tokens: 13, completion_tokens: 7, total_tokens: 20 },
-            };
-          })();
-        return new Stream(iterator, new AbortController());
-      }),
-    );
+    const recording = await startRecording("genai-chat-completion-stream");
 
     const stream = await openai.chat.completions.create({
       messages: [{ role: "user", content: "Say this is a test" }],
       model: "gpt-4o",
       stream: true,
+      stream_options: { include_usage: true },
     });
     for await (const _chunk of stream) {
       // Drain the stream so the span ends.
     }
+    recording.stop();
 
     expect(getExportedGenAIAttributes()).toMatchInlineSnapshot(`
       {
@@ -289,26 +270,24 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
           "stop",
         ],
         "gen_ai.response.model": "gpt-4o-2024-08-06",
-        "gen_ai.usage.input_tokens": 13,
-        "gen_ai.usage.output_tokens": 7,
+        "gen_ai.usage.cache_read.input_tokens": 0,
+        "gen_ai.usage.input_tokens": 12,
+        "gen_ai.usage.output_tokens": 5,
       }
     `);
   });
 
   it("should emit gen_ai attributes for embeddings", async () => {
     instrument({ enableGenAISemconv: true });
-    const response: CreateEmbeddingResponse = {
-      object: "list",
-      data: [{ object: "embedding", index: 0, embedding: [1, 2, 3] }],
-      model: "text-embedding-3-small",
-      usage: { prompt_tokens: 4, total_tokens: 4 },
-    };
-    vi.spyOn(openai, "post").mockImplementation(mockAPIPromise(openai, () => response));
+    const recording = await startRecording("genai-embeddings");
 
     await openai.embeddings.create({
       input: "A happy moment",
       model: "text-embedding-3-small",
+      // Keeps the recorded vector short.
+      dimensions: 3,
     });
+    recording.stop();
 
     expect(getExportedGenAIAttributes()).toMatchInlineSnapshot(`
       {
@@ -316,25 +295,14 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
         "gen_ai.operation.name": "embeddings",
         "gen_ai.provider.name": "openai",
         "gen_ai.request.model": "text-embedding-3-small",
-        "gen_ai.usage.input_tokens": 4,
+        "gen_ai.usage.input_tokens": 3,
       }
     `);
   });
 
   it("should emit gen_ai attributes for a multi-turn chat with a tool result", async () => {
     instrument({ enableGenAISemconv: true });
-    const completion = {
-      ...chatCompletion,
-      choices: [
-        {
-          index: 0,
-          message: { role: "assistant", content: "It is 52 degrees and rainy in Boston." },
-          logprobs: null,
-          finish_reason: "stop",
-        },
-      ],
-    };
-    vi.spyOn(openai, "post").mockImplementation(mockAPIPromise(openai, () => completion));
+    const recording = await startRecording("genai-chat-completion-tool-result");
 
     await openai.chat.completions.create({
       ...chatRequest,
@@ -358,6 +326,7 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
         },
       ],
     });
+    recording.stop();
 
     const genAIAttributes = getExportedGenAIAttributes();
     expect(genAIAttributes["gen_ai.input.messages"]).toMatchInlineSnapshot(`
@@ -414,7 +383,7 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
           "finish_reason": "stop",
           "parts": [
             {
-              "content": "It is 52 degrees and rainy in Boston.",
+              "content": "The weather in Boston is currently 52°F and rainy.",
               "type": "text",
             },
           ],
@@ -424,32 +393,41 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
     `);
   });
 
+  it("should emit cache read tokens for a cached prompt", async () => {
+    instrument({ enableGenAISemconv: true });
+    const recording = await startRecording("genai-chat-completion-cached-prompt");
+    const cachedPromptRequest = {
+      model: "gpt-4o",
+      max_completion_tokens: 32,
+      messages: [
+        { role: "system" as const, content: cacheableInstructions },
+        { role: "user" as const, content: "What is the weather in region 7?" },
+      ],
+    };
+
+    // The first request writes the prompt cache and the second reads it.
+    await openai.chat.completions.create(cachedPromptRequest);
+    await openai.chat.completions.create(cachedPromptRequest);
+    recording.stop();
+
+    const [, cachedSpanAttributes] = getExportedGenAIAttributesBySpan(2);
+    expect({
+      "gen_ai.usage.cache_read.input_tokens":
+        cachedSpanAttributes["gen_ai.usage.cache_read.input_tokens"],
+      "gen_ai.usage.input_tokens": cachedSpanAttributes["gen_ai.usage.input_tokens"],
+      "gen_ai.usage.output_tokens": cachedSpanAttributes["gen_ai.usage.output_tokens"],
+    }).toMatchInlineSnapshot(`
+      {
+        "gen_ai.usage.cache_read.input_tokens": 2944,
+        "gen_ai.usage.input_tokens": 3170,
+        "gen_ai.usage.output_tokens": 4,
+      }
+    `);
+  });
+
   it("should emit gen_ai attributes for the Responses API", async () => {
     instrument({ enableGenAISemconv: true });
-    const response = {
-      id: "resp_245",
-      object: "response",
-      status: "completed",
-      model: "gpt-4.1-2025-04-14",
-      output: [
-        {
-          id: "fc_example",
-          type: "function_call",
-          status: "completed",
-          call_id: "call_weather",
-          name: "get_weather",
-          arguments: '{"location":"Boston"}',
-        },
-      ],
-      usage: {
-        input_tokens: 40,
-        output_tokens: 12,
-        total_tokens: 52,
-        input_tokens_details: { cached_tokens: 16 },
-        output_tokens_details: { reasoning_tokens: 0 },
-      },
-    };
-    vi.spyOn(openai, "post").mockImplementation(mockAPIPromise(openai, () => response));
+    const recording = await startRecording("genai-responses-tool-call");
 
     await openai.responses.create({
       model: "gpt-4.1",
@@ -466,11 +444,13 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
             type: "object",
             properties: { location: { type: "string" } },
             required: ["location"],
+            additionalProperties: false,
           },
           strict: true,
         },
       ],
     });
+    recording.stop();
 
     expect(getExportedGenAIAttributes()).toMatchInlineSnapshot(`
       {
@@ -503,7 +483,7 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
                 "arguments": {
                   "location": "Boston",
                 },
-                "id": "call_weather",
+                "id": "call_j22jbXaHUpVfl2y4CRaNQAwG",
                 "name": "get_weather",
                 "type": "tool_call",
               },
@@ -518,13 +498,14 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
         "gen_ai.response.finish_reasons": [
           "tool_call",
         ],
-        "gen_ai.response.id": "resp_245",
+        "gen_ai.response.id": "resp_085f118e44b56947006b00b573908487d1bd9f263fdb521b8e",
         "gen_ai.response.model": "gpt-4.1-2025-04-14",
         "gen_ai.tool.definitions": [
           {
             "description": "Get the weather for a location",
             "name": "get_weather",
             "parameters": {
+              "additionalProperties": false,
               "properties": {
                 "location": {
                   "type": "string",
@@ -539,9 +520,10 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
             "type": "function",
           },
         ],
-        "gen_ai.usage.cache_read.input_tokens": 16,
-        "gen_ai.usage.input_tokens": 40,
-        "gen_ai.usage.output_tokens": 12,
+        "gen_ai.usage.cache_creation.input_tokens": 0,
+        "gen_ai.usage.cache_read.input_tokens": 0,
+        "gen_ai.usage.input_tokens": 55,
+        "gen_ai.usage.output_tokens": 15,
       }
     `);
   });
@@ -550,6 +532,10 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
   // `llm.choices` for the legacy Completions API, so the span is labelled
   // `chat` and carries no messages. Emitting them needs matching masking rules
   // in core first, or prompts would bypass `hideInputs`.
+  //
+  // Not a network recording: OpenAI has retired every model the Completions
+  // API served, so there is nothing left to record against and the request is
+  // answered by a stub.
   it("should emit only request, response and usage attributes for a legacy completion", async () => {
     instrument({ enableGenAISemconv: true });
     const completion = {
@@ -579,6 +565,9 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
     `);
   });
 
+  // Not a network recording: there is no Azure OpenAI deployment to record
+  // against, and the provider name comes from the client class rather than the
+  // response, so the request is answered by a stub.
   it("should report the Azure OpenAI provider", async () => {
     instrument({ enableGenAISemconv: true });
     const azureOpenAI = new AzureOpenAI({
@@ -586,9 +575,13 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
       endpoint: "https://my-azure-openai.openai.azure.com",
       apiVersion: "2024-02-15-preview",
     });
-    vi.spyOn(azureOpenAI, "post").mockImplementation(
-      mockAPIPromise(azureOpenAI, () => chatCompletion),
-    );
+    const completion = {
+      id: "chatcmpl-azure",
+      object: "chat.completion",
+      model: "gpt-4o-2024-08-06",
+      choices: [],
+    };
+    vi.spyOn(azureOpenAI, "post").mockImplementation(mockAPIPromise(azureOpenAI, () => completion));
 
     await azureOpenAI.chat.completions.create(chatRequest);
 
@@ -597,9 +590,10 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
 
   it("should derive gen_ai attributes from masked attributes", async () => {
     instrument({ enableGenAISemconv: true, hideInputs: true, hideOutputs: true });
-    vi.spyOn(openai, "post").mockImplementation(mockAPIPromise(openai, () => chatCompletion));
+    const recording = await startRecording("genai-chat-completion-tool-calls");
 
     await openai.chat.completions.create(chatRequest);
+    recording.stop();
 
     expect(getExportedGenAIAttributes()).toMatchInlineSnapshot(`
       {
@@ -612,9 +606,9 @@ describe("OpenAIInstrumentation with enableGenAISemconv", () => {
           "tool_call",
         ],
         "gen_ai.response.model": "gpt-4o-2024-08-06",
-        "gen_ai.usage.cache_read.input_tokens": 32,
-        "gen_ai.usage.input_tokens": 70,
-        "gen_ai.usage.output_tokens": 7,
+        "gen_ai.usage.cache_read.input_tokens": 0,
+        "gen_ai.usage.input_tokens": 57,
+        "gen_ai.usage.output_tokens": 14,
       }
     `);
   });

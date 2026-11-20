@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { TraceConfigOptions } from "@arizeai/openinference-core";
 
 import { AnthropicInstrumentation } from "../src/instrumentation";
-import { jsonFetch, sseFetch, textStreamEvents } from "./helpers/sse";
+import { getAPIKey, resetRecordings, startRecording } from "./helpers/recordings";
 import { waitForSpans as waitForSpansOn } from "./helpers/waitForSpans";
 
 const GEN_AI_PREFIX = "gen_ai.";
@@ -43,30 +43,7 @@ const tracerProvider = new NodeTracerProvider({
 });
 tracerProvider.register();
 
-const toolUseMessage = {
-  id: "msg_tool_use",
-  type: "message",
-  role: "assistant",
-  model: "claude-sonnet-4-6",
-  content: [
-    { type: "text", text: "Let me check the weather." },
-    {
-      type: "tool_use",
-      id: "toolu_weather",
-      name: "get_weather",
-      input: { location: "Boston" },
-    },
-  ],
-  stop_reason: "tool_use",
-  stop_sequence: null,
-  usage: {
-    input_tokens: 40,
-    output_tokens: 12,
-    cache_read_input_tokens: 16,
-    cache_creation_input_tokens: 8,
-  },
-};
-
+/** A request the model answers with a call to `get_weather`. */
 const toolUseRequest = {
   model: "claude-sonnet-4-6",
   max_tokens: 256,
@@ -87,12 +64,44 @@ const toolUseRequest = {
 };
 
 /**
+ * A system prompt long enough to be eligible for prompt caching, which
+ * Anthropic only applies above a model specific minimum prompt length.
+ */
+const cacheableInstructions = Array.from(
+  { length: 300 },
+  (_, index) =>
+    `Guideline ${index + 1}: when asked about the weather in region ${index + 1}, answer in one short sentence.`,
+).join("\n");
+
+/** The usage attributes a prompt caching snapshot keeps. */
+const USAGE_ATTRIBUTES = [
+  "gen_ai.usage.cache_creation.input_tokens",
+  "gen_ai.usage.cache_read.input_tokens",
+  "gen_ai.usage.input_tokens",
+  "gen_ai.usage.output_tokens",
+];
+
+/**
+ * Picks the token usage attributes out of the `gen_ai.*` attributes of a span.
+ * @param genAIAttributes - The `gen_ai.*` attributes of a span
+ * @returns The usage attributes that are set, keyed by attribute name
+ */
+function getUsageAttributes(genAIAttributes: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(genAIAttributes).filter(([key]) => USAGE_ATTRIBUTES.includes(key)),
+  );
+}
+
+/**
  * Covers the dependent side of the GenAI semantic convention export: the
  * conversion lives in `@arizeai/openinference-core`, and these tests check
- * that it reaches the spans this instrumentation creates.
+ * that it reaches the spans this instrumentation creates. The requests replay
+ * the network recordings in `test/recordings`; see `helpers/recordings.ts` for
+ * how to capture them again.
  */
 describe("AnthropicInstrumentation with enableGenAISemconv", () => {
   let instrumentation: AnthropicInstrumentation | undefined;
+  let client: Anthropic;
 
   /**
    * Instruments the Anthropic SDK with the given trace config.
@@ -103,6 +112,22 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
     instrumentation.disable();
     instrumentation._modules[0].moduleExports = Anthropic;
     instrumentation.enable();
+    // Retries are off so a request without a recording fails at once.
+    client = new Anthropic({ apiKey: getAPIKey("ANTHROPIC_API_KEY"), maxRetries: 0 });
+  }
+
+  /**
+   * Waits for the spans of a test and reads their `gen_ai.*` attributes.
+   * @param expectedSpanCount - The number of spans the test should export
+   * @returns The `gen_ai.*` attributes of each span, in export order
+   */
+  async function getExportedGenAIAttributesBySpan(
+    expectedSpanCount: number,
+  ): Promise<Record<string, unknown>[]> {
+    await waitForSpansOn(memoryExporter, expectedSpanCount);
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(expectedSpanCount);
+    return spans.map((span) => getGenAIAttributes(span.attributes));
   }
 
   /**
@@ -110,10 +135,8 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
    * @returns The `gen_ai.*` attributes of the span
    */
   async function getExportedGenAIAttributes(): Promise<Record<string, unknown>> {
-    await waitForSpansOn(memoryExporter, 1);
-    const spans = memoryExporter.getFinishedSpans();
-    expect(spans.length).toBe(1);
-    return getGenAIAttributes(spans[0].attributes);
+    const [genAIAttributes] = await getExportedGenAIAttributesBySpan(1);
+    return genAIAttributes;
   }
 
   beforeEach(() => {
@@ -122,22 +145,25 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
 
   afterEach(() => {
     instrumentation?.disable();
+    resetRecordings();
   });
 
   it("should not emit gen_ai attributes by default", async () => {
     instrument();
-    const client = new Anthropic({ apiKey: "fake-api-key", fetch: jsonFetch(toolUseMessage) });
+    const recording = await startRecording("genai-message-tool-use");
 
     await client.messages.create(toolUseRequest);
+    recording.stop();
 
     expect(await getExportedGenAIAttributes()).toEqual({});
   });
 
   it("should emit gen_ai attributes for a message with tool use", async () => {
     instrument({ enableGenAISemconv: true });
-    const client = new Anthropic({ apiKey: "fake-api-key", fetch: jsonFetch(toolUseMessage) });
+    const recording = await startRecording("genai-message-tool-use");
 
     await client.messages.create(toolUseRequest);
+    recording.stop();
 
     expect(await getExportedGenAIAttributes()).toMatchInlineSnapshot(`
       {
@@ -167,14 +193,10 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
             "finish_reason": "tool_call",
             "parts": [
               {
-                "content": "Let me check the weather.",
-                "type": "text",
-              },
-              {
                 "arguments": {
                   "location": "Boston",
                 },
-                "id": "toolu_weather",
+                "id": "toolu_01CyRuseU7wBCkorwdreggF7",
                 "name": "get_weather",
                 "type": "tool_call",
               },
@@ -189,7 +211,7 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
         "gen_ai.response.finish_reasons": [
           "tool_call",
         ],
-        "gen_ai.response.id": "msg_tool_use",
+        "gen_ai.response.id": "msg_011ChErfnseoSPfvAE3VBwBE",
         "gen_ai.response.model": "claude-sonnet-4-6",
         "gen_ai.tool.definitions": [
           {
@@ -209,20 +231,15 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
             "type": "function",
           },
         ],
-        "gen_ai.usage.cache_creation.input_tokens": 8,
-        "gen_ai.usage.cache_read.input_tokens": 16,
-        "gen_ai.usage.input_tokens": 64,
-        "gen_ai.usage.output_tokens": 12,
+        "gen_ai.usage.input_tokens": 572,
+        "gen_ai.usage.output_tokens": 54,
       }
     `);
   });
 
   it("should emit gen_ai attributes for a streamed message", async () => {
     instrument({ enableGenAISemconv: true });
-    const client = new Anthropic({
-      apiKey: "fake-api-key",
-      fetch: sseFetch(textStreamEvents()),
-    });
+    const recording = await startRecording("genai-message-stream");
 
     const stream = await client.messages.create({
       model: "claude-sonnet-4-6",
@@ -233,6 +250,7 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
     for await (const _event of stream) {
       // Drain the stream so the span ends.
     }
+    recording.stop();
 
     expect(await getExportedGenAIAttributes()).toMatchInlineSnapshot(`
       {
@@ -253,7 +271,7 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
             "finish_reason": "stop",
             "parts": [
               {
-                "content": "Hello, world",
+                "content": "Hello! 👋 How are you doing? Is there something I can help you with today?",
                 "type": "text",
               },
             ],
@@ -267,19 +285,58 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
         "gen_ai.response.finish_reasons": [
           "stop",
         ],
-        "gen_ai.response.id": "msg_stream",
+        "gen_ai.response.id": "msg_011ChErftB8uNkKjCb7T1Z1k",
         "gen_ai.response.model": "claude-sonnet-4-6",
-        "gen_ai.usage.input_tokens": 10,
-        "gen_ai.usage.output_tokens": 5,
+        "gen_ai.usage.input_tokens": 9,
+        "gen_ai.usage.output_tokens": 24,
       }
+    `);
+  });
+
+  it("should emit cache creation and cache read tokens for a cached prompt", async () => {
+    instrument({ enableGenAISemconv: true });
+    const recording = await startRecording("genai-message-cached-prompt");
+    const cachedPromptRequest = {
+      model: "claude-sonnet-4-6",
+      max_tokens: 32,
+      system: [
+        {
+          type: "text" as const,
+          text: cacheableInstructions,
+          cache_control: { type: "ephemeral" as const },
+        },
+      ],
+      messages: [{ role: "user" as const, content: "What is the weather in region 7?" }],
+    };
+
+    // The first request writes the prompt cache and the second reads it.
+    await client.messages.create(cachedPromptRequest);
+    await client.messages.create(cachedPromptRequest);
+    recording.stop();
+
+    const genAIAttributesBySpan = await getExportedGenAIAttributesBySpan(2);
+    expect(genAIAttributesBySpan.map(getUsageAttributes)).toMatchInlineSnapshot(`
+      [
+        {
+          "gen_ai.usage.cache_creation.input_tokens": 6901,
+          "gen_ai.usage.input_tokens": 6916,
+          "gen_ai.usage.output_tokens": 17,
+        },
+        {
+          "gen_ai.usage.cache_read.input_tokens": 6901,
+          "gen_ai.usage.input_tokens": 6916,
+          "gen_ai.usage.output_tokens": 17,
+        },
+      ]
     `);
   });
 
   it("should derive gen_ai attributes from masked attributes", async () => {
     instrument({ enableGenAISemconv: true, hideInputs: true, hideOutputs: true });
-    const client = new Anthropic({ apiKey: "fake-api-key", fetch: jsonFetch(toolUseMessage) });
+    const recording = await startRecording("genai-message-tool-use");
 
     await client.messages.create(toolUseRequest);
+    recording.stop();
 
     expect(await getExportedGenAIAttributes()).toMatchInlineSnapshot(`
       {
@@ -292,10 +349,8 @@ describe("AnthropicInstrumentation with enableGenAISemconv", () => {
           "tool_call",
         ],
         "gen_ai.response.model": "claude-sonnet-4-6",
-        "gen_ai.usage.cache_creation.input_tokens": 8,
-        "gen_ai.usage.cache_read.input_tokens": 16,
-        "gen_ai.usage.input_tokens": 64,
-        "gen_ai.usage.output_tokens": 12,
+        "gen_ai.usage.input_tokens": 572,
+        "gen_ai.usage.output_tokens": 54,
       }
     `);
   });

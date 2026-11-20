@@ -45,6 +45,7 @@
     "@opentelemetry/sdk-trace-base": "^1.25.1",
     "@opentelemetry/sdk-trace-node": "^1.25.1",
     "@types/node": "^20.14.11",
+    "nock": "^14.0.17",
     "openai": "^7.30.0",
     "typescript": "^7.0.2",
     "vitest": "^4.0.3",

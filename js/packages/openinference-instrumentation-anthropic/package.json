@@ -55,6 +55,7 @@
     "@opentelemetry/sdk-trace-node": "^1.25.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "@types/node": "^20.14.11",
+    "nock": "^14.0.17",
     "typescript": "^7.0.2",
     "vitest": "^4.0.3"
   }
