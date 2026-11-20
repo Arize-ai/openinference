@@ -37,6 +37,15 @@ const dependency = `dependencies:
       </p>
     </header>
 
+    {
+      !schema.released && (
+        <p class="unreleased">
+          <strong>Unreleased.</strong> Version {schema.version} has not been released yet. These files are built from the
+          model on <code>main</code> and can change until it is; the <code>{tag}</code> tag does not exist yet.
+        </p>
+      )
+    }
+
     <section aria-labelledby="files">
       <h2 id="files" class="eyebrow">Files</h2>
       <ul>
@@ -55,7 +64,8 @@ const dependency = `dependencies:
       <h2 id="use" class="eyebrow">Building on it</h2>
       <p>
         To define conventions on top of OpenInference with <a href="https://github.com/open-telemetry/weaver">Weaver</a>,
-        depend on the tagged source in your registry's <code>manifest.yaml</code>:
+        depend on the tagged source in your registry's <code>manifest.yaml</code>
+        {!schema.released && " once the version is released"}:
       </p>
       <pre><code>{dependency}</code></pre>
       <p>
@@ -79,6 +89,11 @@ const dependency = `dependencies:
   }
   .schema li + li {
     margin-block-start: 1rem;
+  }
+  .schema .unreleased {
+    margin-block-start: 2rem;
+    padding-inline-start: var(--space-4);
+    border-inline-start: 2px solid var(--accent);
   }
   .schema pre {
     overflow-x: auto;

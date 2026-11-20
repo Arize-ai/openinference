@@ -169,8 +169,9 @@ if _typesafe_system := getattr(OpenInferenceLLMSystemValues, "TYPESAFE", None):
 # semconv 0.1.46; same guard. Each maps the vendor's own name, which is how
 # hosted model ids are prefixed (e.g. "amazon.titan-text-express-v1",
 # "meta.llama3-70b-instruct-v1:0", "ai21.jamba-1-5-large-v1:0"), plus xAI's
-# "grok" family. A bare open-weight name such as "llama-3-70b" stays unmapped:
-# it does not say whose API served it.
+# "grok" family. Like the "mistral" prefix above, a vendor name also matches
+# organisation-prefixed ids such as "meta-llama/Llama-3.3-70B-Instruct". A
+# model name with no vendor in it, such as "llama-3-70b", stays unmapped.
 for _system_name, _prefixes in (
     ("XAI", ("xai", "grok")),
     ("DEEPSEEK", ("deepseek",)),

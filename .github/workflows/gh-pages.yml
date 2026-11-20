@@ -105,17 +105,20 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           # Tags are listed by prefix: the repository has far more releases
-          # than one page of `gh release list`.
-          gh api "repos/${GH_REPO}/git/matching-refs/tags/semantic-conventions-v" --jq '.[].ref' |
+          # than one page of `gh release list`. The matching tags are paged
+          # too (30 a page), so every page is read.
+          gh api --paginate "repos/${GH_REPO}/git/matching-refs/tags/semantic-conventions-v" --jq '.[].ref' |
           while read -r ref; do
             tag="${ref#refs/tags/}"
             version="${tag#semantic-conventions-v}"
             target="site/src/generated/schemas/${version}"
             mkdir -p "$target"
             # A release whose assets are missing is skipped, not fatal: the
-            # site must still deploy.
-            if ! gh release download "$tag" --dir "$target" --pattern manifest.yaml --pattern registry.yaml; then
-              echo "::warning::No registry assets on release ${tag}; /schemas/${version}/ will not be served."
+            # site must still deploy. Both files are needed: the download
+            # succeeds when only one of them is attached.
+            if ! gh release download "$tag" --dir "$target" --pattern manifest.yaml --pattern registry.yaml ||
+              [[ ! -s "$target/manifest.yaml" || ! -s "$target/registry.yaml" ]]; then
+              echo "::warning::Registry assets are missing on release ${tag}; /schemas/${version}/ is not served from them."
               rm -f "$target/manifest.yaml" "$target/registry.yaml"
               rmdir "$target"
             fi

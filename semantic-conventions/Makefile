@@ -220,7 +220,8 @@ check-generated: generate ## Fail if anything generated from the model is out of
 check-parity: ## Fail if the model has drifted from spec/ or the language packages
 	uv run --no-project --with pyyaml==6.0.3 $(PYTHON) scripts/check_parity.py
 
-check-all: check check-vendor test check-generated check-parity ## Run every check CI runs
+check-all: check check-vendor test check-generated check-parity site-schemas ## Run every check CI runs
+	@$(MAKE) --no-print-directory release-assets TAG=$(RELEASE_TAG)
 
 package: ## Build the release assets: publication manifest + resolved registry
 	rm -rf $(PACKAGE_OUTPUT)
@@ -254,7 +255,9 @@ release-assets: ## Validate and build the assets for release TAG (e.g. TAG=seman
 	@echo "OK: release assets for $(TAG) are in $(PACKAGE_OUTPUT)."
 
 # Hermetic, like the other generate targets. The manifest points at the copy of
-# the resolved registry that the site serves next to it.
+# the resolved registry that the site serves next to it. The `unreleased`
+# marker tells the site that these files do not come from a release: the deploy
+# workflow only uses this target for a version that has none.
 site-schemas: offline-model ## Build the registry the docs site serves at the schema URL
 	@mkdir -p $(BUILD) $(SITE_SCHEMAS)/$(VERSION)
 	@$(WEAVER_OFFLINE) registry package \
@@ -266,6 +269,7 @@ site-schemas: offline-model ## Build the registry the docs site serves at the sc
 		2> $(BUILD)/site-schemas.log || { cat $(BUILD)/site-schemas.log; exit 1; }
 	@cp $(BUILD)/site-schemas/manifest.yaml $(SITE_SCHEMAS)/$(VERSION)/manifest.yaml
 	@cp $(BUILD)/site-schemas/resolved.yaml $(SITE_SCHEMAS)/$(VERSION)/registry.yaml
+	@echo "Built from the model, not downloaded from a release." > $(SITE_SCHEMAS)/$(VERSION)/unreleased
 	@echo "Wrote the registry for $(VERSION) to $(SITE_SCHEMAS)/$(VERSION)"
 
 print-version: ## Print the registry version

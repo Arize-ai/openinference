@@ -23,6 +23,12 @@ export interface SchemaVersion {
   stability: string;
   /** Number of distinct attributes the resolved registry defines or references. */
   attributeCount: number;
+  /**
+   * False when the files were built from the model in the repository because
+   * the version has no release yet. Such a version can still change, and its
+   * tag does not exist.
+   */
+  released: boolean;
   files: Record<SchemaFile, string>;
 }
 
@@ -31,6 +37,13 @@ const sources = import.meta.glob<string>("../generated/schemas/*/*.yaml", {
   import: "default",
   eager: true,
 });
+
+/** Written next to the files by `make site-schemas`; a release has none. */
+const unreleased = new Set(
+  Object.keys(import.meta.glob("../generated/schemas/*/unreleased", { query: "?raw" })).map(
+    (path) => path.split("/").slice(-2)[0],
+  ),
+);
 
 /** The value of a top-level `key: value` line of a YAML document. */
 const field = (yaml: string, key: string) =>
@@ -54,6 +67,7 @@ export function getSchemaVersions(): SchemaVersion[] {
       version,
       schemaUrl: field(files["manifest.yaml"], "schema_url"),
       stability: field(files["manifest.yaml"], "stability"),
+      released: !unreleased.has(version),
       // The catalog lists an attribute once per description a span gives it.
       attributeCount: new Set(files["registry.yaml"].match(/^- key: .+$/gm) ?? []).size,
       files,

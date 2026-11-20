@@ -34,6 +34,7 @@ const versions = getSchemaVersions();
             <li>
               <p class="title">
                 <a href={`${base}schemas/${schema.version}/`}>{schema.version}</a>
+                {!schema.released && " (unreleased)"}
               </p>
               <p>
                 {schema.attributeCount} attributes, stability <code>{schema.stability}</code>.{" "}
