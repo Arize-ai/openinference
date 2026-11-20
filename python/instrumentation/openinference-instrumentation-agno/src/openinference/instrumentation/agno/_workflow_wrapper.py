@@ -240,21 +240,8 @@ class _WorkflowWrapper:
                     )
 
                     if is_streaming:
-                        if workflow_token:
-                            try:
-                                self._activation.detach(workflow_token)
-                                workflow_token = None
-                            except Exception:
-                                pass
                         return self._run_stream_continue(result, span, node_id, instance)
 
-                    # Non-streaming mode - detach token immediately while still in span context
-                    if workflow_token:
-                        try:
-                            self._activation.detach(workflow_token)
-                            workflow_token = None
-                        except Exception:
-                            pass
                 finally:
                     # The node context token was attached while this span was
                     # current. It must be detached before use_span restores the
@@ -302,11 +289,6 @@ class _WorkflowWrapper:
                 is_streaming = False
 
             if not is_streaming:
-                if workflow_token:
-                    try:
-                        self._activation.detach(workflow_token)
-                    except Exception:
-                        pass
                 span.end()
 
     def _run_stream_continue(
@@ -817,21 +799,8 @@ class _StepWrapper:
                     )
 
                     if is_streaming:
-                        if step_token:
-                            try:
-                                self._activation.detach(step_token)
-                                step_token = None
-                            except Exception:
-                                pass
                         return self._run_stream_continue(result, span, node_id)
 
-                    # Non-streaming mode - detach token immediately while still in span context
-                    if step_token:
-                        try:
-                            self._activation.detach(step_token)
-                            step_token = None
-                        except Exception:
-                            pass
                 finally:
                     # The node context token was attached while this span was
                     # current. It must be detached before use_span restores the
@@ -866,11 +835,6 @@ class _StepWrapper:
                 is_streaming = False
 
             if not is_streaming:
-                if step_token:
-                    try:
-                        self._activation.detach(step_token)
-                    except Exception:
-                        pass
                 span.end()
 
     def _run_stream_continue(
@@ -1138,21 +1102,8 @@ class _ParallelWrapper:
                     )
 
                     if is_streaming:
-                        if parallel_token:
-                            try:
-                                self._activation.detach(parallel_token)
-                                parallel_token = None
-                            except Exception:
-                                pass
                         return self._execute_stream_continue(result, span, node_id)
 
-                    # Non-streaming mode - detach token immediately
-                    if parallel_token:
-                        try:
-                            self._activation.detach(parallel_token)
-                            parallel_token = None
-                        except Exception:
-                            pass
                 finally:
                     # The node context token was attached while this span was
                     # current. It must be detached before use_span restores the
@@ -1188,11 +1139,6 @@ class _ParallelWrapper:
                 is_streaming = False
 
             if not is_streaming:
-                if parallel_token:
-                    try:
-                        self._activation.detach(parallel_token)
-                    except Exception:
-                        pass
                 span.end()
 
     def _execute_stream_continue(
