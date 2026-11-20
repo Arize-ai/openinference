@@ -213,7 +213,7 @@ attributes:
     annotations:
       openinference:
         encoding: flattened_list
-        item_namespaces: ["prompt"]
+        item_attributes: ["prompt.text"]
   - key: llm.choices
     type: template[any]
     brief: "Text choices returned from a completions API, e.g. `llm.choices.0.completion.text`"
@@ -231,7 +231,7 @@ attributes:
     annotations:
       openinference:
         encoding: flattened_list
-        item_namespaces: ["tool"]
+        item_attributes: ["tool.name", "tool.description", "tool.json_schema"]
   - key: llm.prompt_template.template
     type: string
     brief: "Template used to generate prompts (e.g., using `{variable}` placeholder syntax)"

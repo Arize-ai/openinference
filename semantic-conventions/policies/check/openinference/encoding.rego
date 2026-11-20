@@ -13,7 +13,8 @@ import rego.v1
 #   annotations:
 #     openinference:
 #       encoding: flattened_list | flattened_object | json
-#       item_namespaces: [message]   # flattened_* only
+#       item_namespaces: [message]   # flattened_* only: any `message.*` attribute
+#       item_attributes: [tool.name] # flattened_* only: exactly these attributes
 #       also_accepts: [int]          # other OTLP types consumers must accept for this key
 
 encodings := {"flattened_list", "flattened_object", "json"}
@@ -25,6 +26,10 @@ oi_annotations(attr) := object.get(object.get(attr, "annotations", {}), "openinf
 encoding(attr) := object.get(oi_annotations(attr), "encoding", "")
 
 item_namespaces(attr) := object.get(oi_annotations(attr), "item_namespaces", [])
+
+item_attributes(attr) := object.get(oi_annotations(attr), "item_attributes", [])
+
+attribute_keys contains attr.key if some attr in input.registry.attributes
 
 root_namespaces contains ns if {
     some attr in input.registry.attributes
@@ -88,16 +93,18 @@ deny contains finding if {
     }
 }
 
-# A flattened attribute names the namespace(s) of the attributes found under it.
+# A flattened attribute says which attributes are found under it: whole
+# namespaces (`item_namespaces`), individual attributes (`item_attributes`) when
+# only part of a namespace applies, or both.
 deny contains finding if {
     some attr in input.registry.attributes
     encoding(attr) in flattened_encodings
-    count(item_namespaces(attr)) == 0
+    count(item_namespaces(attr)) + count(item_attributes(attr)) == 0
 
     finding := {
-        "id": "openinference_item_namespaces_missing",
+        "id": "openinference_items_missing",
         "context": {"attribute": attr.key},
-        "message": sprintf("Attribute '%s' is flattened and must list annotations.openinference.item_namespaces.", [attr.key]),
+        "message": sprintf("Attribute '%s' is flattened and must list annotations.openinference.item_namespaces or item_attributes.", [attr.key]),
         "level": "violation",
     }
 }
@@ -112,6 +119,33 @@ deny contains finding if {
         "id": "openinference_item_namespace_unknown",
         "context": {"attribute": attr.key, "item_namespace": ns},
         "message": sprintf("Attribute '%s' lists item namespace '%s', but the registry defines no '%s.*' attributes.", [attr.key, ns, ns]),
+        "level": "violation",
+    }
+}
+
+# ...as must each of those attributes.
+deny contains finding if {
+    some attr in input.registry.attributes
+    some item in item_attributes(attr)
+    not item in attribute_keys
+
+    finding := {
+        "id": "openinference_item_attribute_unknown",
+        "context": {"attribute": attr.key, "item_attribute": item},
+        "message": sprintf("Attribute '%s' lists item attribute '%s', which the registry does not define.", [attr.key, item]),
+        "level": "violation",
+    }
+}
+
+# A list cannot be an item of itself.
+deny contains finding if {
+    some attr in input.registry.attributes
+    attr.key in item_attributes(attr)
+
+    finding := {
+        "id": "openinference_item_attribute_self",
+        "context": {"attribute": attr.key},
+        "message": sprintf("Attribute '%s' lists itself in annotations.openinference.item_attributes.", [attr.key]),
         "level": "violation",
     }
 }

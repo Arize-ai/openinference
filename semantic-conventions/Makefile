@@ -123,9 +123,9 @@ vendor: ## Refresh the vendored OpenTelemetry attributes from the pinned upstrea
 check-vendor: ## Fail if the vendored OpenTelemetry attributes differ from upstream (needs network)
 	@uv run --no-project --with pyyaml==6.0.3 $(PYTHON) scripts/vendor_upstream.py --weaver '$(WEAVER)' --check
 
-test: offline-model ## Check that sample keys resolve against the registry and that a dependent registry resolves
+test: offline-model ## Check sample keys against the registry, a dependent registry, and that each OpenInference policy fires
 	@mkdir -p $(BUILD)
-	@for kind in known unknown; do \
+	@for kind in known unknown unvalidated; do \
 		$(WEAVER_OFFLINE) registry live-check \
 			-r $(OFFLINE_MODEL) \
 			--quiet \
@@ -141,6 +141,13 @@ test: offline-model ## Check that sample keys resolve against the registry and t
 	@$(WEAVER_OFFLINE) registry check -r tests/consumer --v2 --quiet \
 		> $(BUILD)/consumer.log 2>&1 || { cat $(BUILD)/consumer.log; exit 1; }
 	@echo "OK: a registry that depends on this one resolves (tests/consumer)."
+	@$(WEAVER_OFFLINE) registry check -r tests/policies/violations --v2 --quiet \
+		--diagnostic-format json --diagnostic-stdout \
+		--policy policies/check/openinference \
+		> $(BUILD)/policy-violations.json 2> $(BUILD)/policy-violations.log; \
+	$(PYTHON) scripts/check_policy_fixtures.py $(BUILD)/policy-violations.json \
+		tests/policies/violations/expected.json policies/check/openinference \
+		|| { cat $(BUILD)/policy-violations.log; exit 1; }
 
 check-all: check check-vendor test ## Run every check CI runs
 	@$(MAKE) --no-print-directory release-assets TAG=$(RELEASE_TAG)
