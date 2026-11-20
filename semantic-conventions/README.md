@@ -118,6 +118,9 @@ The marker holds a [jq](https://jqlang.org/) query over the resolved registry. I
 - `{span: <type>, span_attributes: [...]}` for the requirement levels of a span's attributes, as in
   [`spec/spans/llm.md`](../spec/spans/llm.md). Its notes column shows the attribute's description on that span,
   which a span definition can override (`- ref: input.value` with its own `brief`).
+- `{span_kinds: [...]}` for the table of span kinds and `{characteristic: [...]}` for the attributes that set one
+  kind apart from a plain `CHAIN` span, both in [`spec/general/span-kinds.md`](../spec/general/span-kinds.md). The
+  page a kind links to is the span's `annotations.openinference.spec`.
 
 The rendering is in [`templates/registry/markdown/snippet.md.j2`](templates/registry/markdown/snippet.md.j2). Most tables select a key
 prefix, so a new attribute under that prefix appears on its own. Tables that list keys explicitly, to keep a curated
@@ -131,7 +134,7 @@ order, need the new key added to the marker. To add a table to any page under `s
 | Language | Template | Generated file |
 | --- | --- | --- |
 | Python | [`templates/registry/python`](templates/registry/python) | `trace/__init__.py` and `resource/__init__.py` in `python/openinference-semantic-conventions/src/openinference/semconv` |
-| Go | [`templates/registry/go`](templates/registry/go) | `go/openinference-semantic-conventions/attributes.go`, `enums.go` |
+| Go | [`templates/registry/go`](templates/registry/go) | `attributes.go`, `enums.go`, and `indexers.go` in `go/openinference-semantic-conventions` |
 | TypeScript | [`templates/registry/typescript`](templates/registry/typescript) | `trace/SemanticConventions.ts` and `resource/SemanticResourceAttributes.ts` in `js/packages/openinference-semantic-conventions/src` |
 | Java | [`templates/registry/java`](templates/registry/java) | `SemanticConventions.java` and `SemanticResourceAttributes.java` in `java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace` |
 
@@ -164,6 +167,14 @@ Where a published name differs:
 
 Those tables are public API. Add to them; do not rename or remove entries. Enum members follow the model, so adding
 a well-known value adds a member in every language.
+
+Helpers are derived too:
+
+- **Go indexers.** Every flattened list that sits directly on a span gets `<List>Key(i, child)`, for example
+  `RetrievalDocumentKey(0, DocumentContent)`. The fixed-field and nested helpers (`LLMInputMessageRoleKey`,
+  `LLMOutputMessageToolCallKey`) are listed in the template by the model keys they join.
+- **TypeScript and Java prefix objects.** `SemanticAttributePrefixes` is the set of root namespaces, and each
+  `*Postfixes` object is what follows its namespace in the model's keys.
 
 ## Using the registry
 

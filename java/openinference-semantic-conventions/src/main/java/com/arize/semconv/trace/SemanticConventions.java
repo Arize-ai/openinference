@@ -8,71 +8,73 @@ import lombok.experimental.UtilityClass;
 public class SemanticConventions {
     @UtilityClass
     public static class SemanticAttributePrefixes {
-        public static final String ANNOTATIONS = "annotations";
+        public static final String AGENT = "agent";
         public static final String ANNOTATION = "annotation";
-        public static final String EVALUATIONS = "evaluations";
-        public static final String EVALUATION = "evaluation";
-        public static final String INPUT = "input";
-        public static final String OUTPUT = "output";
-        public static final String LLM = "llm";
-        public static final String RETRIEVAL = "retrieval";
-        public static final String RERANKER = "reranker";
-        public static final String MESSAGES = "messages";
-        public static final String MESSAGE = "message";
+        public static final String ANNOTATIONS = "annotations";
+        public static final String AUDIO = "audio";
+        public static final String COMPLETION = "completion";
+        public static final String DECISION = "decision";
         public static final String DOCUMENT = "document";
         public static final String EMBEDDING = "embedding";
+        public static final String EVALUATION = "evaluation";
+        public static final String EVALUATIONS = "evaluations";
+        public static final String GRAPH = "graph";
+        public static final String IMAGE = "image";
+        public static final String INPUT = "input";
+        public static final String LLM = "llm";
+        public static final String MESSAGE = "message";
+        public static final String MESSAGE_CONTENT = "message_content";
+        public static final String MESSAGES = "messages";
+        public static final String METADATA = "metadata";
+        public static final String OPENINFERENCE = "openinference";
+        public static final String OUTPUT = "output";
+        public static final String PROMPT = "prompt";
+        public static final String RERANKER = "reranker";
+        public static final String RETRIEVAL = "retrieval";
+        public static final String SESSION = "session";
+        public static final String TAG = "tag";
         public static final String TOOL = "tool";
         public static final String TOOL_CALL = "tool_call";
-        public static final String METADATA = "metadata";
-        public static final String TAG = "tag";
-        public static final String SESSION = "session";
         public static final String TRACE = "trace";
         public static final String USER = "user";
-        public static final String OPENINFERENCE = "openinference";
-        public static final String MESSAGE_CONTENT = "message_content";
-        public static final String IMAGE = "image";
-        public static final String AUDIO = "audio";
         public static final String VIDEO = "video";
-        public static final String PROMPT = "prompt";
-        public static final String AGENT = "agent";
-        public static final String GRAPH = "graph";
-        public static final String DECISION = "decision";
     }
 
     @UtilityClass
     public static class LLMAttributePostfixes {
-        public static final String PROVIDER = "provider";
-        public static final String SYSTEM = "system";
+        public static final String CHOICES = "choices";
+        public static final String COST = "cost";
+        public static final String FINISH_REASON = "finish_reason";
+        public static final String FUNCTION_CALL = "function_call";
+        public static final String INPUT_MESSAGES = "input_messages";
+        public static final String INVOCATION_PARAMETERS = "invocation_parameters";
         public static final String MODEL_NAME = "model_name";
+        public static final String OUTPUT_MESSAGES = "output_messages";
+        public static final String PROMPT_TEMPLATE = "prompt_template";
+        public static final String PROMPTS = "prompts";
+        public static final String PROVIDER = "provider";
         public static final String REQUEST = "request";
         public static final String RESPONSE = "response";
+        public static final String SYSTEM = "system";
         public static final String TOKEN_COUNT = "token_count";
-        public static final String INPUT_MESSAGES = "input_messages";
-        public static final String OUTPUT_MESSAGES = "output_messages";
-        public static final String INVOCATION_PARAMETERS = "invocation_parameters";
-        public static final String PROMPTS = "prompts";
-        public static final String PROMPT_TEMPLATE = "prompt_template";
-        public static final String FUNCTION_CALL = "function_call";
         public static final String TOOLS = "tools";
-        public static final String COST = "cost";
-        public static final String CHOICES = "choices";
-        public static final String FINISH_REASON = "finish_reason";
     }
 
     @UtilityClass
     public static class DecisionAttributePostfixes {
-        public static final String PROVIDER = "provider";
-        public static final String SYSTEM = "system";
         public static final String MODEL_NAME = "model_name";
+        public static final String PROVIDER = "provider";
         public static final String REQUEST = "request";
         public static final String RESPONSE = "response";
+        public static final String SYSTEM = "system";
         public static final String TOKEN_COUNT = "token_count";
     }
 
     @UtilityClass
     public static class LLMPromptTemplateAttributePostfixes {
-        public static final String VARIABLES = "variables";
         public static final String TEMPLATE = "template";
+        public static final String VARIABLES = "variables";
+        public static final String VERSION = "version";
     }
 
     @UtilityClass
@@ -83,9 +85,9 @@ public class SemanticConventions {
     @UtilityClass
     public static class RerankerAttributePostfixes {
         public static final String INPUT_DOCUMENTS = "input_documents";
+        public static final String MODEL_NAME = "model_name";
         public static final String OUTPUT_DOCUMENTS = "output_documents";
         public static final String QUERY = "query";
-        public static final String MODEL_NAME = "model_name";
         public static final String TOP_K = "top_k";
     }
 
@@ -93,44 +95,44 @@ public class SemanticConventions {
     public static class EmbeddingAttributePostfixes {
         public static final String EMBEDDINGS = "embeddings";
         public static final String INVOCATION_PARAMETERS = "invocation_parameters";
-        public static final String TEXT = "text";
         public static final String MODEL_NAME = "model_name";
+        public static final String TEXT = "text";
         public static final String VECTOR = "vector";
     }
 
     @UtilityClass
     public static class ToolAttributePostfixes {
-        public static final String ID = "id";
-        public static final String NAME = "name";
         public static final String DESCRIPTION = "description";
-        public static final String PARAMETERS = "parameters";
+        public static final String ID = "id";
         public static final String JSON_SCHEMA = "json_schema";
+        public static final String NAME = "name";
+        public static final String PARAMETERS = "parameters";
     }
 
     @UtilityClass
     public static class MessageAttributePostfixes {
-        public static final String ROLE = "role";
         public static final String CONTENT = "content";
         public static final String CONTENTS = "contents";
-        public static final String NAME = "name";
-        public static final String FUNCTION_CALL_NAME = "function_call_name";
         public static final String FUNCTION_CALL_ARGUMENTS_JSON = "function_call_arguments_json";
-        public static final String TOOL_CALLS = "tool_calls";
+        public static final String FUNCTION_CALL_NAME = "function_call_name";
+        public static final String NAME = "name";
+        public static final String ROLE = "role";
         public static final String TOOL_CALL_ID = "tool_call_id";
+        public static final String TOOL_CALLS = "tool_calls";
     }
 
     @UtilityClass
     public static class MessageContentsAttributePostfixes {
-        public static final String TYPE = "type";
-        public static final String TEXT = "text";
-        public static final String IMAGE = "image";
         public static final String AUDIO = "audio";
-        public static final String VIDEO = "video";
-        public static final String DOCUMENT = "document";
-        public static final String ID = "id";
-        public static final String SIGNATURE = "signature";
         public static final String DATA = "data";
+        public static final String DOCUMENT = "document";
         public static final String ENCRYPTED_CONTENT = "encrypted_content";
+        public static final String ID = "id";
+        public static final String IMAGE = "image";
+        public static final String SIGNATURE = "signature";
+        public static final String TEXT = "text";
+        public static final String TYPE = "type";
+        public static final String VIDEO = "video";
     }
 
     @UtilityClass
@@ -145,21 +147,21 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class ToolCallAttributePostfixes {
-        public static final String FUNCTION_NAME = "function.name";
         public static final String FUNCTION_ARGUMENTS = "function.arguments";
+        public static final String FUNCTION_NAME = "function.name";
         public static final String ID = "id";
         public static final String REASONING_SIGNATURE = "reasoning_signature";
     }
 
     @UtilityClass
     public static class DocumentAttributePostfixes {
-        public static final String ID = "id";
         public static final String CONTENT = "content";
-        public static final String SCORE = "score";
+        public static final String ID = "id";
         public static final String METADATA = "metadata";
-        public static final String URL = "url";
         public static final String MIME_TYPE = "mime_type";
         public static final String NAME = "name";
+        public static final String SCORE = "score";
+        public static final String URL = "url";
     }
 
     @UtilityClass
@@ -169,6 +171,8 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class SessionAttributePostfixes {
+        public static final String ANNOTATIONS = "annotations";
+        public static final String EVALUATIONS = "evaluations";
         public static final String ID = "id";
     }
 
@@ -179,16 +183,17 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class AudioAttributesPostfixes {
-        public static final String URL = "url";
         public static final String MIME_TYPE = "mime_type";
         public static final String TRANSCRIPT = "transcript";
+        public static final String URL = "url";
     }
 
     @UtilityClass
     public static class PromptAttributePostfixes {
-        public static final String VENDOR = "vendor";
         public static final String ID = "id";
+        public static final String TEXT = "text";
         public static final String URL = "url";
+        public static final String VENDOR = "vendor";
     }
 
     @UtilityClass
@@ -205,13 +210,13 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class FeedbackAttributePostfixes {
+        public static final String ANNOTATOR_KIND = "annotator_kind";
+        public static final String EXPLANATION = "explanation";
+        public static final String IDENTIFIER = "identifier";
+        public static final String LABEL = "label";
+        public static final String METADATA = "metadata";
         public static final String NAME = "name";
         public static final String SCORE = "score";
-        public static final String LABEL = "label";
-        public static final String EXPLANATION = "explanation";
-        public static final String ANNOTATOR_KIND = "annotator_kind";
-        public static final String IDENTIFIER = "identifier";
-        public static final String METADATA = "metadata";
     }
 
     /**

@@ -4,6 +4,10 @@ spans:
     kind: internal
     requirement_level: recommended
     stability: development
+    annotations:
+      openinference:
+        # The page of the prose specification that covers this span.
+        spec: "[Embedding Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/embedding.md)"
     brief: >
       A call to an LLM or embedding service that converts text or token IDs
       into dense float vectors.

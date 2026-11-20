@@ -76,6 +76,10 @@ spans:
     kind: internal
     requirement_level: recommended
     stability: development
+    annotations:
+      openinference:
+        # The page of the prose specification that covers this span.
+        spec: "[LLM Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/llm.md)"
     brief: >
       A call to a large language model, such as a chat completion or a text
       completion request. It captures the request sent to the provider and the

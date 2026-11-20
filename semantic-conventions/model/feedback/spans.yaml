@@ -4,6 +4,10 @@ spans:
     kind: internal
     requirement_level: recommended
     stability: development
+    annotations:
+      openinference:
+        # The page of the prose specification that covers this span.
+        spec: "[Annotations and Evaluations](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md)"
     brief: >
       A call to a function or process that evaluates a language model's
       outputs, for example assessing the relevance, correctness, or

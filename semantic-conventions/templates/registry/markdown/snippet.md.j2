@@ -6,6 +6,10 @@
      {members: [<enum member>, ...]}    -> a table of well-known values
      {span: <span type>, span_attributes: [<attribute>, ...]}
                                         -> the requirement levels of a span's attributes
+     {span_kinds: [{value, brief, spec}, ...]}
+                                        -> the table of span kinds
+     {characteristic: [<key or key prefix>, ...]}
+                                        -> the attributes that set a span kind apart
 #}
 {% import 'macros.j2' as m %}
 <!-- Generated from semantic-conventions/model. Do not edit by hand: change the model and run `make -C semantic-conventions generate`. -->
@@ -22,6 +26,14 @@
 {% for attribute in span_attributes %}
 | `{{ attribute.key }}` | {{ m.spec_requirement(attribute.requirement_level) }} | {{ m.spec_span_note(attribute, span) }} |
 {% endfor %}
+{% elif span_kinds is defined %}
+| Value | Represents | Conventions |
+| --- | --- | --- |
+{% for kind in span_kinds %}
+| [`{{ kind.value }}`](#{{ kind.value | lower }}) | {{ m.spec_text(kind.brief) }} | {{ m.spec_text(kind.spec) }} |
+{% endfor %}
+{% elif characteristic is defined %}
+Characteristic attributes: {% for key in characteristic %}`{{ key }}`{% if not loop.last %}, {% endif %}{% else %}`input.value`, `output.value`{% endfor %}.
 {% elif members is defined %}
 | Value | Description |
 | --- | --- |

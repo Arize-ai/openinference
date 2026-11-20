@@ -87,6 +87,7 @@ CODE_OUTPUTS := \
 	../python/openinference-semantic-conventions/src/openinference/semconv/resource/__init__.py \
 	../go/openinference-semantic-conventions/attributes.go \
 	../go/openinference-semantic-conventions/enums.go \
+	../go/openinference-semantic-conventions/indexers.go \
 	../js/packages/openinference-semantic-conventions/src/trace/SemanticConventions.ts \
 	../js/packages/openinference-semantic-conventions/src/resource/SemanticResourceAttributes.ts \
 	../java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticConventions.java \

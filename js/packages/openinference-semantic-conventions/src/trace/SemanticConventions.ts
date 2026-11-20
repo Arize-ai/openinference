@@ -8,67 +8,70 @@
  */
 
 export const SemanticAttributePrefixes = {
-  annotations: "annotations",
+  agent: "agent",
   annotation: "annotation",
-  evaluations: "evaluations",
-  evaluation: "evaluation",
-  input: "input",
-  output: "output",
-  llm: "llm",
-  retrieval: "retrieval",
-  reranker: "reranker",
-  messages: "messages",
-  message: "message",
+  annotations: "annotations",
+  audio: "audio",
+  completion: "completion",
+  decision: "decision",
   document: "document",
   embedding: "embedding",
+  evaluation: "evaluation",
+  evaluations: "evaluations",
+  graph: "graph",
+  image: "image",
+  input: "input",
+  llm: "llm",
+  message: "message",
+  message_content: "message_content",
+  messages: "messages",
+  metadata: "metadata",
+  openinference: "openinference",
+  output: "output",
+  prompt: "prompt",
+  reranker: "reranker",
+  retrieval: "retrieval",
+  session: "session",
+  tag: "tag",
   tool: "tool",
   tool_call: "tool_call",
-  metadata: "metadata",
-  tag: "tag",
-  session: "session",
   trace: "trace",
   user: "user",
-  openinference: "openinference",
-  message_content: "message_content",
-  image: "image",
-  audio: "audio",
   video: "video",
-  prompt: "prompt",
-  agent: "agent",
-  graph: "graph",
-  decision: "decision",
 } as const;
 
 export const LLMAttributePostfixes = {
-  provider: "provider",
-  system: "system",
-  model_name: "model_name",
-  request: "request",
-  response: "response",
-  token_count: "token_count",
-  input_messages: "input_messages",
-  output_messages: "output_messages",
-  invocation_parameters: "invocation_parameters",
-  prompts: "prompts",
-  prompt_template: "prompt_template",
-  function_call: "function_call",
-  tools: "tools",
+  choices: "choices",
   cost: "cost",
   finish_reason: "finish_reason",
+  function_call: "function_call",
+  input_messages: "input_messages",
+  invocation_parameters: "invocation_parameters",
+  model_name: "model_name",
+  output_messages: "output_messages",
+  prompt_template: "prompt_template",
+  prompts: "prompts",
+  provider: "provider",
+  request: "request",
+  response: "response",
+  system: "system",
+  token_count: "token_count",
+  tools: "tools",
 } as const;
 
 export const DecisionAttributePostfixes = {
-  provider: "provider",
-  system: "system",
   model_name: "model_name",
+  provider: "provider",
   request: "request",
   response: "response",
+  system: "system",
   token_count: "token_count",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
-  variables: "variables",
   template: "template",
+  variables: "variables",
+  version: "version",
 } as const;
 
 export const RetrievalAttributePostfixes = {
@@ -77,49 +80,50 @@ export const RetrievalAttributePostfixes = {
 
 export const RerankerAttributePostfixes = {
   input_documents: "input_documents",
+  model_name: "model_name",
   output_documents: "output_documents",
   query: "query",
-  model_name: "model_name",
   top_k: "top_k",
 } as const;
 
 export const EmbeddingAttributePostfixes = {
   embeddings: "embeddings",
-  text: "text",
+  invocation_parameters: "invocation_parameters",
   model_name: "model_name",
+  text: "text",
   vector: "vector",
 } as const;
 
 export const ToolAttributePostfixes = {
-  name: "name",
   description: "description",
-  parameters: "parameters",
-  json_schema: "json_schema",
   id: "id",
+  json_schema: "json_schema",
+  name: "name",
+  parameters: "parameters",
 } as const;
 
 export const MessageAttributePostfixes = {
-  role: "role",
   content: "content",
   contents: "contents",
-  name: "name",
-  function_call_name: "function_call_name",
   function_call_arguments_json: "function_call_arguments_json",
-  tool_calls: "tool_calls",
+  function_call_name: "function_call_name",
+  name: "name",
+  role: "role",
   tool_call_id: "tool_call_id",
+  tool_calls: "tool_calls",
 } as const;
 
 export const MessageContentsAttributePostfixes = {
-  type: "type",
-  text: "text",
-  image: "image",
   audio: "audio",
-  video: "video",
-  document: "document",
-  id: "id",
-  signature: "signature",
   data: "data",
+  document: "document",
   encrypted_content: "encrypted_content",
+  id: "id",
+  image: "image",
+  signature: "signature",
+  text: "text",
+  type: "type",
+  video: "video",
 } as const;
 
 export const ImageAttributesPostfixes = {
@@ -131,20 +135,20 @@ export const VideoAttributesPostfixes = {
 } as const;
 
 export const ToolCallAttributePostfixes = {
-  function_name: "function.name",
   function_arguments_json: "function.arguments",
+  function_name: "function.name",
   id: "id",
   reasoning_signature: "reasoning_signature",
 } as const;
 
 export const DocumentAttributePostfixes = {
-  id: "id",
   content: "content",
-  score: "score",
+  id: "id",
   metadata: "metadata",
-  url: "url",
   mime_type: "mime_type",
   name: "name",
+  score: "score",
+  url: "url",
 } as const;
 
 export const TagAttributePostfixes = {
@@ -152,6 +156,8 @@ export const TagAttributePostfixes = {
 } as const;
 
 export const SessionAttributePostfixes = {
+  annotations: "annotations",
+  evaluations: "evaluations",
   id: "id",
 } as const;
 
@@ -160,15 +166,16 @@ export const UserAttributePostfixes = {
 } as const;
 
 export const AudioAttributesPostfixes = {
-  url: "url",
   mime_type: "mime_type",
   transcript: "transcript",
+  url: "url",
 } as const;
 
 export const PromptAttributePostfixes = {
-  vendor: "vendor",
   id: "id",
+  text: "text",
   url: "url",
+  vendor: "vendor",
 } as const;
 
 export const AgentPostfixes = {
@@ -182,13 +189,13 @@ export const GraphPostfixes = {
 } as const;
 
 export const FeedbackAttributePostfixes = {
+  annotator_kind: "annotator_kind",
+  explanation: "explanation",
+  identifier: "identifier",
+  label: "label",
+  metadata: "metadata",
   name: "name",
   score: "score",
-  label: "label",
-  explanation: "explanation",
-  annotator_kind: "annotator_kind",
-  identifier: "identifier",
-  metadata: "metadata",
 } as const;
 
 /**
