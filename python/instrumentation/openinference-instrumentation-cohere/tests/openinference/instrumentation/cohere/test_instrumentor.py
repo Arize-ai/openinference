@@ -719,6 +719,48 @@ def test_chat_stream(
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
 
 
+def _cached_usage() -> Usage:
+    # cohere reports prompt tokens served from its inference cache as a float.
+    return Usage(tokens=UsageTokens(input_tokens=26, output_tokens=12), cached_tokens=16.0)
+
+
+def test_chat_records_cached_prompt_tokens(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = _text_response()
+    response.usage = _cached_usage()
+    monkeypatch.setattr(RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=response))
+
+    _client().chat(model="command-a-03-2025", messages=[_user_message("Why is the sky blue?")])
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 26
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 16
+    assert isinstance(attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ], int)
+
+
+def test_chat_stream_records_cached_prompt_tokens(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events = _stream_events()
+    events[-1].delta.usage = _cached_usage()
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(events))
+
+    list(
+        _client().chat_stream(
+            model="command-a-03-2025", messages=[_user_message("Why is the sky blue?")]
+        )
+    )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 26
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 16
+
+
 def test_chat_stream_span_is_open_until_consumed(
     in_memory_span_exporter: InMemorySpanExporter,
     monkeypatch: pytest.MonkeyPatch,
@@ -1069,7 +1111,7 @@ def test_embed(
         id="emb-0",
         embeddings=EmbedByTypeResponseEmbeddings(float_=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]),
         texts=["Hello world", "Goodbye world"],
-        meta=ApiMeta(tokens=ApiMetaTokens(input_tokens=5)),
+        meta=ApiMeta(tokens=ApiMetaTokens(input_tokens=5), cached_tokens=3.0),
     )
 
     monkeypatch.setattr(RawV2Client, "embed", lambda self, **k: SimpleNamespace(data=fake_response))
@@ -1120,6 +1162,7 @@ def test_embed(
     ) == [0.4, 0.5, 0.6]
     assert attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 5
     assert attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 5
+    assert attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 3
     assert not attrs
 
 
