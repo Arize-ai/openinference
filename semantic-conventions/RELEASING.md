@@ -49,7 +49,9 @@ If the workflow did not run or failed, rerun it from the Actions tab with the ta
 Other registries depend on a release by its tag, not by these assets; see
 [Using the registry](README.md#using-the-registry) for why.
 
-To build the assets locally: `make package` writes them to `.build/package/`.
+The workflow's work is one target, `make release-assets TAG=semantic-conventions-vX.Y.Z`: it checks the tag
+against the schema URL version, validates the model, and builds the assets into `.build/package/`. CI runs the same
+target on every change with the tag the next release would have, so the only step a release adds is the upload.
 
 ## First release
 

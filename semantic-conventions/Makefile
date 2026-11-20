@@ -108,7 +108,7 @@ GITHUB_REPOSITORY ?= Arize-ai/openinference
 RELEASE_TAG := semantic-conventions-v$(VERSION)
 RELEASE_DOWNLOAD_URL := https://github.com/$(GITHUB_REPOSITORY)/releases/download/$(RELEASE_TAG)
 
-.PHONY: help check offline-model vendor check-vendor test generate generate-docs generate-spec generate-code check-generated check-parity check-all package print-version clean
+.PHONY: help check offline-model vendor check-vendor test generate generate-docs generate-spec generate-code check-generated check-parity check-all package release-assets print-version clean
 
 help: ## Show this help
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-16s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -232,6 +232,22 @@ package: ## Build the release assets: publication manifest + resolved registry
 	mv $(PACKAGE_OUTPUT)/weaver/resolved.yaml $(PACKAGE_OUTPUT)/registry.yaml
 	rm -rf $(PACKAGE_OUTPUT)/weaver
 	@echo "Packaged $(VERSION) -> $(PACKAGE_OUTPUT)"
+
+# Everything the release workflow does before uploading. CI runs the same
+# target as a rehearsal on every change, with the tag the next release would
+# have, so the release path is exercised before a release exists.
+release-assets: ## Validate and build the assets for release TAG (e.g. TAG=semantic-conventions-v0.1.0)
+	@if [ "$(TAG)" != "$(RELEASE_TAG)" ]; then \
+		echo "FAIL: tag '$(TAG)' does not match model/manifest.yaml schema_url (expected '$(RELEASE_TAG)')."; exit 1; fi
+	@$(MAKE) --no-print-directory check
+	@$(MAKE) --no-print-directory package
+	@for asset in manifest.yaml registry.yaml; do \
+		[ -s $(PACKAGE_OUTPUT)/$$asset ] || { echo "FAIL: $(PACKAGE_OUTPUT)/$$asset was not built."; exit 1; }; done
+	@grep -q '^schema_url: .*/$(VERSION)$$' $(PACKAGE_OUTPUT)/manifest.yaml \
+		|| { echo "FAIL: packaged manifest does not carry version $(VERSION)."; exit 1; }
+	@grep -q '^resolved_registry_uri: $(RELEASE_DOWNLOAD_URL)/registry.yaml$$' $(PACKAGE_OUTPUT)/manifest.yaml \
+		|| { echo "FAIL: packaged manifest does not point at $(RELEASE_DOWNLOAD_URL)/registry.yaml."; exit 1; }
+	@echo "OK: release assets for $(TAG) are in $(PACKAGE_OUTPUT)."
 
 print-version: ## Print the registry version
 	@echo $(VERSION)

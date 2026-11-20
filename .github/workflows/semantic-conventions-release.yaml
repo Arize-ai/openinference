@@ -55,21 +55,10 @@ jobs:
         with:
           version: ${{ steps.versions.outputs.weaver_version }}
 
-      - name: Verify the tag matches the schema URL version
-        run: |
-          expected="semantic-conventions-v$(make -s print-version)"
-          if [[ "$TAG" != "$expected" ]]; then
-            echo "Tag '$TAG' does not match model/manifest.yaml schema_url (expected '$expected')." >&2
-            exit 1
-          fi
-
-      - name: Validate model and policies
-        run: make check
-
-      - name: Build release package
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: make package
+      # The same target CI rehearses on every change: checks the tag against
+      # the schema URL version, validates the model, and builds the assets.
+      - name: Validate and build release assets
+        run: make release-assets TAG="$TAG"
 
       - name: Upload registry to the release
         env:

@@ -119,8 +119,10 @@ jobs:
       - name: Check parity with the spec and language packages
         run: make check-parity
 
-      - name: Build release package
-        run: make package
+      # Rehearses the release workflow up to, but not including, the upload:
+      # the same target, with the tag the next release would have.
+      - name: Rehearse the release
+        run: make release-assets TAG="semantic-conventions-v$(make -s print-version)"
 
       - name: Upload release package
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
