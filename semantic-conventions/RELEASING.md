@@ -17,8 +17,10 @@ edit them by hand. `make print-version` prints the current version.
 Between releases, `main` still carries the schema URL of the latest release while containing unreleased changes.
 Consume a tag, not `main`.
 
-The schema URL is the registry's identifier. Nothing is served at that URL yet; consumers resolve the registry from the
-git tag or from the release assets.
+The schema URL is the registry's identifier, and the docs site serves the registry there:
+`https://openinf.dev/schemas/X.Y.Z/` has a page for the version, with `manifest.yaml` and `registry.yaml` next to it.
+The deploy workflow serves a released version from its release assets, so it never changes once published; a version
+that has no release yet is built from the model on `main`.
 
 ## What moves the version
 

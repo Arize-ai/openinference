@@ -60,6 +60,11 @@ export const pages = {
     description:
       "What's new in OpenInference: new instrumentation, changes to the spec, and the releases worth knowing about.",
   },
+  schemas: {
+    title: "Schemas",
+    description:
+      "The OpenInference semantic conventions as a machine-readable registry: every published version, with its manifest and resolved registry.",
+  },
   credits: {
     title: "Credits",
     description: "Work by others that this site is built with, and the licences it is used under.",
