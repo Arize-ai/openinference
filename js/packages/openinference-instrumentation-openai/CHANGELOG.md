@@ -1,5 +1,16 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.7.0
+
+### Minor Changes
+
+- 80c7da0: feat(openai): record `llm.request.model_name` and `llm.response.model_name` on chat completion, completion, Responses and image spans. `llm.model_name` is unchanged: it still holds the requested model until a response arrives and the served model afterwards. Streamed chat completions now also update `llm.model_name` to the served model, as non-streamed ones already did.
+
+### Patch Changes
+
+- Updated dependencies [5f72487]
+  - @arizeai/openinference-core@2.9.0
+
 ## 4.6.0
 
 ### Minor Changes
