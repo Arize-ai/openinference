@@ -28,18 +28,21 @@ format that OpenTelemetry tooling could read.
 
 Defining them in the same format as OpenTelemetry removes the translation:
 
-- **Same schema.** The model is Weaver `definition/2` YAML: attributes with a
+- **Same schema.** The model is YAML in Weaver's
+  [`definition/2` syntax](https://github.com/open-telemetry/weaver/blob/main/schemas/semconv-syntax.v2.md): attributes with a
   type, stability, examples and enum members, and one span definition per
   `openinference.span.kind` that references those attributes with a requirement
   level.
-- **Same policies.** CI runs `weaver registry check` with the shared
-  OpenTelemetry policy package that
+- **Same policies.** CI runs
+  [`weaver registry check`](https://github.com/open-telemetry/weaver/blob/main/docs/usage.md) with the shared
+  [OpenTelemetry policy package](https://github.com/open-telemetry/opentelemetry-weaver-packages)
+  that
   [`semantic-conventions-genai`](https://github.com/open-telemetry/semantic-conventions-genai)
   uses: naming, namespace collisions, stability and deprecation. Three legacy
   keys (`metadata`, `annotations`, `evaluations`) have no namespace and are
   listed as explicit exceptions; nothing new may be added to that list.
 - **Shared attributes.** The registry declares the OpenTelemetry semantic
-  conventions (1.45.0) as a dependency and references `session.id` and
+  conventions (1.45.0) as a [dependency](https://github.com/open-telemetry/weaver/blob/main/docs/dependencies.md) and references `session.id` and
   `user.id` from it instead of redefining them.
 - **Backwards compatibility.** On every pull request the model is compared with
   the base branch. Removing an attribute or a span fails the build; attributes
@@ -80,8 +83,8 @@ still resolves. Validating the leaves is tracked in
 
 ## Checking telemetry for compliance
 
-`weaver registry live-check` resolves the registry and reports every attribute
-it does not define. Given a file of attributes:
+[`weaver registry live-check`](https://github.com/open-telemetry/weaver/tree/main/crates/weaver_live_check)
+resolves the registry and reports every attribute it does not define. Given a file of attributes:
 
 ```json
 [
@@ -127,7 +130,8 @@ layout, the annotations, and the manifest.
 A new attribute now starts in the model under
 [`semantic-conventions/model`](../../semantic-conventions/model), not in a
 language package. `make -C semantic-conventions generate` renders the spec
-tables and the four packages from Weaver templates, and CI fails a pull request
+tables and the four packages from
+[Weaver templates](https://github.com/open-telemetry/weaver/blob/main/docs/codegen.md), and CI fails a pull request
 whose generated files do not match the model.
 
 ## Feedback
