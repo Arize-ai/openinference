@@ -1,46 +1,65 @@
 ---
-title: The spec now comes from a schema registry
-description: The OpenInference conventions are now a machine-readable, versioned registry. The spec's tables and the language packages are generated from it, and we'd like your feedback on the schema.
-pubDate: 2026-11-20
+title: The spec is now a Weaver registry
+description: The OpenInference semantic conventions are now defined in an OpenTelemetry Weaver registry, validated with the OpenTelemetry policies and published at a schema URL. The spec's tables and the language packages are generated from it.
+pubDate: 2026-11-21
 authors: [mikeldking]
-tags: [spec, announcement]
+tags: [spec, opentelemetry, announcement]
 releases: ["semantic-conventions-v0.0.1"]
 ---
 
-Until now the OpenInference conventions lived in prose, and each language
-package kept its own hand-written copy of the attribute names. They drifted.
+The OpenInference semantic conventions are now defined in a
+[schema registry](../../spec/attributes/registry.md) built with
+[OpenTelemetry Weaver](https://github.com/open-telemetry/weaver), the toolchain
+the OpenTelemetry semantic conventions are authored, validated and published
+with. The registry is the source of truth: the attribute tables in the
+[specification](../../spec/README.md) and the constants in the Python,
+TypeScript, Java and Go `openinference-semantic-conventions` packages are
+generated from it.
 
-The conventions are now a
-[schema registry](../../spec/attributes/registry.md): one model that lists every
-attribute, its type, its well-known values, and the attributes each span kind
-carries. It's an [OpenTelemetry Weaver](https://github.com/open-telemetry/weaver)
-registry, the same format the OpenTelemetry semantic conventions use.
+Nothing changes on the wire. The registry models the attribute keys, types and
+values that instrumentation already emits.
 
-Nothing changes on the wire. The attribute keys and values are the ones your
-instrumentation already emits.
+## Why Weaver
 
-## What changed
+OpenInference exists to make AI applications observable now and to bring what
+works to OpenTelemetry. Until now that second half meant translating by hand:
+the conventions were prose and four hand-maintained sets of constants, in no
+format that OpenTelemetry tooling could read.
 
-- **The spec.** The attribute tables in the
-  [specification](../../spec/README.md) are generated from the registry. The
-  prose around them is still written by hand.
-- **The packages.** The constants in the Python, Go, TypeScript and Java
-  `openinference-semantic-conventions` packages are generated from the same
-  model, so a new attribute lands in all four at once.
-- **A schema you can pull.** Each version is served at its schema URL. The
-  first one is [0.0.1](https://openinf.dev/schemas/0.0.1/), and
-  [openinf.dev/schemas](https://openinf.dev/schemas/) lists them all.
+Defining them in the same format as OpenTelemetry removes the translation:
 
-## Pull it
+- **Same schema.** The model is Weaver `definition/2` YAML: attributes with a
+  type, stability, examples and enum members, and one span definition per
+  `openinference.span.kind` that references those attributes with a requirement
+  level.
+- **Same policies.** CI runs `weaver registry check` with the shared
+  OpenTelemetry policy package that
+  [`semantic-conventions-genai`](https://github.com/open-telemetry/semantic-conventions-genai)
+  uses: naming, namespace collisions, stability and deprecation. Three legacy
+  keys (`metadata`, `annotations`, `evaluations`) have no namespace and are
+  listed as explicit exceptions; nothing new may be added to that list.
+- **Shared attributes.** The registry declares the OpenTelemetry semantic
+  conventions (1.45.0) as a dependency and references `session.id` and
+  `user.id` from it instead of redefining them.
+- **Backwards compatibility.** On every pull request the model is compared with
+  the base branch. Removing an attribute or a span fails the build; attributes
+  are deprecated, not removed or renamed.
+- **Published like OpenTelemetry.** Each version is a resolved registry and a
+  publication manifest served at its schema URL. The first is
+  [`https://openinf.dev/schemas/0.0.1`](https://openinf.dev/schemas/0.0.1/).
 
-A version is one YAML file with everything inlined:
+With both sets of conventions in one format, an OpenInference attribute and a
+`gen_ai.*` attribute can be compared field by field, a third registry can
+depend on both, and a convention proposed upstream starts from a definition
+OpenTelemetry's tooling already accepts.
 
-```bash
-curl -fsSLO https://openinf.dev/schemas/0.0.1/registry.yaml
-```
+## Where Weaver's schema stops
 
-Each attribute is an entry in it. Where OpenInference flattens a list into
-indexed keys, the entry says so:
+OTLP span attributes cannot hold objects, so OpenInference flattens lists into
+indexed keys (`llm.input_messages.0.message.role`) or serializes them to JSON.
+Weaver has no type for either. The registry models a flattened value as
+`template[any]`, which is what lets Weaver resolve an indexed key to its
+attribute, and records the encoding in an annotation:
 
 ```yaml
 - key: llm.input_messages
@@ -54,10 +73,15 @@ indexed keys, the entry says so:
         - message
 ```
 
-## Check your telemetry
+OpenInference-specific Rego policies check those annotations. The limit today:
+Weaver matches the prefix only, so a misspelled leaf after `llm.input_messages.0.`
+still resolves. Validating the leaves is tracked in
+[#4419](https://github.com/Arize-ai/openinference/issues/4419).
 
-With Weaver you can check attributes against the conventions. Put a few in a
-file:
+## Checking telemetry for compliance
+
+`weaver registry live-check` resolves the registry and reports every attribute
+it does not define. Given a file of attributes:
 
 ```json
 [
@@ -66,40 +90,54 @@ file:
 ]
 ```
 
-Then run:
-
 ```bash
 weaver registry live-check \
   -r 'https://github.com/Arize-ai/openinference.git@semantic-conventions-v0.0.1[semantic-conventions/model]' \
   --input-source attributes.json --input-format json
 ```
 
-It catches the typo:
+the misspelled key is a violation and the command exits non-zero:
 
 ```
 llm.token_count.prompts = 12
     - [violation] Attribute 'llm.token_count.prompts' does not exist in the registry.
 ```
 
-Weaver can also listen for OTLP, so you can point an application's exporter at
-it, and you can define conventions of your own that build on OpenInference. The
-[registry page](../../spec/attributes/registry.md) in the spec shows how.
+Without `--input-source`, `live-check` listens for OTLP over gRPC, so an
+application's exporter can point at it directly. The repository's own CI runs
+the same check on sample keys that must and must not resolve.
 
-## If you contribute
+## Consuming the registry
+
+The resolved registry is one YAML file with every reference and dependency
+inlined:
+
+```bash
+curl -fsSLO https://openinf.dev/schemas/0.0.1/registry.yaml
+```
+
+To define conventions on top of OpenInference, declare it as a dependency in a
+Weaver manifest and `ref` its attributes; the dependent registry also inherits
+the OpenTelemetry attributes that OpenInference references. The
+[registry page](../../spec/attributes/registry.md) in the spec covers the file
+layout, the annotations, and the manifest.
+
+## Changing the conventions
 
 A new attribute now starts in the model under
 [`semantic-conventions/model`](../../semantic-conventions/model), not in a
-language package. Edit the YAML, run `make -C semantic-conventions generate`,
-and the spec tables and all four packages follow. CI fails a pull request whose
-generated files don't match the model.
+language package. `make -C semantic-conventions generate` renders the spec
+tables and the four packages from Weaver templates, and CI fails a pull request
+whose generated files do not match the model.
 
-## Tell us what you think
+## Feedback
 
-The registry is new and everything in it is marked `development`, which means
-we can still change it. This is the time to say so if something looks wrong:
+Everything in the registry is at `development` stability, so the schema can
+still change. We want to hear about:
 
-- an attribute whose type doesn't match what your instrumentation records
-- a well-known value that's missing
-- a shape the schema can't express, or that your tooling can't read
+- an attribute whose type does not match what your instrumentation records
+- a missing well-known value
+- a structure the annotations cannot express, or that your tooling cannot read
+- anything that would make the conventions easier to align with OpenTelemetry
 
-Open an [issue](https://github.com/Arize-ai/openinference/issues) and tell us.
+Open an [issue](https://github.com/Arize-ai/openinference/issues).
