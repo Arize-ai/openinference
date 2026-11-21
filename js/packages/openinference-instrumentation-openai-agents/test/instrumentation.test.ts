@@ -908,6 +908,15 @@ describe("OpenInferenceTracingProcessor", () => {
       "data:image/jpeg;base64,c2Vjb25k",
     );
     expect(respSpan!.attributes["output.images.2.image.url"]).toBeUndefined();
+    // The images are only recorded on output.images.*, where base64ImageMaxLength applies
+    const outputValue = JSON.parse(String(respSpan!.attributes["output.value"]));
+    expect(outputValue.output).toEqual([
+      { type: "image_generation_call", status: "failed" },
+      { type: "image_generation_call", status: "failed" },
+      { type: "image_generation_call", status: "completed" },
+      { type: "image_generation_call", status: "completed", output_format: "jpeg" },
+    ]);
+    expect(outputValue.model).toBe("gpt-image-1");
   });
 
   it("falls back for image results with an unknown, jpg or data URL format", async () => {

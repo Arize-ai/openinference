@@ -114,6 +114,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Returns a copy of a response without the base64 images of its image_generation_call
+ * items, for output.value. They are recorded on output.images.*, where
+ * base64ImageMaxLength applies to them.
+ */
+function withoutGeneratedImages(response: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(response.output)) return response;
+  return {
+    ...response,
+    output: response.output.map((item: unknown) => {
+      if (!isRecord(item) || item.type !== "image_generation_call") return item;
+      const { result: _result, ...imageGenerationCall } = item;
+      return imageGenerationCall;
+    }),
+  };
+}
+
 function isString(value: unknown): value is string {
   return typeof value === "string";
 }
@@ -951,7 +968,7 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
   if (!isRecord(data._response)) return attributes;
   const response = data._response;
 
-  const responseJson = safelyJSONStringify(response);
+  const responseJson = safelyJSONStringify(withoutGeneratedImages(response));
   if (responseJson) {
     attributes[OUTPUT_VALUE] = responseJson;
     attributes[OUTPUT_MIME_TYPE] = MimeType.JSON;

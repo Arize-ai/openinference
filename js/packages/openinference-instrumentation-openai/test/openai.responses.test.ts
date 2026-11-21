@@ -197,6 +197,19 @@ describe("OpenAIInstrumentation - Responses", () => {
     expect(span.attributes["output.images.0.image.url"]).toBe("data:image/webp;base64,Zmlyc3Q=");
     expect(span.attributes["output.images.1.image.url"]).toBe("data:image/jpeg;base64,c2Vjb25k");
     expect(span.attributes["output.images.2.image.url"]).toBeUndefined();
+    // The images are only recorded on output.images.*, where base64ImageMaxLength applies
+    const outputValue = JSON.parse(String(span.attributes["output.value"]));
+    expect(outputValue.output).toEqual([
+      { id: "ig_failed", type: "image_generation_call", status: "failed" },
+      { id: "ig_first", type: "image_generation_call", status: "completed" },
+      {
+        id: "ig_second",
+        type: "image_generation_call",
+        status: "completed",
+        output_format: "jpeg",
+      },
+    ]);
+    expect(outputValue.id).toBe("resp_images");
   });
 
   it("creates a span for responses with multiple messages and instructions", async () => {
