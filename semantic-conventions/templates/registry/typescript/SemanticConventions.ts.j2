@@ -33,9 +33,6 @@
 {% macro text(value) -%}
 {{ value | default("", true) | trim | replace("\n", " ") | replace("*/", "*\\/") }}
 {%- endmacro %}
-{% macro doc(attribute) -%}
-{% if attribute.deprecated %}Deprecated{% if attribute.deprecated.note %}: {{ text(attribute.deprecated.note) }}{% else %}.{% endif %} {% endif %}{{ text(attribute.brief) }}
-{%- endmacro %}
 {# A declaration that does not fit in the formatter's 100 columns breaks after `=`. #}
 {% macro declaration(name, value) -%}
 {%- set line = "export const " ~ name ~ ' = "' ~ value ~ '";' -%}
@@ -71,7 +68,10 @@ export const {{ object.name }} = {
 
 {% for attribute in ctx.attributes if attribute.key not in object_only_keys %}
 /**
- * {{ doc(attribute) }}
+ * {{ text(attribute.brief) }}
+{% if attribute.deprecated %}
+ * @deprecated {{ text(attribute.deprecated.note) }}
+{% endif %}
  */
 {{ declaration(const_name(attribute), attribute.key) }}
 

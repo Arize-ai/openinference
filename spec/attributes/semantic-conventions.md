@@ -20,7 +20,7 @@ Types marked "List of objects" are [flattened](./conventions.md#flattening) with
 | Attribute | Stability | Type | Description | Examples |
 | --- | --- | --- | --- | --- |
 | `openinference.project.name` | ![Development](https://img.shields.io/badge/-development-blue) | String | The name of the project that the telemetry belongs to. Recorded as a resource attribute, not a span attribute. Identifies the `openinference.project` entity. | `"default"`, `"my-llm-app"` |
-| `openinference.span.kind` | ![Development](https://img.shields.io/badge/-development-blue) | String | The role an operation plays in an AI application. Required on every OpenInference span. It is distinct from OpenTelemetry's own `SpanKind`. See [Span Kinds](../general/span-kinds.md). | `"LLM"`, `"EMBEDDING"`, `"CHAIN"`, `"RETRIEVER"`, `"RERANKER"`, `"TOOL"`, `"AGENT"`, `"GUARDRAIL"`, `"EVALUATOR"`, `"PROMPT"`, `"DECISION"`, `"UNKNOWN"` |
+| `openinference.span.kind` | ![Development](https://img.shields.io/badge/-development-blue) | String | The role an operation plays in an AI application. Required on every OpenInference span. It is distinct from OpenTelemetry's own `SpanKind`. See [Span Kinds](../general/span-kinds.md). | `"LLM"`, `"CHAIN"`, `"TOOL"`, `"RETRIEVER"`, `"RERANKER"`, `"EMBEDDING"`, `"AGENT"`, `"GUARDRAIL"`, `"EVALUATOR"`, `"PROMPT"`, `"DECISION"`, `"UNKNOWN"` |
 
 <!-- endweaver -->
 
@@ -175,17 +175,17 @@ All costs are floating point values in USD. See [LLM Spans](../spans/llm.md#cost
 
 | Value | Description | Stability |
 | --- | --- | --- |
-| `anthropic` | Anthropic | ![Development](https://img.shields.io/badge/-development-blue) |
 | `openai` | OpenAI | ![Development](https://img.shields.io/badge/-development-blue) |
-| `vertexai` | Vertex AI | ![Development](https://img.shields.io/badge/-development-blue) |
-| `cohere` | Cohere | ![Development](https://img.shields.io/badge/-development-blue) |
+| `anthropic` | Anthropic | ![Development](https://img.shields.io/badge/-development-blue) |
 | `mistralai` | Mistral AI | ![Development](https://img.shields.io/badge/-development-blue) |
-| `xai` | xAI (Grok) | ![Development](https://img.shields.io/badge/-development-blue) |
+| `cohere` | Cohere | ![Development](https://img.shields.io/badge/-development-blue) |
+| `vertexai` | Vertex AI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `deepseek` | DeepSeek | ![Development](https://img.shields.io/badge/-development-blue) |
 | `amazon` | Amazon Bedrock native | ![Development](https://img.shields.io/badge/-development-blue) |
 | `meta` | Meta (Llama) | ![Development](https://img.shields.io/badge/-development-blue) |
 | `ai21` | AI21 Labs | ![Development](https://img.shields.io/badge/-development-blue) |
 | `typesafe` | TypeSafe AI | ![Development](https://img.shields.io/badge/-development-blue) |
+| `xai` | xAI (Grok) | ![Development](https://img.shields.io/badge/-development-blue) |
 
 <!-- endweaver -->
 
@@ -198,13 +198,13 @@ All costs are floating point values in USD. See [LLM Spans](../spans/llm.md#cost
 
 | Value | Description | Stability |
 | --- | --- | --- |
-| `anthropic` | Anthropic | ![Development](https://img.shields.io/badge/-development-blue) |
 | `openai` | OpenAI | ![Development](https://img.shields.io/badge/-development-blue) |
-| `cohere` | Cohere | ![Development](https://img.shields.io/badge/-development-blue) |
+| `anthropic` | Anthropic | ![Development](https://img.shields.io/badge/-development-blue) |
 | `mistralai` | Mistral AI | ![Development](https://img.shields.io/badge/-development-blue) |
-| `azure` | Azure | ![Development](https://img.shields.io/badge/-development-blue) |
+| `cohere` | Cohere | ![Development](https://img.shields.io/badge/-development-blue) |
 | `google` | Google (Vertex) | ![Development](https://img.shields.io/badge/-development-blue) |
 | `aws` | AWS Bedrock | ![Development](https://img.shields.io/badge/-development-blue) |
+| `azure` | Azure | ![Development](https://img.shields.io/badge/-development-blue) |
 | `xai` | xAI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `deepseek` | DeepSeek | ![Development](https://img.shields.io/badge/-development-blue) |
 | `groq` | Groq | ![Development](https://img.shields.io/badge/-development-blue) |
@@ -217,9 +217,9 @@ All costs are floating point values in USD. See [LLM Spans](../spans/llm.md#cost
 | `meta` | Meta AI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `zai` | Z.ai (GLM) | ![Development](https://img.shields.io/badge/-development-blue) |
 | `minimax` | MiniMax | ![Development](https://img.shields.io/badge/-development-blue) |
-| `typesafe` | TypeSafe AI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `oracle` | Oracle (OCI Generative AI) | ![Development](https://img.shields.io/badge/-development-blue) |
 | `ibm` | IBM (watsonx.ai) | ![Development](https://img.shields.io/badge/-development-blue) |
+| `typesafe` | TypeSafe AI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `doubleword` | Doubleword | ![Development](https://img.shields.io/badge/-development-blue) |
 
 <!-- endweaver -->
@@ -349,7 +349,7 @@ Composed under `message_content.audio`. See [Multimodal Content](../content/mult
 
 | Attribute | Stability | Type | Description | Examples |
 | --- | --- | --- | --- | --- |
-| `audio.mime_type` | ![Deprecated](https://img.shields.io/badge/-deprecated-red) | String | Deprecated: Infer the type from `audio.url` instead; new instrumentors should not emit this. The MIME type of the audio file. | `"audio/mpeg"` |
+| `audio.mime_type` | ![Development](https://img.shields.io/badge/-development-blue) | String | The MIME type of the audio file. | `"audio/mpeg"` |
 | `audio.transcript` | ![Development](https://img.shields.io/badge/-development-blue) | String | The transcript of the audio file (e.g. a Whisper transcription) | `"Hello, how are you?"` |
 | `audio.url` | ![Development](https://img.shields.io/badge/-development-blue) | String | The URL of an audio file (e.g. cloud storage), or a base64 data URI | `"https://storage.com/buckets/1/file.wav"` |
 

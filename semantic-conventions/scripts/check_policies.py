@@ -85,7 +85,9 @@ def main() -> int:
     advisories = [f for f in findings if f.get("level") != "violation"]
     unexpected = [f for f in violations if not any(matches(e, f) for e in exceptions)]
     accepted = [f for f in violations if any(matches(e, f) for e in exceptions)]
-    stale = [e for e in exceptions if not any(matches(e, f) for f in violations)]
+    # After a registry error the policies may not have run at all, so a missing
+    # finding says nothing about whether an exception is still needed.
+    stale = [] if errors else [e for e in exceptions if not any(matches(e, f) for f in violations)]
 
     failed = False
     if errors:

@@ -1,0 +1,12 @@
+file_format: definition/2
+spans:
+  - type: fixture.without_span_kind
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    brief: A span that does not require `openinference.span.kind`.
+    name:
+      note: Free form.
+    attributes:
+      - ref: fixture.kind
+        requirement_level: required

@@ -265,7 +265,7 @@ public class SemanticConventions {
     public static final String ANNOTATIONS = "annotations";
 
     /**
-     * Deprecated: Infer the type from `audio.url` instead; new instrumentors should not emit this. The MIME type of the audio file.
+     * The MIME type of the audio file.
      */
     public static final String AUDIO_MIME_TYPE = "audio.mime_type";
 
@@ -525,8 +525,11 @@ public class SemanticConventions {
     public static final String LLM_FINISH_REASON = "llm.finish_reason";
 
     /**
-     * Deprecated: Use `message.tool_calls` instead. Object recording details of a function call in models or APIs
+     * Object recording details of a function call in models or APIs
+     *
+     * @deprecated Use `message.tool_calls` instead.
      */
+    @Deprecated
     public static final String LLM_FUNCTION_CALL = "llm.function_call";
 
     /**
@@ -653,13 +656,19 @@ public class SemanticConventions {
     public static final String MESSAGE_CONTENTS = "message.contents";
 
     /**
-     * Deprecated: Use `message.tool_calls` instead. The arguments to the function call in JSON
+     * The arguments to the function call in JSON
+     *
+     * @deprecated Use `message.tool_calls` instead.
      */
+    @Deprecated
     public static final String MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = "message.function_call_arguments_json";
 
     /**
-     * Deprecated: Use `message.tool_calls` instead. Function call function name
+     * Function call function name
+     *
+     * @deprecated Use `message.tool_calls` instead.
      */
+    @Deprecated
     public static final String MESSAGE_FUNCTION_CALL_NAME = "message.function_call_name";
 
     /**
@@ -917,11 +926,11 @@ public class SemanticConventions {
      */
     public enum OpenInferenceSpanKind {
         LLM("LLM"),
-        EMBEDDING("EMBEDDING"),
         CHAIN("CHAIN"),
+        TOOL("TOOL"),
         RETRIEVER("RETRIEVER"),
         RERANKER("RERANKER"),
-        TOOL("TOOL"),
+        EMBEDDING("EMBEDDING"),
         AGENT("AGENT"),
         GUARDRAIL("GUARDRAIL"),
         EVALUATOR("EVALUATOR"),
@@ -997,17 +1006,17 @@ public class SemanticConventions {
      * Well-known values for {@code llm.system}.
      */
     public enum LLMSystem {
-        ANTHROPIC("anthropic"),
         OPENAI("openai"),
-        VERTEXAI("vertexai"),
-        COHERE("cohere"),
+        ANTHROPIC("anthropic"),
         MISTRALAI("mistralai"),
-        XAI("xai"),
+        COHERE("cohere"),
+        VERTEXAI("vertexai"),
         DEEPSEEK("deepseek"),
         AMAZON("amazon"),
         META("meta"),
         AI21("ai21"),
-        TYPESAFE("typesafe");
+        TYPESAFE("typesafe"),
+        XAI("xai");
 
         private final String value;
 
@@ -1029,13 +1038,13 @@ public class SemanticConventions {
      * Well-known values for {@code llm.provider}.
      */
     public enum LLMProvider {
-        ANTHROPIC("anthropic"),
         OPENAI("openai"),
-        COHERE("cohere"),
+        ANTHROPIC("anthropic"),
         MISTRALAI("mistralai"),
-        AZURE("azure"),
+        COHERE("cohere"),
         GOOGLE("google"),
         AWS("aws"),
+        AZURE("azure"),
         XAI("xai"),
         DEEPSEEK("deepseek"),
         GROQ("groq"),
@@ -1048,9 +1057,9 @@ public class SemanticConventions {
         META("meta"),
         ZAI("zai"),
         MINIMAX("minimax"),
-        TYPESAFE("typesafe"),
         ORACLE("oracle"),
         IBM("ibm"),
+        TYPESAFE("typesafe"),
         DOUBLEWORD("doubleword");
 
         private final String value;

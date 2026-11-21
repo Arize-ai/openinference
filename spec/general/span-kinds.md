@@ -10,11 +10,11 @@ OpenTelemetry's own `SpanKind`; see [Traces and Spans](./traces.md#span-kind).
 | Value | Represents | Conventions |
 | --- | --- | --- |
 | [`LLM`](#llm) | A call to a large language model. | [LLM Spans](../spans/llm.md) |
-| [`EMBEDDING`](#embedding) | Generation of vector embeddings. | [Embedding Spans](../spans/embedding.md) |
 | [`CHAIN`](#chain) | A link between application steps, or the start of a request. |  |
+| [`TOOL`](#tool) | Execution of a tool or function. | [Tool Calling](../content/tool-calling.md) |
 | [`RETRIEVER`](#retriever) | A query to a vector store, search engine, or database. |  |
 | [`RERANKER`](#reranker) | Reordering of candidate documents by relevance. |  |
-| [`TOOL`](#tool) | Execution of a tool or function. | [Tool Calling](../content/tool-calling.md) |
+| [`EMBEDDING`](#embedding) | Generation of vector embeddings. | [Embedding Spans](../spans/embedding.md) |
 | [`AGENT`](#agent) | A reasoning step that acts on tools using an LLM's guidance. |  |
 | [`GUARDRAIL`](#guardrail) | An input or output moderation check. |  |
 | [`EVALUATOR`](#evaluator) | An evaluation of a model's output. | [Annotations and Evaluations](../feedback/annotations.md) |

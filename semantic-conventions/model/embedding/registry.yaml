@@ -21,7 +21,7 @@ attributes:
     annotations:
       openinference:
         encoding: flattened_list
-        item_namespaces: ["embedding"]
+        item_attributes: ["embedding.text", "embedding.vector"]
   - key: embedding.text
     type: string
     brief: "The text represented in the embedding"

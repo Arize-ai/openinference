@@ -1,13 +1,22 @@
 {# Shared helpers for the registry reference pages. #}
 
+{# What a flattened attribute holds: whole namespaces (`message.*`), or exactly the
+   listed attributes (`tool.name`) when its items are only part of a namespace. #}
+{% macro item_types(oi) -%}
+{%- set namespaces = oi.item_namespaces | default([], true) -%}
+{%- set attributes = oi.item_attributes | default([], true) -%}
+{%- for ns in namespaces %}`{{ ns }}.*`{% if not loop.last or attributes %}, {% endif %}{% endfor -%}
+{%- for key in attributes %}`{{ key }}`{% if not loop.last %}, {% endif %}{% endfor -%}
+{%- endmacro %}
+
 {% macro type(attribute) -%}
 {%- set oi = (attribute.annotations | default({}, true)).openinference | default({}, true) -%}
 {%- if attribute.type is mapping -%}
 string (well-known values)
 {%- elif oi.encoding == "flattened_list" -%}
-flattened list of {% for ns in oi.item_namespaces %}`{{ ns }}.*`{% if not loop.last %}, {% endif %}{% endfor %}
+flattened list of {{ item_types(oi) }}
 {%- elif oi.encoding == "flattened_object" -%}
-flattened object of {% for ns in oi.item_namespaces %}`{{ ns }}.*`{% if not loop.last %}, {% endif %}{% endfor %}
+flattened object of {{ item_types(oi) }}
 {%- elif oi.encoding == "json" -%}
 string (JSON)
 {%- else -%}

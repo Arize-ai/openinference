@@ -1,0 +1,8 @@
+file_format: definition_manifest/2.0
+name: openinference-policy-violations
+description: >
+  A registry that breaks every OpenInference policy in policies/check/openinference
+  once. `make test` checks that each rule still reports its violation, so a rule
+  that stops firing (e.g. after a Weaver upgrade) does not go unnoticed.
+schema_url: https://openinf.dev/schemas/policy-violations/0.0.0
+stability: development
