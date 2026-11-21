@@ -764,6 +764,104 @@ def test_get_genai_attributes_skips_response_extraction_for_non_llm_spans() -> N
     assert GenAIAttributes.GEN_AI_RESPONSE_MODEL not in genai_attributes
 
 
+def test_get_genai_attributes_maps_response_model_name_without_json_output() -> None:
+    openinference_attributes = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+        SpanAttributes.LLM_RESPONSE_MODEL_NAME: "gpt-4o-mini-2024-07-18",
+        SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
+        SpanAttributes.OUTPUT_VALUE: "Hello there",
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    assert genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_MODEL] == "gpt-4o-mini-2024-07-18"
+    assert GenAIAttributes.GEN_AI_RESPONSE_ID not in genai_attributes
+
+
+def test_get_genai_attributes_prefers_response_model_name_over_output_value() -> None:
+    openinference_attributes = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+        SpanAttributes.LLM_RESPONSE_MODEL_NAME: "gpt-4o-mini-2024-07-18",
+        SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+        SpanAttributes.OUTPUT_VALUE: json.dumps({"id": "chatcmpl-123", "model": "gpt-4o-mini"}),
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    assert genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_MODEL] == "gpt-4o-mini-2024-07-18"
+    assert genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_ID] == "chatcmpl-123"
+
+
+def test_oi_tracer_keeps_genai_response_model_when_outputs_are_hidden(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__),
+        TraceConfig(enable_genai_semconv=True, hide_outputs=True),
+    )
+
+    with tracer.start_as_current_span("llm-span", openinference_span_kind="llm") as span:
+        span.set_attributes(get_llm_attributes(response_model_name="gpt-4o-mini-2024-07-18"))
+        span.set_output(
+            json.dumps({"id": "chatcmpl-123", "model": "gpt-4o-mini-2024-07-18"}),
+            mime_type="application/json",
+        )
+
+    exported_span = in_memory_span_exporter.get_finished_spans()[0]
+    attributes = dict(exported_span.attributes or {})
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    assert attributes[GenAIAttributes.GEN_AI_RESPONSE_MODEL] == "gpt-4o-mini-2024-07-18"
+
+
+def test_get_genai_attributes_omits_unknown_response_finish_reasons() -> None:
+    openinference_attributes = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+        **get_llm_attributes(output_messages=[{"role": "assistant", "content": "Hello"}]),
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    assert GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS not in genai_attributes
+    # The output message schema requires finish_reason, so the message still carries one.
+    assert _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_OUTPUT_MESSAGES) == [
+        {
+            "role": "assistant",
+            "parts": [{"type": "text", "content": "Hello"}],
+            "finish_reason": "stop",
+        }
+    ]
+
+
+def test_get_genai_attributes_reports_only_known_response_finish_reasons() -> None:
+    openinference_attributes = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+        SpanAttributes.LLM_OUTPUT_MESSAGES: json.dumps(
+            [
+                {"role": "assistant", "content": "cut off", "finish_reason": "length"},
+                {"role": "assistant", "content": "no reason recorded"},
+            ]
+        ),
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    assert genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS] == ("length",)
+    output_messages = _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_OUTPUT_MESSAGES)
+    assert [message["finish_reason"] for message in output_messages] == ["length", "stop"]
+
+
+def test_get_genai_attributes_ignores_empty_llm_finish_reason() -> None:
+    openinference_attributes = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+        SpanAttributes.LLM_FINISH_REASON: "",
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    assert GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS not in genai_attributes
+
+
 def test_get_genai_attributes_keeps_system_role_messages_in_input_messages() -> None:
     """System role messages are part of the chat history and stay in
     gen_ai.input.messages. The schema admits "system" as a valid role."""
