@@ -698,6 +698,61 @@ class TestAgents:
 
 
 class TestRuns:
+    @pytest.mark.parametrize("agent_type", [ToolCallingAgent, CodeAgent])
+    @pytest.mark.parametrize("stream", [True, False], ids=["streaming", "non_streaming"])
+    def test_run_planning_error_has_error_status(
+        self,
+        agent_type: type[ToolCallingAgent | CodeAgent],
+        stream: bool,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        model = MagicMock()
+        model.model_id = "test-model"
+        agent = agent_type(
+            tools=[],
+            model=model,
+            max_steps=1,
+            planning_interval=1,
+            verbosity_level=-1,
+        )
+        # The SDK cannot render this custom planning prompt before its first model call.
+        agent.prompt_templates["planning"]["initial_plan"] = (
+            "Plan how to solve: {{ task }}. Customer details: {{ customer_context }}."
+        )
+        expected_error = "UndefinedError: 'customer_context' is undefined"
+        original_span = trace_api.get_current_span()
+
+        with pytest.raises(Exception, match=expected_error) as exc_info:
+            output = agent.run("Summarize the customer request.", stream=stream)
+            if stream:
+                list(output)
+
+        assert trace_api.get_current_span() is original_span
+        model.generate.assert_not_called()
+        model.generate_stream.assert_not_called()
+
+        if stream:
+            # Further iteration/close must not export the run a second time.
+            assert list(output) == []
+            output.close()
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == f"{agent_type.__name__}.run"
+        assert span.status.status_code == trace_api.StatusCode.ERROR
+        assert span.parent is None
+        assert span.end_time is not None
+        attributes = dict(span.attributes or {})
+        assert attributes[OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.AGENT.value
+
+        assert len(span.events) == 1
+        event = span.events[0]
+        assert event.name == "exception"
+        assert event.attributes is not None
+        assert event.attributes["exception.type"] == type(exc_info.value).__name__
+        assert event.attributes["exception.message"] == str(exc_info.value)
+
     def test_streaming_and_non_streaming_code_agent_runs(
         self, in_memory_span_exporter: InMemorySpanExporter
     ) -> None:
