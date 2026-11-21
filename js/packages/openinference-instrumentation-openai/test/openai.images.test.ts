@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { context, diag } from "@opentelemetry/api";
+import { context, diag, SpanStatusCode } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
 import { isWrapped } from "@opentelemetry/instrumentation";
 import {
@@ -908,6 +908,24 @@ describe("OpenAIInstrumentation - Images", () => {
       const span = await getFinishedSpan();
       expect(span.status.code).toBe(2);
       expect(span.attributes["output.images.0.image.url"]).toBeUndefined();
+    });
+
+    it("leaves the status unset when the stream is aborted", async () => {
+      const client = createStreamClient([
+        {
+          event: "image_generation.partial_image",
+          data: { type: "image_generation.partial_image", b64_json: "cGFydGlhbA==" },
+        },
+      ]);
+
+      const stream = await client.images.generate({ prompt: "a lighthouse", stream: true });
+      for await (const _event of stream) {
+        stream.controller.abort();
+      }
+
+      const span = await getFinishedSpan();
+      expect(span.status).toEqual({ code: SpanStatusCode.UNSET });
+      expect(span.events).toEqual([]);
     });
 
     it("records an error that arrives during the stream", async () => {

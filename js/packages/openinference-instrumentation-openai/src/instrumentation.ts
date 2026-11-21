@@ -1011,7 +1011,7 @@ async function consumeImagesStreamEvents({
   span,
   getUploadAttributes,
 }: {
-  stream: AsyncIterable<ImagesStreamEvent>;
+  stream: Stream<ImagesStreamEvent>;
   span: Span;
   getUploadAttributes: () => Attributes;
 }) {
@@ -1031,7 +1031,8 @@ async function consumeImagesStreamEvents({
         ...getCompletedImageEventAttributes(completedEvents),
       });
       span.setStatus({ code: SpanStatusCode.OK });
-    } else {
+    } else if (!stream.controller.signal.aborted) {
+      // An aborted request ends the stream without a completed image, but without an error either
       span.setStatus({ code: SpanStatusCode.ERROR });
     }
   } catch (error) {
