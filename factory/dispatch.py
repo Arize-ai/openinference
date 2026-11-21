@@ -18,6 +18,7 @@ import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from collections.abc import Callable, Sequence
 from typing import Any, Optional
 
 import anthropic
@@ -473,14 +474,17 @@ def wait_for_session(
     session_id: str,
     previous_idle_event_id: Optional[str],
     deadline: float,
+    also_refresh: Sequence[Callable[[], None]] = (),
 ) -> tuple[Optional[Any], Optional[Any]]:
     """Wait until the session is idle after `previous_idle_event_id` with its outcome graded.
 
-    Keeps the session's GitHub token current while it works. Returns the session and its
-    latest idle event, or (None, None) at the deadline.
+    Keeps the session's GitHub token, and whatever `also_refresh` refreshes, current while it
+    works. Returns the session and its latest idle event, or (None, None) at the deadline.
     """
     while time.monotonic() < deadline:
         app_token.refresh()
+        for refresh in also_refresh:
+            refresh()
         session = client.beta.sessions.retrieve(session_id)
         if session.status == "terminated":
             return session, None

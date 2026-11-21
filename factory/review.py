@@ -38,6 +38,7 @@ from dispatch import (
     write_github_outputs,
 )
 from github_app import GitHubAppToken
+from provider_keys import SandboxAnthropicToken
 
 REVIEW_LABEL = "factory-review"
 REVIEW_AGENT_LOCK_KEY = "./agents/pr-reviewer.md"
@@ -198,7 +199,10 @@ def start_session(
     session = client.beta.sessions.create(
         agent=read_lock_id(lock=lock, lock_key=REVIEW_AGENT_LOCK_KEY),
         environment_id=read_lock_id(lock=lock, lock_key=ENVIRONMENT_LOCK_KEY),
-        vault_ids=read_vault_ids(lock=lock),
+        vault_ids=[
+            *read_vault_ids(lock=lock),
+            *SandboxAnthropicToken(client=client, lock=lock).vault_ids(),
+        ],
         title=f"review: {repo}#{pr['number']}",
         metadata={"repo": repo, "pr": str(pr["number"]), "lane": "review", "sha": head_sha},
         budget={
@@ -306,6 +310,7 @@ def watch_session(
     *,
     client: anthropic.Anthropic,
     app_token: GitHubAppToken,
+    sandbox_token: SandboxAnthropicToken,
     session_id: str,
     pr_number: int,
     started_at: str,
@@ -319,6 +324,7 @@ def watch_session(
         session_id=session_id,
         previous_idle_event_id=None,
         deadline=time.monotonic() + watch_minutes * 60,
+        also_refresh=[sandbox_token.refresh_quietly],
     )
     if session is None:
         return (
@@ -431,6 +437,9 @@ def run_watch(*, args: argparse.Namespace) -> None:
         report, verdict = watch_session(
             client=client,
             app_token=app_token,
+            sandbox_token=SandboxAnthropicToken(
+                client=client, lock=json.loads(LOCK_FILE_PATH.read_text())
+            ),
             session_id=args.session_id,
             pr_number=args.pr,
             started_at=args.started_at,

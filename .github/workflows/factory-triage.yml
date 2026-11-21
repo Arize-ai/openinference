@@ -46,10 +46,17 @@ jobs:
       contents: read
       issues: read # the app posts the report and labels; GITHUB_TOKEN only reads
       pull-requests: read # open PRs that already address the issue
+      id-token: write # mints the sandbox's short-lived Anthropic token
     env:
       GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
       ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue }}
+      # The federation rule that mints the sandbox's short-lived Anthropic token from this
+      # job's OIDC token (factory/provider_keys.py). IDs, not secrets; unset, no token.
+      FACTORY_SANDBOX_ANTHROPIC_ORGANIZATION_ID: ${{ vars.FACTORY_SANDBOX_ANTHROPIC_ORGANIZATION_ID }}
+      FACTORY_SANDBOX_ANTHROPIC_FEDERATION_RULE_ID: ${{ vars.FACTORY_SANDBOX_ANTHROPIC_FEDERATION_RULE_ID }}
+      FACTORY_SANDBOX_ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ vars.FACTORY_SANDBOX_ANTHROPIC_SERVICE_ACCOUNT_ID }}
+      FACTORY_SANDBOX_ANTHROPIC_WORKSPACE_ID: ${{ vars.FACTORY_SANDBOX_ANTHROPIC_WORKSPACE_ID }}
     steps:
       # triage.py checks code pointers against this checkout, which is main, like the session's.
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
