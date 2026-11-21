@@ -9,7 +9,7 @@ policies as [`semantic-conventions-genai`](https://github.com/open-telemetry/sem
 conventions versioned, checkable, and consumable by other registries.
 
 The prose specification is in [`spec/`](../spec/README.md). The model here is the source of truth for attribute keys,
-types, and well-known values; the spec explains them.
+types, and well-known values. The spec's tables are generated from it.
 
 ## Layout
 
@@ -24,7 +24,9 @@ semantic-conventions/
 ├── policies/
 │   ├── check/openinference/  # OpenInference-specific Rego policies
 │   └── exceptions.json       # Accepted findings from the shared OpenTelemetry policies, each with a reason
-├── vendor/opentelemetry/   # The OpenTelemetry attributes the model reuses, vendored for offline use
+├── templates/registry/     # Weaver templates for the generated docs and spec tables
+├── docs/registry/          # GENERATED reference (do not edit by hand)
+├── vendor/opentelemetry/   # The OpenTelemetry attributes the model reuses, vendored for offline generation
 ├── tests/live-check/       # Sample wire-format keys that must / must not resolve against the registry
 ├── tests/policies/         # A registry that breaks each OpenInference policy, to prove that the rules fire
 ├── tests/consumer/         # A registry that depends on this one, to prove that others can
@@ -34,7 +36,7 @@ semantic-conventions/
 ```
 
 Each `registry.yaml` defines attributes. Each `spans.yaml` defines the span for an `openinference.span.kind` by
-referencing those attributes with a requirement level.
+referencing those attributes with a requirement level. Browse the result in [`docs/registry/`](docs/registry/README.md).
 
 ## Working on the model
 
@@ -46,6 +48,7 @@ that run Python scripts with dependencies also need [uv](https://github.com/astr
 make -C semantic-conventions check-all       # everything CI runs
 make -C semantic-conventions check           # validate the model and run the policies
 make -C semantic-conventions test            # check sample keys against the registry
+make -C semantic-conventions generate        # regenerate docs and spec tables after changing the model
 make -C semantic-conventions help            # all targets
 ```
 
@@ -53,8 +56,10 @@ To change the conventions:
 
 1. Edit the YAML under `model/`. Add new attributes to the `registry.yaml` of their domain, and reference them from the
    `spans.yaml` of every span kind that carries them.
-2. Update the prose specification in [`spec/`](../spec/README.md) and the language packages to match.
-3. Use a conventional commit scoped to this directory so the change lands in the registry changelog, e.g.
+2. Run `make generate` and commit the result: the reference in `docs/registry/` and the tables in
+   [`spec/`](../spec/README.md) (see [Spec tables](#spec-tables)).
+3. Update the prose in [`spec/`](../spec/README.md) where the change needs explaining, and the language packages.
+4. Use a conventional commit scoped to this directory so the change lands in the registry changelog, e.g.
    `feat(semantic-conventions): add llm.reasoning_effort`.
 
 ### Modeling rules
@@ -108,17 +113,50 @@ To change the conventions:
   rejects. They predate the registry and cannot be renamed, so they are listed in
   [`policies/exceptions.json`](policies/exceptions.json). Do not add to that list for new attributes.
 
-### Offline checks
+### Hermetic generation
 
-The model reuses a few OpenTelemetry attributes and declares the OpenTelemetry registry as a dependency, which
-Weaver would otherwise clone. The definitions of exactly those attributes are vendored in
-[`vendor/opentelemetry`](vendor/opentelemetry), and `make test` resolves the dependency from there, with no network
-when Weaver runs from its container image.
+Generation is hermetic: its only inputs are files in this repository and Weaver at the pinned version.
+
+- **No network.** The model reuses a few OpenTelemetry attributes and declares the OpenTelemetry registry as a
+  dependency, which Weaver would otherwise clone. The definitions of exactly those attributes are vendored in
+  [`vendor/opentelemetry`](vendor/opentelemetry), and the `generate-*` targets resolve the dependency from there. When
+  Weaver runs from its container image, they run with `--network none`.
+- **Deterministic.** The same model always produces the same files. CI regenerates everything with the network
+  disabled and fails on any difference, so a generated file cannot be edited by hand or go stale.
 
 `model/manifest.yaml` still names the real OpenTelemetry registry, because that is what other registries resolve
 when they depend on this one. `make check-vendor` (needs the network) fails if the vendored copy differs from
 upstream. After changing the pinned OpenTelemetry version or referencing another OpenTelemetry attribute, run
 `make vendor`.
+
+### Spec tables
+
+The tables in the prose spec are filled in by `make generate-spec`. A table is a pair of markers; Weaver replaces what
+is between them:
+
+```markdown
+<!-- weaver {attributes: [.registry.attributes[] | select(.key | startswith("llm.token_count."))]} -->
+...generated table...
+<!-- endweaver -->
+```
+
+The marker holds a [jq](https://jqlang.org/) query over the resolved registry. It must produce one of:
+
+- `{attributes: [...]}` for an attribute table,
+- `{members: [...]}` for a table of well-known values, or
+- `{span: <type>, span_attributes: [...]}` for the requirement levels of a span's attributes, as in
+  [`spec/spans/llm.md`](../spec/spans/llm.md). Its notes column shows the attribute's description on that span,
+  which a span definition can override (`- ref: input.value` with its own `brief`).
+- `{span_kinds: [...]}` for the table of span kinds and `{characteristic: [...]}` for the attributes that set one
+  kind apart from a plain `CHAIN` span, both in [`spec/general/span-kinds.md`](../spec/general/span-kinds.md). The
+  page a kind links to is the span's `annotations.openinference.spec`.
+
+The rendering is in [`templates/registry/markdown/snippet.md.j2`](templates/registry/markdown/snippet.md.j2). Every table
+shows each attribute's stability as a badge, as the OpenTelemetry semantic conventions do; a deprecated attribute
+shows the deprecated badge. Most tables select a key
+prefix, so a new attribute under that prefix appears on its own. Tables that list keys explicitly, to keep a curated
+order, need the new key added to the marker. To add a table to any page under `spec/`, add a marker pair and run
+`make generate-spec`.
 
 ## Using the registry
 
@@ -177,6 +215,7 @@ registry directly.
 | `make check` | A model that does not parse or resolve; violations of the shared OpenTelemetry policies (naming, collisions, stability, deprecation); violations of the OpenInference policies in [`policies/check/openinference`](policies/check/openinference); with a baseline, removed or incompatibly changed attributes and spans |
 | `make check-vendor` | Vendored OpenTelemetry attributes that differ from the pinned upstream version |
 | `make test` | A change to the model (or to Weaver) that stops flattened wire-format keys from resolving to their attribute, or that stops a registry depending on this one from resolving; an OpenInference policy rule that no longer fires |
+| `make check-generated` | Docs or spec tables not regenerated after a model change, or a generated file edited by hand |
 
 Not checked yet: the leaves of a flattened list, and a changed type on a `development` attribute. See
 [Modeling rules](#modeling-rules).

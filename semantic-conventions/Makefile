@@ -7,9 +7,9 @@
 # weaver version is pinned in versions.env and, when no suitable local weaver is
 # found, weaver runs from the otel/weaver container image.
 #
-# `test` is hermetic: its only inputs are files in this repository and the
-# pinned weaver, and in the container it runs with no network. See "Hermetic
-# targets" below. `check`, `vendor`, `check-vendor`,
+# The generate-* targets and `test` are hermetic: their only inputs are files in
+# this repository and the pinned weaver, and in the container they run with no
+# network. See "Hermetic generation" below. `check`, `vendor`, `check-vendor`,
 # and `package` resolve the real OpenTelemetry registry and need the network.
 #
 # Run from this directory:  make -C semantic-conventions <target>
@@ -41,8 +41,8 @@ else
     endif
 endif
 
-# The repository root is mounted, not just this directory, so that targets can
-# read and write outside it.
+# The repository root is mounted, not just this directory, because generate-spec
+# rewrites tables in ../spec.
 ifeq ($(USE_CONTAINER),1)
 CONTAINER_RUNTIME ?= $(shell command -v docker 2>/dev/null || command -v podman 2>/dev/null)
 CONTAINER_RUN := $(CONTAINER_RUNTIME) run --rm \
@@ -62,15 +62,18 @@ PYTHON ?= python3
 MODEL := ./model
 BUILD := .build
 
-# Hermetic targets. The model depends on the OpenTelemetry registry for the
+# Hermetic generation. The model depends on the OpenTelemetry registry for the
 # attributes it reuses, and resolving that dependency means cloning it. The
 # definitions of exactly those attributes are vendored in $(VENDOR_DIR) (see
-# scripts/vendor_upstream.py). They run against $(OFFLINE_MODEL): a copy
+# scripts/vendor_upstream.py). Generation runs against $(OFFLINE_MODEL): a copy
 # of the model whose dependency points at the vendored copy. model/manifest.yaml
 # itself keeps the real registry, which is what `check` and other registries
 # that depend on this one resolve against; `check-vendor` proves the two agree.
 VENDOR_DIR := vendor/opentelemetry
 OFFLINE_MODEL := $(BUILD)/model
+DOCS_OUTPUT := docs/registry
+# Prose specification whose tables are generated from the model.
+SPEC_DIR := ../spec
 PACKAGE_OUTPUT := $(BUILD)/package
 
 # Registry to compare against for the backwards-compatibility policies. Empty
@@ -87,7 +90,7 @@ GITHUB_REPOSITORY ?= Arize-ai/openinference
 RELEASE_TAG := semantic-conventions-v$(VERSION)
 RELEASE_DOWNLOAD_URL := https://github.com/$(GITHUB_REPOSITORY)/releases/download/$(RELEASE_TAG)
 
-.PHONY: help check offline-model vendor check-vendor test check-all package release-assets print-version clean
+.PHONY: help check offline-model vendor check-vendor test generate generate-docs generate-spec check-generated check-all package release-assets print-version clean
 
 help: ## Show this help
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-16s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -149,7 +152,41 @@ test: offline-model ## Check sample keys against the registry, a dependent regis
 		tests/policies/violations/expected.json policies/check/openinference \
 		|| { cat $(BUILD)/policy-violations.log; exit 1; }
 
-check-all: check check-vendor test ## Run every check CI runs
+generate: generate-docs generate-spec ## Regenerate everything derived from the model
+
+generate-docs: offline-model ## Regenerate the registry reference under docs/registry/
+	@mkdir -p $(BUILD)
+	rm -rf $(DOCS_OUTPUT)
+	@$(WEAVER_OFFLINE) registry generate \
+		-r $(OFFLINE_MODEL) \
+		--v2 \
+		--quiet \
+		-t ./templates/registry \
+		markdown \
+		./$(DOCS_OUTPUT) \
+		2> $(BUILD)/generate-docs.log || { cat $(BUILD)/generate-docs.log; exit 1; }
+	@echo "Generated $(DOCS_OUTPUT)"
+
+generate-spec: offline-model ## Regenerate the tables in ../spec between `<!-- weaver ... -->` and `<!-- endweaver -->`
+	@mkdir -p $(BUILD)
+	@$(WEAVER_OFFLINE) registry update-markdown \
+		-r $(OFFLINE_MODEL) \
+		--v2 \
+		--quiet \
+		-t ./templates \
+		--target markdown \
+		$(SPEC_DIR) \
+		2> $(BUILD)/generate-spec.log || { cat $(BUILD)/generate-spec.log; exit 1; }
+	@echo "Generated tables in $(SPEC_DIR)"
+
+check-generated: generate ## Fail if anything generated from the model is out of date or was edited by hand
+	@if ! git diff --exit-code -- $(DOCS_OUTPUT) $(SPEC_DIR); then \
+		echo "FAIL: generated files are out of date. Run 'make -C semantic-conventions generate' and commit."; exit 1; fi
+	@untracked=$$(git ls-files --others --exclude-standard -- $(DOCS_OUTPUT)); \
+	if [ -n "$$untracked" ]; then echo "FAIL: untracked generated files:"; echo "$$untracked"; exit 1; fi
+	@echo "OK: everything generated from the model is up to date."
+
+check-all: check check-vendor test check-generated ## Run every check CI runs
 	@$(MAKE) --no-print-directory release-assets TAG=$(RELEASE_TAG)
 
 package: ## Build the release assets: publication manifest + resolved registry

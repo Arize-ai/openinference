@@ -36,6 +36,8 @@ jobs:
             diff:
               - ".github/workflows/semantic-conventions-CI.yaml"
               - "semantic-conventions/**"
+              # Tables in the spec are generated from the model.
+              - "spec/**"
 
   ci:
     name: CI Semantic Conventions
@@ -98,9 +100,9 @@ jobs:
       - name: Check the vendored OpenTelemetry attributes match upstream
         run: make check-vendor
 
-      # The test runs weaver from its container image with the network disabled
-      # (FORCE_CONTAINER=1), which proves that it is hermetic: it needs nothing
-      # but this repository and the pinned weaver.
+      # The next two steps run weaver from its container image with the network
+      # disabled (FORCE_CONTAINER=1), which proves that generation is hermetic:
+      # it needs nothing but this repository and the pinned weaver.
       - name: Pull the pinned Weaver image
         env:
           WEAVER_VERSION: ${{ steps.versions.outputs.weaver_version }}
@@ -108,6 +110,9 @@ jobs:
 
       - name: Check sample wire-format keys against the registry (no network)
         run: make test FORCE_CONTAINER=1
+
+      - name: Check generated docs and spec tables are up to date (no network)
+        run: make check-generated FORCE_CONTAINER=1
 
       # Rehearses the release workflow up to, but not including, the upload:
       # the same target, with the tag the next release would have.
