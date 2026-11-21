@@ -1,0 +1,27 @@
+file_format: definition/2
+spans:
+  - type: openinference.reranker
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    brief: >
+      The reranking of a set of input documents, for example by a
+      cross-encoder that scores the documents against a query and returns the
+      top K.
+    note: |
+      `openinference.span.kind` MUST be `RERANKER`.
+    name:
+      note: |
+        **Span name** is not constrained. It SHOULD identify the reranker.
+    attributes:
+      - ref_group: attributes.openinference.common
+      - ref: reranker.query
+        requirement_level: recommended
+      - ref: reranker.model_name
+        requirement_level: recommended
+      - ref: reranker.top_k
+        requirement_level: recommended
+      - ref: reranker.input_documents
+        requirement_level: recommended
+      - ref: reranker.output_documents
+        requirement_level: recommended

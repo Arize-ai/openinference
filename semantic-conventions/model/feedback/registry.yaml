@@ -1,0 +1,166 @@
+file_format: definition/2
+attributes:
+  - key: annotations
+    type: template[any]
+    brief: "Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*`"
+    examples: ['[{"annotation.name": "hallucination", "annotation.label": "hallucinated"}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["annotation"]
+  - key: trace.annotations
+    type: template[any]
+    brief: "Trace-scoped feedback using annotation terminology, flattened as `trace.annotations.0.annotation.*`"
+    examples: ['[{"annotation.name": "retrieval_quality", "annotation.score": 0.92}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["annotation"]
+  - key: session.annotations
+    type: template[any]
+    brief: "Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id`"
+    examples: ['[{"annotation.name": "conversational_coherence", "annotation.label": "coherent"}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["annotation"]
+  - key: evaluations
+    type: template[any]
+    brief: "Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*`"
+    examples: ['[{"evaluation.name": "relevance", "evaluation.score": 0.95}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["evaluation"]
+  - key: trace.evaluations
+    type: template[any]
+    brief: "Trace-scoped feedback using evaluation terminology, flattened as `trace.evaluations.0.evaluation.*`"
+    examples: ['[{"evaluation.name": "retrieval_quality", "evaluation.score": 0.92}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["evaluation"]
+  - key: session.evaluations
+    type: template[any]
+    brief: "Session-scoped feedback using evaluation terminology, flattened as `session.evaluations.0.evaluation.*`; requires `session.id`"
+    examples: ['[{"evaluation.name": "conversational_coherence", "evaluation.label": "coherent"}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["evaluation"]
+  - key: annotation.name
+    type: string
+    brief: "Criterion or metric name"
+    examples: ["hallucination", "relevance"]
+    stability: development
+  - key: evaluation.name
+    type: string
+    brief: "Criterion or metric name"
+    examples: ["hallucination", "relevance"]
+    stability: development
+  - key: annotation.score
+    type: double
+    brief: "Numeric result."
+    note: "Instrumentations MAY record an integer; consumers SHOULD accept both integers and floats."
+    examples: [1.0, 0.95]
+    stability: development
+    annotations:
+      openinference:
+        also_accepts: [int]
+  - key: evaluation.score
+    type: double
+    brief: "Numeric result."
+    note: "Instrumentations MAY record an integer; consumers SHOULD accept both integers and floats."
+    examples: [1.0, 0.95]
+    stability: development
+    annotations:
+      openinference:
+        also_accepts: [int]
+  - key: annotation.label
+    type: string
+    brief: "Categorical result"
+    examples: ["hallucinated", "relevant"]
+    stability: development
+  - key: evaluation.label
+    type: string
+    brief: "Categorical result"
+    examples: ["hallucinated", "relevant"]
+    stability: development
+  - key: annotation.explanation
+    type: string
+    brief: "Reason or evidence for the result"
+    examples: ["The claim is not supported by the context."]
+    stability: development
+  - key: evaluation.explanation
+    type: string
+    brief: "Reason or evidence for the result"
+    examples: ["The claim is not supported by the context."]
+    stability: development
+  - key: annotation.annotator_kind
+    type:
+      members:
+        - id: human
+          value: "HUMAN"
+          brief: "A human reviewer."
+          stability: development
+        - id: llm
+          value: "LLM"
+          brief: "An LLM judge."
+          stability: development
+        - id: code
+          value: "CODE"
+          brief: "A code-based evaluator."
+          stability: development
+    brief: "Judge kind: `HUMAN`, `LLM`, `CODE`, or custom. See [Annotator Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md#annotator-kinds)"
+    examples: ["LLM", "HUMAN"]
+    stability: development
+  - key: evaluation.annotator_kind
+    type:
+      members:
+        - id: human
+          value: "HUMAN"
+          brief: "A human reviewer."
+          stability: development
+        - id: llm
+          value: "LLM"
+          brief: "An LLM judge."
+          stability: development
+        - id: code
+          value: "CODE"
+          brief: "A code-based evaluator."
+          stability: development
+    brief: "Judge kind: `HUMAN`, `LLM`, `CODE`, or custom. See [Annotator Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md#annotator-kinds)"
+    examples: ["LLM", "HUMAN"]
+    stability: development
+  - key: annotation.identifier
+    type: string
+    brief: "Stable result ID for the same name and target"
+    examples: ["judge-v2", "reviewer-42"]
+    stability: development
+  - key: evaluation.identifier
+    type: string
+    brief: "Stable result ID for the same name and target"
+    examples: ["judge-v2", "reviewer-42"]
+    stability: development
+  - key: annotation.metadata
+    type: string
+    brief: "Additional result or judge data"
+    examples: ["{\"evaluator\":\"judge-v2\"}"]
+    stability: development
+    annotations:
+      openinference:
+        encoding: json
+  - key: evaluation.metadata
+    type: string
+    brief: "Additional result or judge data"
+    examples: ["{\"evaluator\":\"judge-v2\"}"]
+    stability: development
+    annotations:
+      openinference:
+        encoding: json

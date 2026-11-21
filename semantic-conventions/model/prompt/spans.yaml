@@ -1,0 +1,31 @@
+file_format: definition/2
+spans:
+  - type: openinference.prompt
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    brief: >
+      The rendering of a prompt template, for example substituting variables
+      into a template to produce the final prompt sent to an LLM.
+    note: |
+      `openinference.span.kind` MUST be `PROMPT`.
+    name:
+      note: |
+        **Span name** is not constrained. It SHOULD identify the prompt.
+    attributes:
+      - ref_group: attributes.openinference.common
+      - ref: llm.prompt_template.template
+        requirement_level: recommended
+      - ref: llm.prompt_template.variables
+        requirement_level: recommended
+      - ref: llm.prompt_template.version
+        requirement_level: recommended
+      - ref: prompt.vendor
+        requirement_level:
+          recommended: When the prompt comes from a prompt management system.
+      - ref: prompt.id
+        requirement_level:
+          recommended: When the prompt comes from a prompt management system.
+      - ref: prompt.url
+        requirement_level:
+          recommended: When the prompt comes from a prompt management system.

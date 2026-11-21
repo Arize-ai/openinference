@@ -1,0 +1,44 @@
+file_format: definition/2
+attributes:
+  - key: document.id
+    type: string
+    brief: "Unique identifier for a document: a retrieved document or chunk in a retrieval system, or the provider file id (e.g. an OpenAI or Anthropic Files API id) for a document passed to a model."
+    note: "Instrumentations MAY record an integer id; consumers SHOULD accept both strings and integers."
+    examples: ["1234", "1", "file-abc123"]
+    stability: development
+    annotations:
+      openinference:
+        also_accepts: [int]
+  - key: document.content
+    type: string
+    brief: "The text content of a document: a retrieved passage, or an inline text document passed to a model (e.g. an Anthropic `text` source)"
+    examples: ["This is a sample document content."]
+    stability: development
+  - key: document.score
+    type: double
+    brief: "Score representing the relevance of a document"
+    examples: [0.98]
+    stability: development
+  - key: document.metadata
+    type: string
+    brief: "Metadata associated with a document"
+    examples: ["{'author': 'John Doe', 'date': '2023-09-09'}"]
+    stability: development
+    annotations:
+      openinference:
+        encoding: json
+  - key: document.url
+    type: string
+    brief: "The URL, object-store URI, or base64 data URI of a file document such as a PDF"
+    examples: ["https://example.com/report.pdf"]
+    stability: development
+  - key: document.mime_type
+    type: string
+    brief: "The MIME type of a file document such as a PDF"
+    examples: ["application/pdf"]
+    stability: development
+  - key: document.name
+    type: string
+    brief: "The name supplied with a document, copied verbatim: a file name (OpenAI `filename`) or a title (Anthropic `title`, Bedrock `name`, Gemini `display_name`); not a unique identifier"
+    examples: ["invoice.pdf"]
+    stability: development
