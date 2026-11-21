@@ -1,0 +1,1 @@
+export { getGenAIAttributes } from "./getGenAIAttributes";

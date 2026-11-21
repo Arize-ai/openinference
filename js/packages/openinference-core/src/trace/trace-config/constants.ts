@@ -22,6 +22,8 @@ export const OPENINFERENCE_HIDE_EMBEDDING_VECTORS = "OPENINFERENCE_HIDE_EMBEDDIN
 export const OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH";
 /** Hides LLM prompts */
 export const OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS";
+/** Also emits OpenTelemetry GenAI semantic convention (`gen_ai.*`) attributes */
+export const OPENINFERENCE_ENABLE_GENAI_SEMCONV = "OPENINFERENCE_ENABLE_GENAI_SEMCONV";
 
 export const DEFAULT_HIDE_LLM_TOOLS = false;
 export const DEFAULT_HIDE_INPUTS = false;
@@ -38,6 +40,8 @@ export const DEFAULT_HIDE_EMBEDDING_VECTORS = false;
 export const DEFAULT_BASE64_IMAGE_MAX_LENGTH = 32000;
 
 export const DEFAULT_HIDE_PROMPTS = false;
+/** GenAI semantic convention (`gen_ai.*`) attributes are not emitted unless enabled. */
+export const DEFAULT_ENABLE_GENAI_SEMCONV = false;
 
 /** When a value is hidden, it will be replaced by this redacted value */
 export const REDACTED_VALUE = "__REDACTED__";
@@ -102,6 +106,11 @@ export const traceConfigMetadata = {
     envKey: OPENINFERENCE_HIDE_PROMPTS,
     type: "boolean",
   },
+  enableGenAISemconv: {
+    default: DEFAULT_ENABLE_GENAI_SEMCONV,
+    envKey: OPENINFERENCE_ENABLE_GENAI_SEMCONV,
+    type: "boolean",
+  },
 } satisfies Readonly<Record<TraceConfigKey, TraceConfigFlag>>;
 
 export const DefaultTraceConfig: TraceConfig = {
@@ -116,4 +125,5 @@ export const DefaultTraceConfig: TraceConfig = {
   hideEmbeddingVectors: DEFAULT_HIDE_EMBEDDING_VECTORS,
   base64ImageMaxLength: DEFAULT_BASE64_IMAGE_MAX_LENGTH,
   hidePrompts: DEFAULT_HIDE_PROMPTS,
+  enableGenAISemconv: DEFAULT_ENABLE_GENAI_SEMCONV,
 };

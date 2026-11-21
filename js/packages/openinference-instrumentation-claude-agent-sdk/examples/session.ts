@@ -12,7 +12,7 @@ import { unstable_v2_createSession } from "@anthropic-ai/claude-agent-sdk";
 
 async function main() {
   const session = unstable_v2_createSession({
-    model: "claude-haiku-4-5",
+    model: "claude-haiku-5-5",
     permissionMode: "acceptEdits",
     allowedTools: ["Bash", "Read", "Write"],
   });
