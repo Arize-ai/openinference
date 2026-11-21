@@ -72,6 +72,7 @@ import {
   getResponsesOutputImageAttributes,
   getResponsesOutputMessagesAttributes,
   getResponsesUsageAttributes,
+  stringifyResponse,
 } from "./responsesAttributes";
 import { assertUnreachable, getNumberProperty, isString } from "./typeUtils";
 import { VERSION } from "./version";
@@ -625,7 +626,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   return;
                 }
                 span.setAttributes({
-                  [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
+                  [SemanticConventions.OUTPUT_VALUE]: stringifyResponse(result),
                   [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                   // Override the model from the value sent by the server
                   [SemanticConventions.LLM_MODEL_NAME]: result.model,

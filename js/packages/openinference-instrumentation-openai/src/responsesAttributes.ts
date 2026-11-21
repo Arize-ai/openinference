@@ -277,6 +277,22 @@ export function getResponsesOutputImageAttributes({
   return attributes;
 }
 
+/**
+ * Serializes a Responses response for output.value without the base64 images of its
+ * image_generation_call items. They are recorded on output.images.*, where
+ * base64ImageMaxLength applies to them.
+ */
+export function stringifyResponse(response: ResponseType): string {
+  return JSON.stringify({
+    ...response,
+    output: response.output?.map((item) => {
+      if (item.type !== "image_generation_call") return item;
+      const { result: _result, ...imageGenerationCall } = item;
+      return imageGenerationCall;
+    }),
+  });
+}
+
 export async function consumeResponseStreamEvents(
   stream: Stream<ResponseStreamEvent>,
 ): Promise<ResponseType | undefined> {
