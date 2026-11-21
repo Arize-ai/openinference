@@ -43,8 +43,8 @@ OpenInference adds no new signal or wire format. It defines conventions for Open
 
 - [Attribute Conventions](./attributes/conventions.md) — Naming, value types, list flattening, and requirement levels
 - [Semantic Conventions](./attributes/semantic-conventions.md) — Every attribute, grouped by namespace, with well-known values
-- [Semantic Convention Registry](https://github.com/Arize-ai/openinference/tree/main/semantic-conventions) — The
-  same conventions as a machine-readable, versioned [Weaver](https://github.com/open-telemetry/weaver) registry
+- [Semantic Convention Registry](./attributes/registry.md) — The same conventions as a machine-readable, versioned
+  [Weaver](https://github.com/open-telemetry/weaver) registry: where it is published and how to pull it
 - [Context Attributes](./attributes/context.md) — Session, user, metadata, tag, and prompt template attributes
   propagated to every span
 
