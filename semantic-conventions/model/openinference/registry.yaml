@@ -7,13 +7,13 @@ attributes:
           value: "LLM"
           brief: "A call to a large language model."
           stability: development
-        - id: embedding
-          value: "EMBEDDING"
-          brief: "Generation of vector embeddings."
-          stability: development
         - id: chain
           value: "CHAIN"
           brief: "A link between application steps, or the start of a request."
+          stability: development
+        - id: tool
+          value: "TOOL"
+          brief: "Execution of a tool or function."
           stability: development
         - id: retriever
           value: "RETRIEVER"
@@ -23,9 +23,9 @@ attributes:
           value: "RERANKER"
           brief: "Reordering of candidate documents by relevance."
           stability: development
-        - id: tool
-          value: "TOOL"
-          brief: "Execution of a tool or function."
+        - id: embedding
+          value: "EMBEDDING"
+          brief: "Generation of vector embeddings."
           stability: development
         - id: agent
           value: "AGENT"

@@ -8,9 +8,16 @@ that Weaver matches the flattened keys. This test pins that behavior: every key
 in `tests/live-check/known.json` must resolve to a registry attribute, and every
 key in `tests/live-check/unknown.json` must be reported as missing.
 
+Matching a prefix is all Weaver does for those attributes: it does not look at
+what follows the prefix. `tests/live-check/unvalidated.json` documents that gap
+with keys that have a valid prefix and a leaf that is misspelled, has the wrong
+type, or is not an item of that list. They are accepted today. When leaves are
+validated (https://github.com/Arize-ai/openinference/issues/4419) this check
+fails, and those keys move to `unknown.json`.
+
 Usage:
 
-    check_live.py known|unknown <live-check-output.json>
+    check_live.py known|unknown|unvalidated <live-check-output.json>
 
 Standard library only.
 """
@@ -23,6 +30,9 @@ from pathlib import Path
 from typing import Any, Iterator
 
 MISSING = "missing_attribute"
+
+# The only advice Weaver gives for a key it matched to a key prefix.
+PREFIX_MATCH_ADVICE = {"template_attribute", "not_stable"}
 
 
 def documents(text: str) -> Iterator[Any]:
@@ -50,14 +60,28 @@ def samples(node: Any) -> Iterator[tuple[str, set[str]]]:
             yield from samples(value)
 
 
+def check_unvalidated(checked: list[tuple[str, set[str]]]) -> int:
+    caught = [(key, advice - PREFIX_MATCH_ADVICE) for key, advice in checked if advice - PREFIX_MATCH_ADVICE]
+    if caught:
+        print(f"FAIL: {len(caught)} of {len(checked)} key(s) with an invalid leaf are no longer accepted:")
+        for key, advice in caught:
+            print(f"  - {key}: {', '.join(sorted(advice))}")
+        print("Leaves are being validated. Move these keys to tests/live-check/unknown.json.")
+        return 1
+    print(f"OK: known gap, all {len(checked)} key(s) with a valid prefix and an invalid leaf are still accepted (#4419).")
+    return 0
+
+
 def main() -> int:
-    if len(sys.argv) != 3 or sys.argv[1] not in ("known", "unknown"):
+    if len(sys.argv) != 3 or sys.argv[1] not in ("known", "unknown", "unvalidated"):
         sys.exit(__doc__)
     expect_known = sys.argv[1] == "known"
     checked = [s for document in documents(Path(sys.argv[2]).read_text()) for s in samples(document)]
     if not checked:
         print(f"FAIL: no checked attributes found in {sys.argv[2]}")
         return 1
+    if sys.argv[1] == "unvalidated":
+        return check_unvalidated(checked)
     wrong = [key for key, advice in checked if (MISSING in advice) == expect_known]
     if wrong:
         verdict = "missing from the registry" if expect_known else "unexpectedly found in the registry"

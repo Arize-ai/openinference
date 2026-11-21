@@ -1,0 +1,14 @@
+[
+  {"id": "openinference_flattened_encoding_missing", "context": {"attribute": "fixture.template_without_encoding"}},
+  {"id": "openinference_encoding_unknown", "context": {"attribute": "fixture.unknown_encoding", "encoding": "yaml"}},
+  {"id": "openinference_flattened_encoding_type", "context": {"attribute": "fixture.flattened_string", "type": "string"}},
+  {"id": "openinference_json_encoding_type", "context": {"attribute": "fixture.json_int", "type": "int"}},
+  {"id": "openinference_items_missing", "context": {"attribute": "fixture.list_without_items"}},
+  {"id": "openinference_item_namespace_unknown", "context": {"attribute": "fixture.list_of_unknown_namespace", "item_namespace": "nowhere"}},
+  {"id": "openinference_item_namespace_unknown", "context": {"attribute": "fixture.list_of_bare_key", "item_namespace": "fixturebare"}},
+  {"id": "openinference_item_attribute_unknown", "context": {"attribute": "fixture.list_of_unknown_attribute", "item_attribute": "fixture.item.nmae"}},
+  {"id": "openinference_item_attribute_self", "context": {"attribute": "fixture.list_of_itself"}},
+  {"id": "openinference_also_accepts_unknown", "context": {"attribute": "fixture.also_accepts_unknown", "also_accepts": "bytes"}},
+  {"id": "openinference_annotation_not_a_list", "context": {"attribute": "fixture.list_with_scalar_items", "annotation": "item_namespaces"}},
+  {"id": "openinference_span_kind_not_required", "context": {}, "signal_name": "fixture.without_span_kind"}
+]

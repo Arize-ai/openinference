@@ -28,7 +28,7 @@
 | <a id="llm-prompt-template-template" href="#llm-prompt-template-template">`llm.prompt_template.template`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | Template used to generate prompts (e.g., using `{variable}` placeholder syntax) | `Weather forecast for {city} on {date}` |
 | <a id="llm-prompt-template-variables" href="#llm-prompt-template-variables">`llm.prompt_template.variables`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (JSON) | JSON of key value pairs applied to the prompt template | `{ context: "<context from retrieval>", subject: "math" }` |
 | <a id="llm-prompt-template-version" href="#llm-prompt-template-version">`llm.prompt_template.version`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The version of the prompt template | `v1.0` |
-| <a id="llm-prompts" href="#llm-prompts">`llm.prompts`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `prompt.*` | Prompts provided to a completions API, e.g. `llm.prompts.0.prompt.text` | `[{"prompt.text": "def fib(n):..."}]` |
+| <a id="llm-prompts" href="#llm-prompts">`llm.prompts`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `prompt.text` | Prompts provided to a completions API, e.g. `llm.prompts.0.prompt.text` | `[{"prompt.text": "def fib(n):..."}]` |
 | <a id="llm-provider" href="#llm-provider">`llm.provider`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string (well-known values) | The hosting provider of the LLM, e.g. `azure`. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-provider-values). | `openai`, `azure` |
 | <a id="llm-request-model-name" href="#llm-request-model-name">`llm.request.model_name`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The model requested by the caller, as sent in the request. May differ from `llm.response.model_name` when the provider routes the request to a different model. | `claude-opus-5` |
 | <a id="llm-response-model-name" href="#llm-response-model-name">`llm.response.model_name`</a> | ![Development](https://img.shields.io/badge/-development-blue) | string | The model that actually generated the response, as reported by the provider. May differ from `llm.request.model_name` when the provider routes the request to a different model. | `claude-opus-4-8` |
@@ -42,7 +42,7 @@
 | <a id="llm-token-count-prompt-details-cache-read" href="#llm-token-count-prompt-details-cache-read">`llm.token_count.prompt_details.cache_read`</a> | ![Development](https://img.shields.io/badge/-development-blue) | int | The number of prompt tokens successfully retrieved from cache (cache hits). Maps to `cached_tokens` in OpenAI responses | `5` |
 | <a id="llm-token-count-prompt-details-cache-write" href="#llm-token-count-prompt-details-cache-write">`llm.token_count.prompt_details.cache_write`</a> | ![Development](https://img.shields.io/badge/-development-blue) | int | The number of prompt tokens not found in cache that were written to cache (cache misses). Maps to `cache_write_tokens` in OpenAI responses | `0` |
 | <a id="llm-token-count-total" href="#llm-token-count-total">`llm.token_count.total`</a> | ![Development](https://img.shields.io/badge/-development-blue) | int | Total number of tokens, including prompt and completion | `20` |
-| <a id="llm-tools" href="#llm-tools">`llm.tools`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `tool.*` | List of tools that are advertised to the LLM to be able to call, e.g. `llm.tools.0.tool.name`, `llm.tools.0.tool.description`, `llm.tools.0.tool.json_schema`. See [Tool Calling](https://github.com/Arize-ai/openinference/blob/main/spec/content/tool-calling.md) | `[{"tool.name": "get_weather", "tool.json_schema": "{\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}}"}]` |
+| <a id="llm-tools" href="#llm-tools">`llm.tools`</a> | ![Development](https://img.shields.io/badge/-development-blue) | flattened list of `tool.name`, `tool.description`, `tool.json_schema` | List of tools that are advertised to the LLM to be able to call, e.g. `llm.tools.0.tool.name`, `llm.tools.0.tool.description`, `llm.tools.0.tool.json_schema`. See [Tool Calling](https://github.com/Arize-ai/openinference/blob/main/spec/content/tool-calling.md) | `[{"tool.name": "get_weather", "tool.json_schema": "{\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}}"}]` |
 
 
 ---
@@ -51,13 +51,13 @@
 
 | Value | Description | Stability |
 | --- | --- | --- |
-| `anthropic` | Anthropic | ![Development](https://img.shields.io/badge/-development-blue) |
 | `openai` | OpenAI | ![Development](https://img.shields.io/badge/-development-blue) |
-| `cohere` | Cohere | ![Development](https://img.shields.io/badge/-development-blue) |
+| `anthropic` | Anthropic | ![Development](https://img.shields.io/badge/-development-blue) |
 | `mistralai` | Mistral AI | ![Development](https://img.shields.io/badge/-development-blue) |
-| `azure` | Azure | ![Development](https://img.shields.io/badge/-development-blue) |
+| `cohere` | Cohere | ![Development](https://img.shields.io/badge/-development-blue) |
 | `google` | Google (Vertex) | ![Development](https://img.shields.io/badge/-development-blue) |
 | `aws` | AWS Bedrock | ![Development](https://img.shields.io/badge/-development-blue) |
+| `azure` | Azure | ![Development](https://img.shields.io/badge/-development-blue) |
 | `xai` | xAI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `deepseek` | DeepSeek | ![Development](https://img.shields.io/badge/-development-blue) |
 | `groq` | Groq | ![Development](https://img.shields.io/badge/-development-blue) |
@@ -70,9 +70,9 @@
 | `meta` | Meta AI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `zai` | Z.ai (GLM) | ![Development](https://img.shields.io/badge/-development-blue) |
 | `minimax` | MiniMax | ![Development](https://img.shields.io/badge/-development-blue) |
-| `typesafe` | TypeSafe AI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `oracle` | Oracle (OCI Generative AI) | ![Development](https://img.shields.io/badge/-development-blue) |
 | `ibm` | IBM (watsonx.ai) | ![Development](https://img.shields.io/badge/-development-blue) |
+| `typesafe` | TypeSafe AI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `doubleword` | Doubleword | ![Development](https://img.shields.io/badge/-development-blue) |
 
 ---
@@ -81,14 +81,14 @@
 
 | Value | Description | Stability |
 | --- | --- | --- |
-| `anthropic` | Anthropic | ![Development](https://img.shields.io/badge/-development-blue) |
 | `openai` | OpenAI | ![Development](https://img.shields.io/badge/-development-blue) |
-| `vertexai` | Vertex AI | ![Development](https://img.shields.io/badge/-development-blue) |
-| `cohere` | Cohere | ![Development](https://img.shields.io/badge/-development-blue) |
+| `anthropic` | Anthropic | ![Development](https://img.shields.io/badge/-development-blue) |
 | `mistralai` | Mistral AI | ![Development](https://img.shields.io/badge/-development-blue) |
-| `xai` | xAI (Grok) | ![Development](https://img.shields.io/badge/-development-blue) |
+| `cohere` | Cohere | ![Development](https://img.shields.io/badge/-development-blue) |
+| `vertexai` | Vertex AI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `deepseek` | DeepSeek | ![Development](https://img.shields.io/badge/-development-blue) |
 | `amazon` | Amazon Bedrock native | ![Development](https://img.shields.io/badge/-development-blue) |
 | `meta` | Meta (Llama) | ![Development](https://img.shields.io/badge/-development-blue) |
 | `ai21` | AI21 Labs | ![Development](https://img.shields.io/badge/-development-blue) |
 | `typesafe` | TypeSafe AI | ![Development](https://img.shields.io/badge/-development-blue) |
+| `xai` | xAI (Grok) | ![Development](https://img.shields.io/badge/-development-blue) |

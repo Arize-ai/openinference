@@ -1,0 +1,104 @@
+file_format: definition/2
+# One attribute per rule. `expected.json` lists the finding each one must produce.
+attributes:
+  - key: fixture.kind
+    type: string
+    brief: "Stands in for `openinference.span.kind`; breaks no rule."
+    stability: development
+  - key: fixture.item.name
+    type: string
+    brief: "A valid list item; breaks no rule."
+    stability: development
+  - key: fixture.valid_list
+    type: template[any]
+    brief: "A correctly annotated list; breaks no rule."
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_attributes: ["fixture.item.name"]
+  - key: fixture.template_without_encoding
+    type: template[any]
+    brief: "A key prefix that does not say how it is flattened."
+    stability: development
+  - key: fixture.unknown_encoding
+    type: string
+    brief: "An encoding that does not exist."
+    stability: development
+    annotations:
+      openinference:
+        encoding: yaml
+  - key: fixture.flattened_string
+    type: string
+    brief: "A flattened encoding on an attribute that is not a key prefix."
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["fixture"]
+  - key: fixture.json_int
+    type: int
+    brief: "A JSON encoding on an attribute that is not a string."
+    stability: development
+    annotations:
+      openinference:
+        encoding: json
+  - key: fixture.list_without_items
+    type: template[any]
+    brief: "A flattened list that does not say what its items are."
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+  - key: fixture.list_of_unknown_namespace
+    type: template[any]
+    brief: "A flattened list whose item namespace is not in the registry."
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["nowhere"]
+  - key: fixturebare
+    type: string
+    brief: "A key with no namespace, like `metadata`; breaks no rule here."
+    stability: development
+  - key: fixture.list_of_bare_key
+    type: template[any]
+    brief: "A flattened list whose item namespace is only a bare key, not a namespace."
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["fixturebare"]
+  - key: fixture.list_with_scalar_items
+    type: template[any]
+    brief: "A flattened list whose item namespaces are a string, not a list."
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: fixture
+        item_attributes: ["fixture.item.name"]
+  - key: fixture.list_of_unknown_attribute
+    type: template[any]
+    brief: "A flattened list whose item attribute is not in the registry."
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_attributes: ["fixture.item.nmae"]
+  - key: fixture.list_of_itself
+    type: template[any]
+    brief: "A flattened list that lists itself as an item."
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_attributes: ["fixture.list_of_itself"]
+  - key: fixture.also_accepts_unknown
+    type: string
+    brief: "An `also_accepts` type that is not an OTLP primitive."
+    stability: development
+    annotations:
+      openinference:
+        also_accepts: ["bytes"]

@@ -4,13 +4,13 @@
 The model reuses a few OpenTelemetry attributes (`session.id`, `user.id`) and
 declares the OpenTelemetry registry as a dependency in `model/manifest.yaml`.
 Resolving that dependency means cloning the OpenTelemetry repository, so
-anything generated from the model would need the network.
+anything that resolves the model would need the network.
 
 This script copies the definitions of exactly the referenced attributes, at
-the pinned version, into `vendor/opentelemetry/`. The `generate-*` targets
-resolve the dependency from that copy and run with no network access. The
-manifest keeps pointing at the real registry, which is what `make check` and
-other registries that depend on this one resolve against.
+the pinned version, into `vendor/opentelemetry/`. The hermetic targets
+(`make test`) resolve the dependency from that copy and run with no network
+access. The manifest keeps pointing at the real registry, which is what
+`make check` and other registries that depend on this one resolve against.
 
 It asks Weaver for the definitions rather than parsing upstream files, so it
 does not depend on how the OpenTelemetry repository lays out its model:
@@ -35,7 +35,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import yaml
 
@@ -60,6 +60,22 @@ HEADER = """\
 """
 
 
+def refs(node: Any) -> Iterator[str]:
+    """Yield every attribute key referenced with `ref`, wherever it appears.
+
+    Spans and attribute groups list references under `attributes`, entities
+    under `identity` and `description`; walking the document covers them all.
+    """
+    if isinstance(node, dict):
+        if isinstance(node.get("ref"), str):
+            yield node["ref"]
+        for value in node.values():
+            yield from refs(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from refs(value)
+
+
 def load_model() -> tuple[dict[str, Any], list[str]]:
     """Return (the model's upstream dependency, keys it references but does not define)."""
     manifest = yaml.safe_load((MODEL / "manifest.yaml").read_text())
@@ -73,8 +89,7 @@ def load_model() -> tuple[dict[str, Any], list[str]]:
             continue
         document = yaml.safe_load(path.read_text()) or {}
         defined.update(a["key"] for a in document.get("attributes", []))
-        for signal in document.get("attribute_groups", []) + document.get("spans", []):
-            referenced.update(a["ref"] for a in signal.get("attributes", []) if "ref" in a)
+        referenced.update(refs(document))
     return dependencies[0], sorted(referenced - defined)
 
 

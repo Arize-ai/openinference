@@ -28,6 +28,7 @@ semantic-conventions/
 ├── docs/registry/          # GENERATED reference (do not edit by hand)
 ├── vendor/opentelemetry/   # The OpenTelemetry attributes the model reuses, vendored for offline generation
 ├── tests/live-check/       # Sample wire-format keys that must / must not resolve against the registry
+├── tests/policies/         # A registry that breaks each OpenInference policy, to prove that the rules fire
 ├── tests/consumer/         # A registry that depends on this one, to prove that others can
 ├── scripts/                # Checks run by the Makefile
 ├── versions.env            # Pinned Weaver and policy versions
@@ -64,13 +65,19 @@ To change the conventions:
 ### Modeling rules
 
 - **Stability.** Everything is `development` for now. Marking an attribute `stable` is a commitment that the shared
-  policies then enforce.
+  policies then enforce, and it cannot be undone: a stable attribute can be deprecated, but it cannot change type or
+  go back to `development`. The long-established attributes are to be promoted once real instrumentation output has
+  been checked against the model
+  ([#4419](https://github.com/Arize-ai/openinference/issues/4419)). Until then, removals fail CI at any stability,
+  but a changed type does not.
 - **Never remove or rename an attribute.** Deprecate it with `deprecated:` and point to the replacement. On pull
   requests, CI compares the model with the base branch and fails on removals and incompatible changes.
 - **Reuse OpenTelemetry attributes** when one exists for the same concept. `session.id` and `user.id` are referenced
   from the OpenTelemetry registry (a dependency in [`model/manifest.yaml`](model/manifest.yaml)), not redefined.
   Run `make vendor` after referencing another one.
 - **Well-known values** are enum `members`. Enums are open: a custom value may be used when no member applies.
+  Members are append-only: add a new member at the end and never reorder. The generated Java enums take their
+  ordinals from this order, and the existing order is that of the published Java enums.
 - **Resource attributes.** An attribute recorded on the OpenTelemetry resource, not on spans, is the identity or
   description of an entity in [`model/openinference/entities.yaml`](model/openinference/entities.yaml). The language
   packages then expose it as a resource attribute (`ResourceAttributes.PROJECT_NAME`, `SEMRESATTRS_PROJECT_NAME`)
@@ -88,10 +95,20 @@ To change the conventions:
   ```
 
   `template[any]` is what lets Weaver match a flattened key such as `llm.input_messages.0.message.role` to the
-  `llm.input_messages` attribute; `item_namespaces` says its items are `message.*` attributes.
+  `llm.input_messages` attribute; `item_namespaces` says its items are `message.*` attributes. When only part of a
+  namespace applies, list the attributes in `item_attributes` instead: `llm.tools` items are
+  `[tool.name, tool.description, tool.json_schema]`, not the `tool.parameters` and `tool.id` of a `TOOL` span.
+
+  Weaver only matches the prefix. Nothing checks yet that what follows it is one of the declared items, or has the
+  right type ([#4419](https://github.com/Arize-ai/openinference/issues/4419));
+  [`tests/live-check/unvalidated.json`](tests/live-check/unvalidated.json) pins that gap.
 - **Types Weaver cannot express.** When instrumentations record more than one primitive type for a key, give the
   attribute its main type and list the others in `annotations.openinference.also_accepts`, e.g. `[int]` on
   `document.id`.
+- **Constant names.** The language packages name a constant after its key (`llm.model_name` is `LLM_MODEL_NAME`).
+  Where a published constant is named differently, record the key its name derives from in
+  `annotations.openinference.constant_key`, e.g. `tool_call.function.arguments_json` on
+  `tool_call.function.arguments` (`TOOL_CALL_FUNCTION_ARGUMENTS_JSON`).
 - **Naming exceptions.** `metadata`, `annotations`, and `evaluations` have no namespace, which the shared naming policy
   rejects. They predate the registry and cannot be renamed, so they are listed in
   [`policies/exceptions.json`](policies/exceptions.json). Do not add to that list for new attributes.
@@ -197,5 +214,8 @@ registry directly.
 | --- | --- |
 | `make check` | A model that does not parse or resolve; violations of the shared OpenTelemetry policies (naming, collisions, stability, deprecation); violations of the OpenInference policies in [`policies/check/openinference`](policies/check/openinference); with a baseline, removed or incompatibly changed attributes and spans |
 | `make check-vendor` | Vendored OpenTelemetry attributes that differ from the pinned upstream version |
-| `make test` | A change to the model (or to Weaver) that stops flattened wire-format keys from resolving to their attribute, or that stops a registry depending on this one from resolving |
+| `make test` | A change to the model (or to Weaver) that stops flattened wire-format keys from resolving to their attribute, or that stops a registry depending on this one from resolving; an OpenInference policy rule that no longer fires |
 | `make check-generated` | Docs or spec tables not regenerated after a model change, or a generated file edited by hand |
+
+Not checked yet: the leaves of a flattened list, and a changed type on a `development` attribute. See
+[Modeling rules](#modeling-rules).

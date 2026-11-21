@@ -15,7 +15,9 @@ permissions:
 
 concurrency:
   group: semantic-conventions-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
+  # Pushes to main share a ref; cancelling would drop the validation of all but
+  # the last of several back-to-back merges.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -40,7 +42,8 @@ jobs:
   ci:
     name: CI Semantic Conventions
     needs: changes
-    if: ${{ needs.changes.outputs.diff == 'true' }}
+    # A manual run always checks: the path filter only sees the last commit there.
+    if: ${{ needs.changes.outputs.diff == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:

@@ -24,7 +24,7 @@ See [Embedding Spans](https://github.com/Arize-ai/openinference/blob/main/spec/s
 | Key | Stability | [Requirement Level](https://opentelemetry.io/docs/specs/semconv/general/attribute-requirement-level/) | Value Type | Description | Example Values |
 | --- | --- | --- | --- | --- | --- |
 | [`openinference.span.kind`](../attributes/openinference.md) | ![Development](https://img.shields.io/badge/-development-blue) | `Required` | string (well-known values) | The role an operation plays in an AI application. [1] |  |
-| [`embedding.embeddings`](../attributes/embedding.md) | ![Development](https://img.shields.io/badge/-development-blue) | `Recommended` | flattened list of `embedding.*` | List of embedding objects including text and vector data | `[{"embedding.vector": [...], "embedding.text": "hello"}]` |
+| [`embedding.embeddings`](../attributes/embedding.md) | ![Development](https://img.shields.io/badge/-development-blue) | `Recommended` | flattened list of `embedding.text`, `embedding.vector` | List of embedding objects including text and vector data | `[{"embedding.vector": [...], "embedding.text": "hello"}]` |
 | [`embedding.invocation_parameters`](../attributes/embedding.md) | ![Development](https://img.shields.io/badge/-development-blue) | `Recommended` | string (JSON) | Parameters used during the invocation of an embedding model or API (excluding input) | `{"model": "text-embedding-3-small", "encoding_format": "float"}` |
 | [`embedding.model_name`](../attributes/embedding.md) | ![Development](https://img.shields.io/badge/-development-blue) | `Recommended` | string | Name of the embedding model used | `BERT-base` |
 | [`input.documents`](../attributes/input.md) | ![Development](https://img.shields.io/badge/-development-blue) | `Recommended` [2] | flattened list of `document.*` | File document (e.g. PDF) inputs to an operation, independent of span kind, e.g. `input.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents) | `[{"document.url": "https://example.com/report.pdf", "document.mime_type": "application/pdf"}]` |
@@ -79,11 +79,11 @@ See [Span Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/genera
 | Value | Description | Stability |
 | --- | --- | --- |
 | `LLM` | A call to a large language model. | ![Development](https://img.shields.io/badge/-development-blue) |
-| `EMBEDDING` | Generation of vector embeddings. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `CHAIN` | A link between application steps, or the start of a request. | ![Development](https://img.shields.io/badge/-development-blue) |
+| `TOOL` | Execution of a tool or function. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `RETRIEVER` | A query to a vector store, search engine, or database. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `RERANKER` | Reordering of candidate documents by relevance. | ![Development](https://img.shields.io/badge/-development-blue) |
-| `TOOL` | Execution of a tool or function. | ![Development](https://img.shields.io/badge/-development-blue) |
+| `EMBEDDING` | Generation of vector embeddings. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `AGENT` | A reasoning step that acts on tools using an LLM's guidance. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `GUARDRAIL` | An input or output moderation check. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `EVALUATOR` | An evaluation of a model's output. | ![Development](https://img.shields.io/badge/-development-blue) |
