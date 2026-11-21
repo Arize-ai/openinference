@@ -19,9 +19,9 @@ async function main() {
   // Turn 1 (non-streaming): get full response including thinking blocks + signatures
   // Thinking blocks must be passed back unmodified in multi-turn requests.
   const firstResponse = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-opus-5-5",
     max_tokens: 2048,
-    thinking: { type: "enabled", budget_tokens: 1024 },
+    thinking: { type: "adaptive", display: "summarized" },
     messages,
   });
 
@@ -44,9 +44,9 @@ async function main() {
   // Turn 2 (streaming): stream the final answer
   console.log("\nTurn 2 (streaming):");
   const stream = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-opus-5-5",
     max_tokens: 2048,
-    thinking: { type: "enabled", budget_tokens: 1024 },
+    thinking: { type: "adaptive", display: "summarized" },
     messages,
     stream: true,
   });

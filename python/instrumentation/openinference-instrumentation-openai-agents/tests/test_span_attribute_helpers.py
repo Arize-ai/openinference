@@ -1304,8 +1304,41 @@ def test_get_attributes_from_chat_completions_tool_call_dict(
         ),
         pytest.param(
             {"input_tokens": 0, "output_tokens": 0},
-            {},
+            {
+                "llm.token_count.prompt": 0,
+                "llm.token_count.completion": 0,
+            },
             id="zero_tokens",
+        ),
+        pytest.param(
+            {
+                "requests": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 0},
+            },
+            {},
+            id="no_usage_from_provider",
+        ),
+        pytest.param(
+            {
+                "requests": 1,
+                "input_tokens": 120,
+                "output_tokens": 40,
+                "total_tokens": 160,
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 0},
+            },
+            {
+                "llm.token_count.prompt": 120,
+                "llm.token_count.completion": 40,
+                "llm.token_count.total": 160,
+                "llm.token_count.prompt_details.cache_read": 0,
+                "llm.token_count.completion_details.reasoning": 0,
+            },
+            id="no_cache_hit_no_reasoning",
         ),
         pytest.param(
             {
@@ -1334,7 +1367,9 @@ def test_get_attributes_from_chat_completions_tool_call_dict(
             {
                 "llm.token_count.prompt": 200,
                 "llm.token_count.completion": 30,
+                "llm.token_count.prompt_details.cache_read": 0,
                 "llm.token_count.prompt_details.cache_write": 200,
+                "llm.token_count.completion_details.reasoning": 0,
             },
             id="cache_write_zero_cached_zero_reasoning",
         ),

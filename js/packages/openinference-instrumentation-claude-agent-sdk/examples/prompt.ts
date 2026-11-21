@@ -13,7 +13,7 @@ async function main() {
   const result = await unstable_v2_prompt(
     "Explain what OpenTelemetry is in one sentence.",
     {
-      model: "claude-haiku-4-5",
+      model: "claude-haiku-5-5",
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
     },

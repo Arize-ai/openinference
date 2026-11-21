@@ -36,6 +36,11 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 @pytest.fixture
+def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-fake-key")
+
+
+@pytest.fixture
 def serperdev_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SERPERDEV_API_KEY", "sk-fake-key")
 

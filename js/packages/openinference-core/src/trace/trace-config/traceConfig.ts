@@ -113,5 +113,9 @@ export function generateTraceConfig(options?: TraceConfigOptions): TraceConfig {
       optionValue: options?.hidePrompts,
       optionMetadata: traceConfigMetadata.hidePrompts,
     }),
+    enableGenAISemconv: parseOption({
+      optionValue: options?.enableGenAISemconv,
+      optionMetadata: traceConfigMetadata.enableGenAISemconv,
+    }),
   };
 }

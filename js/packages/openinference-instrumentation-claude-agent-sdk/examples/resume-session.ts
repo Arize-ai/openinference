@@ -18,7 +18,7 @@ import {
 async function main() {
   // --- Original session ---
   const session = unstable_v2_createSession({
-    model: "claude-haiku-4-5",
+    model: "claude-haiku-5-5",
     permissionMode: "bypassPermissions",
     allowDangerouslySkipPermissions: true,
   });
@@ -39,7 +39,7 @@ async function main() {
 
   // --- Resumed session ---
   const resumed = unstable_v2_resumeSession(sessionId, {
-    model: "claude-haiku-4-5",
+    model: "claude-haiku-5-5",
     permissionMode: "bypassPermissions",
     allowDangerouslySkipPermissions: true,
   });

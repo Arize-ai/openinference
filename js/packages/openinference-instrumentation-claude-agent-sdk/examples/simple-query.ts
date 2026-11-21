@@ -13,7 +13,7 @@ async function main() {
   const messages = query({
     prompt: "What is 2 + 2?",
     options: {
-      model: "claude-haiku-4-5",
+      model: "claude-haiku-5-5",
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
       maxTurns: 1,

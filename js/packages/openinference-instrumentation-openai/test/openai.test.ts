@@ -163,6 +163,8 @@ describe("OpenAIInstrumentation", () => {
         "llm.output_messages.0.message.content": "This is a test.",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo",
+        "llm.response.model_name": "gpt-3.5-turbo-0613",
         "llm.system": "openai",
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
@@ -266,6 +268,8 @@ describe("OpenAIInstrumentation", () => {
         "llm.output_messages.0.message.content": "This is a test.",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4o-mini",
+        "llm.response.model_name": "gpt-4o-mini",
         "llm.system": "openai",
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
@@ -311,23 +315,25 @@ describe("OpenAIInstrumentation", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Completions");
     expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "text/plain",
-  "input.value": "Say this is a test",
-  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo-instruct"}",
-  "llm.model_name": "gpt-3.5-turbo-instruct",
-  "llm.provider": "openai",
-  "llm.system": "openai",
-  "llm.token_count.completion": 5,
-  "llm.token_count.prompt": 12,
-  "llm.token_count.total": 17,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "This is a test",
-  "server.address": "api.openai.com",
-  "server.port": 443,
-}
-`);
+      {
+        "input.mime_type": "text/plain",
+        "input.value": "Say this is a test",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo-instruct"}",
+        "llm.model_name": "gpt-3.5-turbo-instruct",
+        "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo-instruct",
+        "llm.response.model_name": "gpt-3.5-turbo-instruct",
+        "llm.system": "openai",
+        "llm.token_count.completion": 5,
+        "llm.token_count.prompt": 12,
+        "llm.token_count.total": 17,
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "text/plain",
+        "output.value": "This is a test",
+        "server.address": "api.openai.com",
+        "server.port": 443,
+      }
+    `);
   });
   it("creates a span for embedding create", async () => {
     const response: CreateEmbeddingResponse = {
@@ -429,6 +435,7 @@ describe("OpenAIInstrumentation", () => {
         "llm.output_messages.0.message.content": "This is a test.",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo",
         "llm.system": "openai",
         "openinference.span.kind": "LLM",
         "output.mime_type": "text/plain",
@@ -583,6 +590,8 @@ describe("OpenAIInstrumentation", () => {
         "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "getCurrentLocation",
         "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_5ERYvu4iTGSvDlcDQjDP3g3J",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo",
+        "llm.response.model_name": "gpt-3.5-turbo-0613",
         "llm.system": "openai",
         "llm.token_count.completion": 7,
         "llm.token_count.prompt": 70,
@@ -620,6 +629,8 @@ describe("OpenAIInstrumentation", () => {
         "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "getWeather",
         "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_0LCdYLkdRUt3rV3dawoIFHBf",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo",
+        "llm.response.model_name": "gpt-3.5-turbo-0613",
         "llm.system": "openai",
         "llm.token_count.completion": 15,
         "llm.token_count.prompt": 86,
@@ -662,6 +673,8 @@ describe("OpenAIInstrumentation", () => {
         "llm.output_messages.0.message.content": "The weather in Boston this week is expected to be rainy with a temperature of 52 degrees.",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo",
+        "llm.response.model_name": "gpt-3.5-turbo-0613",
         "llm.system": "openai",
         "llm.token_count.completion": 20,
         "llm.token_count.prompt": 121,
@@ -791,13 +804,15 @@ describe("OpenAIInstrumentation", () => {
         "llm.input_messages.0.message.content": "What's the weather today?",
         "llm.input_messages.0.message.role": "user",
         "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}}}],"stream":true}",
-        "llm.model_name": "gpt-3.5-turbo",
+        "llm.model_name": "gpt-3.5-turbo-0613",
         "llm.output_messages.0.message.content": "",
         "llm.output_messages.0.message.role": "assistant",
         "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{}",
         "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "getWeather",
         "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_PGkcUg2u6vYrCpTn0e9ofykY",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo",
+        "llm.response.model_name": "gpt-3.5-turbo-0613",
         "llm.system": "openai",
         "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}}",
         "llm.tools.1.tool.json_schema": "{"type":"function","function":{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}}}",
@@ -1127,12 +1142,14 @@ describe("OpenAIInstrumentation", () => {
         "llm.input_messages.0.message.content": "What's the weather today?",
         "llm.input_messages.0.message.role": "user",
         "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
-        "llm.model_name": "gpt-3.5-turbo",
+        "llm.model_name": "gpt-3.5-turbo-0613",
         "llm.output_messages.0.message.content": "",
         "llm.output_messages.0.message.function_call_arguments_json": "{}",
         "llm.output_messages.0.message.function_call_name": "getWeather",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo",
+        "llm.response.model_name": "gpt-3.5-turbo-0613",
         "llm.system": "openai",
         "openinference.span.kind": "LLM",
         "output.mime_type": "text/plain",
@@ -1249,6 +1266,8 @@ describe("OpenAIInstrumentation", () => {
         "llm.output_messages.0.message.content": "This is a test.",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo",
+        "llm.response.model_name": "gpt-3.5-turbo-0613",
         "llm.system": "openai",
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
@@ -1305,27 +1324,29 @@ describe("OpenAIInstrumentation", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Completions");
     expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "text/plain",
-  "input.value": "Say this is a test",
-  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo-instruct"}",
-  "llm.model_name": "gpt-3.5-turbo-instruct",
-  "llm.prompt_template.template": "hello {name}",
-  "llm.prompt_template.variables": "{"name":"world"}",
-  "llm.prompt_template.version": "V1.0",
-  "llm.provider": "openai",
-  "llm.system": "openai",
-  "llm.token_count.completion": 5,
-  "llm.token_count.prompt": 12,
-  "llm.token_count.total": 17,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "This is a test",
-  "server.address": "api.openai.com",
-  "server.port": 443,
-  "session.id": "session-id",
-}
-`);
+      {
+        "input.mime_type": "text/plain",
+        "input.value": "Say this is a test",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo-instruct"}",
+        "llm.model_name": "gpt-3.5-turbo-instruct",
+        "llm.prompt_template.template": "hello {name}",
+        "llm.prompt_template.variables": "{"name":"world"}",
+        "llm.prompt_template.version": "V1.0",
+        "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo-instruct",
+        "llm.response.model_name": "gpt-3.5-turbo-instruct",
+        "llm.system": "openai",
+        "llm.token_count.completion": 5,
+        "llm.token_count.prompt": 12,
+        "llm.token_count.total": 17,
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "text/plain",
+        "output.value": "This is a test",
+        "server.address": "api.openai.com",
+        "server.port": 443,
+        "session.id": "session-id",
+      }
+    `);
   });
   it("creates a span for chat completions parse", async () => {
     const response = {
@@ -1415,6 +1436,8 @@ describe("OpenAIInstrumentation", () => {
         "llm.output_messages.0.message.content": "{"name":"science fair","date":"Friday","participants":["Alice","Bob"]}",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4o-2024-08-06",
+        "llm.response.model_name": "gpt-4o-2024-08-06",
         "llm.system": "openai",
         "llm.token_count.completion": 10,
         "llm.token_count.prompt": 20,
@@ -1595,22 +1618,24 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Completions");
     expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.value": "__REDACTED__",
-  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo-instruct"}",
-  "llm.model_name": "gpt-3.5-turbo-instruct",
-  "llm.provider": "openai",
-  "llm.system": "openai",
-  "llm.token_count.completion": 5,
-  "llm.token_count.prompt": 12,
-  "llm.token_count.total": 17,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "This is a test",
-  "server.address": "api.openai.com",
-  "server.port": 443,
-}
-`);
+      {
+        "input.value": "__REDACTED__",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo-instruct"}",
+        "llm.model_name": "gpt-3.5-turbo-instruct",
+        "llm.provider": "openai",
+        "llm.request.model_name": "gpt-3.5-turbo-instruct",
+        "llm.response.model_name": "gpt-3.5-turbo-instruct",
+        "llm.system": "openai",
+        "llm.token_count.completion": 5,
+        "llm.token_count.prompt": 12,
+        "llm.token_count.total": 17,
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "text/plain",
+        "output.value": "This is a test",
+        "server.address": "api.openai.com",
+        "server.port": 443,
+      }
+    `);
   });
 });
 
@@ -1699,6 +1724,8 @@ describe("AzureOpenAIInstrumentation", () => {
         "llm.output_messages.0.message.content": "This is a test.",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "azure",
+        "llm.request.model_name": "gpt-35-turbo",
+        "llm.response.model_name": "gpt-35-turbo",
         "llm.system": "openai",
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
@@ -1811,6 +1838,7 @@ describe("AzureOpenAIInstrumentation", () => {
         "llm.output_messages.0.message.content": "This is a test.",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "azure",
+        "llm.request.model_name": "gpt-35-turbo",
         "llm.system": "openai",
         "openinference.span.kind": "LLM",
         "output.mime_type": "text/plain",

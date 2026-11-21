@@ -129,6 +129,16 @@ const generateMaskTestCases = (): MaskTestCases[] => {
           ],
         );
         break;
+      case "enableGenAISemconv":
+        // Not a masking rule: it must leave attribute values untouched
+        testCases.push([
+          `should return the value for "input.value" when enableGenAISemconv is set to true`,
+          { ...DefaultTraceConfig, enableGenAISemconv: true },
+          "some input",
+          "input.value",
+          "some input",
+        ]);
+        break;
       default:
         assertUnreachable(configKey);
     }
