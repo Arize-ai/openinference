@@ -1725,6 +1725,105 @@ def test_sdk_model_request_parameters_are_recorded_as_json(
     ]
 
 
+def test_unset_request_parameters_are_not_recorded(
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "test_id",
+                "object": "chat.completion",
+                "created": 1711044439,
+                "model": "mistral-large-latest",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "hi"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 5, "total_tokens": 10, "completion_tokens": 5},
+            },
+        )
+    )
+
+    mistral_sync_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[{"content": "hello", "role": "user"}],
+        temperature=0.1,
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    invocation_parameters = json.loads(cast(str, attributes[LLM_INVOCATION_PARAMETERS]))
+    assert invocation_parameters == {
+        "model": "mistral-large-latest",
+        "temperature": 0.1,
+        "stream": False,
+    }
+    input_value = json.loads(cast(str, attributes[INPUT_VALUE]))
+    assert input_value == {
+        "model": "mistral-large-latest",
+        "messages": [{"content": "hello", "role": "user"}],
+        "temperature": 0.1,
+        "stream": False,
+    }
+
+
+def test_explicit_none_request_parameters_match_the_request_body(
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    route = respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "test_id",
+                "object": "chat.completion",
+                "created": 1711044439,
+                "model": "mistral-large-latest",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "hi"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 5, "total_tokens": 10, "completion_tokens": 5},
+            },
+        )
+    )
+
+    mistral_sync_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[{"content": "hello", "role": "user"}],
+        max_tokens=None,
+        safe_prompt=None,
+    )
+
+    request_body = json.loads(route.calls.last.request.content)
+    assert request_body == {
+        "model": "mistral-large-latest",
+        "messages": [{"content": "hello", "role": "user"}],
+        "max_tokens": None,
+        "stream": False,
+    }
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert json.loads(cast(str, attributes[INPUT_VALUE])) == request_body
+    assert json.loads(cast(str, attributes[LLM_INVOCATION_PARAMETERS])) == {
+        "model": "mistral-large-latest",
+        "max_tokens": None,
+        "stream": False,
+    }
+
+
 def _check_context_attributes(
     attributes: Dict[str, Any],
     session_id: str,
