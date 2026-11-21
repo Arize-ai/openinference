@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DefaultTraceConfig,
   OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
+  OPENINFERENCE_ENABLE_GENAI_SEMCONV,
   OPENINFERENCE_HIDE_INPUT_TEXT,
   OPENINFERENCE_HIDE_INPUTS,
 } from "../../src/trace/trace-config/constants";
@@ -49,6 +50,16 @@ describe("generateTraceConfig", () => {
     } finally {
       delete process.env[OPENINFERENCE_HIDE_INPUTS];
       delete process.env[OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH];
+    }
+  });
+
+  it("should read enableGenAISemconv from the environment and let options override it", () => {
+    process.env[OPENINFERENCE_ENABLE_GENAI_SEMCONV] = "true";
+    try {
+      expect(generateTraceConfig().enableGenAISemconv).toBe(true);
+      expect(generateTraceConfig({ enableGenAISemconv: false }).enableGenAISemconv).toBe(false);
+    } finally {
+      delete process.env[OPENINFERENCE_ENABLE_GENAI_SEMCONV];
     }
   });
 });

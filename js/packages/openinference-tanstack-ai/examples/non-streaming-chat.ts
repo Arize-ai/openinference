@@ -12,7 +12,7 @@ async function main() {
   const tracer = trace.getTracer("tanstack-ai-non-streaming-example");
   const text = await chat({
     adapter: anthropicText(
-      (process.env["ANTHROPIC_MODEL"] as Parameters<typeof anthropicText>[0]) ?? "claude-haiku-4-5",
+      (process.env["ANTHROPIC_MODEL"] as Parameters<typeof anthropicText>[0]) ?? "claude-haiku-5-5",
     ),
     stream: false,
     systemPrompts: [
