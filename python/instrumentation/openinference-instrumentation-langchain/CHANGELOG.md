@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.90](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.89...python-openinference-instrumentation-langchain-v0.1.90) (2026-11-21)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.82 ([#4413](https://github.com/Arize-ai/openinference/issues/4413)) ([6f8332e](https://github.com/Arize-ai/openinference/commit/6f8332ebba39e401193f599c5e8b87b8a1707ff6))
+
 ## [0.1.89](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.88...python-openinference-instrumentation-langchain-v0.1.89) (2026-11-20)
 
 
