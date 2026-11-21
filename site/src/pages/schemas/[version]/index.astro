@@ -5,7 +5,7 @@
  */
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { getSchemaVersions, type SchemaVersion } from "../../../lib/schemas";
-import { base, site } from "../../../lib/site";
+import { base, routeOf, site } from "../../../lib/site";
 
 export function getStaticPaths() {
   return getSchemaVersions().map((schema) => ({ params: { version: schema.version }, props: { schema } }));
@@ -69,7 +69,9 @@ const dependency = `dependencies:
       </p>
       <pre><code>{dependency}</code></pre>
       <p>
-        The conventions are explained in the <a href={`${base}spec/`}>specification</a>.
+        <a href={routeOf("spec/attributes/registry.md")}>Using the registry</a> has the rest: reading the files, checking
+        telemetry, and referring to OpenInference attributes. The conventions themselves are explained in the
+        <a href={`${base}spec/`}>specification</a>.
       </p>
     </section>
   </div>

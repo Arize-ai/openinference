@@ -5,7 +5,7 @@
  */
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { getSchemaVersions } from "../../lib/schemas";
-import { base, pages, site } from "../../lib/site";
+import { base, pages, routeOf, site } from "../../lib/site";
 
 const versions = getSchemaVersions();
 ---
@@ -20,6 +20,10 @@ const versions = getSchemaVersions();
         here at its schema URL. The source is in
         <a href={`${site.repo}/tree/main/semantic-conventions`}><code>semantic-conventions/</code></a>, and the
         <a href={`${base}spec/`}>specification</a> explains the conventions.
+      </p>
+      <p class="intro">
+        <a href={routeOf("spec/attributes/registry.md")}>Using the registry</a> shows how to download a version, read it,
+        check telemetry against it, and build your own conventions on it.
       </p>
     </header>
     {
