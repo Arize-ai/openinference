@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.56...python-openinference-instrumentation-haystack-v0.1.57) (2026-11-21)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.83 ([#4429](https://github.com/Arize-ai/openinference/issues/4429)) ([1d6cf21](https://github.com/Arize-ai/openinference/commit/1d6cf21550b91f8d136db94d4bf81a50fbdc5c16))
+
 ## [0.1.56](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.55...python-openinference-instrumentation-haystack-v0.1.56) (2026-11-21)
 
 
