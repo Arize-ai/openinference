@@ -1,0 +1,76 @@
+[
+  {
+    "scope": "https://api.anthropic.com:443",
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "claude-sonnet-4-6",
+      "max_tokens": 256,
+      "temperature": 0.2,
+      "system": "You are a weather assistant.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the weather in Boston?"
+        }
+      ],
+      "tools": [
+        {
+          "name": "get_weather",
+          "description": "Get the weather for a location",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string"
+              }
+            },
+            "required": ["location"]
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "model": "claude-sonnet-4-6",
+      "id": "msg_011ChErfnseoSPfvAE3VBwBE",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01CyRuseU7wBCkorwdreggF7",
+          "name": "get_weather",
+          "input": {
+            "location": "Boston"
+          },
+          "caller": {
+            "type": "direct"
+          }
+        }
+      ],
+      "container": null,
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "stop_details": null,
+      "usage": {
+        "input_tokens": 572,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 54,
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard"
+      },
+      "diagnostics": null
+    },
+    "rawHeaders": {
+      "content-type": "application/json"
+    },
+    "responseIsBinary": false
+  }
+]
