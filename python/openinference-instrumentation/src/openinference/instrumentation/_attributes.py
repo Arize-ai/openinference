@@ -165,6 +165,11 @@ if _typesafe_system := getattr(OpenInferenceLLMSystemValues, "TYPESAFE", None):
     _MODEL_PREFIX_TO_SYSTEM["jev"] = _typesafe_system
     _MODEL_PREFIX_TO_SYSTEM["typesafe"] = _typesafe_system
 
+# The mapping is deliberately not exhaustive. `llm.system` has more well-known
+# values than these (xai, deepseek, amazon, meta, ai21), and any other string
+# is valid too; a system is only inferred from a model name where the name
+# reliably identifies it.
+
 
 def infer_llm_provider_from_host(host: str) -> Optional[OpenInferenceLLMProviderValues]:
     """Return the LLM provider name for the given API hostname."""

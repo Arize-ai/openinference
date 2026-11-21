@@ -74,6 +74,24 @@ OFFLINE_MODEL := $(BUILD)/model
 DOCS_OUTPUT := docs/registry
 # Prose specification whose tables are generated from the model.
 SPEC_DIR := ../spec
+# Language packages whose constants are generated from the model, as
+# <template directory under templates/registry>:<output directory>.
+CODE_TARGETS := \
+	python:../python/openinference-semantic-conventions/src/openinference/semconv \
+	go:../go/openinference-semantic-conventions \
+	typescript:../js/packages/openinference-semantic-conventions/src \
+	java:../java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace
+# The files those templates write, for the staleness check.
+CODE_OUTPUTS := \
+	../python/openinference-semantic-conventions/src/openinference/semconv/trace/__init__.py \
+	../python/openinference-semantic-conventions/src/openinference/semconv/resource/__init__.py \
+	../go/openinference-semantic-conventions/attributes.go \
+	../go/openinference-semantic-conventions/enums.go \
+	../go/openinference-semantic-conventions/indexers.go \
+	../js/packages/openinference-semantic-conventions/src/trace/SemanticConventions.ts \
+	../js/packages/openinference-semantic-conventions/src/resource/SemanticResourceAttributes.ts \
+	../java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticConventions.java \
+	../java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace/SemanticResourceAttributes.java
 PACKAGE_OUTPUT := $(BUILD)/package
 
 # Registry to compare against for the backwards-compatibility policies. Empty
@@ -90,7 +108,7 @@ GITHUB_REPOSITORY ?= Arize-ai/openinference
 RELEASE_TAG := semantic-conventions-v$(VERSION)
 RELEASE_DOWNLOAD_URL := https://github.com/$(GITHUB_REPOSITORY)/releases/download/$(RELEASE_TAG)
 
-.PHONY: help check offline-model vendor check-vendor test generate generate-docs generate-spec check-generated check-all package release-assets print-version clean
+.PHONY: help check offline-model vendor check-vendor test generate generate-docs generate-spec generate-code check-generated check-parity check-all package release-assets print-version clean
 
 help: ## Show this help
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-16s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -152,7 +170,7 @@ test: offline-model ## Check sample keys against the registry, a dependent regis
 		tests/policies/violations/expected.json policies/check/openinference \
 		|| { cat $(BUILD)/policy-violations.log; exit 1; }
 
-generate: generate-docs generate-spec ## Regenerate everything derived from the model
+generate: generate-docs generate-spec generate-code ## Regenerate everything derived from the model
 
 generate-docs: offline-model ## Regenerate the registry reference under docs/registry/
 	@mkdir -p $(BUILD)
@@ -179,14 +197,33 @@ generate-spec: offline-model ## Regenerate the tables in ../spec between `<!-- w
 		2> $(BUILD)/generate-spec.log || { cat $(BUILD)/generate-spec.log; exit 1; }
 	@echo "Generated tables in $(SPEC_DIR)"
 
+generate-code: offline-model ## Regenerate the constants in the Python, Go, TypeScript and Java packages
+	@mkdir -p $(BUILD)
+	@for target in $(CODE_TARGETS); do \
+		language=$$(echo $$target | cut -d: -f1); output=$$(echo $$target | cut -d: -f2); \
+		$(WEAVER_OFFLINE) registry generate \
+			-r $(OFFLINE_MODEL) \
+			--v2 \
+			--quiet \
+			-t ./templates/registry \
+			$$language \
+			$$output \
+			2> $(BUILD)/generate-code-$$language.log \
+			|| { cat $(BUILD)/generate-code-$$language.log; exit 1; }; \
+		echo "Generated $$language in $$output"; \
+	done
+
 check-generated: generate ## Fail if anything generated from the model is out of date or was edited by hand
-	@if ! git diff --exit-code -- $(DOCS_OUTPUT) $(SPEC_DIR); then \
+	@if ! git diff --exit-code -- $(DOCS_OUTPUT) $(SPEC_DIR) $(CODE_OUTPUTS); then \
 		echo "FAIL: generated files are out of date. Run 'make -C semantic-conventions generate' and commit."; exit 1; fi
-	@untracked=$$(git ls-files --others --exclude-standard -- $(DOCS_OUTPUT)); \
+	@untracked=$$(git ls-files --others --exclude-standard -- $(DOCS_OUTPUT) $(CODE_OUTPUTS)); \
 	if [ -n "$$untracked" ]; then echo "FAIL: untracked generated files:"; echo "$$untracked"; exit 1; fi
 	@echo "OK: everything generated from the model is up to date."
 
-check-all: check check-vendor test check-generated ## Run every check CI runs
+check-parity: ## Fail if the model has drifted from spec/ or the language packages
+	uv run --no-project --with pyyaml==6.0.3 $(PYTHON) scripts/check_parity.py
+
+check-all: check check-vendor test check-generated check-parity ## Run every check CI runs
 	@$(MAKE) --no-print-directory release-assets TAG=$(RELEASE_TAG)
 
 package: ## Build the release assets: publication manifest + resolved registry

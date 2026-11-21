@@ -1,0 +1,54 @@
+# Generates attributes.go and enums.go in go/openinference-semantic-conventions.
+#
+# See templates/registry/python/weaver.yaml for the shape of the context.
+templates:
+  - template: attributes.go.j2
+    filter: >
+      {
+        attributes: (
+          (.registry.attributes + [.registry.spans[].attributes[] | select(.provenance.path == null)])
+          | unique_by(.key)
+          | map(. + {const_key: (.annotations.openinference.constant_key // .key)})
+        )
+      }
+    application_mode: single
+    file_name: attributes.go
+
+  - template: enums.go.j2
+    filter: "{attributes: .registry.attributes}"
+    application_mode: single
+    file_name: enums.go
+
+  # Helpers that build the flattened keys of list attributes. `lists` is every
+  # flattened list that sits directly on a span, with the namespace of its
+  # items. A list is nested, and left out, when its own namespace is the item
+  # namespace of another attribute (`message.tool_calls` under `llm.*_messages`).
+  - template: indexers.go.j2
+    filter: >
+      (.registry.attributes | map(select(.annotations.openinference.encoding == "flattened_list"))) as $lists
+      | .registry.attributes as $all
+      | {
+        attributes: ($all | map(. + {const_key: (.annotations.openinference.constant_key // .key)})),
+        lists: [
+          $lists[]
+          | . as $list
+          | ($list.key | split(".")[0]) as $root
+          | select(
+              [$all[] | select(.key != $list.key) | .annotations.openinference.item_namespaces // [] | .[]]
+              | index($root) | not
+            )
+          | {
+              key: .key,
+              item_namespace: (
+                .annotations.openinference.item_namespaces[0]
+                // (.annotations.openinference.item_attributes[0] | split(".")[0])
+              )
+            }
+        ]
+      }
+    application_mode: single
+    file_name: indexers.go
+
+whitespace_control:
+  trim_blocks: true
+  lstrip_blocks: true

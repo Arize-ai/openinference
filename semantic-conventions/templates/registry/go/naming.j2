@@ -1,0 +1,20 @@
+{# Go identifiers. Words that are not capitalized the default way: initialisms
+   that Go style keeps upper-case, and vendor names with their own casing. A
+   word that is not listed is capitalized. Names are public API: add entries
+   for new words before their first release, never change existing ones. #}
+{% set words = {
+  "llm": "LLM", "id": "ID", "url": "URL", "json": "JSON",
+  "openinference": "OpenInference",
+  "openai": "OpenAI", "mistralai": "MistralAI", "vertexai": "VertexAI", "typesafe": "TypeSafe",
+  "deepseek": "DeepSeek", "xai": "XAI", "zai": "ZAI", "minimax": "MiniMax", "ibm": "IBM", "aws": "AWS",
+  "ai21": "AI21",
+} %}
+{% macro go_name(key) -%}
+{%- for word in key | replace(".", "_") | split("_") -%}
+{{ words[word] if word in words else (word | capitalize) }}
+{%- endfor -%}
+{%- endmacro %}
+{# A one-line doc comment body: no newlines, so it stays a single `//` line. #}
+{% macro doc(text) -%}
+{{ text | default("", true) | trim | replace("\n", " ") }}
+{%- endmacro %}

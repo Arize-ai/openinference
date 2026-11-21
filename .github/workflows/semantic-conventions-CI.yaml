@@ -38,6 +38,11 @@ jobs:
               - "semantic-conventions/**"
               # Tables in the spec are generated from the model.
               - "spec/**"
+              # Constants in the language packages are generated from the model.
+              - "python/openinference-semantic-conventions/src/openinference/semconv/**"
+              - "go/openinference-semantic-conventions/*.go"
+              - "js/packages/openinference-semantic-conventions/src/**"
+              - "java/openinference-semantic-conventions/src/main/**"
 
   ci:
     name: CI Semantic Conventions
@@ -111,8 +116,11 @@ jobs:
       - name: Check sample wire-format keys against the registry (no network)
         run: make test FORCE_CONTAINER=1
 
-      - name: Check generated docs and spec tables are up to date (no network)
+      - name: Check generated docs, spec tables, and language constants are up to date (no network)
         run: make check-generated FORCE_CONTAINER=1
+
+      - name: Check parity with the spec and language packages
+        run: make check-parity
 
       # Rehearses the release workflow up to, but not including, the upload:
       # the same target, with the tag the next release would have.

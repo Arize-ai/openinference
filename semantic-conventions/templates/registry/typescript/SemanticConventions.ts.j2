@@ -1,0 +1,115 @@
+{# Constant names that predate the registry and differ from the attribute key.
+   Checked first; then `annotations.openinference.constant_key`; then the key. #}
+{% set legacy_names = {
+  "llm.cost.prompt_details.input": "LLM_COST_INPUT",
+  "llm.cost.completion_details.output": "LLM_COST_OUTPUT",
+  "llm.prompt_template.template": "PROMPT_TEMPLATE_TEMPLATE",
+  "llm.prompt_template.variables": "PROMPT_TEMPLATE_VARIABLES",
+  "llm.prompt_template.version": "PROMPT_TEMPLATE_VERSION",
+} %}
+{# Attributes with no top-level export: the span kind is only reachable as
+   `SemanticConventions.OPENINFERENCE_SPAN_KIND`. #}
+{% set object_only_keys = ["openinference.span.kind"] %}
+{# Key prefixes that are constants but not attributes. #}
+{% set prefix_constants = [
+  {"name": "LLM_TOKEN_COUNT_PROMPT_DETAILS", "key": "llm.token_count.prompt_details", "doc": "Key prefix for additional prompt token count details. Each detail is a separate attribute with this prefix, e.g. llm.token_count.prompt_details.audio. All values are in tokens."},
+  {"name": "LLM_TOKEN_COUNT_COMPLETION_DETAILS", "key": "llm.token_count.completion_details", "doc": "Key prefix for additional completion token count details. Each detail is a separate attribute with this prefix, e.g. llm.token_count.completion_details.reasoning. All values are in tokens."},
+  {"name": "LLM_COST", "key": "llm.cost", "doc": "Key prefix for cost information. All values are in USD."},
+] %}
+{# Enums for well-known values, by the attribute that defines them.
+   `extra` members are not in the registry and are kept for compatibility. #}
+{% set enums = [
+  {"name": "AnnotatorKind", "key": "annotation.annotator_kind", "doc": "", "extra": []},
+  {"name": "OpenInferenceSpanKind", "key": "openinference.span.kind", "doc": "", "extra": []},
+  {"name": "MimeType", "key": "input.mime_type", "doc": "An enum of common mime types. Not exhaustive.", "extra": [{"name": "AUDIO_WAV", "value": "audio/wav"}]},
+  {"name": "LLMSystem", "key": "llm.system", "doc": "", "extra": []},
+  {"name": "LLMProvider", "key": "llm.provider", "doc": "", "extra": []},
+  {"name": "DecisionSystem", "key": "decision.system", "doc": "Well-known values for `decision.system`. Each value equals the `LLMSystem` value for the same vendor.", "extra": []},
+  {"name": "DecisionProvider", "key": "decision.provider", "doc": "Well-known values for `decision.provider`. Each value equals the `LLMProvider` value for the same vendor.", "extra": []},
+] %}
+{% macro const_name(attribute) -%}
+{{ legacy_names[attribute.key] if attribute.key in legacy_names else (attribute.const_key | screaming_snake_case) }}
+{%- endmacro %}
+{% macro text(value) -%}
+{{ value | default("", true) | trim | replace("\n", " ") | replace("*/", "*\\/") }}
+{%- endmacro %}
+{# A declaration that does not fit in the formatter's 100 columns breaks after `=`. #}
+{% macro declaration(name, value) -%}
+{%- set line = "export const " ~ name ~ ' = "' ~ value ~ '";' -%}
+{%- if line | length > 100 -%}
+export const {{ name }} =
+  "{{ value }}";
+{%- else -%}
+{{ line }}
+{%- endif -%}
+{%- endmacro %}
+/**
+ * Semantic conventions for OpenInference tracing
+ *
+ * Generated from the semantic convention registry in semantic-conventions/model.
+ * Do not edit by hand: change the model or
+ * semantic-conventions/templates/registry/typescript, then run
+ * `make -C semantic-conventions generate`.
+ */
+
+export const SemanticAttributePrefixes = {
+{% for prefix in ctx.helpers.prefixes %}
+  {{ prefix }}: "{{ prefix }}",
+{% endfor %}
+} as const;
+{% for object in ctx.helpers.postfixes %}
+
+export const {{ object.name }} = {
+{% for entry in object.entries %}
+  {{ entry.name }}: "{{ entry.value }}",
+{% endfor %}
+} as const;
+{% endfor %}
+
+{% for attribute in ctx.attributes if attribute.key not in object_only_keys %}
+/**
+ * {{ text(attribute.brief) }}
+{% if attribute.deprecated %}
+ * @deprecated {{ text(attribute.deprecated.note) }}
+{% endif %}
+ */
+{{ declaration(const_name(attribute), attribute.key) }}
+
+{% endfor %}
+{% for prefix in prefix_constants %}
+/**
+ * {{ prefix["doc"] }}
+ */
+{{ declaration(prefix["name"], prefix["key"]) }}
+
+{% endfor %}
+export const SemanticConventions = {
+{% for attribute in ctx.attributes %}
+{% if attribute.key in object_only_keys %}
+  {{ const_name(attribute) }}: "{{ attribute.key }}",
+{% else %}
+  {{ const_name(attribute) }},
+{% endif %}
+{% endfor %}
+{% for prefix in prefix_constants %}
+  {{ prefix["name"] }},
+{% endfor %}
+} as const;
+{% for enum in enums %}
+{% for attribute in ctx.attributes if attribute.key == enum["key"] %}
+
+{% if enum["doc"] %}
+/**
+ * {{ enum["doc"] }}
+ */
+{% endif %}
+export enum {{ enum["name"] }} {
+{% for member in attribute.type.members %}
+  {{ member.id | screaming_snake_case }} = "{{ member.value }}",
+{% endfor %}
+{% for member in enum["extra"] %}
+  {{ member["name"] }} = "{{ member["value"] }}",
+{% endfor %}
+}
+{% endfor %}
+{% endfor %}

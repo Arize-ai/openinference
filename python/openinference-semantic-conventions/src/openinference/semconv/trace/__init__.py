@@ -1,767 +1,628 @@
 # ruff: noqa: E501
+# Generated from the semantic convention registry in semantic-conventions/model.
+# Do not edit by hand: change the model or semantic-conventions/templates/registry/python,
+# then run `make -C semantic-conventions generate`.
 from enum import Enum
 
 
 class SpanAttributes:
-    ANNOTATIONS = "annotations"
-    """Feedback using annotation terminology."""
-    EVALUATIONS = "evaluations"
-    """Feedback using evaluation or eval terminology."""
-    TRACE_ANNOTATIONS = "trace.annotations"
-    """Trace-scoped feedback using annotation terminology."""
-    TRACE_EVALUATIONS = "trace.evaluations"
-    """Trace-scoped feedback using evaluation or eval terminology."""
-    SESSION_ANNOTATIONS = "session.annotations"
-    """Session-scoped feedback using annotation terminology."""
-    SESSION_EVALUATIONS = "session.evaluations"
-    """Session-scoped feedback using evaluation or eval terminology."""
+    AGENT_NAME = "agent.name"
+    """The name of the agent that this span represents."""
 
-    OUTPUT_VALUE = "output.value"
-    OUTPUT_MIME_TYPE = "output.mime_type"
-    """
-    The type of output.value. If unspecified, the type is plain text by default.
-    If type is JSON, the value is a string representing a JSON object.
-    """
-    INPUT_VALUE = "input.value"
-    INPUT_MIME_TYPE = "input.mime_type"
-    """
-    The type of input.value. If unspecified, the type is plain text by default.
-    If type is JSON, the value is a string representing a JSON object.
-    """
-    INPUT_IMAGES = "input.images"
-    """
-    A list of Image Objects that are inputs to an operation, independent of span kind.
-    Flattened with indexed prefixes, e.g. `input.images.0.image.url`.
-    """
-    OUTPUT_IMAGES = "output.images"
-    """
-    A list of Image Objects produced by an operation, independent of span kind.
-    Flattened with indexed prefixes, e.g. `output.images.0.image.url`.
-    """
-    INPUT_DOCUMENTS = "input.documents"
-    """
-    A list of Document Objects (e.g. PDFs) that are inputs to an operation, independent of
-    span kind. Flattened with indexed prefixes, e.g. `input.documents.0.document.url`.
-    """
-    OUTPUT_DOCUMENTS = "output.documents"
-    """
-    A list of Document Objects (e.g. PDFs) produced by an operation, independent of span
-    kind. Flattened with indexed prefixes, e.g. `output.documents.0.document.url`.
-    """
+    ANNOTATIONS = "annotations"
+    """Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*`"""
+
+    DECISION_MODEL_NAME = "decision.model_name"
+    """The name of the decision model being utilized. Mirrors `llm.model_name` for `DECISION` spans."""
+
+    DECISION_PROVIDER = "decision.provider"
+    """The hosting provider of the decision model: who runs the hardware that answered, e.g. `typesafe` when calling TypeSafe directly, `openai` for the OpenAI Decisions API, or the cloud or self-hosting provider for a model served elsewhere. Distinct from `decision.system`, which names the API shape. The well-known values alias the matching `llm.provider` values."""
+
+    DECISION_REQUEST_MODEL_NAME = "decision.request.model_name"
+    """The decision model requested by the caller, as sent in the request. May differ from `decision.response.model_name` when the provider resolves an alias or routes the request."""
+
+    DECISION_RESPONSE_MODEL_NAME = "decision.response.model_name"
+    """The decision model that actually produced the response, as reported by the provider. May differ from `decision.request.model_name`."""
+
+    DECISION_SYSTEM = "decision.system"
+    """The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks, as identified by the client or server instrumentation: `typesafe` for the TypeSafe System One / Jev API, `openai` for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible `/v1/systemone` shape is still `typesafe`. Distinct from `decision.provider`, which says who hosts the model. The well-known values alias the matching `llm.system` values."""
+
+    DECISION_TOKEN_COUNT_INPUT = "decision.token_count.input"
+    """The number of input tokens consumed by a decision model call: the state, questions, and candidate options. Maps to `usage.input_tokens` in TypeSafe System One responses."""
+
+    DECISION_TOKEN_COUNT_OUTPUT = "decision.token_count.output"
+    """The number of output tokens produced by a decision model call. Decision models emit typed answers rather than text, so this is typically small. Maps to `usage.output_tokens` in TypeSafe System One responses."""
 
     EMBEDDING_EMBEDDINGS = "embedding.embeddings"
-    """
-    A list of objects containing embedding data, including the vector and represented piece of text.
-    """
-    EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
-    """
-    Invocation parameters passed to the embedding model or API, such as the model name, encoding format, etc.
-    """
-    EMBEDDING_MODEL_NAME = "embedding.model_name"
-    """
-    The name of the embedding model.
-    """
+    """List of embedding objects including text and vector data"""
 
-    LLM_FUNCTION_CALL = "llm.function_call"
-    """
-    For models and APIs that support function calling. Records attributes such as the function
-    name and arguments to the called function.
-    """
-    LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
-    """
-    Invocation parameters passed to the LLM or API, such as the model name, temperature, etc.
-    """
-    LLM_INPUT_MESSAGES = "llm.input_messages"
-    """
-    Messages provided to a chat API.
-    """
-    LLM_OUTPUT_MESSAGES = "llm.output_messages"
-    """
-    Messages received from a chat API.
-    """
-    LLM_MODEL_NAME = "llm.model_name"
-    """
-    The name of the model being used.
-    """
-    LLM_REQUEST_MODEL_NAME = "llm.request.model_name"
-    """
-    The model requested by the caller, as sent in the request. May differ from
-    llm.response.model_name when the provider routes the request to a different
-    model (e.g. classifier-triggered fallback).
-    """
-    LLM_RESPONSE_MODEL_NAME = "llm.response.model_name"
-    """
-    The model that actually generated the response, as reported by the provider.
-    May differ from llm.request.model_name when the provider routes the request
-    to a different model (e.g. classifier-triggered fallback).
-    """
-    LLM_PROVIDER = "llm.provider"
-    """
-    The provider of the model, such as OpenAI, Azure, Google, etc.
-    """
-    LLM_SYSTEM = "llm.system"
-    """
-    The AI product as identified by the client or server
-    """
-    DECISION_MODEL_NAME = "decision.model_name"
-    """
-    The name of the decision model being used. Mirrors llm.model_name for
-    DECISION spans. A decision model takes state plus typed questions and
-    returns a typed, probabilistic answer per question instead of generated
-    text; see
-    https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md
-    for the convention and the decision model families it covers.
-    """
-    DECISION_REQUEST_MODEL_NAME = "decision.request.model_name"
-    """
-    The decision model requested by the caller, as sent in the request. May
-    differ from decision.response.model_name when the provider resolves an
-    alias (e.g. jev-latest) or routes the request to a different model.
-    """
-    DECISION_RESPONSE_MODEL_NAME = "decision.response.model_name"
-    """
-    The decision model that actually produced the response, as reported by the
-    provider. May differ from decision.request.model_name.
-    """
-    DECISION_PROVIDER = "decision.provider"
-    """
-    The hosting provider of the decision model: who runs the hardware that
-    answered (e.g. "typesafe" when calling TypeSafe directly, or the cloud or
-    self-hosting provider for a model served elsewhere). Distinct from
-    decision.system, which names the API shape. Well-known values are
-    OpenInferenceDecisionProviderValues, which alias the matching
-    OpenInferenceLLMProviderValues.
-    """
-    DECISION_SYSTEM = "decision.system"
-    """
-    The decision API ecosystem the call conforms to, i.e. which request and
-    response shape the client speaks, as identified by the client or server:
-    "typesafe" for the TypeSafe System One / Jev API, "openai" for the OpenAI
-    Decisions API. A self-hosted
-    vLLM server answering the Jev-compatible /v1/systemone shape is still
-    "typesafe". Distinct from decision.provider, which says who hosts the
-    model. Well-known values are OpenInferenceDecisionSystemValues, which alias
-    the matching OpenInferenceLLMSystemValues.
-    """
-    DECISION_TOKEN_COUNT_INPUT = "decision.token_count.input"
-    """
-    The number of input tokens consumed by a decision model call: the state,
-    questions, and candidate options. Maps to usage.input_tokens in TypeSafe
-    System One responses.
-    """
-    DECISION_TOKEN_COUNT_OUTPUT = "decision.token_count.output"
-    """
-    The number of output tokens produced by a decision model call. Decision
-    models emit typed answers rather than text, so this is typically small.
-    Maps to usage.output_tokens in TypeSafe System One responses.
-    """
-    LLM_PROMPTS = "llm.prompts"
-    """
-    Prompts provided to a completions API. Use indexed format with nested structure.
-    Maps to the 'prompt' field in the request (e.g., request.prompt or request.prompt[0]).
-    Use format: llm.prompts.N.prompt.text
-    """
+    EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
+    """Parameters used during the invocation of an embedding model or API (excluding input)"""
+
+    EMBEDDING_MODEL_NAME = "embedding.model_name"
+    """Name of the embedding model used"""
+
+    EVALUATIONS = "evaluations"
+    """Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*`"""
+
+    GRAPH_NODE_ID = "graph.node.id"
+    """The id of the node in the execution graph. This along with `graph.node.parent_id` are used to visualize the execution graph."""
+
+    GRAPH_NODE_NAME = "graph.node.name"
+    """The name of the node in the execution graph. Use this to present a human readable name for the node. Optional"""
+
+    GRAPH_NODE_PARENT_ID = "graph.node.parent_id"
+    """This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node."""
+
+    INPUT_DOCUMENTS = "input.documents"
+    """File document (e.g. PDF) inputs to an operation, independent of span kind, e.g. `input.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents)"""
+
+    INPUT_IMAGES = "input.images"
+    """Image inputs to an operation, independent of span kind, e.g. `input.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images)"""
+
+    INPUT_MIME_TYPE = "input.mime_type"
+    """MIME type representing the format of `input.value`"""
+
+    INPUT_VALUE = "input.value"
+    """The input value to an operation"""
+
     LLM_CHOICES = "llm.choices"
-    """
-    Text choices returned from a completions API. Use indexed format with nested structure.
-    Maps to the 'choices' array in the response (e.g., response.choices[0].text).
-    Use format: llm.choices.N.completion.text
-    """
-    LLM_PROMPT_TEMPLATE = "llm.prompt_template.template"
-    """
-    The prompt template as a Python f-string.
-    """
-    LLM_PROMPT_TEMPLATE_VARIABLES = "llm.prompt_template.variables"
-    """
-    A list of input variables to the prompt template.
-    """
-    LLM_PROMPT_TEMPLATE_VERSION = "llm.prompt_template.version"
-    """
-    The version of the prompt template being used.
-    """
-    LLM_TOKEN_COUNT_COMPLETION = "llm.token_count.completion"
-    """
-    Number of tokens in the completion (in tokens).
-    """
-    LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = "llm.token_count.completion_details.audio"
-    """
-    The number of audio tokens in the completion (in tokens).
-    """
-    LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = "llm.token_count.completion_details.reasoning"
-    """
-    Number of tokens used for reasoning steps in the completion (in tokens).
-    """
-    LLM_TOKEN_COUNT_PROMPT = "llm.token_count.prompt"
-    """
-    Number of tokens in the prompt.
-    """
-    LLM_TOKEN_COUNT_PROMPT_DETAILS = "llm.token_count.prompt_details"
-    """
-    Key prefix for additional prompt token count details. Each detail should be a separate attribute
-    with this prefix, e.g. llm.token_count.prompt_details.reasoning,
-    llm.token_count.prompt_details.audio. All values should be in tokens.
-    """
-    LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = "llm.token_count.prompt_details.audio"
-    """
-    The number of audio tokens in the prompt (in tokens).
-    """
-    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT = "llm.token_count.prompt_details.cache_input"
-    """
-    Number of input tokens in the prompt that were cached (in tokens).
-    """
-    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = "llm.token_count.prompt_details.cache_read"
-    """
-    Number of tokens in the prompt that were read from cache (in tokens).
-    """
-    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = "llm.token_count.prompt_details.cache_write"
-    """
-    Number of tokens in the prompt that were written to cache (in tokens).
-    """
-    LLM_TOKEN_COUNT_TOTAL = "llm.token_count.total"
-    """
-    Total number of tokens, including both prompt and completion (in tokens).
-    """
-    LLM_FINISH_REASON = "llm.finish_reason"
-    """
-    The reason the model stopped generating tokens, e.g. `"stop"` or `"length"`.
-    """
+    """Text choices returned from a completions API, e.g. `llm.choices.0.completion.text`"""
 
     LLM_COST_COMPLETION = "llm.cost.completion"
-    """
-    Total cost of all output tokens generated by the LLM in USD. This includes all tokens that were
-    generated in response to the prompt, including the main response and any additional output.
-    """
-    LLM_COST_COMPLETION_DETAILS = "llm.cost.completion_details"
-    """
-    Key prefix for additional completion cost details. Each detail should be a separate attribute
-    with this prefix, e.g. llm.cost.completion_details.reasoning,
-    llm.cost.completion_details.audio. All values should be in USD.
-    """
+    """Total cost of all output tokens generated by the LLM in USD"""
+
     LLM_COST_COMPLETION_DETAILS_AUDIO = "llm.cost.completion_details.audio"
-    """
-    Cost of audio tokens in the completion in USD.
-    """
+    """Cost of audio tokens in the completion in USD"""
+
     LLM_COST_COMPLETION_DETAILS_OUTPUT = "llm.cost.completion_details.output"
-    """
-    Total cost of output tokens in USD. This represents the cost of tokens that were generated
-    as output by the model, which may be different from the completion cost if there are
-    additional processing steps.
-    """
+    """Total cost of output tokens in USD"""
+
     LLM_COST_COMPLETION_DETAILS_REASONING = "llm.cost.completion_details.reasoning"
-    """
-    Cost of reasoning steps in the completion in USD.
-    """
+    """Cost of reasoning steps in the completion in USD"""
+
     LLM_COST_PROMPT = "llm.cost.prompt"
-    """
-    Total cost of all input tokens sent to the LLM in USD. This includes all tokens that were
-    processed as part of the prompt, including system messages, user messages, and any other input.
-    """
-    LLM_COST_PROMPT_DETAILS = "llm.cost.prompt_details"
-    """
-    Key prefix for additional prompt cost details. Each detail should be a separate attribute
-    with this prefix, e.g. llm.cost.prompt_details.reasoning,
-    llm.cost.prompt_details.audio. All values should be in USD.
-    """
+    """Total cost of all input tokens sent to the LLM in USD"""
+
     LLM_COST_PROMPT_DETAILS_AUDIO = "llm.cost.prompt_details.audio"
-    """
-    Cost of audio tokens in the prompt in USD.
-    """
+    """Cost of audio tokens in the prompt in USD"""
+
     LLM_COST_PROMPT_DETAILS_CACHE_INPUT = "llm.cost.prompt_details.cache_input"
-    """
-    Cost of input tokens in the prompt that were cached in USD.
-    """
+    """Cost of input tokens in the prompt that were cached in USD"""
+
     LLM_COST_PROMPT_DETAILS_CACHE_READ = "llm.cost.prompt_details.cache_read"
-    """
-    Cost of prompt tokens read from cache in USD.
-    """
+    """Cost of prompt tokens read from cache in USD"""
+
     LLM_COST_PROMPT_DETAILS_CACHE_WRITE = "llm.cost.prompt_details.cache_write"
-    """
-    Cost of prompt tokens written to cache in USD.
-    """
+    """Cost of prompt tokens written to cache in USD"""
+
     LLM_COST_PROMPT_DETAILS_INPUT = "llm.cost.prompt_details.input"
-    """
-    Total cost of input tokens in USD. This represents the cost of tokens that were used as
-    input to the model, which may be different from the prompt cost if there are additional
-    processing steps.
-    """
+    """Total cost of input tokens in USD"""
+
     LLM_COST_TOTAL = "llm.cost.total"
-    """
-    Total cost of the LLM call in USD (prompt + completion).
-    """
+    """Total cost of the LLM call in USD (prompt + completion)"""
+
+    LLM_FINISH_REASON = "llm.finish_reason"
+    """The reason the model stopped generating tokens."""
+
+    LLM_FUNCTION_CALL = "llm.function_call"
+    """Deprecated: Use `message.tool_calls` instead. Object recording details of a function call in models or APIs"""
+
+    LLM_INPUT_MESSAGES = "llm.input_messages"
+    """List of messages sent to the LLM in a chat API request, e.g. `llm.input_messages.0.message.role`. See [Messages](https://github.com/Arize-ai/openinference/blob/main/spec/content/messages.md)"""
+
+    LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
+    """Parameters used during the invocation of an LLM or API"""
+
+    LLM_MODEL_NAME = "llm.model_name"
+    """The name of the language model being utilized"""
+
+    LLM_OUTPUT_MESSAGES = "llm.output_messages"
+    """List of messages received from the LLM in a chat API response, e.g. `llm.output_messages.0.message.role`. See [Messages](https://github.com/Arize-ai/openinference/blob/main/spec/content/messages.md)"""
+
+    LLM_PROMPT_TEMPLATE = "llm.prompt_template.template"
+    """Template used to generate prompts (e.g., using `{variable}` placeholder syntax)"""
+
+    LLM_PROMPT_TEMPLATE_VARIABLES = "llm.prompt_template.variables"
+    """JSON of key value pairs applied to the prompt template"""
+
+    LLM_PROMPT_TEMPLATE_VERSION = "llm.prompt_template.version"
+    """The version of the prompt template"""
+
+    LLM_PROMPTS = "llm.prompts"
+    """Prompts provided to a completions API, e.g. `llm.prompts.0.prompt.text`"""
+
+    LLM_PROVIDER = "llm.provider"
+    """The hosting provider of the LLM, e.g. `azure`. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-provider-values)."""
+
+    LLM_REQUEST_MODEL_NAME = "llm.request.model_name"
+    """The model requested by the caller, as sent in the request. May differ from `llm.response.model_name` when the provider routes the request to a different model."""
+
+    LLM_RESPONSE_MODEL_NAME = "llm.response.model_name"
+    """The model that actually generated the response, as reported by the provider. May differ from `llm.request.model_name` when the provider routes the request to a different model."""
+
+    LLM_SYSTEM = "llm.system"
+    """The AI product as identified by the client or server instrumentation. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-system-values)."""
+
+    LLM_TOKEN_COUNT_COMPLETION = "llm.token_count.completion"
+    """The number of tokens in the completion"""
+
+    LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = "llm.token_count.completion_details.audio"
+    """The number of audio tokens generated by the model"""
+
+    LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = "llm.token_count.completion_details.reasoning"
+    """The number of tokens used for model reasoning"""
+
+    LLM_TOKEN_COUNT_PROMPT = "llm.token_count.prompt"
+    """The number of tokens in the prompt"""
+
+    LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = "llm.token_count.prompt_details.audio"
+    """The number of audio input tokens presented in the prompt"""
+
+    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT = "llm.token_count.prompt_details.cache_input"
+    """The number of input tokens in the prompt that were cached"""
+
+    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = "llm.token_count.prompt_details.cache_read"
+    """The number of prompt tokens successfully retrieved from cache (cache hits). Maps to `cached_tokens` in OpenAI responses"""
+
+    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = "llm.token_count.prompt_details.cache_write"
+    """The number of prompt tokens not found in cache that were written to cache (cache misses). Maps to `cache_write_tokens` in OpenAI responses"""
+
+    LLM_TOKEN_COUNT_TOTAL = "llm.token_count.total"
+    """Total number of tokens, including prompt and completion"""
 
     LLM_TOOLS = "llm.tools"
-    """
-    List of tools that are advertised to the LLM to be able to call
-    """
-
-    TOOL_NAME = "tool.name"
-    """
-    Name of the tool being used.
-    """
-    TOOL_DESCRIPTION = "tool.description"
-    """
-    Description of the tool's purpose, typically used to select the tool.
-    """
-    TOOL_PARAMETERS = "tool.parameters"
-    """
-    Parameters of the tool represented a dictionary JSON string, e.g.
-    see https://platform.openai.com/docs/guides/gpt/function-calling
-    """
-    TOOL_ID = "tool.id"
-    """
-    The identifier for the result of the tool call (corresponding to tool_call.id).
-    """
-
-    RETRIEVAL_DOCUMENTS = "retrieval.documents"
+    """List of tools that are advertised to the LLM to be able to call, e.g. `llm.tools.0.tool.name`, `llm.tools.0.tool.description`, `llm.tools.0.tool.json_schema`. See [Tool Calling](https://github.com/Arize-ai/openinference/blob/main/spec/content/tool-calling.md)"""
 
     METADATA = "metadata"
-    """
-    Metadata attributes are used to store user-defined key-value pairs.
-    For example, LangChain uses metadata to store user-defined attributes for a chain.
-    """
-
-    TAG_TAGS = "tag.tags"
-    """
-    Custom categorical tags for the span.
-    """
+    """Metadata associated with a span"""
 
     OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
+    """The role an operation plays in an AI application."""
 
-    SESSION_ID = "session.id"
-    """
-    The id of the session
-    """
-    USER_ID = "user.id"
-    """
-    The id of the user
-    """
-    AGENT_NAME = "agent.name"
-    """
-    The name of the agent. Agents that perform the same functions should have the same name.
-    """
-    GRAPH_NODE_ID = "graph.node.id"
-    """
-    The id of the node in the execution graph. This along with graph.node.parent_id are used to visualize the execution graph.
-    """
-    GRAPH_NODE_NAME = "graph.node.name"
-    """
-    The name of the node in the execution graph. Use this to present a human readable name for the node. Optional
-    """
-    GRAPH_NODE_PARENT_ID = "graph.node.parent_id"
-    """
-    This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node.
-    """
+    OUTPUT_DOCUMENTS = "output.documents"
+    """File document (e.g. PDF) outputs of an operation, independent of span kind, e.g. `output.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents)"""
+
+    OUTPUT_IMAGES = "output.images"
+    """Image outputs of an operation, independent of span kind, e.g. `output.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images)"""
+
+    OUTPUT_MIME_TYPE = "output.mime_type"
+    """MIME type representing the format of `output.value`"""
+
+    OUTPUT_VALUE = "output.value"
+    """The output value of an operation"""
+
+    PROMPT_ID = "prompt.id"
+    """A vendor-specific id used to identify the prompt."""
+
+    PROMPT_URL = "prompt.url"
+    """A vendor-specific URL used to locate the prompt via the web"""
 
     PROMPT_VENDOR = "prompt.vendor"
-    """
-    The vendor or origin of the prompt, e.g. a prompt library, a specialized service, etc.
-    """
-    PROMPT_ID = "prompt.id"
-    """
-    A vendor-specific id used to locate the prompt.
-    """
-    PROMPT_URL = "prompt.url"
-    """
-    A vendor-specific url used to locate the prompt.
-    """
+    """The vendor or origin of the prompt, e.g. `langsmith`, `portkey`, `arize-phoenix`"""
+
+    RETRIEVAL_DOCUMENTS = "retrieval.documents"
+    """List of retrieved documents"""
+
+    SESSION_ANNOTATIONS = "session.annotations"
+    """Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id`"""
+
+    SESSION_EVALUATIONS = "session.evaluations"
+    """Session-scoped feedback using evaluation terminology, flattened as `session.evaluations.0.evaluation.*`; requires `session.id`"""
+
+    SESSION_ID = "session.id"
+    """Unique identifier for a session, such as a multi-turn conversation."""
+
+    TAG_TAGS = "tag.tags"
+    """List of tags to give the span a category"""
+
+    TOOL_DESCRIPTION = "tool.description"
+    """Description of the tool's purpose and functionality. On a `TOOL` span, the tool being invoked; under `llm.tools.<index>`, an advertised tool definition"""
+
+    TOOL_ID = "tool.id"
+    """The identifier for the result of the tool call (corresponding to `tool_call.id`)"""
+
+    TOOL_NAME = "tool.name"
+    """The name of the tool. On a `TOOL` span, the tool being invoked; under `llm.tools.<index>`, the name of an advertised tool definition"""
+
+    TOOL_PARAMETERS = "tool.parameters"
+    """The parameters definition for invoking the tool"""
+
+    TRACE_ANNOTATIONS = "trace.annotations"
+    """Trace-scoped feedback using annotation terminology, flattened as `trace.annotations.0.annotation.*`"""
+
+    TRACE_EVALUATIONS = "trace.evaluations"
+    """Trace-scoped feedback using evaluation terminology, flattened as `trace.evaluations.0.evaluation.*`"""
+
+    USER_ID = "user.id"
+    """Unique identifier for a user."""
+
+    LLM_TOKEN_COUNT_PROMPT_DETAILS = "llm.token_count.prompt_details"
+    """Key prefix for additional prompt token count details. Each detail is a separate attribute with this prefix, e.g. llm.token_count.prompt_details.audio. All values are in tokens."""
+
+    LLM_COST_PROMPT_DETAILS = "llm.cost.prompt_details"
+    """Key prefix for additional prompt cost details. Each detail is a separate attribute with this prefix, e.g. llm.cost.prompt_details.audio. All values are in USD."""
+
+    LLM_COST_COMPLETION_DETAILS = "llm.cost.completion_details"
+    """Key prefix for additional completion cost details. Each detail is a separate attribute with this prefix, e.g. llm.cost.completion_details.audio. All values are in USD."""
 
 
 class AnnotationAttributes:
     """Attributes for feedback about a span."""
 
-    ANNOTATION_NAME = "annotation.name"
-    ANNOTATION_SCORE = "annotation.score"
-    ANNOTATION_LABEL = "annotation.label"
-    ANNOTATION_EXPLANATION = "annotation.explanation"
     ANNOTATION_ANNOTATOR_KIND = "annotation.annotator_kind"
+    """Judge kind: `HUMAN`, `LLM`, `CODE`, or custom. See [Annotator Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md#annotator-kinds)"""
+
+    ANNOTATION_EXPLANATION = "annotation.explanation"
+    """Reason or evidence for the result"""
+
     ANNOTATION_IDENTIFIER = "annotation.identifier"
+    """Stable result ID for the same name and target"""
+
+    ANNOTATION_LABEL = "annotation.label"
+    """Categorical result"""
+
     ANNOTATION_METADATA = "annotation.metadata"
+    """Additional result or judge data"""
+
+    ANNOTATION_NAME = "annotation.name"
+    """Criterion or metric name"""
+
+    ANNOTATION_SCORE = "annotation.score"
+    """Numeric result."""
 
 
 class EvaluationAttributes:
     """Attributes for feedback using evaluation or eval terminology."""
 
-    EVALUATION_NAME = "evaluation.name"
-    EVALUATION_SCORE = "evaluation.score"
-    EVALUATION_LABEL = "evaluation.label"
-    EVALUATION_EXPLANATION = "evaluation.explanation"
     EVALUATION_ANNOTATOR_KIND = "evaluation.annotator_kind"
+    """Judge kind: `HUMAN`, `LLM`, `CODE`, or custom. See [Annotator Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md#annotator-kinds)"""
+
+    EVALUATION_EXPLANATION = "evaluation.explanation"
+    """Reason or evidence for the result"""
+
     EVALUATION_IDENTIFIER = "evaluation.identifier"
+    """Stable result ID for the same name and target"""
+
+    EVALUATION_LABEL = "evaluation.label"
+    """Categorical result"""
+
     EVALUATION_METADATA = "evaluation.metadata"
+    """Additional result or judge data"""
+
+    EVALUATION_NAME = "evaluation.name"
+    """Criterion or metric name"""
+
+    EVALUATION_SCORE = "evaluation.score"
+    """Numeric result."""
 
 
 class MessageAttributes:
-    """
-    Attributes for a message sent to or from an LLM
-    """
+    """Attributes for a message sent to or from an LLM."""
+
+    MESSAGE_CONTENT = "message.content"
+    """The content of a message in a chat"""
+
+    MESSAGE_CONTENTS = "message.contents"
+    """The message contents to the LLM, an array of `message_content` objects. Use this form when a message has multiple content items or when item ordering matters."""
+
+    MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = "message.function_call_arguments_json"
+    """Deprecated: Use `message.tool_calls` instead. The arguments to the function call in JSON"""
+
+    MESSAGE_FUNCTION_CALL_NAME = "message.function_call_name"
+    """Deprecated: Use `message.tool_calls` instead. Function call function name"""
+
+    MESSAGE_NAME = "message.name"
+    """The name of the function or tool that produced a tool/function role message. Used when `message.role` is `"tool"` or `"function"` to identify the origin."""
 
     MESSAGE_ROLE = "message.role"
-    """
-    The role of the message, such as "user", "agent", "function".
-    """
-    MESSAGE_CONTENT = "message.content"
-    """
-    The content of the message to or from the llm, must be a string.
-    """
-    MESSAGE_CONTENTS = "message.contents"
-    """
-    The message contents to the llm, it is an array of
-    `message_content` prefixed attributes.
-    """
-    MESSAGE_NAME = "message.name"
-    """
-    The name of the message, often used to identify the function
-    that was used to generate the message.
-    """
-    MESSAGE_TOOL_CALLS = "message.tool_calls"
-    """
-    The tool calls generated by the model, such as function calls.
-    """
-    MESSAGE_FUNCTION_CALL_NAME = "message.function_call_name"
-    """
-    The function name that is a part of the message list.
-    This is populated for role 'function' or 'agent' as a mechanism to identify
-    the function that was called during the execution of a tool.
-    """
-    MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = "message.function_call_arguments_json"
-    """
-    The JSON string representing the arguments passed to the function
-    during a function call.
-    """
+    """Role of the entity in a message (e.g., user, system)"""
+
     MESSAGE_TOOL_CALL_ID = "message.tool_call_id"
-    """
-    The id of the tool call.
-    """
+    """Tool call result identifier corresponding to `tool_call.id`"""
+
+    MESSAGE_TOOL_CALLS = "message.tool_calls"
+    """List of tool calls (e.g. function calls) generated by the LLM, e.g. `llm.output_messages.0.message.tool_calls.0.tool_call.id`"""
 
 
 class MessageContentAttributes:
-    """
-    Attributes for the contents of user messages sent to an LLM.
-    """
+    """Attributes for the contents of messages sent to or from an LLM."""
+
+    MESSAGE_CONTENT_AUDIO = "message_content.audio"
+    """The audio content of the message, if the type is `"audio"`. Nested leaves are `audio.url` and `audio.transcript`."""
+
+    MESSAGE_CONTENT_DATA = "message_content.data"
+    """Opaque vendor-issued data captured verbatim. Maps to Anthropic `redacted_thinking.data`."""
+
+    MESSAGE_CONTENT_DOCUMENT = "message_content.document"
+    """The document content of the message (e.g. a PDF, an uploaded file, or inline text), if the type is `"document"`. Nested leaves are `document.url`, `document.content`, `document.mime_type`, `document.id`, and `document.name`."""
+
+    MESSAGE_CONTENT_ENCRYPTED_CONTENT = "message_content.encrypted_content"
+    """OpenAI `encrypted_content` captured verbatim."""
+
+    MESSAGE_CONTENT_ID = "message_content.id"
+    """Provider-assigned identifier for this message content item. For OpenAI Responses reasoning items, this maps to `ResponseReasoningItem.id` and should be preserved for stateless replay."""
+
+    MESSAGE_CONTENT_IMAGE = "message_content.image"
+    """The image content of the message, if the type is `"image"`."""
+
+    MESSAGE_CONTENT_SIGNATURE = "message_content.signature"
+    """Opaque vendor-issued signature captured verbatim. Maps to provider `signature` fields, and to Gemini `thoughtSignature` fields when the signature is attached to a non-tool content part such as text."""
+
+    MESSAGE_CONTENT_TEXT = "message_content.text"
+    """The text content of the message. Used when `message_content.type` is `"text"` or `"reasoning"` (visible reasoning or summary text). For OpenAI `summary_text` arrays, concatenate the array items into this single text value for now."""
 
     MESSAGE_CONTENT_TYPE = "message_content.type"
-    """
-    The type of the content, such as "text", "image", "audio",
-    "video", "document", "reasoning", or "tool_use".
-    """
-    MESSAGE_CONTENT_TEXT = "message_content.text"
-    """
-    The text content of the message, if the type is "text" or "reasoning".
-    """
-    MESSAGE_CONTENT_IMAGE = "message_content.image"
-    """
-    The image content of the message, if the type is "image".
-    An image can be made available to the model by passing a link to
-    the image or by passing the base64 encoded image directly in the
-    request.
-    """
-    MESSAGE_CONTENT_AUDIO = "message_content.audio"
-    """
-    The audio content of the message, if the type is "audio".
-    Nested leaves come from AudioAttributes.
-    """
+    """The type of the content. Use `"reasoning"` for reasoning/thinking content, including Anthropic `redacted_thinking` blocks. Use `"tool_use"` when a provider returns a tool call as an ordered content part."""
+
     MESSAGE_CONTENT_VIDEO = "message_content.video"
-    """
-    The video content of the message, if the type is "video".
-    Nested leaves come from VideoAttributes.
-    """
-    MESSAGE_CONTENT_DOCUMENT = "message_content.document"
-    """
-    The document content of the message (e.g. a PDF, an uploaded file, or inline
-    text), if the type is "document".
-    Nested leaves come from DocumentAttributes.
-    """
-    MESSAGE_CONTENT_ID = "message_content.id"
-    """
-    Provider-assigned identifier for this message content item.
-    For OpenAI Responses reasoning items, this maps to
-    ResponseReasoningItem.id and should be preserved for stateless replay.
-    """
-    MESSAGE_CONTENT_SIGNATURE = "message_content.signature"
-    """
-    Opaque vendor-issued signature captured verbatim. Maps to provider
-    signature fields and to Gemini thoughtSignature fields when the signature
-    is attached to a non-tool content part.
-    """
-    MESSAGE_CONTENT_DATA = "message_content.data"
-    """
-    Opaque vendor-issued data captured verbatim. Maps to Anthropic
-    redacted_thinking.data.
-    """
-    MESSAGE_CONTENT_ENCRYPTED_CONTENT = "message_content.encrypted_content"
-    """
-    OpenAI encrypted_content captured verbatim.
-    """
+    """The video content of the message, if the type is `"video"`. The nested leaf is `video.url`. Consumers infer MIME type from the URL path extension or a data URI prefix."""
 
 
 class ImageAttributes:
-    """
-    Attributes for images
-    """
+    """Attributes for images."""
 
     IMAGE_URL = "image.url"
-    """
-    An http or base64 image url.
-    """
+    """The link to the image or its base64 encoding"""
 
 
 class AudioAttributes:
-    """
-    Attributes for audio
-    """
+    """Attributes for audio."""
+
+    AUDIO_MIME_TYPE = "audio.mime_type"
+    """The MIME type of the audio file."""
+
+    AUDIO_TRANSCRIPT = "audio.transcript"
+    """The transcript of the audio file (e.g. a Whisper transcription)"""
 
     AUDIO_URL = "audio.url"
-    """
-    The url to an audio file
-    """
-    AUDIO_MIME_TYPE = "audio.mime_type"
-    """
-    The mime type of the audio file
-    """
-    AUDIO_TRANSCRIPT = "audio.transcript"
-    """
-    The transcript of the audio file
-    """
+    """The URL of an audio file (e.g. cloud storage), or a base64 data URI"""
 
 
 class VideoAttributes:
-    """
-    Attributes for video
-    """
+    """Attributes for video."""
 
     VIDEO_URL = "video.url"
-    """
-    The URL, object-store URI, or base64 data URI of a video.
-    """
+    """The URL, object-store URI, or base64 data URI of a video. Consumers infer MIME type from the path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix."""
 
 
 class DocumentAttributes:
-    """
-    Attributes for a document.
-    """
+    """Attributes for a document."""
+
+    DOCUMENT_CONTENT = "document.content"
+    """The text content of a document: a retrieved passage, or an inline text document passed to a model (e.g. an Anthropic `text` source)"""
 
     DOCUMENT_ID = "document.id"
-    """
-    The id of the document: a retrieved document or chunk's id in a retrieval system, or,
-    for a document passed to a model, the provider's file id (e.g. an OpenAI or
-    Anthropic Files API id).
-    """
-    DOCUMENT_SCORE = "document.score"
-    """
-    The score of the document
-    """
-    DOCUMENT_CONTENT = "document.content"
-    """
-    The text content of the document: a retrieved passage, or an inline text document
-    passed to a model.
-    """
+    """Unique identifier for a document: a retrieved document or chunk in a retrieval system, or the provider file id (e.g. an OpenAI or Anthropic Files API id) for a document passed to a model."""
+
     DOCUMENT_METADATA = "document.metadata"
-    """
-    The metadata of the document represented as a dictionary
-    JSON string, e.g. `"{ 'title': 'foo' }"`
-    """
-    DOCUMENT_URL = "document.url"
-    """
-    The URL, object-store URI, or base64 data URI of a file document such as a PDF.
-    """
+    """Metadata associated with a document"""
+
     DOCUMENT_MIME_TYPE = "document.mime_type"
-    """
-    The MIME type of a document, e.g. `application/pdf`.
-    """
+    """The MIME type of a file document such as a PDF"""
+
     DOCUMENT_NAME = "document.name"
-    """
-    The name supplied with a document, such as a file name or a title, e.g. `invoice.pdf`.
-    Not a unique identifier.
-    """
+    """The name supplied with a document, copied verbatim: a file name (OpenAI `filename`) or a title (Anthropic `title`, Bedrock `name`, Gemini `display_name`); not a unique identifier"""
+
+    DOCUMENT_SCORE = "document.score"
+    """Score representing the relevance of a document"""
+
+    DOCUMENT_URL = "document.url"
+    """The URL, object-store URI, or base64 data URI of a file document such as a PDF"""
 
 
 class RerankerAttributes:
-    """
-    Attributes for a reranker
-    """
+    """Attributes for a reranker."""
 
     RERANKER_INPUT_DOCUMENTS = "reranker.input_documents"
-    """
-    List of documents as input to the reranker
-    """
-    RERANKER_OUTPUT_DOCUMENTS = "reranker.output_documents"
-    """
-    List of documents as output from the reranker
-    """
-    RERANKER_QUERY = "reranker.query"
-    """
-    Query string for the reranker
-    """
+    """List of documents as input to the reranker"""
+
     RERANKER_MODEL_NAME = "reranker.model_name"
-    """
-    Model name of the reranker
-    """
+    """Model name of the reranker"""
+
+    RERANKER_OUTPUT_DOCUMENTS = "reranker.output_documents"
+    """List of documents outputted by the reranker"""
+
+    RERANKER_QUERY = "reranker.query"
+    """Query parameter of the reranker"""
+
     RERANKER_TOP_K = "reranker.top_k"
-    """
-    Top K parameter of the reranker
-    """
+    """Top K parameter of the reranker"""
 
 
 class EmbeddingAttributes:
-    """
-    Attributes for an embedding
-    """
+    """Attributes for an embedding."""
 
     EMBEDDING_TEXT = "embedding.text"
-    """
-    The text represented by the embedding.
-    """
+    """The text represented in the embedding"""
+
     EMBEDDING_VECTOR = "embedding.vector"
-    """
-    The embedding vector.
-    """
+    """The embedding vector consisting of a list of floats"""
 
 
 class ToolCallAttributes:
-    """
-    Attributes for a tool call
-    """
+    """Attributes for a tool call."""
+
+    TOOL_CALL_FUNCTION_ARGUMENTS_JSON = "tool_call.function.arguments"
+    """The arguments for the function being invoked by a tool call"""
+
+    TOOL_CALL_FUNCTION_NAME = "tool_call.function.name"
+    """The name of the function being invoked by a tool call"""
 
     TOOL_CALL_ID = "tool_call.id"
-    """
-    The id of the tool call.
-    """
-    TOOL_CALL_FUNCTION_NAME = "tool_call.function.name"
-    """
-    The name of function that is being called during a tool call.
-    """
-    TOOL_CALL_FUNCTION_ARGUMENTS_JSON = "tool_call.function.arguments"
-    """
-    The JSON string representing the arguments passed to the function
-    during a tool call.
-    """
+    """The id of a tool call (useful when there is more than one call at the same time)"""
+
     TOOL_CALL_REASONING_SIGNATURE = "tool_call.reasoning_signature"
-    """
-    Opaque vendor-issued reasoning echo token attached to a tool call.
-    Maps to Gemini thoughtSignature when it is attached to a functionCall part.
-    """
+    """Opaque vendor-issued reasoning echo token attached to a tool call. Used by Gemini, which puts `thoughtSignature` on `functionCall` parts rather than on the reasoning summary."""
 
 
 class PromptAttributes:
-    """
-    Attributes for a prompt in the completions API
-    """
+    """Attributes for a prompt in the completions API."""
 
     PROMPT_TEXT = "prompt.text"
-    """
-    The text of the prompt.
-    """
+    """The text of a prompt in a completions API request. Used under `llm.prompts`."""
 
 
 class ChoiceAttributes:
-    """
-    Attributes for a choice in the completions API
-    """
+    """Attributes for a choice in the completions API."""
 
     COMPLETION_TEXT = "completion.text"
-    """
-    The text of the completion choice.
-    """
+    """The text of a choice returned from a completions API. Used under `llm.choices`."""
 
 
 class ToolAttributes:
     """Attributes for tools."""
 
+    TOOL_DESCRIPTION = "tool.description"
+    """Description of the tool's purpose and functionality. On a `TOOL` span, the tool being invoked; under `llm.tools.<index>`, an advertised tool definition"""
+
     TOOL_JSON_SCHEMA = "tool.json_schema"
-    """
-    The json schema of a tool input, It is RECOMMENDED that this be in the
-    OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
-    """
+    """The JSON schema of a tool input"""
 
     TOOL_NAME = "tool.name"
-    """The name of the tool, i.e. the identifier the model uses to call it."""
-
-    TOOL_DESCRIPTION = "tool.description"
-    """The description of the tool, i.e. the text the model uses to decide whether to call it."""
+    """The name of the tool. On a `TOOL` span, the tool being invoked; under `llm.tools.<index>`, the name of an advertised tool definition"""
 
 
 class OpenInferenceSpanKindValues(Enum):
-    TOOL = "TOOL"
-    CHAIN = "CHAIN"
+    """Well-known values for `openinference.span.kind`."""
+
     LLM = "LLM"
+    """A call to a large language model."""
+    CHAIN = "CHAIN"
+    """A link between application steps, or the start of a request."""
+    TOOL = "TOOL"
+    """Execution of a tool or function."""
     RETRIEVER = "RETRIEVER"
-    EMBEDDING = "EMBEDDING"
-    AGENT = "AGENT"
+    """A query to a vector store, search engine, or database."""
     RERANKER = "RERANKER"
-    UNKNOWN = "UNKNOWN"
+    """Reordering of candidate documents by relevance."""
+    EMBEDDING = "EMBEDDING"
+    """Generation of vector embeddings."""
+    AGENT = "AGENT"
+    """A reasoning step that acts on tools using an LLM's guidance."""
     GUARDRAIL = "GUARDRAIL"
+    """An input or output moderation check."""
     EVALUATOR = "EVALUATOR"
+    """An evaluation of a model's output."""
     PROMPT = "PROMPT"
+    """The rendering of a prompt template."""
     DECISION = "DECISION"
+    """A call to a decision model."""
+    UNKNOWN = "UNKNOWN"
+    """Fallback used by SDKs when the kind of an operation cannot be determined."""
 
 
 class OpenInferenceAnnotatorKindValues(Enum):
+    """Well-known values for `annotation.annotator_kind`."""
+
     HUMAN = "HUMAN"
+    """A human reviewer."""
     LLM = "LLM"
+    """An LLM judge."""
     CODE = "CODE"
+    """A code-based evaluator."""
 
 
 class OpenInferenceMimeTypeValues(Enum):
+    """Well-known values for `input.mime_type`."""
+
     TEXT = "text/plain"
+    """Plain text. The default when unspecified."""
     JSON = "application/json"
+    """A string holding serialized JSON."""
 
 
 class OpenInferenceLLMSystemValues(Enum):
+    """Well-known values for `llm.system`."""
+
     OPENAI = "openai"
+    """OpenAI"""
     ANTHROPIC = "anthropic"
-    COHERE = "cohere"
+    """Anthropic"""
     MISTRALAI = "mistralai"
+    """Mistral AI"""
+    COHERE = "cohere"
+    """Cohere"""
     VERTEXAI = "vertexai"
+    """Vertex AI"""
+    DEEPSEEK = "deepseek"
+    """DeepSeek"""
+    AMAZON = "amazon"
+    """Amazon Bedrock native"""
+    META = "meta"
+    """Meta (Llama)"""
+    AI21 = "ai21"
+    """AI21 Labs"""
     TYPESAFE = "typesafe"
+    """TypeSafe AI"""
+    XAI = "xai"
+    """xAI (Grok)"""
 
 
 class OpenInferenceLLMProviderValues(Enum):
+    """Well-known values for `llm.provider`."""
+
     OPENAI = "openai"
+    """OpenAI"""
     ANTHROPIC = "anthropic"
-    COHERE = "cohere"
+    """Anthropic"""
     MISTRALAI = "mistralai"
+    """Mistral AI"""
+    COHERE = "cohere"
+    """Cohere"""
     GOOGLE = "google"
-    AZURE = "azure"
+    """Google (Vertex)"""
     AWS = "aws"
+    """AWS Bedrock"""
+    AZURE = "azure"
+    """Azure"""
     XAI = "xai"
+    """xAI"""
     DEEPSEEK = "deepseek"
+    """DeepSeek"""
     GROQ = "groq"
+    """Groq"""
     FIREWORKS = "fireworks"
+    """Fireworks AI"""
     MOONSHOT = "moonshot"
+    """Moonshot AI"""
     CEREBRAS = "cerebras"
+    """Cerebras"""
     PERPLEXITY = "perplexity"
+    """Perplexity"""
     TOGETHER = "together"
+    """Together AI"""
     OLLAMA = "ollama"
+    """Ollama"""
     META = "meta"
+    """Meta AI"""
     ZAI = "zai"
+    """Z.ai (GLM)"""
     MINIMAX = "minimax"
+    """MiniMax"""
     ORACLE = "oracle"
+    """Oracle (OCI Generative AI)"""
     IBM = "ibm"
+    """IBM (watsonx.ai)"""
     TYPESAFE = "typesafe"
+    """TypeSafe AI"""
     DOUBLEWORD = "doubleword"
+    """Doubleword"""
 
 
 class OpenInferenceDecisionSystemValues(Enum):
-    """
-    Well-known values for decision.system: the decision API ecosystem a DECISION
-    span conforms to. Each member aliases the OpenInferenceLLMSystemValues member
-    for the same vendor, so the same string names the same vendor on LLM and
-    DECISION spans. The list is the subset of vendors currently known to offer a
-    decision API.
-    """
+    """Well-known values for `decision.system`."""
 
-    TYPESAFE = OpenInferenceLLMSystemValues.TYPESAFE.value
-    """TypeSafe AI System One / Jev API, including Jev-compatible servers."""
-    OPENAI = OpenInferenceLLMSystemValues.OPENAI.value
-    """OpenAI Decisions API."""
+    TYPESAFE = "typesafe"
+    """[TypeSafe AI System One / Jev API](https://typesafe.ai/blog/introducing-system-one-models-and-jev), including Jev-compatible servers such as vLLM's `/v1/systemone`"""
+    OPENAI = "openai"
+    """[OpenAI Decisions API](https://openai.com/index/devday-2026-recap/)"""
 
 
 class OpenInferenceDecisionProviderValues(Enum):
-    """
-    Well-known values for decision.provider: who hosts the decision model that
-    answered. Each member aliases the OpenInferenceLLMProviderValues member for
-    the same vendor.
-    """
+    """Well-known values for `decision.provider`."""
 
-    TYPESAFE = OpenInferenceLLMProviderValues.TYPESAFE.value
-    OPENAI = OpenInferenceLLMProviderValues.OPENAI.value
+    TYPESAFE = "typesafe"
+    """TypeSafe AI"""
+    OPENAI = "openai"
+    """OpenAI"""
