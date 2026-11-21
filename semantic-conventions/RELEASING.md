@@ -20,8 +20,8 @@ Consume a tag, not `main`.
 The schema URL is the registry's identifier, and the docs site serves the registry there:
 `https://openinf.dev/schemas/X.Y.Z/` has a page for the version, with `manifest.yaml` and `registry.yaml` next to it.
 The deploy workflow serves a released version from its release assets, so it never changes once published; a version
-that has no release yet is built from the model on `main`. The site deploys again when the release workflow has attached
-the assets, so a new version switches to them without waiting for the next push to `main`.
+that has no release yet is built from the model on `main`. The release workflow starts a deploy once it has
+attached the assets, so a new version switches to them without waiting for the next push to `main`.
 
 ## What moves the version
 
