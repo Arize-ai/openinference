@@ -28,6 +28,10 @@ span kinds mark LLM calls, agents, tools, retrievers and embeddings, and which a
 token counts and metadata. Every instrumentation follows it, so a trace reads the same whichever framework or language
 produced it.
 
+The conventions are also published as a machine-readable [schema registry](./spec/attributes/registry.md), versioned
+at [openinf.dev/schemas](https://openinf.dev/schemas/). The specification's attribute tables and the
+`openinference-semantic-conventions` packages are generated from it.
+
 ## Instrumentation
 
 Instrumentation libraries trace popular model providers and agent frameworks automatically, following the
