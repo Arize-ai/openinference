@@ -16,52 +16,49 @@ registry is the source of truth: the attribute tables in the
 TypeScript, Java and Go `openinference-semantic-conventions` packages are
 generated from it.
 
-Nothing changes on the wire. The registry models the attribute keys, types and
-values that instrumentation already emits.
-
-## Why Weaver
+## Weaver
 
 OpenInference exists to make AI applications observable now and to bring what
 works to OpenTelemetry. Until now that second half meant translating by hand:
-the conventions were prose and four hand-maintained sets of constants, in no
+the conventions were markdown and four hand-maintained sets of constants, in no
 format that OpenTelemetry tooling could read.
 
 Defining them in the same format as OpenTelemetry removes the translation:
 
 - **Same schema.** The model is YAML in Weaver's
-  [`definition/2` syntax](https://github.com/open-telemetry/weaver/blob/main/schemas/semconv-syntax.v2.md): attributes with a
-  type, stability, examples and enum members, and a span definition for each
-  `openinference.span.kind` except `UNKNOWN` that references those attributes
-  with a requirement level.
+`definition/2` [syntax](https://github.com/open-telemetry/weaver/blob/main/schemas/semconv-syntax.v2.md): attributes with a
+type, stability, examples and enum members, and a span definition for each
+`openinference.span.kind` except `UNKNOWN` that references those attributes
+with a requirement level.
 - **Same policies.** CI runs
-  [`weaver registry check`](https://github.com/open-telemetry/weaver/blob/main/docs/usage.md) with the shared
-  [OpenTelemetry policy package](https://github.com/open-telemetry/opentelemetry-weaver-packages)
-  that
-  [`semantic-conventions-genai`](https://github.com/open-telemetry/semantic-conventions-genai)
-  uses, pinned to the same revision: naming conventions, stability and
-  backwards compatibility. Three legacy keys (`metadata`, `annotations`,
-  `evaluations`) have no namespace and are listed as explicit exceptions, each
-  with its reason.
+[`weaver registry check`](https://github.com/open-telemetry/weaver/blob/main/docs/usage.md) with the shared
+[OpenTelemetry policy package](https://github.com/open-telemetry/opentelemetry-weaver-packages)
+that
+[`semantic-conventions-genai`](https://github.com/open-telemetry/semantic-conventions-genai)
+uses, pinned to the same revision: naming conventions, stability and
+backwards compatibility. Three legacy keys (`metadata`, `annotations`,
+`evaluations`) have no namespace and are listed as explicit exceptions, each
+with its reason.
 - **Shared attributes.** The registry declares the OpenTelemetry semantic
-  conventions (1.45.0) as a [dependency](https://github.com/open-telemetry/weaver/blob/main/docs/dependencies.md) and references `session.id` and
-  `user.id` from it instead of redefining them.
+conventions (1.45.0) as a [dependency](https://github.com/open-telemetry/weaver/blob/main/docs/dependencies.md) and references `session.id` and
+`user.id` from it instead of redefining them.
 - **Backwards compatibility.** On every pull request the shared policy compares
-  the model with the one on the base branch. Removing an attribute or a span
-  fails the build; attributes are deprecated, not removed or renamed.
+the model with the one on the base branch. Removing an attribute or a span
+fails the build; attributes are deprecated, not removed or renamed.
 - **Published at a schema URL.** Each version is a resolved registry and a
-  publication manifest, the two files Weaver packages, served at the version's
-  schema URL. The first is
-  [`https://openinf.dev/schemas/0.0.1`](https://openinf.dev/schemas/0.0.1/).
+publication manifest, the two files Weaver packages, served at the version's
+schema URL. The first is
+[`https://openinf.dev/schemas/0.0.1`](https://openinf.dev/schemas/0.0.1/).
 
 With both sets of conventions in one format, an OpenInference attribute and a
 `gen_ai.*` attribute can be compared field by field, and a convention proposed
 upstream starts from a definition OpenTelemetry's tooling already accepts.
 
-## Where Weaver's schema stops
+## Complex attributes
 
 OTLP span attributes cannot hold objects, so OpenInference flattens lists into
 indexed keys (`llm.input_messages.0.message.role`) or serializes them to JSON.
-Weaver has no type for either. The registry models a flattened value as
+OTel doesn't have primitives for this. Because of this, the registry models a flattened value as
 `template[any]`, which is what lets Weaver resolve an indexed key to its
 attribute, and records the encoding in an annotation:
 
@@ -82,7 +79,7 @@ Weaver matches the prefix only, so a misspelled leaf after `llm.input_messages.0
 still resolves. Validating the leaves is tracked in
 [#4419](https://github.com/Arize-ai/openinference/issues/4419).
 
-## Checking telemetry for compliance
+## Telemetry compliance
 
 [`weaver registry live-check`](https://github.com/open-telemetry/weaver/tree/main/crates/weaver_live_check)
 resolves the registry and reports every attribute it does not define. Given a file of attributes:
@@ -140,7 +137,6 @@ whose generated files do not match the model.
 Everything in the registry is at `development` stability, so the schema can
 still change. We want to hear about:
 
-- an attribute whose type does not match what your instrumentation records
 - a missing well-known value
 - a structure the annotations cannot express, or that your tooling cannot read
 - anything that would make the conventions easier to align with OpenTelemetry
