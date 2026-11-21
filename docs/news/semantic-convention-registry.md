@@ -1,5 +1,5 @@
 ---
-title: The spec is now a Weaver registry
+title: OpenInference Semantic Conventions as a Weaver Registry
 description: The OpenInference semantic conventions are now defined in an OpenTelemetry Weaver registry, validated with the OpenTelemetry policies and published at a schema URL. The spec's tables and the language packages are generated from it.
 pubDate: 2026-11-21
 authors: [mikeldking]
