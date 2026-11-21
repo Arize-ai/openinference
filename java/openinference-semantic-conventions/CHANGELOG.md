@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.26...java-openinference-semantic-conventions-v0.1.27) (2026-11-21)
+
+
+### Features
+
+* **semantic-conventions:** generate the language packages from the model ([#4408](https://github.com/Arize-ai/openinference/issues/4408)) ([15a4c5e](https://github.com/Arize-ai/openinference/commit/15a4c5e555510a14e1a83aa4ab9fdc2df4791805))
+
 ## [0.1.26](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.25...java-openinference-semantic-conventions-v0.1.26) (2026-11-16)
 
 

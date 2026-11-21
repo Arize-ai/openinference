@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.15...go/openinference-semantic-conventions/v0.1.16) (2026-11-21)
+
+
+### Features
+
+* **semantic-conventions:** generate the language packages from the model ([#4408](https://github.com/Arize-ai/openinference/issues/4408)) ([15a4c5e](https://github.com/Arize-ai/openinference/commit/15a4c5e555510a14e1a83aa4ab9fdc2df4791805))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.14...go/openinference-semantic-conventions/v0.1.15) (2026-11-16)
 
 
