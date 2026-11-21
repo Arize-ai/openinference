@@ -10,8 +10,8 @@ releases: ["semantic-conventions-v0.0.1"]
 The OpenInference semantic conventions are now defined in a
 [schema registry](../../spec/attributes/registry.md) built with
 [OpenTelemetry Weaver](https://github.com/open-telemetry/weaver), the toolchain
-the OpenTelemetry semantic conventions are authored, validated and published
-with. The registry is the source of truth: the attribute tables in the
+the OpenTelemetry semantic conventions are authored and validated with. The
+registry is the source of truth: the attribute tables in the
 [specification](../../spec/README.md) and the constants in the Python,
 TypeScript, Java and Go `openinference-semantic-conventions` packages are
 generated from it.
@@ -30,31 +30,32 @@ Defining them in the same format as OpenTelemetry removes the translation:
 
 - **Same schema.** The model is YAML in Weaver's
   [`definition/2` syntax](https://github.com/open-telemetry/weaver/blob/main/schemas/semconv-syntax.v2.md): attributes with a
-  type, stability, examples and enum members, and one span definition per
-  `openinference.span.kind` that references those attributes with a requirement
-  level.
+  type, stability, examples and enum members, and a span definition for each
+  `openinference.span.kind` except `UNKNOWN` that references those attributes
+  with a requirement level.
 - **Same policies.** CI runs
   [`weaver registry check`](https://github.com/open-telemetry/weaver/blob/main/docs/usage.md) with the shared
   [OpenTelemetry policy package](https://github.com/open-telemetry/opentelemetry-weaver-packages)
   that
   [`semantic-conventions-genai`](https://github.com/open-telemetry/semantic-conventions-genai)
-  uses: naming, namespace collisions, stability and deprecation. Three legacy
-  keys (`metadata`, `annotations`, `evaluations`) have no namespace and are
-  listed as explicit exceptions; nothing new may be added to that list.
+  uses, pinned to the same revision: naming conventions, stability and
+  backwards compatibility. Three legacy keys (`metadata`, `annotations`,
+  `evaluations`) have no namespace and are listed as explicit exceptions, each
+  with its reason.
 - **Shared attributes.** The registry declares the OpenTelemetry semantic
   conventions (1.45.0) as a [dependency](https://github.com/open-telemetry/weaver/blob/main/docs/dependencies.md) and references `session.id` and
   `user.id` from it instead of redefining them.
-- **Backwards compatibility.** On every pull request the model is compared with
-  the base branch. Removing an attribute or a span fails the build; attributes
-  are deprecated, not removed or renamed.
-- **Published like OpenTelemetry.** Each version is a resolved registry and a
-  publication manifest served at its schema URL. The first is
+- **Backwards compatibility.** On every pull request the shared policy compares
+  the model with the one on the base branch. Removing an attribute or a span
+  fails the build; attributes are deprecated, not removed or renamed.
+- **Published at a schema URL.** Each version is a resolved registry and a
+  publication manifest, the two files Weaver packages, served at the version's
+  schema URL. The first is
   [`https://openinf.dev/schemas/0.0.1`](https://openinf.dev/schemas/0.0.1/).
 
 With both sets of conventions in one format, an OpenInference attribute and a
-`gen_ai.*` attribute can be compared field by field, a third registry can
-depend on both, and a convention proposed upstream starts from a definition
-OpenTelemetry's tooling already accepts.
+`gen_ai.*` attribute can be compared field by field, and a convention proposed
+upstream starts from a definition OpenTelemetry's tooling already accepts.
 
 ## Where Weaver's schema stops
 
