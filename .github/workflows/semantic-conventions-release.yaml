@@ -69,3 +69,20 @@ jobs:
             .build/package/manifest.yaml \
             .build/package/registry.yaml \
             --clobber
+
+  # The push that created the release deployed the site before the assets
+  # existed, so the site still serves this version as unreleased, built from
+  # the model. Deploy again now that the assets are attached.
+  redeploy-site:
+    name: Redeploy the site
+    needs: attach-registry
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # start the deploy workflow
+    steps:
+      - name: Start the GitHub Pages deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run gh-pages.yml --ref main

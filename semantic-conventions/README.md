@@ -205,7 +205,10 @@ Helpers are derived too:
 ## Using the registry
 
 Released versions are tagged `semantic-conventions-vX.Y.Z`. Each release has the publication manifest
-(`manifest.yaml`) and the resolved registry (`registry.yaml`) attached as assets. See [RELEASING.md](RELEASING.md).
+(`manifest.yaml`) and the resolved registry (`registry.yaml`) attached as assets, and the docs site serves the same two
+files at the registry's schema URL: <https://openinf.dev/schemas/> lists the versions. See [RELEASING.md](RELEASING.md).
+
+To see them on a local build of the site, run `make -C semantic-conventions site-schemas` first.
 
 Check telemetry against the conventions:
 
