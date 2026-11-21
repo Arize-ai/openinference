@@ -37,7 +37,13 @@ templates:
               [$all[] | select(.key != $list.key) | .annotations.openinference.item_namespaces // [] | .[]]
               | index($root) | not
             )
-          | {key: .key, item_namespace: .annotations.openinference.item_namespaces[0]}
+          | {
+              key: .key,
+              item_namespace: (
+                .annotations.openinference.item_namespaces[0]
+                // (.annotations.openinference.item_attributes[0] | split(".")[0])
+              )
+            }
         ]
       }
     application_mode: single

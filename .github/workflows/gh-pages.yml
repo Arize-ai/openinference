@@ -9,6 +9,13 @@ on:
   push:
     branches: ["main"]
 
+  # A registry release attaches its assets after the push that created it, so
+  # that push's deploy still serves the version as unreleased. Deploy again once
+  # the assets are attached.
+  workflow_run:
+    workflows: ["Semantic Conventions Release"]
+    types: [completed]
+
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -27,6 +34,13 @@ jobs:
   # workspace installed and built (a package's types import its siblings'
   # built declarations)
   js-api:
+    # After a release workflow run, deploy only if it attached a registry: that
+    # workflow also starts, and does nothing, for every other package's release.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.event == 'workflow_dispatch' ||
+      startsWith(github.event.workflow_run.head_branch, 'semantic-conventions-v')))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

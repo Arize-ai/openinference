@@ -38,8 +38,11 @@
   {"name": "OpenInferenceDecisionSystemValues", "key": "decision.system"},
   {"name": "OpenInferenceDecisionProviderValues", "key": "decision.provider"},
 ] %}
+{# For a docstring: `"""` cannot appear inside it, and a trailing `"` would
+   run into the closing quotes. #}
 {% macro text(value) -%}
-{{ value | default("", true) | trim | replace("\\", "\\\\") | replace('"""', "'''") }}
+{%- set escaped = value | default("", true) | trim | replace("\\", "\\\\") | replace('"""', "'''") -%}
+{%- if escaped is endingwith('"') %}{{ escaped[:-1] }}\"{% else %}{{ escaped }}{% endif -%}
 {%- endmacro %}
 {% macro doc(attribute) -%}
 {% if attribute.deprecated %}Deprecated{% if attribute.deprecated.note %}: {{ text(attribute.deprecated.note) }}{% else %}.{% endif %} {% endif %}{{ text(attribute.brief) | replace("\n", " ") }}

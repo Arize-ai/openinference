@@ -22,7 +22,7 @@ SHELL := /bin/bash
 include versions.env
 
 # FORCE_CONTAINER=1 runs weaver from the container image even when a suitable
-# local weaver exists. CI uses it for generation, so that the hermetic targets
+# local weaver exists. CI uses it for `make test`, so that the hermetic targets
 # are proven to work with the network disabled.
 FORCE_CONTAINER ?=
 LOCAL_RAW_VERSION := $(if $(FORCE_CONTAINER),,$(shell weaver --version 2>/dev/null))
@@ -148,9 +148,9 @@ vendor: ## Refresh the vendored OpenTelemetry attributes from the pinned upstrea
 check-vendor: ## Fail if the vendored OpenTelemetry attributes differ from upstream (needs network)
 	@uv run --no-project --with pyyaml==6.0.3 $(PYTHON) scripts/vendor_upstream.py --weaver '$(WEAVER)' --check
 
-test: offline-model ## Check that sample keys resolve against the registry and that a dependent registry resolves
+test: offline-model ## Check sample keys against the registry, a dependent registry, and that each OpenInference policy fires
 	@mkdir -p $(BUILD)
-	@for kind in known unknown; do \
+	@for kind in known unknown unvalidated; do \
 		$(WEAVER_OFFLINE) registry live-check \
 			-r $(OFFLINE_MODEL) \
 			--quiet \
@@ -166,6 +166,13 @@ test: offline-model ## Check that sample keys resolve against the registry and t
 	@$(WEAVER_OFFLINE) registry check -r tests/consumer --v2 --quiet \
 		> $(BUILD)/consumer.log 2>&1 || { cat $(BUILD)/consumer.log; exit 1; }
 	@echo "OK: a registry that depends on this one resolves (tests/consumer)."
+	@$(WEAVER_OFFLINE) registry check -r tests/policies/violations --v2 --quiet \
+		--diagnostic-format json --diagnostic-stdout \
+		--policy policies/check/openinference \
+		> $(BUILD)/policy-violations.json 2> $(BUILD)/policy-violations.log; \
+	$(PYTHON) scripts/check_policy_fixtures.py $(BUILD)/policy-violations.json \
+		tests/policies/violations/expected.json policies/check/openinference \
+		|| { cat $(BUILD)/policy-violations.log; exit 1; }
 
 generate: generate-docs generate-spec generate-code ## Regenerate everything derived from the model
 
@@ -248,9 +255,9 @@ release-assets: ## Validate and build the assets for release TAG (e.g. TAG=seman
 	@$(MAKE) --no-print-directory package
 	@for asset in manifest.yaml registry.yaml; do \
 		[ -s $(PACKAGE_OUTPUT)/$$asset ] || { echo "FAIL: $(PACKAGE_OUTPUT)/$$asset was not built."; exit 1; }; done
-	@grep -q '^schema_url: .*/$(VERSION)$$' $(PACKAGE_OUTPUT)/manifest.yaml \
+	@grep -q '^schema_url: .*/$(subst .,\.,$(VERSION))$$' $(PACKAGE_OUTPUT)/manifest.yaml \
 		|| { echo "FAIL: packaged manifest does not carry version $(VERSION)."; exit 1; }
-	@grep -q '^resolved_registry_uri: $(RELEASE_DOWNLOAD_URL)/registry.yaml$$' $(PACKAGE_OUTPUT)/manifest.yaml \
+	@grep -qxF 'resolved_registry_uri: $(RELEASE_DOWNLOAD_URL)/registry.yaml' $(PACKAGE_OUTPUT)/manifest.yaml \
 		|| { echo "FAIL: packaged manifest does not point at $(RELEASE_DOWNLOAD_URL)/registry.yaml."; exit 1; }
 	@echo "OK: release assets for $(TAG) are in $(PACKAGE_OUTPUT)."
 

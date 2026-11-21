@@ -17,7 +17,11 @@ package semconv
 // keys.
 const (
 {% for attribute in ctx.attributes %}
-	// {{ n.go_name(attribute.const_key) }}: {% if attribute.deprecated %}Deprecated{% if attribute.deprecated.note %}: {{ n.doc(attribute.deprecated.note) }}{% else %}.{% endif %} {% endif %}{{ n.doc(attribute.brief) }}
+	// {{ n.go_name(attribute.const_key) }}: {{ n.doc(attribute.brief) }}
+{% if attribute.deprecated %}
+	//
+	// Deprecated: {{ n.doc(attribute.deprecated.note) }}
+{% endif %}
 	{{ n.go_name(attribute.const_key) }} = "{{ attribute.key }}"
 
 {% endfor %}

@@ -70,11 +70,11 @@ See [Span Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/genera
 | Value | Description | Stability |
 | --- | --- | --- |
 | `LLM` | A call to a large language model. | ![Development](https://img.shields.io/badge/-development-blue) |
-| `EMBEDDING` | Generation of vector embeddings. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `CHAIN` | A link between application steps, or the start of a request. | ![Development](https://img.shields.io/badge/-development-blue) |
+| `TOOL` | Execution of a tool or function. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `RETRIEVER` | A query to a vector store, search engine, or database. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `RERANKER` | Reordering of candidate documents by relevance. | ![Development](https://img.shields.io/badge/-development-blue) |
-| `TOOL` | Execution of a tool or function. | ![Development](https://img.shields.io/badge/-development-blue) |
+| `EMBEDDING` | Generation of vector embeddings. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `AGENT` | A reasoning step that acts on tools using an LLM's guidance. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `GUARDRAIL` | An input or output moderation check. | ![Development](https://img.shields.io/badge/-development-blue) |
 | `EVALUATOR` | An evaluation of a model's output. | ![Development](https://img.shields.io/badge/-development-blue) |

@@ -244,7 +244,7 @@ export const ANNOTATION_SCORE = "annotation.score";
 export const ANNOTATIONS = "annotations";
 
 /**
- * Deprecated: Infer the type from `audio.url` instead; new instrumentors should not emit this. The MIME type of the audio file.
+ * The MIME type of the audio file.
  */
 export const AUDIO_MIME_TYPE = "audio.mime_type";
 
@@ -504,7 +504,8 @@ export const LLM_COST_TOTAL = "llm.cost.total";
 export const LLM_FINISH_REASON = "llm.finish_reason";
 
 /**
- * Deprecated: Use `message.tool_calls` instead. Object recording details of a function call in models or APIs
+ * Object recording details of a function call in models or APIs
+ * @deprecated Use `message.tool_calls` instead.
  */
 export const LLM_FUNCTION_CALL = "llm.function_call";
 
@@ -633,12 +634,14 @@ export const MESSAGE_CONTENT = "message.content";
 export const MESSAGE_CONTENTS = "message.contents";
 
 /**
- * Deprecated: Use `message.tool_calls` instead. The arguments to the function call in JSON
+ * The arguments to the function call in JSON
+ * @deprecated Use `message.tool_calls` instead.
  */
 export const MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = "message.function_call_arguments_json";
 
 /**
- * Deprecated: Use `message.tool_calls` instead. Function call function name
+ * Function call function name
+ * @deprecated Use `message.tool_calls` instead.
  */
 export const MESSAGE_FUNCTION_CALL_NAME = "message.function_call_name";
 
@@ -1036,11 +1039,11 @@ export enum AnnotatorKind {
 
 export enum OpenInferenceSpanKind {
   LLM = "LLM",
-  EMBEDDING = "EMBEDDING",
   CHAIN = "CHAIN",
+  TOOL = "TOOL",
   RETRIEVER = "RETRIEVER",
   RERANKER = "RERANKER",
-  TOOL = "TOOL",
+  EMBEDDING = "EMBEDDING",
   AGENT = "AGENT",
   GUARDRAIL = "GUARDRAIL",
   EVALUATOR = "EVALUATOR",
@@ -1059,27 +1062,27 @@ export enum MimeType {
 }
 
 export enum LLMSystem {
-  ANTHROPIC = "anthropic",
   OPENAI = "openai",
-  VERTEXAI = "vertexai",
-  COHERE = "cohere",
+  ANTHROPIC = "anthropic",
   MISTRALAI = "mistralai",
-  XAI = "xai",
+  COHERE = "cohere",
+  VERTEXAI = "vertexai",
   DEEPSEEK = "deepseek",
   AMAZON = "amazon",
   META = "meta",
   AI21 = "ai21",
   TYPESAFE = "typesafe",
+  XAI = "xai",
 }
 
 export enum LLMProvider {
-  ANTHROPIC = "anthropic",
   OPENAI = "openai",
-  COHERE = "cohere",
+  ANTHROPIC = "anthropic",
   MISTRALAI = "mistralai",
-  AZURE = "azure",
+  COHERE = "cohere",
   GOOGLE = "google",
   AWS = "aws",
+  AZURE = "azure",
   XAI = "xai",
   DEEPSEEK = "deepseek",
   GROQ = "groq",
@@ -1092,9 +1095,9 @@ export enum LLMProvider {
   META = "meta",
   ZAI = "zai",
   MINIMAX = "minimax",
-  TYPESAFE = "typesafe",
   ORACLE = "oracle",
   IBM = "ibm",
+  TYPESAFE = "typesafe",
   DOUBLEWORD = "doubleword",
 }
 

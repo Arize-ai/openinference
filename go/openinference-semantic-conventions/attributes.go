@@ -35,7 +35,7 @@ const (
 	// Annotations: Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*`
 	Annotations = "annotations"
 
-	// AudioMimeType: Deprecated: Infer the type from `audio.url` instead; new instrumentors should not emit this. The MIME type of the audio file.
+	// AudioMimeType: The MIME type of the audio file.
 	AudioMimeType = "audio.mime_type"
 
 	// AudioTranscript: The transcript of the audio file (e.g. a Whisper transcription)
@@ -191,7 +191,9 @@ const (
 	// LLMFinishReason: The reason the model stopped generating tokens.
 	LLMFinishReason = "llm.finish_reason"
 
-	// LLMFunctionCall: Deprecated: Use `message.tool_calls` instead. Object recording details of a function call in models or APIs
+	// LLMFunctionCall: Object recording details of a function call in models or APIs
+	//
+	// Deprecated: Use `message.tool_calls` instead.
 	LLMFunctionCall = "llm.function_call"
 
 	// LLMInputMessages: List of messages sent to the LLM in a chat API request, e.g. `llm.input_messages.0.message.role`. See [Messages](https://github.com/Arize-ai/openinference/blob/main/spec/content/messages.md)
@@ -266,10 +268,14 @@ const (
 	// MessageContents: The message contents to the LLM, an array of `message_content` objects. Use this form when a message has multiple content items or when item ordering matters.
 	MessageContents = "message.contents"
 
-	// MessageFunctionCallArgumentsJSON: Deprecated: Use `message.tool_calls` instead. The arguments to the function call in JSON
+	// MessageFunctionCallArgumentsJSON: The arguments to the function call in JSON
+	//
+	// Deprecated: Use `message.tool_calls` instead.
 	MessageFunctionCallArgumentsJSON = "message.function_call_arguments_json"
 
-	// MessageFunctionCallName: Deprecated: Use `message.tool_calls` instead. Function call function name
+	// MessageFunctionCallName: Function call function name
+	//
+	// Deprecated: Use `message.tool_calls` instead.
 	MessageFunctionCallName = "message.function_call_name"
 
 	// MessageName: The name of the function or tool that produced a tool/function role message. Used when `message.role` is `"tool"` or `"function"` to identify the origin.

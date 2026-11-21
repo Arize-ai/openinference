@@ -9,11 +9,11 @@ const (
 	// SpanKindLLM: A call to a large language model.
 	SpanKindLLM = "LLM"
 
-	// SpanKindEmbedding: Generation of vector embeddings.
-	SpanKindEmbedding = "EMBEDDING"
-
 	// SpanKindChain: A link between application steps, or the start of a request.
 	SpanKindChain = "CHAIN"
+
+	// SpanKindTool: Execution of a tool or function.
+	SpanKindTool = "TOOL"
 
 	// SpanKindRetriever: A query to a vector store, search engine, or database.
 	SpanKindRetriever = "RETRIEVER"
@@ -21,8 +21,8 @@ const (
 	// SpanKindReranker: Reordering of candidate documents by relevance.
 	SpanKindReranker = "RERANKER"
 
-	// SpanKindTool: Execution of a tool or function.
-	SpanKindTool = "TOOL"
+	// SpanKindEmbedding: Generation of vector embeddings.
+	SpanKindEmbedding = "EMBEDDING"
 
 	// SpanKindAgent: A reasoning step that acts on tools using an LLM's guidance.
 	SpanKindAgent = "AGENT"
@@ -66,23 +66,20 @@ const (
 
 // Well-known values for the llm.system attribute.
 const (
-	// LLMSystemAnthropic: Anthropic
-	LLMSystemAnthropic = "anthropic"
-
 	// LLMSystemOpenAI: OpenAI
 	LLMSystemOpenAI = "openai"
 
-	// LLMSystemVertexAI: Vertex AI
-	LLMSystemVertexAI = "vertexai"
-
-	// LLMSystemCohere: Cohere
-	LLMSystemCohere = "cohere"
+	// LLMSystemAnthropic: Anthropic
+	LLMSystemAnthropic = "anthropic"
 
 	// LLMSystemMistralAI: Mistral AI
 	LLMSystemMistralAI = "mistralai"
 
-	// LLMSystemXAI: xAI (Grok)
-	LLMSystemXAI = "xai"
+	// LLMSystemCohere: Cohere
+	LLMSystemCohere = "cohere"
+
+	// LLMSystemVertexAI: Vertex AI
+	LLMSystemVertexAI = "vertexai"
 
 	// LLMSystemDeepSeek: DeepSeek
 	LLMSystemDeepSeek = "deepseek"
@@ -98,30 +95,33 @@ const (
 
 	// LLMSystemTypeSafe: TypeSafe AI
 	LLMSystemTypeSafe = "typesafe"
+
+	// LLMSystemXAI: xAI (Grok)
+	LLMSystemXAI = "xai"
 )
 
 // Well-known values for the llm.provider attribute.
 const (
-	// LLMProviderAnthropic: Anthropic
-	LLMProviderAnthropic = "anthropic"
-
 	// LLMProviderOpenAI: OpenAI
 	LLMProviderOpenAI = "openai"
 
-	// LLMProviderCohere: Cohere
-	LLMProviderCohere = "cohere"
+	// LLMProviderAnthropic: Anthropic
+	LLMProviderAnthropic = "anthropic"
 
 	// LLMProviderMistralAI: Mistral AI
 	LLMProviderMistralAI = "mistralai"
 
-	// LLMProviderAzure: Azure
-	LLMProviderAzure = "azure"
+	// LLMProviderCohere: Cohere
+	LLMProviderCohere = "cohere"
 
 	// LLMProviderGoogle: Google (Vertex)
 	LLMProviderGoogle = "google"
 
 	// LLMProviderAWS: AWS Bedrock
 	LLMProviderAWS = "aws"
+
+	// LLMProviderAzure: Azure
+	LLMProviderAzure = "azure"
 
 	// LLMProviderXAI: xAI
 	LLMProviderXAI = "xai"
@@ -159,14 +159,14 @@ const (
 	// LLMProviderMiniMax: MiniMax
 	LLMProviderMiniMax = "minimax"
 
-	// LLMProviderTypeSafe: TypeSafe AI
-	LLMProviderTypeSafe = "typesafe"
-
 	// LLMProviderOracle: Oracle (OCI Generative AI)
 	LLMProviderOracle = "oracle"
 
 	// LLMProviderIBM: IBM (watsonx.ai)
 	LLMProviderIBM = "ibm"
+
+	// LLMProviderTypeSafe: TypeSafe AI
+	LLMProviderTypeSafe = "typesafe"
 
 	// LLMProviderDoubleword: Doubleword
 	LLMProviderDoubleword = "doubleword"

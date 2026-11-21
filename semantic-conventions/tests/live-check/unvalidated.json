@@ -1,0 +1,6 @@
+[
+  {"attribute": {"name": "llm.input_messages.0.message.rol", "value": "user"}},
+  {"attribute": {"name": "llm.output_messages.0.message.tool_calls.0.tool_call.function.name", "value": 7}},
+  {"attribute": {"name": "llm.tools.0.tool.parameters", "value": "{}"}},
+  {"attribute": {"name": "embedding.embeddings.0.embedding.embeddings.0.embedding.vector", "value": [0.1, 0.2]}}
+]

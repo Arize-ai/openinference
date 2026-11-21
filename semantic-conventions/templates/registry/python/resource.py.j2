@@ -1,5 +1,8 @@
+{# For a docstring: `"""` cannot appear inside it, and a trailing `"` would
+   run into the closing quotes. #}
 {% macro text(value) -%}
-{{ value | default("", true) | trim | replace("\\", "\\\\") | replace('"""', "'''") | replace("\n", " ") }}
+{%- set escaped = value | default("", true) | trim | replace("\\", "\\\\") | replace('"""', "'''") | replace("\n", " ") -%}
+{%- if escaped is endingwith('"') %}{{ escaped[:-1] }}\"{% else %}{{ escaped }}{% endif -%}
 {%- endmacro %}
 # ruff: noqa: E501
 # Generated from the semantic convention registry in semantic-conventions/model.
