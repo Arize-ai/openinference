@@ -528,13 +528,21 @@ class _TraceCallLlm(_WithTracer):
                 input_messages_index += 1
 
         if contents := llm_request.contents:
-            for i, content in enumerate(contents, input_messages_index):
+            for content in contents:
                 for k, v in _get_attributes_from_content(
                     content,
                     span_attribute=SpanAttributes.LLM_INPUT_MESSAGES,
-                    message_index=i,
+                    message_index=input_messages_index,
                 ):
                     span.set_attribute(k, v)
+                # _get_attributes_from_parts moves to the next index after each
+                # function_response part, so a Content can take several indices.
+                parts = content.parts or []
+                responses = sum(part.function_response is not None for part in parts)
+                if parts and parts[-1].function_response is not None:
+                    input_messages_index += responses
+                else:
+                    input_messages_index += responses + 1
 
 
 class _TraceToolCall(_WithTracer):
