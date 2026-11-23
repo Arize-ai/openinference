@@ -2,7 +2,7 @@ import base64
 import json
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 from google import genai
 from google.genai import types
@@ -25,20 +25,17 @@ _RESPONSE = {
 
 
 @pytest.fixture
-def client() -> genai.Client:
-    def respond(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith(":streamGenerateContent"):
-            return httpx.Response(200, text=f"data: {json.dumps(_RESPONSE)}\n\n")
-        return httpx.Response(200, json=_RESPONSE)
-
-    transport = httpx.MockTransport(respond)
-    return genai.Client(
-        api_key="test-key",
-        http_options=types.HttpOptions(
-            httpx_client=httpx.Client(transport=transport),
-            httpx_async_client=httpx.AsyncClient(transport=transport),
+def client(mock_gemini_api: Any) -> genai.Client:
+    mock_gemini_api.post(
+        r":streamGenerateContent$",
+        httpx2.Response(
+            200,
+            text=f"data: {json.dumps(_RESPONSE)}\n\n",
+            headers={"content-type": "text/event-stream"},
         ),
     )
+    mock_gemini_api.post(r":generateContent$", httpx2.Response(200, json=_RESPONSE))
+    return genai.Client(api_key="test-key")
 
 
 def _contents() -> Any:
