@@ -55,7 +55,9 @@ def _pop_adk_schema_call_llm_attributes(attributes: dict[str, Any]) -> None:
 
     google-adk >= 2.13 defaults to schema v2, which drops ADK's request/response
     payload attributes and replaces `gen_ai.system` with `gen_ai.provider.name`.
+    google-adk >= 2.15 also sets `gen_ai.response.model`.
     """
+    attributes.pop("gen_ai.response.model", None)
     if _adk_schema_version() < 2:
         assert attributes.pop("gcp.vertex.agent.llm_request", None)
         assert attributes.pop("gcp.vertex.agent.llm_response", None)
@@ -2181,26 +2183,37 @@ async def test_google_adk_instrumentor_image_artifacts(
         call_llm_attributes.pop("llm.input_messages.5.message.content", "")
     )
     assert call_llm_attributes.pop("llm.input_messages.5.message.role", None) == "tool"
-    assert call_llm_attributes.pop("llm.input_messages.6.message.role", None) == "user"
-    assert (
-        call_llm_attributes.pop(
-            "llm.input_messages.6.message.contents.0.message_content.text", None
+
+    # google-adk >= 2.15 routes the `load_artifacts` instruction into its own user
+    # message ahead of the artifact content (DYNAMIC_INSTRUCTION_ROUTING).
+    artifact_message = "llm.input_messages.6.message"
+    if "<<<BEGIN_SYSTEM_INSTRUCTION>>>" in str(
+        call_llm_attributes.get(f"{artifact_message}.contents.0.message_content.text", "")
+    ):
+        assert call_llm_attributes.pop(f"{artifact_message}.role", None) == "user"
+        assert "sample.png" in str(
+            call_llm_attributes.pop(f"{artifact_message}.contents.0.message_content.text")
         )
+        assert (
+            call_llm_attributes.pop(f"{artifact_message}.contents.0.message_content.type", None)
+            == "text"
+        )
+        artifact_message = "llm.input_messages.7.message"
+
+    assert call_llm_attributes.pop(f"{artifact_message}.role", None) == "user"
+    assert (
+        call_llm_attributes.pop(f"{artifact_message}.contents.0.message_content.text", None)
         == "Artifact sample.png is:"
     )
     assert (
-        call_llm_attributes.pop(
-            "llm.input_messages.6.message.contents.0.message_content.type", None
-        )
+        call_llm_attributes.pop(f"{artifact_message}.contents.0.message_content.type", None)
         == "text"
     )
     assert call_llm_attributes.pop(
-        "llm.input_messages.6.message.contents.1.message_content.image.image.url", None
+        f"{artifact_message}.contents.1.message_content.image.image.url", None
     )
     assert (
-        call_llm_attributes.pop(
-            "llm.input_messages.6.message.contents.1.message_content.type", None
-        )
+        call_llm_attributes.pop(f"{artifact_message}.contents.1.message_content.type", None)
         == "image"
     )
 
