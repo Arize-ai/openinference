@@ -861,7 +861,8 @@ def test_agno_openrouter_llm_cost_total(
         os.environ["OPENROUTER_API_KEY"] = "fake_key"
         agent = Agent(
             name="Cost Agent",
-            model=OpenRouter(id="openai/gpt-4o-mini"),
+            # Set explicitly: agno 3.x no longer defaults OpenRouter.max_tokens to 1024.
+            model=OpenRouter(id="openai/gpt-4o-mini", max_tokens=1024),
         )
         agent.run("Reply with a single word: ping.")
 
@@ -932,7 +933,8 @@ def test_agno_openrouter_llm_cost_total_stream(
         os.environ["OPENROUTER_API_KEY"] = "fake_key"
         agent = Agent(
             name="Cost Stream Agent",
-            model=OpenRouter(id="openai/gpt-4o-mini"),
+            # Set explicitly: agno 3.x no longer defaults OpenRouter.max_tokens to 1024.
+            model=OpenRouter(id="openai/gpt-4o-mini", max_tokens=1024),
         )
         for _ in agent.run("Reply with a single word: ping.", stream=True):
             pass

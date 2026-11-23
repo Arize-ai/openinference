@@ -7,14 +7,18 @@
 
 /* --- Package head ---------------------------------------------------------- */
 
-.api-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
-.api-head h1 { margin: 0; overflow-wrap: anywhere; }
+/* Block flow, not a grid: a grid would narrow beside the docs pages' Copy
+   page button for its whole height, where its lines only wrap around it. */
+.api-head > * + * { margin-top: var(--space-4); }
+/* The facts sit a step further from the lede. */
+.api-head > .api-facts { margin-top: var(--space-5); }
+.api-head h1 { margin-bottom: 0; overflow-wrap: anywhere; }
 .api-lede { color: var(--soft); font-size: var(--text-lede); line-height: 1.45; text-wrap: pretty; }
 .api-facts {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-4) var(--space-6);
-  margin: var(--space-2) 0 0;
+  margin-bottom: 0;
   padding: var(--space-4) 0;
   border-block: 1px solid var(--rule);
 }

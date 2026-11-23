@@ -2,7 +2,7 @@ import { getCollection } from "astro:content";
 
 import { GITHUB_URL, siteRoute } from "../plugins/rehype-repo-links.mjs";
 
-/** The site's base path, with a trailing slash (`/openinference/`). */
+/** The site's base path, with a trailing slash (`/`). */
 export const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
 
 /** The route of a markdown file the site publishes, by its repository path. */
@@ -55,6 +55,16 @@ export const pages = {
     title: "Brand guidelines",
     description: "The OpenInference mark and wordmark: files, clear space, colour and typography.",
   },
+  news: {
+    title: "News",
+    description:
+      "What's new in OpenInference: new instrumentation, changes to the spec, and the releases worth knowing about.",
+  },
+  schemas: {
+    title: "Schemas",
+    description:
+      "The OpenInference semantic conventions as a machine-readable registry: every published version, with its manifest and resolved registry.",
+  },
   credits: {
     title: "Credits",
     description: "Work by others that this site is built with, and the licences it is used under.",
@@ -66,6 +76,7 @@ export const nav: { href: string; label: string; external?: boolean }[] = [
   { href: routeOf("spec/README.md"), label: "Spec" },
   { href: `${base}js/`, label: "JavaScript" },
   { href: `${base}python/`, label: "Python" },
+  { href: `${base}news/`, label: "News" },
   { href: site.repo, label: "GitHub", external: true },
 ];
 

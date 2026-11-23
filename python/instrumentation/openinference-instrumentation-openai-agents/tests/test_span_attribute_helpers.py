@@ -810,6 +810,58 @@ def test_get_attributes_from_generation_span_data(
     assert attributes == expected_attributes
 
 
+_ADD_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "add",
+        "description": "Adds two numbers together.",
+        "parameters": {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+            "required": ["a", "b"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+}
+_HANDOFF_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "transfer_to_billing",
+        "description": "Handoff to the Billing agent.",
+        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+}
+
+
+@pytest.mark.skipif("'tools' not in GenerationSpanData.__slots__")
+@pytest.mark.parametrize(
+    "tools,expected_tool_attributes",
+    [
+        pytest.param(
+            [_ADD_TOOL, _HANDOFF_TOOL],
+            {
+                "llm.tools.0.tool.json_schema": json.dumps(_ADD_TOOL),
+                "llm.tools.1.tool.json_schema": json.dumps(_HANDOFF_TOOL),
+            },
+            id="function_and_handoff_tools",
+        ),
+        pytest.param([], {}, id="empty_tools"),
+        pytest.param(None, {}, id="no_tools"),
+    ],
+)
+def test_get_attributes_from_generation_span_data_tools(
+    tools: Union[list[dict[str, Any]], None],
+    expected_tool_attributes: Mapping[str, Any],
+) -> None:
+    generation_span_data = GenerationSpanData(
+        model="gpt-4o-mini",
+        tools=tools,  # type: ignore[call-arg, unused-ignore]
+    )
+    attributes = dict(_get_attributes_from_generation_span_data(generation_span_data))
+    assert attributes == {"llm.model_name": "gpt-4o-mini", **expected_tool_attributes}
+
+
 @pytest.mark.parametrize(
     "mcp_list_tool_span_data,expected_attributes",
     [
@@ -1252,8 +1304,41 @@ def test_get_attributes_from_chat_completions_tool_call_dict(
         ),
         pytest.param(
             {"input_tokens": 0, "output_tokens": 0},
-            {},
+            {
+                "llm.token_count.prompt": 0,
+                "llm.token_count.completion": 0,
+            },
             id="zero_tokens",
+        ),
+        pytest.param(
+            {
+                "requests": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 0},
+            },
+            {},
+            id="no_usage_from_provider",
+        ),
+        pytest.param(
+            {
+                "requests": 1,
+                "input_tokens": 120,
+                "output_tokens": 40,
+                "total_tokens": 160,
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 0},
+            },
+            {
+                "llm.token_count.prompt": 120,
+                "llm.token_count.completion": 40,
+                "llm.token_count.total": 160,
+                "llm.token_count.prompt_details.cache_read": 0,
+                "llm.token_count.completion_details.reasoning": 0,
+            },
+            id="no_cache_hit_no_reasoning",
         ),
         pytest.param(
             {
@@ -1282,7 +1367,9 @@ def test_get_attributes_from_chat_completions_tool_call_dict(
             {
                 "llm.token_count.prompt": 200,
                 "llm.token_count.completion": 30,
+                "llm.token_count.prompt_details.cache_read": 0,
                 "llm.token_count.prompt_details.cache_write": 200,
+                "llm.token_count.completion_details.reasoning": 0,
             },
             id="cache_write_zero_cached_zero_reasoning",
         ),

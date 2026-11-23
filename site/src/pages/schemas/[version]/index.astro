@@ -1,0 +1,103 @@
+---
+/**
+ * One published version of the semantic convention registry, at the URL its
+ * `schema_url` names: what it is, its two files, and how to depend on it.
+ */
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { getSchemaVersions, type SchemaVersion } from "../../../lib/schemas";
+import { base, routeOf, site } from "../../../lib/site";
+
+export function getStaticPaths() {
+  return getSchemaVersions().map((schema) => ({ params: { version: schema.version }, props: { schema } }));
+}
+
+interface Props {
+  schema: SchemaVersion;
+}
+
+const { schema } = Astro.props;
+const here = `${base}schemas/${schema.version}/`;
+const tag = `semantic-conventions-v${schema.version}`;
+const dependency = `dependencies:
+  - schema_url: ${schema.schemaUrl}
+    registry_path: ${site.repo}.git@${tag}[semantic-conventions/model]`;
+---
+
+<BaseLayout
+  title={`Semantic conventions ${schema.version}`}
+  description={`Version ${schema.version} of the OpenInference semantic convention registry: its manifest and resolved registry.`}
+>
+  <div class="schema">
+    <header class="page-head">
+      <p class="eyebrow"><a href={`${base}schemas/`}>Schemas</a></p>
+      <h1>Semantic conventions {schema.version}</h1>
+      <p class="intro">
+        The OpenInference semantic convention registry at version {schema.version}: {schema.attributeCount} attributes,
+        stability <code>{schema.stability}</code>. This page is the registry's schema URL, <code>{schema.schemaUrl}</code>.
+      </p>
+    </header>
+
+    {
+      !schema.released && (
+        <p class="unreleased">
+          <strong>Unreleased.</strong> Version {schema.version} has not been released yet. These files are built from the
+          model on <code>main</code> and can change until it is; the <code>{tag}</code> tag does not exist yet.
+        </p>
+      )
+    }
+
+    <section aria-labelledby="files">
+      <h2 id="files" class="eyebrow">Files</h2>
+      <ul>
+        <li>
+          <a href={`${here}manifest.yaml`}><code>manifest.yaml</code></a>
+          <p>The publication manifest: the schema URL, the registry's dependencies, and where the resolved registry is.</p>
+        </li>
+        <li>
+          <a href={`${here}registry.yaml`}><code>registry.yaml</code></a>
+          <p>The resolved registry: every attribute and span, with references and dependencies inlined.</p>
+        </li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="use">
+      <h2 id="use" class="eyebrow">Building on it</h2>
+      <p>
+        To define conventions on top of OpenInference with <a href="https://github.com/open-telemetry/weaver">Weaver</a>,
+        depend on the tagged source in your registry's <code>manifest.yaml</code>
+        {!schema.released && " once the version is released"}:
+      </p>
+      <pre><code>{dependency}</code></pre>
+      <p>
+        <a href={routeOf("spec/attributes/registry.md")}>Using the registry</a> has the rest: reading the files, checking
+        telemetry, and referring to OpenInference attributes. The conventions themselves are explained in the
+        <a href={`${base}spec/`}>specification</a>.
+      </p>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .schema {
+    max-width: var(--page-max);
+    margin-inline: auto;
+  }
+  .schema section {
+    margin-block-start: 2.5rem;
+  }
+  .schema ul {
+    list-style: none;
+    padding: 0;
+  }
+  .schema li + li {
+    margin-block-start: 1rem;
+  }
+  .schema .unreleased {
+    margin-block-start: 2rem;
+    padding-inline-start: var(--space-4);
+    border-inline-start: 2px solid var(--accent);
+  }
+  .schema pre {
+    overflow-x: auto;
+  }
+</style>

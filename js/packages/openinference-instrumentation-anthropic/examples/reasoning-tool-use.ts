@@ -34,9 +34,9 @@ async function main() {
   ];
 
   const firstResponse = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-opus-5-5",
     max_tokens: 2048,
-    thinking: { type: "enabled", budget_tokens: 1024 },
+    thinking: { type: "adaptive", display: "summarized" },
     tools,
     messages,
   });
@@ -72,9 +72,9 @@ async function main() {
   });
 
   const secondResponse = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-opus-5-5",
     max_tokens: 2048,
-    thinking: { type: "enabled", budget_tokens: 1024 },
+    thinking: { type: "adaptive", display: "summarized" },
     tools,
     messages,
   });

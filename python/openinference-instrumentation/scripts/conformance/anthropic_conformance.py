@@ -66,10 +66,10 @@ def main() -> None:
         resp = client.messages.create(
             model="claude-3-5-sonnet-20241022",
             max_tokens=64,
-            temperature=0.5,
-            top_p=0.9,
-            top_k=40,
             stop_sequences=["END"],
+            # anthropic v1 dropped the sampling parameters from create(); send them in
+            # the request body so the gen_ai.request.* mappings are still exercised.
+            extra_body={"temperature": 0.5, "top_p": 0.9, "top_k": 40},
             system="You are a helpful conformance test assistant.",
             messages=[{"role": "user", "content": "Hello!"}],
         )

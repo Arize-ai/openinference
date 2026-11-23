@@ -27,6 +27,7 @@ in code, as a `TraceConfig` object passed to an instrumentor.
 | `OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS` | bool | `false` | Replaces `retrieval.documents.*.document.content` and `.document.metadata` values with `"__REDACTED__"` |
 | `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` | int | `32000` | Limits the characters of a base64 data URI recorded in an image `image.url` or a document `document.url`; longer values are uploaded or redacted |
 | `OPENINFERENCE_BLOB_UPLOADER` | str | unset | Names a blob uploader that receives oversized base64 images and documents. Experimental; see [Blob Upload](./blob-upload.md) |
+| `OPENINFERENCE_ENABLE_GENAI_SEMCONV` | bool | `false` | Also emits OTel `gen_ai.*` attributes. Experimental; see [GenAI Export](./genai-semconv.md) |
 
 [Data Masking](./data-masking.md) describes exactly which attributes each setting hides and how the settings interact.
 
@@ -65,6 +66,7 @@ config = TraceConfig(
     blob_uploader=...,  # Uploads oversized base64 images and documents, records a URI
     hide_prompts=...,  # Hides LLM prompts (completions API)
     hide_choices=...,  # Hides LLM choices (completions API outputs)
+    enable_genai_semconv=...,  # Also emits gen_ai.* attributes (experimental)
 )
 
 from openinference.instrumentation.openai import OpenAIInstrumentor

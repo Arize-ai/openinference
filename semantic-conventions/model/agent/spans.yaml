@@ -1,0 +1,27 @@
+file_format: definition/2
+spans:
+  - type: openinference.agent
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    brief: >
+      A span that encompasses calls to LLMs and tools. An agent describes a
+      reasoning block that acts on tools using the guidance of an LLM.
+    note: |
+      `openinference.span.kind` MUST be `AGENT`.
+    name:
+      note: |
+        **Span name** is not constrained. It SHOULD identify the agent.
+    attributes:
+      - ref_group: attributes.openinference.common
+      - ref: agent.name
+        requirement_level: recommended
+      - ref: graph.node.id
+        requirement_level:
+          recommended: When the agent is part of an execution graph.
+      - ref: graph.node.name
+        requirement_level:
+          recommended: When the agent is part of an execution graph.
+      - ref: graph.node.parent_id
+        requirement_level:
+          recommended: When the agent is part of an execution graph and the node is not the root.

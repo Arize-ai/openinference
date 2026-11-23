@@ -1,0 +1,13 @@
+file_format: definition_manifest/2.0
+name: openinference-consumer-test
+description: >
+  A registry that builds on OpenInference, used by `make test` to prove that
+  other registries can depend on this one.
+schema_url: https://openinf.dev/schemas/consumer-test/0.0.0
+stability: development
+dependencies:
+  # `make test` resolves this from the offline copy of the model. A real
+  # consumer points at a release instead:
+  #   registry_path: https://github.com/Arize-ai/openinference.git@semantic-conventions-vX.Y.Z[semantic-conventions/model]
+  - schema_url: https://openinf.dev/schemas/0.0.1 # x-release-please-version
+    registry_path: .build/model

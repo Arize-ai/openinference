@@ -61,7 +61,8 @@ Both wrap [`BaseLayout`](./src/layouts/BaseLayout.astro), which owns
 of a kind: see [Brand](#brand).
 
 The API references at `/js/` and `/python/` are docs pages too: see
-[API reference](#api-reference).
+[API reference](#api-reference). The news (`/news/`) is a third, small
+family on the 880px page: see [News](#news).
 
 ### Landing
 
@@ -227,6 +228,15 @@ centre line, under the header's.
   weight 600, with a 2px `--accent` bar over the rule. The section being
   read in the right rail gets `--fg` and an ink bar, not the accent, so
   there is still one accent on screen.
+- **Copy page.** At the top of the page, floated to its end edge so the
+  title's first line (or an API page's eyebrow) wraps short of it: a
+  **Copy page** button that copies the page's markdown copy, joined to a
+  toggle for a menu (view the markdown; open it in ChatGPT, Claude or
+  Perplexity). Both are the code blocks' Copy button: mono caps on
+  `--surface` in a 1px `--rule`, `--fg` on hover, `--accent` once copied.
+  The menu is a `--surface` panel in a 1px `--rule`; an item's label takes
+  the accent on hover. It sits outside the converted article, so it isn't
+  in the markdown, and it is hidden without JavaScript.
 - **Under the page.** **Edit this page on GitHub**, then the previous and
   next pages: mono caps direction labels over the page titles at
   `--text-h4`, which take the accent on hover.
@@ -272,6 +282,34 @@ clipped rather than wrapped.
 - **Overview.** The packages as a table per group, and a search over every
   documented object: a `--surface` input, results as ruled rows.
 
+### News
+
+The posts in `docs/news/`, a timeline at `/news/` and one page per post,
+on the 880px page with `BaseLayout`, like the mission. Release notes are
+GitHub's: the site links to them and never copies them.
+
+- **Timeline.** The page head (`News`, the lede in `--soft`), then two mono
+  caps links: **Release notes on GitHub ↗** and **RSS**. The posts by year,
+  newest first: the year as an eyebrow, then each post's day (mono caps,
+  `--dim`) beside one 1px `--rule` that runs down the year, with a square
+  marker on it (ink outline on the ground) level with the title. The title
+  at `--text-h3`, the description in `--soft` under it, the tags as an
+  eyebrow. The whole entry is the link; on hover the title and the marker
+  take the accent. On a phone the day sits over the title, both beside the
+  line.
+- **Post.** The frontmatter is the title block, so the markdown starts at
+  `##`: an eyebrow (**News**, linked, the date, the tags), the title as the
+  `h1`, the description as the lede, then a byline of GitHub handles in
+  `--text-small`. The body is `.prose`. If the post announces releases, a ruled
+  **Release notes** list of their tags in mono chips, each to its notes on
+  GitHub. Under it, **Edit this post on GitHub** and a pager like the docs
+  pager: **← Newer** and **Older →** (the oldest post points back to the
+  timeline).
+- **Landing.** The newest post, for 60 days after its date, is one quiet
+  line over the tagline: a **News** eyebrow, its title in `--soft` at
+  `--text-small` (clipped, never wrapped), and an arrow that takes the
+  accent on hover.
+
 ## Header and footer
 
 **Header.** As on the Arize Labs site, on the wide frame on every page.
@@ -308,7 +346,9 @@ All rendered markdown sits in `.prose`, styled in
   `.table-scroll` box, so a wide table scrolls inside itself and the page
   never scrolls sideways.
 - **Badges.** shields.io badges are greyscale, since their blue isn't in the
-  palette, and regain their colour on hover.
+  palette, and regain their colour on hover. The exception is the stability
+  badges in the spec's tables (development, stable, deprecated): their
+  colour is the information, so they keep it.
 - **Quotes.** `>` blockquotes: a 2px accent rule on the left, `--soft` text.
 
 ## Type
@@ -430,7 +470,8 @@ with its page:
 - [`src/lib/og/cards.ts`](./src/lib/og/cards.ts) lists the cards: the
   landing page, each spec page (its `# Title`, and the first sentence of
   its introduction, which is also the page's meta description), each API
-  reference overview and package, the brand page and credits. A page
+  reference overview and package, the news timeline and each post (its
+  date as the eyebrow), the brand page and credits. A page
   without a card of its own (a README translation, whose chrome is English)
   shares the landing card.
 - [`src/lib/og/render.ts`](./src/lib/og/render.ts) draws them: satori lays
@@ -490,7 +531,7 @@ trace, and a trace narrower than 520px labels every other second.
 ## Checklist for a change
 
 - [ ] Content changes go in the markdown (`README.md`, `spec/`,
-      `docs/i18n/`), not in the site.
+      `docs/i18n/`, `docs/news/`), not in the site.
 - [ ] A new page uses `ReadmeLayout` or `DocsLayout`; no hand-built title
       or header.
 - [ ] Text left-aligned (outside the landing hero); only the column is

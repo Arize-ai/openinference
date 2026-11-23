@@ -129,6 +129,8 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.output_messages.0.message.contents.0.message_content.type": "output_text",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4.1",
+        "llm.response.model_name": "gpt-4.1",
         "llm.system": "openai",
         "llm.token_count.completion": 6,
         "llm.token_count.completion_details.reasoning": 0,
@@ -143,6 +145,58 @@ describe("OpenAIInstrumentation - Responses", () => {
         "server.port": 443,
       }
     `);
+  });
+
+  it("captures image generation results as span-level output images", async () => {
+    const response = {
+      ...responseBase,
+      id: "resp_images",
+      output: [
+        {
+          id: "ig_failed",
+          type: "image_generation_call" as const,
+          status: "failed" as const,
+          result: null,
+        },
+        {
+          id: "ig_first",
+          type: "image_generation_call" as const,
+          status: "completed" as const,
+          result: "Zmlyc3Q=",
+        },
+        {
+          id: "ig_second",
+          type: "image_generation_call" as const,
+          status: "completed" as const,
+          result: "c2Vjb25k",
+          output_format: "jpeg",
+        },
+      ],
+      model: "gpt-image-1",
+      output_text: "",
+    } satisfies ResponseType;
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        Promise.resolve({
+          response: new Response(),
+          options: {},
+          controller: new AbortController(),
+        }) as never,
+        () => response,
+      );
+    });
+
+    await openai.responses.create({
+      input: "Draw two lighthouses",
+      model: "gpt-image-1",
+      tools: [{ type: "image_generation", output_format: "webp" }],
+    });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.attributes["output.images.0.image.url"]).toBe("data:image/webp;base64,Zmlyc3Q=");
+    expect(span.attributes["output.images.1.image.url"]).toBe("data:image/jpeg;base64,c2Vjb25k");
+    expect(span.attributes["output.images.2.image.url"]).toBeUndefined();
   });
 
   it("creates a span for responses with multiple messages and instructions", async () => {
@@ -218,6 +272,8 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.output_messages.0.message.contents.0.message_content.type": "output_text",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4.1",
+        "llm.response.model_name": "gpt-4.1",
         "llm.system": "openai",
         "llm.token_count.completion": 6,
         "llm.token_count.completion_details.reasoning": 0,
@@ -308,6 +364,8 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.invocation_parameters": "{"model":"gpt-4.1","stream":true}",
         "llm.model_name": "gpt-4.1",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4.1",
+        "llm.response.model_name": "gpt-4.1",
         "llm.system": "openai",
         "llm.token_count.completion": 6,
         "llm.token_count.completion_details.reasoning": 0,
@@ -580,28 +638,30 @@ describe("OpenAIInstrumentation - Responses", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Responses");
     expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"input":"What's the weather in Boston?","model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
-  "llm.input_messages.0.message.content": "What's the weather in Boston?",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
-  "llm.model_name": "gpt-4.1",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"boston"}",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc123",
-  "llm.provider": "openai",
-  "llm.system": "openai",
-  "llm.token_count.total": 101,
-  "llm.tools.0.tool.json_schema": "{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
-  "server.address": "api.openai.com",
-  "server.port": 443,
-}
-`);
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"input":"What's the weather in Boston?","model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
+        "llm.input_messages.0.message.content": "What's the weather in Boston?",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
+        "llm.model_name": "gpt-4.1",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"boston"}",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc123",
+        "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4.1",
+        "llm.response.model_name": "gpt-4.1",
+        "llm.system": "openai",
+        "llm.token_count.total": 101,
+        "llm.tools.0.tool.json_schema": "{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}",
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "application/json",
+        "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
+      }
+    `);
   });
 
   it("should capture tool calls, instructions, and multiple messages with streaming responses", async () => {
@@ -733,30 +793,32 @@ describe("OpenAIInstrumentation - Responses", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Responses");
     expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"instructions":"You are a helpful weather assistant.","input":[{"type":"message","content":"What's the weather in Boston?","role":"user"}],"model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
-  "llm.input_messages.0.message.content": "You are a helpful weather assistant.",
-  "llm.input_messages.0.message.role": "system",
-  "llm.input_messages.1.message.content": "What's the weather in Boston?",
-  "llm.input_messages.1.message.role": "user",
-  "llm.invocation_parameters": "{"instructions":"You are a helpful weather assistant.","model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
-  "llm.model_name": "gpt-4.1",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"boston"}",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc123",
-  "llm.provider": "openai",
-  "llm.system": "openai",
-  "llm.token_count.total": 101,
-  "llm.tools.0.tool.json_schema": "{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
-  "server.address": "api.openai.com",
-  "server.port": 443,
-}
-`);
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"instructions":"You are a helpful weather assistant.","input":[{"type":"message","content":"What's the weather in Boston?","role":"user"}],"model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
+        "llm.input_messages.0.message.content": "You are a helpful weather assistant.",
+        "llm.input_messages.0.message.role": "system",
+        "llm.input_messages.1.message.content": "What's the weather in Boston?",
+        "llm.input_messages.1.message.role": "user",
+        "llm.invocation_parameters": "{"instructions":"You are a helpful weather assistant.","model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
+        "llm.model_name": "gpt-4.1",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"boston"}",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc123",
+        "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4.1",
+        "llm.response.model_name": "gpt-4.1",
+        "llm.system": "openai",
+        "llm.token_count.total": 101,
+        "llm.tools.0.tool.json_schema": "{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}",
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "application/json",
+        "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
+      }
+    `);
   });
 
   it("should capture reasoning blocks in non-streaming output", async () => {

@@ -1,0 +1,78 @@
+{% import 'naming.j2' as n %}
+{# Every flattened list on a span gets `<Name>Key(i, child)`. The name is the
+   list's constant name in the singular, unless it is listed here. #}
+{% set list_names = {"embedding.embeddings": "EmbeddingKey"} %}
+{# Lists whose `<Name>Key` is one of the fixed-leaf helpers below instead. #}
+{% set fixed_leaf_lists = ["llm.prompts", "llm.choices", "llm.tools"] %}
+{# Helpers for one field of the i-th item of a list: `<name>(i)`. #}
+{% set leaf_helpers = [
+  {"name": "LLMInputMessageRoleKey", "list": "llm.input_messages", "leaf": "message.role"},
+  {"name": "LLMInputMessageContentKey", "list": "llm.input_messages", "leaf": "message.content"},
+  {"name": "LLMInputMessageNameKey", "list": "llm.input_messages", "leaf": "message.name"},
+  {"name": "LLMInputMessageToolCallIDKey", "list": "llm.input_messages", "leaf": "message.tool_call_id"},
+  {"name": "LLMOutputMessageRoleKey", "list": "llm.output_messages", "leaf": "message.role"},
+  {"name": "LLMOutputMessageContentKey", "list": "llm.output_messages", "leaf": "message.content"},
+  {"name": "LLMPromptKey", "list": "llm.prompts", "leaf": "prompt.text"},
+  {"name": "LLMChoiceKey", "list": "llm.choices", "leaf": "completion.text"},
+  {"name": "LLMToolKey", "list": "llm.tools", "leaf": "tool.json_schema"},
+] %}
+{# Helpers for a list nested in the i-th item of a list: `<name>(i, j, child)`. #}
+{% set nested_helpers = [
+  {"name": "LLMOutputMessageToolCallKey", "list": "llm.output_messages", "nested": "message.tool_calls"},
+  {"name": "LLMInputMessageToolCallKey", "list": "llm.input_messages", "nested": "message.tool_calls"},
+] %}
+{# The Go constant for an attribute key. Renders nothing for a key that is not
+   in the registry, which leaves invalid Go and fails the build. #}
+{% macro const(key) -%}
+{%- for attribute in ctx.attributes if attribute.key == key -%}
+{{ n.go_name(attribute.const_key) }}
+{%- endfor -%}
+{%- endmacro %}
+{% macro list_name(key) -%}
+{%- if key in list_names -%}
+{{ list_names[key] }}
+{%- else -%}
+{%- set name = const(key) -%}
+{{ name[:-1] if name.endswith("s") else name }}Key
+{%- endif -%}
+{%- endmacro %}
+// Code generated from the semantic convention registry in semantic-conventions/model. DO NOT EDIT.
+// Change the model or semantic-conventions/templates/registry/go, then run
+// `make -C semantic-conventions generate`.
+
+package semconv
+
+import "strconv"
+
+// Indexed-attribute helpers. OTel attributes are a flat key/value map, so
+// lists of objects (messages, documents, tool calls, embeddings) are
+// represented by indexed string keys, e.g. "llm.input_messages.0.message.role".
+//
+// These helpers build the keys so callers don't hand-format them.
+{% for list in ctx.lists if list.key not in fixed_leaf_lists %}
+
+// {{ list_name(list.key) }} returns the key for a field of the i-th item of {{ list.key }}, e.g. "{{ list.key }}.0.{{ list.item_namespace }}.<field>" when child is one of the {{ list.item_namespace }}.* constants.
+func {{ list_name(list.key) }}(i int, child string) string {
+	return indexedKey({{ const(list.key) }}, i, child)
+}
+{% endfor %}
+{% for helper in leaf_helpers %}
+
+// {{ helper["name"] }} returns the key for {{ helper["leaf"] }} of the i-th item of {{ helper["list"] }}, e.g. "{{ helper["list"] }}.0.{{ helper["leaf"] }}".
+func {{ helper["name"] }}(i int) string {
+	return indexedKey({{ const(helper["list"]) }}, i, {{ const(helper["leaf"]) }})
+}
+{% endfor %}
+{% for helper in nested_helpers %}
+
+// {{ helper["name"] }} returns the key for a field of the j-th item of {{ helper["nested"] }} on the i-th item of {{ helper["list"] }}, e.g. "{{ helper["list"] }}.0.{{ helper["nested"] }}.0.<field>".
+func {{ helper["name"] }}(i, j int, child string) string {
+	return indexedKey(indexedKey({{ const(helper["list"]) }}, i, {{ const(helper["nested"]) }}), j, child)
+}
+{% endfor %}
+
+// indexedKey builds "{prefix}.{i}.{child}".
+func indexedKey(prefix string, i int, child string) string {
+	return prefix + "." + strconv.Itoa(i) + "." + child
+}
+

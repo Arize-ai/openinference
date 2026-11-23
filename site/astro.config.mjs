@@ -4,12 +4,15 @@ import { copyFile, readdir } from "node:fs/promises";
 
 import { defineConfig } from "astro/config";
 
+import llmsTxt from "./src/integrations/llms-txt.mjs";
 import { shikiConfig } from "./src/lib/shiki.mjs";
 import rehypeReadmeIntro from "./src/plugins/rehype-readme-intro.mjs";
 import rehypeRepoLinks from "./src/plugins/rehype-repo-links.mjs";
 import rehypeTableScroll from "./src/plugins/rehype-table-scroll.mjs";
 
-const base = "/openinference";
+// Served from the root of the custom domain, openinf.dev (configured in the
+// repository's Pages settings); arize-ai.github.io/openinference/ redirects there.
+const base = "/";
 
 /**
  * Astro treats `spec/configuration.html` (the old configuration page, which
@@ -37,13 +40,15 @@ const specSectionIndexes = {
 // https://astro.build/config
 // Deployed to GitHub Pages: https://docs.astro.build/en/guides/deploy/github/
 export default defineConfig({
-  site: "https://arize-ai.github.io",
+  site: "https://openinf.dev",
   base,
   // Emit `spec/spans/llm.html` rather than `spec/spans/llm/index.html`, the
   // URL style the Jekyll build published. The old flat spec pages redirect
   // from src/pages/spec/[moved].astro.
   build: { format: "preserve" },
-  integrations: [specSectionIndexes],
+  // llms.txt, llms-full.txt and a markdown copy of each page: see
+  // src/integrations/llms-txt.mjs.
+  integrations: [specSectionIndexes, llmsTxt()],
   markdown: {
     // The Pierre theme, in light and dark: see src/lib/shiki.mjs.
     shikiConfig,

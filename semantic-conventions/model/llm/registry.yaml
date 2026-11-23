@@ -1,0 +1,355 @@
+file_format: definition/2
+attributes:
+  - key: llm.system
+    type:
+      members:
+        - id: openai
+          value: "openai"
+          brief: "OpenAI"
+          stability: development
+        - id: anthropic
+          value: "anthropic"
+          brief: "Anthropic"
+          stability: development
+        - id: mistralai
+          value: "mistralai"
+          brief: "Mistral AI"
+          stability: development
+        - id: cohere
+          value: "cohere"
+          brief: "Cohere"
+          stability: development
+        - id: vertexai
+          value: "vertexai"
+          brief: "Vertex AI"
+          stability: development
+        - id: deepseek
+          value: "deepseek"
+          brief: "DeepSeek"
+          stability: development
+        - id: amazon
+          value: "amazon"
+          brief: "Amazon Bedrock native"
+          stability: development
+        - id: meta
+          value: "meta"
+          brief: "Meta (Llama)"
+          stability: development
+        - id: ai21
+          value: "ai21"
+          brief: "AI21 Labs"
+          stability: development
+        - id: typesafe
+          value: "typesafe"
+          brief: "TypeSafe AI"
+          stability: development
+        - id: xai
+          value: "xai"
+          brief: "xAI (Grok)"
+          stability: development
+    brief: "The AI product as identified by the client or server instrumentation. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-system-values)."
+    examples: ["anthropic", "openai"]
+    stability: development
+  - key: llm.provider
+    type:
+      members:
+        - id: openai
+          value: "openai"
+          brief: "OpenAI"
+          stability: development
+        - id: anthropic
+          value: "anthropic"
+          brief: "Anthropic"
+          stability: development
+        - id: mistralai
+          value: "mistralai"
+          brief: "Mistral AI"
+          stability: development
+        - id: cohere
+          value: "cohere"
+          brief: "Cohere"
+          stability: development
+        - id: google
+          value: "google"
+          brief: "Google (Vertex)"
+          stability: development
+        - id: aws
+          value: "aws"
+          brief: "AWS Bedrock"
+          stability: development
+        - id: azure
+          value: "azure"
+          brief: "Azure"
+          stability: development
+        - id: xai
+          value: "xai"
+          brief: "xAI"
+          stability: development
+        - id: deepseek
+          value: "deepseek"
+          brief: "DeepSeek"
+          stability: development
+        - id: groq
+          value: "groq"
+          brief: "Groq"
+          stability: development
+        - id: fireworks
+          value: "fireworks"
+          brief: "Fireworks AI"
+          stability: development
+        - id: moonshot
+          value: "moonshot"
+          brief: "Moonshot AI"
+          stability: development
+        - id: cerebras
+          value: "cerebras"
+          brief: "Cerebras"
+          stability: development
+        - id: perplexity
+          value: "perplexity"
+          brief: "Perplexity"
+          stability: development
+        - id: together
+          value: "together"
+          brief: "Together AI"
+          stability: development
+        - id: ollama
+          value: "ollama"
+          brief: "Ollama"
+          stability: development
+        - id: meta
+          value: "meta"
+          brief: "Meta AI"
+          stability: development
+        - id: zai
+          value: "zai"
+          brief: "Z.ai (GLM)"
+          stability: development
+        - id: minimax
+          value: "minimax"
+          brief: "MiniMax"
+          stability: development
+        - id: oracle
+          value: "oracle"
+          brief: "Oracle (OCI Generative AI)"
+          stability: development
+        - id: ibm
+          value: "ibm"
+          brief: "IBM (watsonx.ai)"
+          stability: development
+        - id: typesafe
+          value: "typesafe"
+          brief: "TypeSafe AI"
+          stability: development
+        - id: doubleword
+          value: "doubleword"
+          brief: "Doubleword"
+          stability: development
+    brief: "The hosting provider of the LLM, e.g. `azure`. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-provider-values)."
+    examples: ["openai", "azure"]
+    stability: development
+  - key: llm.model_name
+    type: string
+    brief: "The name of the language model being utilized"
+    examples: ["gpt-3.5-turbo"]
+    stability: development
+  - key: llm.request.model_name
+    type: string
+    brief: "The model requested by the caller, as sent in the request. May differ from `llm.response.model_name` when the provider routes the request to a different model."
+    examples: ["claude-opus-5"]
+    stability: development
+  - key: llm.response.model_name
+    type: string
+    brief: "The model that actually generated the response, as reported by the provider. May differ from `llm.request.model_name` when the provider routes the request to a different model."
+    examples: ["claude-opus-4-8"]
+    stability: development
+  - key: llm.invocation_parameters
+    type: string
+    brief: "Parameters used during the invocation of an LLM or API"
+    examples: ["{model_name: 'gpt-3', temperature: 0.7}"]
+    stability: development
+    annotations:
+      openinference:
+        encoding: json
+  - key: llm.finish_reason
+    type: string
+    brief: "The reason the model stopped generating tokens."
+    examples: ["stop", "length"]
+    stability: development
+  - key: llm.function_call
+    type: string
+    brief: "Object recording details of a function call in models or APIs"
+    examples: ["{function_name: 'add', args: [1, 2]}"]
+    stability: development
+    deprecated:
+      reason: uncategorized
+      note: "Use `message.tool_calls` instead."
+    annotations:
+      openinference:
+        encoding: json
+  - key: llm.input_messages
+    type: template[any]
+    brief: "List of messages sent to the LLM in a chat API request, e.g. `llm.input_messages.0.message.role`. See [Messages](https://github.com/Arize-ai/openinference/blob/main/spec/content/messages.md)"
+    examples: ['[{"message.role": "user", "message.content": "hello"}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["message"]
+  - key: llm.output_messages
+    type: template[any]
+    brief: "List of messages received from the LLM in a chat API response, e.g. `llm.output_messages.0.message.role`. See [Messages](https://github.com/Arize-ai/openinference/blob/main/spec/content/messages.md)"
+    examples: ['[{"message.role": "assistant", "message.content": "hello"}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["message"]
+  - key: llm.prompts
+    type: template[any]
+    brief: "Prompts provided to a completions API, e.g. `llm.prompts.0.prompt.text`"
+    examples: ['[{"prompt.text": "def fib(n):..."}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_attributes: ["prompt.text"]
+  - key: llm.choices
+    type: template[any]
+    brief: "Text choices returned from a completions API, e.g. `llm.choices.0.completion.text`"
+    examples: ['[{"completion.text": " + fib(n-3)..."}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["completion"]
+  - key: llm.tools
+    type: template[any]
+    brief: "List of tools that are advertised to the LLM to be able to call, e.g. `llm.tools.0.tool.name`, `llm.tools.0.tool.description`, `llm.tools.0.tool.json_schema`. See [Tool Calling](https://github.com/Arize-ai/openinference/blob/main/spec/content/tool-calling.md)"
+    examples: ['[{"tool.name": "get_weather", "tool.json_schema": "{\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}}"}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_attributes: ["tool.name", "tool.description", "tool.json_schema"]
+  - key: llm.prompt_template.template
+    type: string
+    brief: "Template used to generate prompts (e.g., using `{variable}` placeholder syntax)"
+    examples: ["Weather forecast for {city} on {date}"]
+    stability: development
+    annotations:
+      openinference:
+        constant_key: llm.prompt_template
+  - key: llm.prompt_template.variables
+    type: string
+    brief: "JSON of key value pairs applied to the prompt template"
+    examples: ["{ context: \"<context from retrieval>\", subject: \"math\" }"]
+    stability: development
+    annotations:
+      openinference:
+        encoding: json
+  - key: llm.prompt_template.version
+    type: string
+    brief: "The version of the prompt template"
+    examples: ["v1.0"]
+    stability: development
+  - key: llm.token_count.prompt
+    type: int
+    brief: "The number of tokens in the prompt"
+    examples: [10]
+    stability: development
+  - key: llm.token_count.prompt_details.audio
+    type: int
+    brief: "The number of audio input tokens presented in the prompt"
+    examples: [10]
+    stability: development
+  - key: llm.token_count.prompt_details.cache_input
+    type: int
+    brief: "The number of input tokens in the prompt that were cached"
+    examples: [5]
+    stability: development
+  - key: llm.token_count.prompt_details.cache_read
+    type: int
+    brief: "The number of prompt tokens successfully retrieved from cache (cache hits). Maps to `cached_tokens` in OpenAI responses"
+    examples: [5]
+    stability: development
+  - key: llm.token_count.prompt_details.cache_write
+    type: int
+    brief: "The number of prompt tokens not found in cache that were written to cache (cache misses). Maps to `cache_write_tokens` in OpenAI responses"
+    examples: [0]
+    stability: development
+  - key: llm.token_count.completion
+    type: int
+    brief: "The number of tokens in the completion"
+    examples: [15]
+    stability: development
+  - key: llm.token_count.completion_details.audio
+    type: int
+    brief: "The number of audio tokens generated by the model"
+    examples: [10]
+    stability: development
+  - key: llm.token_count.completion_details.reasoning
+    type: int
+    brief: "The number of tokens used for model reasoning"
+    examples: [10]
+    stability: development
+  - key: llm.token_count.total
+    type: int
+    brief: "Total number of tokens, including prompt and completion"
+    examples: [20]
+    stability: development
+  - key: llm.cost.prompt
+    type: double
+    brief: "Total cost of all input tokens sent to the LLM in USD"
+    examples: [0.0021]
+    stability: development
+  - key: llm.cost.prompt_details.input
+    type: double
+    brief: "Total cost of input tokens in USD"
+    examples: [0.0003]
+    stability: development
+  - key: llm.cost.prompt_details.audio
+    type: double
+    brief: "Cost of audio tokens in the prompt in USD"
+    examples: [0.0003]
+    stability: development
+  - key: llm.cost.prompt_details.cache_input
+    type: double
+    brief: "Cost of input tokens in the prompt that were cached in USD"
+    examples: [0.0006]
+    stability: development
+  - key: llm.cost.prompt_details.cache_read
+    type: double
+    brief: "Cost of prompt tokens read from cache in USD"
+    examples: [0.0003]
+    stability: development
+  - key: llm.cost.prompt_details.cache_write
+    type: double
+    brief: "Cost of prompt tokens written to cache in USD"
+    examples: [0.0006]
+    stability: development
+  - key: llm.cost.completion
+    type: double
+    brief: "Total cost of all output tokens generated by the LLM in USD"
+    examples: [0.0045]
+    stability: development
+  - key: llm.cost.completion_details.output
+    type: double
+    brief: "Total cost of output tokens in USD"
+    examples: [0.0009]
+    stability: development
+  - key: llm.cost.completion_details.reasoning
+    type: double
+    brief: "Cost of reasoning steps in the completion in USD"
+    examples: [0.0024]
+    stability: development
+  - key: llm.cost.completion_details.audio
+    type: double
+    brief: "Cost of audio tokens in the completion in USD"
+    examples: [0.0012]
+    stability: development
+  - key: llm.cost.total
+    type: double
+    brief: "Total cost of the LLM call in USD (prompt + completion)"
+    examples: [0.0066]
+    stability: development

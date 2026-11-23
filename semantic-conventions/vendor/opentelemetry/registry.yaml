@@ -1,0 +1,25 @@
+# Vendored from the OpenTelemetry semantic conventions. Do not edit by hand.
+#
+# Source:  https://github.com/open-telemetry/semantic-conventions.git@v1.45.0[model]
+# Schema:  https://opentelemetry.io/schemas/1.45.0
+#
+# Only the attributes that the OpenInference model references are copied, so
+# that docs and code can be generated from the model without network access.
+# Refresh with `make -C semantic-conventions vendor` after changing the pinned
+# version in model/manifest.yaml or referencing another OpenTelemetry attribute.
+file_format: definition/2
+attributes:
+- key: session.id
+  type: string
+  brief: A unique ID to identify a session.
+  examples:
+  - 00112233-4455-6677-8899-aabbccddeeff
+  stability: development
+- key: user.id
+  type: string
+  brief: 'Unique identifier of the user.
+
+    '
+  examples:
+  - S-1-5-21-202424912787-2692429404-2351956786-1000
+  stability: development

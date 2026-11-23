@@ -1,0 +1,36 @@
+{% import 'naming.j2' as n %}
+{# Key prefixes that are constants but not attributes: each `*_details.<kind>`
+   key is its own attribute in the registry. #}
+{% set prefix_constants = [
+  {"key": "llm.token_count.prompt_details", "doc": "is the key prefix for additional prompt token count details. Each detail is a separate attribute with this prefix, e.g. llm.token_count.prompt_details.audio. All values are in tokens."},
+  {"key": "llm.cost.prompt_details", "doc": "is the key prefix for additional prompt cost details. Each detail is a separate attribute with this prefix, e.g. llm.cost.prompt_details.audio. All values are in USD."},
+  {"key": "llm.cost.completion_details", "doc": "is the key prefix for additional completion cost details. Each detail is a separate attribute with this prefix, e.g. llm.cost.completion_details.audio. All values are in USD."},
+] %}
+// Code generated from the semantic convention registry in semantic-conventions/model. DO NOT EDIT.
+// Change the model or semantic-conventions/templates/registry/go, then run
+// `make -C semantic-conventions generate`.
+
+package semconv
+
+// Attribute keys. Lists of objects are flattened with zero-based indices, e.g.
+// "llm.input_messages.0.message.role"; use the indexer helpers to build those
+// keys.
+const (
+{% for attribute in ctx.attributes %}
+	// {{ n.go_name(attribute.const_key) }}: {{ n.doc(attribute.brief) }}
+{% if attribute.deprecated %}
+	//
+	// Deprecated: {{ n.doc(attribute.deprecated.note) }}
+{% endif %}
+	{{ n.go_name(attribute.const_key) }} = "{{ attribute.key }}"
+
+{% endfor %}
+{% for prefix in prefix_constants %}
+	// {{ n.go_name(prefix["key"]) }} {{ prefix["doc"] }}
+	{{ n.go_name(prefix["key"]) }} = "{{ prefix["key"] }}"
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+)
+

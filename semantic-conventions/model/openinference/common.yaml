@@ -1,0 +1,90 @@
+file_format: definition/2
+# Attribute groups shared by every OpenInference span. They are `internal`:
+# they exist to be composed into span definitions with `ref_group` and are not
+# part of the published registry surface.
+attribute_groups:
+  - id: attributes.openinference.span_kind
+    visibility: internal
+    attributes:
+      - ref: openinference.span.kind
+        requirement_level: required
+
+  - id: attributes.openinference.input_output
+    visibility: internal
+    attributes:
+      - ref: input.value
+        requirement_level: recommended
+      - ref: input.mime_type
+        requirement_level:
+          recommended: When `input.value` is set and is not plain text.
+      - ref: output.value
+        requirement_level: recommended
+      - ref: output.mime_type
+        requirement_level:
+          recommended: When `output.value` is set and is not plain text.
+      - ref: input.images
+        requirement_level:
+          recommended: When the operation takes images as input outside of a message.
+      - ref: output.images
+        requirement_level:
+          recommended: When the operation produces images outside of a message.
+      - ref: input.documents
+        requirement_level:
+          recommended: When the operation takes file documents as input outside of a message.
+      - ref: output.documents
+        requirement_level:
+          recommended: When the operation produces file documents outside of a message.
+
+  # Set once through the instrumentation context API and attached to every
+  # span created while that context is active.
+  - id: attributes.openinference.context
+    visibility: internal
+    attributes:
+      - ref: session.id
+        brief: Unique identifier for a session, such as a multi-turn conversation.
+        requirement_level:
+          recommended: When present in the instrumentation context.
+      - ref: user.id
+        brief: Unique identifier for a user.
+        requirement_level:
+          recommended: When present in the instrumentation context.
+      - ref: metadata
+        requirement_level:
+          recommended: When present in the instrumentation context.
+      - ref: tag.tags
+        requirement_level:
+          recommended: When present in the instrumentation context.
+      - ref: llm.prompt_template.template
+        requirement_level:
+          recommended: When present in the instrumentation context.
+      - ref: llm.prompt_template.variables
+        requirement_level:
+          recommended: When present in the instrumentation context.
+      - ref: llm.prompt_template.version
+        requirement_level:
+          recommended: When present in the instrumentation context.
+
+  # Feedback may be attached to a span of any kind.
+  - id: attributes.openinference.feedback
+    visibility: internal
+    attributes:
+      - ref: annotations
+        requirement_level: opt_in
+      - ref: evaluations
+        requirement_level: opt_in
+      - ref: trace.annotations
+        requirement_level: opt_in
+      - ref: trace.evaluations
+        requirement_level: opt_in
+      - ref: session.annotations
+        requirement_level: opt_in
+      - ref: session.evaluations
+        requirement_level: opt_in
+
+  - id: attributes.openinference.common
+    visibility: internal
+    attributes:
+      - ref_group: attributes.openinference.span_kind
+      - ref_group: attributes.openinference.input_output
+      - ref_group: attributes.openinference.context
+      - ref_group: attributes.openinference.feedback

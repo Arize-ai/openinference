@@ -1,3 +1,6 @@
+// Generated from the semantic convention registry in semantic-conventions/model.
+// Do not edit by hand: change the model or semantic-conventions/templates/registry/java,
+// then run `make -C semantic-conventions generate`.
 package com.arize.semconv.trace;
 
 import lombok.experimental.UtilityClass;
@@ -5,71 +8,73 @@ import lombok.experimental.UtilityClass;
 public class SemanticConventions {
     @UtilityClass
     public static class SemanticAttributePrefixes {
-        public static final String ANNOTATIONS = "annotations";
+        public static final String AGENT = "agent";
         public static final String ANNOTATION = "annotation";
-        public static final String EVALUATIONS = "evaluations";
-        public static final String EVALUATION = "evaluation";
-        public static final String INPUT = "input";
-        public static final String OUTPUT = "output";
-        public static final String LLM = "llm";
-        public static final String RETRIEVAL = "retrieval";
-        public static final String RERANKER = "reranker";
-        public static final String MESSAGES = "messages";
-        public static final String MESSAGE = "message";
+        public static final String ANNOTATIONS = "annotations";
+        public static final String AUDIO = "audio";
+        public static final String COMPLETION = "completion";
+        public static final String DECISION = "decision";
         public static final String DOCUMENT = "document";
         public static final String EMBEDDING = "embedding";
+        public static final String EVALUATION = "evaluation";
+        public static final String EVALUATIONS = "evaluations";
+        public static final String GRAPH = "graph";
+        public static final String IMAGE = "image";
+        public static final String INPUT = "input";
+        public static final String LLM = "llm";
+        public static final String MESSAGE = "message";
+        public static final String MESSAGE_CONTENT = "message_content";
+        public static final String MESSAGES = "messages";
+        public static final String METADATA = "metadata";
+        public static final String OPENINFERENCE = "openinference";
+        public static final String OUTPUT = "output";
+        public static final String PROMPT = "prompt";
+        public static final String RERANKER = "reranker";
+        public static final String RETRIEVAL = "retrieval";
+        public static final String SESSION = "session";
+        public static final String TAG = "tag";
         public static final String TOOL = "tool";
         public static final String TOOL_CALL = "tool_call";
-        public static final String METADATA = "metadata";
-        public static final String TAG = "tag";
-        public static final String SESSION = "session";
         public static final String TRACE = "trace";
         public static final String USER = "user";
-        public static final String OPENINFERENCE = "openinference";
-        public static final String MESSAGE_CONTENT = "message_content";
-        public static final String IMAGE = "image";
-        public static final String AUDIO = "audio";
         public static final String VIDEO = "video";
-        public static final String PROMPT = "prompt";
-        public static final String AGENT = "agent";
-        public static final String GRAPH = "graph";
-        public static final String DECISION = "decision";
     }
 
     @UtilityClass
     public static class LLMAttributePostfixes {
-        public static final String PROVIDER = "provider";
-        public static final String SYSTEM = "system";
+        public static final String CHOICES = "choices";
+        public static final String COST = "cost";
+        public static final String FINISH_REASON = "finish_reason";
+        public static final String FUNCTION_CALL = "function_call";
+        public static final String INPUT_MESSAGES = "input_messages";
+        public static final String INVOCATION_PARAMETERS = "invocation_parameters";
         public static final String MODEL_NAME = "model_name";
+        public static final String OUTPUT_MESSAGES = "output_messages";
+        public static final String PROMPT_TEMPLATE = "prompt_template";
+        public static final String PROMPTS = "prompts";
+        public static final String PROVIDER = "provider";
         public static final String REQUEST = "request";
         public static final String RESPONSE = "response";
+        public static final String SYSTEM = "system";
         public static final String TOKEN_COUNT = "token_count";
-        public static final String INPUT_MESSAGES = "input_messages";
-        public static final String OUTPUT_MESSAGES = "output_messages";
-        public static final String INVOCATION_PARAMETERS = "invocation_parameters";
-        public static final String PROMPTS = "prompts";
-        public static final String PROMPT_TEMPLATE = "prompt_template";
-        public static final String FUNCTION_CALL = "function_call";
         public static final String TOOLS = "tools";
-        public static final String COST = "cost";
-        public static final String CHOICES = "choices";
-        public static final String FINISH_REASON = "finish_reason";
     }
 
     @UtilityClass
     public static class DecisionAttributePostfixes {
-        public static final String PROVIDER = "provider";
-        public static final String SYSTEM = "system";
         public static final String MODEL_NAME = "model_name";
+        public static final String PROVIDER = "provider";
         public static final String REQUEST = "request";
         public static final String RESPONSE = "response";
+        public static final String SYSTEM = "system";
         public static final String TOKEN_COUNT = "token_count";
     }
 
     @UtilityClass
     public static class LLMPromptTemplateAttributePostfixes {
-        public static final String VARIABLES = "variables";
         public static final String TEMPLATE = "template";
+        public static final String VARIABLES = "variables";
+        public static final String VERSION = "version";
     }
 
     @UtilityClass
@@ -80,9 +85,9 @@ public class SemanticConventions {
     @UtilityClass
     public static class RerankerAttributePostfixes {
         public static final String INPUT_DOCUMENTS = "input_documents";
+        public static final String MODEL_NAME = "model_name";
         public static final String OUTPUT_DOCUMENTS = "output_documents";
         public static final String QUERY = "query";
-        public static final String MODEL_NAME = "model_name";
         public static final String TOP_K = "top_k";
     }
 
@@ -90,44 +95,44 @@ public class SemanticConventions {
     public static class EmbeddingAttributePostfixes {
         public static final String EMBEDDINGS = "embeddings";
         public static final String INVOCATION_PARAMETERS = "invocation_parameters";
-        public static final String TEXT = "text";
         public static final String MODEL_NAME = "model_name";
+        public static final String TEXT = "text";
         public static final String VECTOR = "vector";
     }
 
     @UtilityClass
     public static class ToolAttributePostfixes {
-        public static final String ID = "id";
-        public static final String NAME = "name";
         public static final String DESCRIPTION = "description";
-        public static final String PARAMETERS = "parameters";
+        public static final String ID = "id";
         public static final String JSON_SCHEMA = "json_schema";
+        public static final String NAME = "name";
+        public static final String PARAMETERS = "parameters";
     }
 
     @UtilityClass
     public static class MessageAttributePostfixes {
-        public static final String ROLE = "role";
         public static final String CONTENT = "content";
         public static final String CONTENTS = "contents";
-        public static final String NAME = "name";
-        public static final String FUNCTION_CALL_NAME = "function_call_name";
         public static final String FUNCTION_CALL_ARGUMENTS_JSON = "function_call_arguments_json";
-        public static final String TOOL_CALLS = "tool_calls";
+        public static final String FUNCTION_CALL_NAME = "function_call_name";
+        public static final String NAME = "name";
+        public static final String ROLE = "role";
         public static final String TOOL_CALL_ID = "tool_call_id";
+        public static final String TOOL_CALLS = "tool_calls";
     }
 
     @UtilityClass
     public static class MessageContentsAttributePostfixes {
-        public static final String TYPE = "type";
-        public static final String TEXT = "text";
-        public static final String IMAGE = "image";
         public static final String AUDIO = "audio";
-        public static final String VIDEO = "video";
-        public static final String DOCUMENT = "document";
-        public static final String ID = "id";
-        public static final String SIGNATURE = "signature";
         public static final String DATA = "data";
+        public static final String DOCUMENT = "document";
         public static final String ENCRYPTED_CONTENT = "encrypted_content";
+        public static final String ID = "id";
+        public static final String IMAGE = "image";
+        public static final String SIGNATURE = "signature";
+        public static final String TEXT = "text";
+        public static final String TYPE = "type";
+        public static final String VIDEO = "video";
     }
 
     @UtilityClass
@@ -142,21 +147,21 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class ToolCallAttributePostfixes {
-        public static final String FUNCTION_NAME = "function.name";
         public static final String FUNCTION_ARGUMENTS = "function.arguments";
+        public static final String FUNCTION_NAME = "function.name";
         public static final String ID = "id";
         public static final String REASONING_SIGNATURE = "reasoning_signature";
     }
 
     @UtilityClass
     public static class DocumentAttributePostfixes {
-        public static final String ID = "id";
         public static final String CONTENT = "content";
-        public static final String SCORE = "score";
+        public static final String ID = "id";
         public static final String METADATA = "metadata";
-        public static final String URL = "url";
         public static final String MIME_TYPE = "mime_type";
         public static final String NAME = "name";
+        public static final String SCORE = "score";
+        public static final String URL = "url";
     }
 
     @UtilityClass
@@ -166,6 +171,8 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class SessionAttributePostfixes {
+        public static final String ANNOTATIONS = "annotations";
+        public static final String EVALUATIONS = "evaluations";
         public static final String ID = "id";
     }
 
@@ -176,16 +183,17 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class AudioAttributesPostfixes {
-        public static final String URL = "url";
         public static final String MIME_TYPE = "mime_type";
         public static final String TRANSCRIPT = "transcript";
+        public static final String URL = "url";
     }
 
     @UtilityClass
     public static class PromptAttributePostfixes {
-        public static final String VENDOR = "vendor";
         public static final String ID = "id";
+        public static final String TEXT = "text";
         public static final String URL = "url";
+        public static final String VENDOR = "vendor";
     }
 
     @UtilityClass
@@ -202,733 +210,719 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class FeedbackAttributePostfixes {
+        public static final String ANNOTATOR_KIND = "annotator_kind";
+        public static final String EXPLANATION = "explanation";
+        public static final String IDENTIFIER = "identifier";
+        public static final String LABEL = "label";
+        public static final String METADATA = "metadata";
         public static final String NAME = "name";
         public static final String SCORE = "score";
-        public static final String LABEL = "label";
-        public static final String EXPLANATION = "explanation";
-        public static final String ANNOTATOR_KIND = "annotator_kind";
-        public static final String IDENTIFIER = "identifier";
-        public static final String METADATA = "metadata";
     }
 
-    public static final String ANNOTATIONS = SemanticAttributePrefixes.ANNOTATIONS;
-    public static final String EVALUATIONS = SemanticAttributePrefixes.EVALUATIONS;
-    public static final String TRACE_ANNOTATIONS =
-            SemanticAttributePrefixes.TRACE + "." + SemanticAttributePrefixes.ANNOTATIONS;
-    public static final String TRACE_EVALUATIONS =
-            SemanticAttributePrefixes.TRACE + "." + SemanticAttributePrefixes.EVALUATIONS;
-    public static final String SESSION_ANNOTATIONS =
-            SemanticAttributePrefixes.SESSION + "." + SemanticAttributePrefixes.ANNOTATIONS;
-    public static final String SESSION_EVALUATIONS =
-            SemanticAttributePrefixes.SESSION + "." + SemanticAttributePrefixes.EVALUATIONS;
-
-    public static final String ANNOTATION_NAME =
-            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.NAME;
-    public static final String ANNOTATION_SCORE =
-            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.SCORE;
-    public static final String ANNOTATION_LABEL =
-            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.LABEL;
-    public static final String ANNOTATION_EXPLANATION =
-            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.EXPLANATION;
-    public static final String ANNOTATION_ANNOTATOR_KIND =
-            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.ANNOTATOR_KIND;
-    public static final String ANNOTATION_IDENTIFIER =
-            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.IDENTIFIER;
-    public static final String ANNOTATION_METADATA =
-            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.METADATA;
-
-    public static final String EVALUATION_NAME =
-            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.NAME;
-    public static final String EVALUATION_SCORE =
-            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.SCORE;
-    public static final String EVALUATION_LABEL =
-            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.LABEL;
-    public static final String EVALUATION_EXPLANATION =
-            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.EXPLANATION;
-    public static final String EVALUATION_ANNOTATOR_KIND =
-            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.ANNOTATOR_KIND;
-    public static final String EVALUATION_IDENTIFIER =
-            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.IDENTIFIER;
-    public static final String EVALUATION_METADATA =
-            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.METADATA;
-
-    /**
-     * The input to any span
-     */
-    public static final String INPUT_VALUE = SemanticAttributePrefixes.INPUT + ".value";
-
-    public static final String INPUT_MIME_TYPE = SemanticAttributePrefixes.INPUT + ".mime_type";
-
-    /**
-     * Images passed as input to a span of any kind. Flattened with an index, for example
-     * {@code input.images.0.image.url}.
-     */
-    public static final String INPUT_IMAGES = SemanticAttributePrefixes.INPUT + ".images";
-
-    /**
-     * Documents (e.g. PDFs) passed as input to a span of any kind. Flattened with an index, for
-     * example {@code input.documents.0.document.url}.
-     */
-    public static final String INPUT_DOCUMENTS = SemanticAttributePrefixes.INPUT + ".documents";
-
-    /**
-     * The output of any span
-     */
-    public static final String OUTPUT_VALUE = SemanticAttributePrefixes.OUTPUT + ".value";
-
-    public static final String OUTPUT_MIME_TYPE = SemanticAttributePrefixes.OUTPUT + ".mime_type";
-
-    /**
-     * Images produced as output by a span of any kind. Flattened with an index, for example
-     * {@code output.images.0.image.url}.
-     */
-    public static final String OUTPUT_IMAGES = SemanticAttributePrefixes.OUTPUT + ".images";
-
-    /**
-     * Documents (e.g. PDFs) produced as output by a span of any kind. Flattened with an index,
-     * for example {@code output.documents.0.document.url}.
-     */
-    public static final String OUTPUT_DOCUMENTS = SemanticAttributePrefixes.OUTPUT + ".documents";
-
-    /**
-     * The messages sent to the LLM for completions
-     * Typically seen in OpenAI chat completions
-     * @see <a href="https://beta.openai.com/docs/api-reference/completions/create">OpenAI API Reference</a>
-     */
-    public static final String LLM_INPUT_MESSAGES =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.INPUT_MESSAGES;
-
-    /**
-     * The output messages from the LLM
-     */
-    public static final String LLM_OUTPUT_MESSAGES =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.OUTPUT_MESSAGES;
-
-    /**
-     * The model name used for the LLM
-     */
-    public static final String LLM_MODEL_NAME = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.MODEL_NAME;
-
-    /**
-     * The model requested by the caller, as sent in the request. May differ from LLM_RESPONSE_MODEL_NAME
-     * when the provider routes the request to a different model (e.g. classifier-triggered fallback).
-     */
-    public static final String LLM_REQUEST_MODEL_NAME = SemanticAttributePrefixes.LLM
-            + "."
-            + LLMAttributePostfixes.REQUEST
-            + "."
-            + LLMAttributePostfixes.MODEL_NAME;
-
-    /**
-     * The model that actually generated the response, as reported by the provider. May differ from
-     * LLM_REQUEST_MODEL_NAME when the provider routes the request to a different model.
-     */
-    public static final String LLM_RESPONSE_MODEL_NAME = SemanticAttributePrefixes.LLM
-            + "."
-            + LLMAttributePostfixes.RESPONSE
-            + "."
-            + LLMAttributePostfixes.MODEL_NAME;
-
-    /**
-     * Document content in retrieval operations
-     */
-    public static final String RETRIEVAL_DOCUMENTS =
-            SemanticAttributePrefixes.RETRIEVAL + "." + RetrievalAttributePostfixes.DOCUMENTS;
-
-    /**
-     * Message role (e.g., "user", "assistant", "system")
-     */
-    public static final String MESSAGE_ROLE = SemanticAttributePrefixes.MESSAGE + "." + MessageAttributePostfixes.ROLE;
-
-    /**
-     * Message content
-     */
-    public static final String MESSAGE_CONTENT =
-            SemanticAttributePrefixes.MESSAGE + "." + MessageAttributePostfixes.CONTENT;
-
-    /**
-     * The prompts sent to the LLM for completions
-     * Typically seen in OpenAI legacy completions
-     * @see <a href="https://beta.openai.com/docs/api-reference/completions/create">OpenAI API Reference</a>
-     */
-    public static final String LLM_PROMPTS = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.PROMPTS;
-
-    /**
-     * The JSON representation of the parameters passed to the LLM
-     */
-    public static final String LLM_INVOCATION_PARAMETERS =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.INVOCATION_PARAMETERS;
-
-    /**
-     * The provider of the inferences. E.g. the cloud provider
-     */
-    public static final String LLM_PROVIDER = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.PROVIDER;
-
-    /**
-     * The AI product as identified by the client or server
-     */
-    public static final String LLM_SYSTEM = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.SYSTEM;
-
-    /**
-     * The name of the decision model. Mirrors LLM_MODEL_NAME for DECISION spans. A decision model takes
-     * state plus typed questions and returns a typed, probabilistic answer per question instead of
-     * generated text.
-     *
-     * @see <a href="https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md">Decision
-     *     Spans</a>
-     */
-    public static final String DECISION_MODEL_NAME =
-            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.MODEL_NAME;
-
-    /**
-     * The decision model requested by the caller, as sent in the request. May differ from
-     * DECISION_RESPONSE_MODEL_NAME when the provider resolves an alias (e.g. jev-latest) or routes the
-     * request to a different model.
-     */
-    public static final String DECISION_REQUEST_MODEL_NAME = SemanticAttributePrefixes.DECISION
-            + "."
-            + DecisionAttributePostfixes.REQUEST
-            + "."
-            + DecisionAttributePostfixes.MODEL_NAME;
-
-    /**
-     * The decision model that actually produced the response, as reported by the provider. May differ
-     * from DECISION_REQUEST_MODEL_NAME.
-     */
-    public static final String DECISION_RESPONSE_MODEL_NAME = SemanticAttributePrefixes.DECISION
-            + "."
-            + DecisionAttributePostfixes.RESPONSE
-            + "."
-            + DecisionAttributePostfixes.MODEL_NAME;
-
-    /**
-     * The hosting provider of the decision model: who runs the hardware that answered (e.g. "typesafe" when
-     * calling TypeSafe directly, or the cloud or self-hosting provider for a model served elsewhere). Distinct
-     * from DECISION_SYSTEM, which names the API shape. Well-known values are {@link DecisionProvider}, which
-     * alias the matching {@link LLMProvider} values.
-     */
-    public static final String DECISION_PROVIDER =
-            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.PROVIDER;
-
-    /**
-     * The decision API ecosystem the call conforms to, i.e. which request and response shape the client
-     * speaks, as identified by the client or server: "typesafe" for the TypeSafe System One / Jev API,
-     * "openai" for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible
-     * /v1/systemone shape is still "typesafe". Distinct from DECISION_PROVIDER, which says who hosts the model.
-     * Well-known values are {@link DecisionSystem}, which alias the matching {@link LLMSystem} values.
-     */
-    public static final String DECISION_SYSTEM =
-            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.SYSTEM;
-
-    /**
-     * The number of input tokens consumed by a decision model call: the state, questions, and candidate
-     * options. Maps to usage.input_tokens in TypeSafe System One responses.
-     */
-    public static final String DECISION_TOKEN_COUNT_INPUT =
-            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.TOKEN_COUNT + ".input";
-
-    /**
-     * The number of output tokens produced by a decision model call. Decision models emit typed answers
-     * rather than text, so this is typically small. Maps to usage.output_tokens in TypeSafe System One
-     * responses.
-     */
-    public static final String DECISION_TOKEN_COUNT_OUTPUT =
-            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.TOKEN_COUNT + ".output";
-
-    /** Token count for the completion by the llm (in tokens) */
-    public static final String LLM_TOKEN_COUNT_COMPLETION =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".completion";
-
-    /** Token count for the reasoning steps in the completion (in tokens) */
-    public static final String LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".completion_details.reasoning";
-
-    /** Token count for audio input generated by the model (in tokens) */
-    public static final String LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".completion_details.audio";
-
-    /** Token count for the prompt to the llm (in tokens) */
-    public static final String LLM_TOKEN_COUNT_PROMPT =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".prompt";
-
-    /** Token count for the tokens written to cache (in tokens) */
-    public static final String LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".prompt_details.cache_write";
-
-    /** Token count for the tokens retrieved from cache (in tokens) */
-    public static final String LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".prompt_details.cache_read";
-
-    /** Token count for audio input presented in the prompt (in tokens) */
-    public static final String LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".prompt_details.audio";
-
-    /** Token count for the entire transaction with the llm (in tokens) */
-    public static final String LLM_TOKEN_COUNT_TOTAL =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".total";
-
-    /**
-     * The reason the model stopped generating tokens, e.g. {@code "stop"} or {@code "length"}.
-     */
-    public static final String LLM_FINISH_REASON =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.FINISH_REASON;
-
-    /**
-     * Key prefix for additional prompt token count details. Each detail should be a separate attribute
-     * with this prefix, e.g. llm.token_count.prompt_details.reasoning, llm.token_count.prompt_details.audio.
-     * All values should be in tokens (integer count of tokens).
-     */
-    public static final String LLM_TOKEN_COUNT_PROMPT_DETAILS =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".prompt_details";
-
-    /**
-     * Key prefix for additional completion token count details. Each detail should be a separate attribute
-     * with this prefix, e.g. llm.token_count.completion_details.reasoning, llm.token_count.completion_details.audio.
-     * All values should be in tokens (integer count of tokens).
-     */
-    public static final String LLM_TOKEN_COUNT_COMPLETION_DETAILS =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".completion_details";
-
-    /**
-     * Key prefix for cost information. When these keys are transformed into a JSON-like structure, it would look like:
-     * {
-     *     "prompt": 0.0021,  # Cost in USD
-     *     "completion": 0.0045,  # Cost in USD
-     *     "total": 0.0066,  # Cost in USD
-     *     "completion_details": {
-     *         "output": 0.0009,  # Cost in USD
-     *         "reasoning": 0.0024,    # Cost in USD (e.g., 80 tokens * $0.03/1K tokens)
-     *         "audio": 0.0012  # Cost in USD (e.g., 40 tokens * $0.03/1K tokens)
-     *     },
-     *     "prompt_details": {
-     *         "input": 0.0003,  # Cost in USD
-     *         "cache_write": 0.0006,  # Cost in USD (e.g., 20 tokens * $0.03/1K tokens)
-     *         "cache_read": 0.0003,   # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
-     *         "cache_input": 0.0006,  # Cost in USD (e.g., 20 tokens * $0.03/1K tokens)
-     *         "audio": 0.0003   # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
-     *     }
-     * }
-     * Note: This is a key prefix - individual attributes are stored as separate span attributes with this prefix,
-     * e.g. llm.cost.prompt, llm.cost.completion_details.reasoning, etc. The JSON structure shown above represents
-     * how these separate attributes can be conceptually organized.
-     * All monetary values are in USD with floating point precision.
-     */
-    public static final String LLM_COST = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST;
-
-    /** Cost of the prompt tokens in USD */
-    public static final String LLM_COST_PROMPT =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".prompt";
-
-    /** Cost of the completion tokens in USD */
-    public static final String LLM_COST_COMPLETION =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".completion";
-
-    /** Total cost of the LLM call in USD (prompt + completion) */
-    public static final String LLM_COST_TOTAL =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".total";
-
-    /** Total cost of input tokens in USD. This represents the cost of tokens that were used as input
-     * to the model, which may be different from the prompt cost if there are additional processing steps. */
-    public static final String LLM_COST_INPUT =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".prompt_details.input";
-
-    /** Total cost of output tokens in USD. This represents the cost of tokens that were generated as output
-     * by the model, which may be different from the completion cost if there are additional processing steps. */
-    public static final String LLM_COST_OUTPUT =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".completion_details.output";
-
-    /** Cost of reasoning steps in the completion in USD */
-    public static final String LLM_COST_COMPLETION_DETAILS_REASONING =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".completion_details.reasoning";
-
-    /** Cost of audio tokens in the completion in USD */
-    public static final String LLM_COST_COMPLETION_DETAILS_AUDIO =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".completion_details.audio";
-
-    /** Cost of prompt tokens written to cache in USD */
-    public static final String LLM_COST_PROMPT_DETAILS_CACHE_WRITE =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".prompt_details.cache_write";
-
-    /** Cost of prompt tokens read from cache in USD */
-    public static final String LLM_COST_PROMPT_DETAILS_CACHE_READ =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".prompt_details.cache_read";
-
-    /** Cost of input tokens in the prompt that were cached in USD */
-    public static final String LLM_COST_PROMPT_DETAILS_CACHE_INPUT =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".prompt_details.cache_input";
-
-    /** Cost of audio tokens in the prompt in USD */
-    public static final String LLM_COST_PROMPT_DETAILS_AUDIO =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.COST + ".prompt_details.audio";
-
-    /**
-     * The name of the message. This is only used for role 'function' where the name
-     * of the function is captured in the name field and the parameters are captured in the
-     * content.
-     */
-    public static final String MESSAGE_NAME = SemanticAttributePrefixes.MESSAGE + "." + MessageAttributePostfixes.NAME;
-
-    /**
-     * The tool calls generated by the model, such as function calls.
-     */
-    public static final String MESSAGE_TOOL_CALLS =
-            SemanticAttributePrefixes.MESSAGE + "." + MessageAttributePostfixes.TOOL_CALLS;
-
-    /**
-     * The id of the tool call on a "tool" role message
-     */
-    public static final String MESSAGE_TOOL_CALL_ID =
-            SemanticAttributePrefixes.MESSAGE + "." + MessageAttributePostfixes.TOOL_CALL_ID;
-
-    /**
-     * tool_call.function.name
-     */
-    public static final String TOOL_CALL_FUNCTION_NAME =
-            SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.FUNCTION_NAME;
-
-    /**
-     * tool_call.function.argument (JSON string)
-     */
-    public static final String TOOL_CALL_FUNCTION_ARGUMENTS_JSON =
-            SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.FUNCTION_ARGUMENTS;
-
-    /**
-     * The id of the tool call
-     */
-    public static final String TOOL_CALL_ID = SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.ID;
-
-    /**
-     * Opaque vendor-issued reasoning echo token attached to a tool call. Maps to
-     * Gemini thoughtSignature when it is attached to a functionCall part
-     */
-    public static final String TOOL_CALL_REASONING_SIGNATURE =
-            SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.REASONING_SIGNATURE;
-
-    /**
-     * The LLM function call function name
-     */
-    public static final String MESSAGE_FUNCTION_CALL_NAME =
-            SemanticAttributePrefixes.MESSAGE + "." + MessageAttributePostfixes.FUNCTION_CALL_NAME;
-
-    /**
-     * The LLM function call function arguments in a json string
-     */
-    public static final String MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON =
-            SemanticAttributePrefixes.MESSAGE + "." + MessageAttributePostfixes.FUNCTION_CALL_ARGUMENTS_JSON;
-
-    /**
-     * The array of contents for the message sent to the LLM. Each element of the array is
-     * an `message_content` object.
-     */
-    public static final String MESSAGE_CONTENTS =
-            SemanticAttributePrefixes.MESSAGE + "." + MessageAttributePostfixes.CONTENTS;
-
-    /**
-     * The type of content sent to the LLM, such as "text", "image", "audio",
-     * "video", "document", "reasoning", or "tool_use"
-     */
-    public static final String MESSAGE_CONTENT_TYPE =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.TYPE;
-
-    /**
-     * The text content of the message sent to the LLM
-     */
-    public static final String MESSAGE_CONTENT_TEXT =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.TEXT;
-
-    /**
-     * The image content of the message sent to the LLM
-     */
-    public static final String MESSAGE_CONTENT_IMAGE =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.IMAGE;
-
-    /**
-     * The audio content of the message sent to the LLM
-     */
-    public static final String MESSAGE_CONTENT_AUDIO =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.AUDIO;
-
-    /**
-     * The video content of the message sent to the LLM
-     */
-    public static final String MESSAGE_CONTENT_VIDEO =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.VIDEO;
-
     /**
-     * The document content (e.g. a PDF, an uploaded file, or inline text) of the message sent to the LLM
+     * The name of the agent that this span represents.
      */
-    public static final String MESSAGE_CONTENT_DOCUMENT =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.DOCUMENT;
+    public static final String AGENT_NAME = "agent.name";
 
     /**
-     * Provider-assigned identifier for this message content item. For OpenAI
-     * Responses reasoning items, this maps to ResponseReasoningItem.id and should
-     * be preserved for stateless replay
+     * Judge kind: `HUMAN`, `LLM`, `CODE`, or custom. See [Annotator Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md#annotator-kinds)
      */
-    public static final String MESSAGE_CONTENT_ID =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.ID;
+    public static final String ANNOTATION_ANNOTATOR_KIND = "annotation.annotator_kind";
 
     /**
-     * Opaque vendor-issued signature captured verbatim. Maps to provider signature
-     * fields and to Gemini thoughtSignature fields when the signature is attached
-     * to a non-tool content part
+     * Reason or evidence for the result
      */
-    public static final String MESSAGE_CONTENT_SIGNATURE =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.SIGNATURE;
+    public static final String ANNOTATION_EXPLANATION = "annotation.explanation";
 
     /**
-     * Opaque vendor-issued data captured verbatim. Maps to Anthropic
-     * redacted_thinking.data
+     * Stable result ID for the same name and target
      */
-    public static final String MESSAGE_CONTENT_DATA =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.DATA;
+    public static final String ANNOTATION_IDENTIFIER = "annotation.identifier";
 
     /**
-     * OpenAI encrypted_content captured verbatim
+     * Categorical result
      */
-    public static final String MESSAGE_CONTENT_ENCRYPTED_CONTENT =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.ENCRYPTED_CONTENT;
+    public static final String ANNOTATION_LABEL = "annotation.label";
 
     /**
-     * The http or base64 link to the image
+     * Additional result or judge data
      */
-    public static final String IMAGE_URL = SemanticAttributePrefixes.IMAGE + "." + ImageAttributesPostfixes.URL;
+    public static final String ANNOTATION_METADATA = "annotation.metadata";
 
     /**
-     * The URL, object-store URI, or base64 data URI of a video.
+     * Criterion or metric name
      */
-    public static final String VIDEO_URL = SemanticAttributePrefixes.VIDEO + "." + VideoAttributesPostfixes.URL;
+    public static final String ANNOTATION_NAME = "annotation.name";
 
-    public static final String DOCUMENT_ID = SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.ID;
-
-    public static final String DOCUMENT_CONTENT =
-            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.CONTENT;
-
-    public static final String DOCUMENT_SCORE =
-            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.SCORE;
-
-    public static final String DOCUMENT_METADATA =
-            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.METADATA;
-
-    /**
-     * The URL, object-store URI, or base64 data URI of a file document such as a PDF.
-     */
-    public static final String DOCUMENT_URL = SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.URL;
-
-    /**
-     * The MIME type of a document, for example {@code application/pdf}.
-     */
-    public static final String DOCUMENT_MIME_TYPE =
-            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.MIME_TYPE;
-
     /**
-     * The name supplied with a document, such as a file name or a title, for example
-     * {@code invoice.pdf}. Not a unique identifier.
+     * Numeric result.
      */
-    public static final String DOCUMENT_NAME =
-            SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.NAME;
+    public static final String ANNOTATION_SCORE = "annotation.score";
 
     /**
-     * The text that was embedded to create the vector
+     * Span-scoped feedback using annotation terminology, flattened as `annotations.0.annotation.*`
      */
-    public static final String EMBEDDING_TEXT =
-            SemanticAttributePrefixes.EMBEDDING + "." + EmbeddingAttributePostfixes.TEXT;
+    public static final String ANNOTATIONS = "annotations";
 
     /**
-     * The name of the model that was used to create the vector
+     * The MIME type of the audio file.
      */
-    public static final String EMBEDDING_MODEL_NAME =
-            SemanticAttributePrefixes.EMBEDDING + "." + EmbeddingAttributePostfixes.MODEL_NAME;
+    public static final String AUDIO_MIME_TYPE = "audio.mime_type";
 
     /**
-     * Parameters used during the invocation of an embedding model or API (excluding input).
+     * The transcript of the audio file (e.g. a Whisper transcription)
      */
-    public static final String EMBEDDING_INVOCATION_PARAMETERS =
-            SemanticAttributePrefixes.EMBEDDING + "." + EmbeddingAttributePostfixes.INVOCATION_PARAMETERS;
+    public static final String AUDIO_TRANSCRIPT = "audio.transcript";
 
     /**
-     * The embedding vector. Typically a high dimensional vector of floats or ints
+     * The URL of an audio file (e.g. cloud storage), or a base64 data URI
      */
-    public static final String EMBEDDING_VECTOR =
-            SemanticAttributePrefixes.EMBEDDING + "." + EmbeddingAttributePostfixes.VECTOR;
+    public static final String AUDIO_URL = "audio.url";
 
     /**
-     * The embedding list root
+     * The text of a choice returned from a completions API. Used under `llm.choices`.
      */
-    public static final String EMBEDDING_EMBEDDINGS =
-            SemanticAttributePrefixes.EMBEDDING + "." + EmbeddingAttributePostfixes.EMBEDDINGS;
-
-    // Helper constant for prompt template prefix
-    private static final String PROMPT_TEMPLATE_PREFIX =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.PROMPT_TEMPLATE;
+    public static final String COMPLETION_TEXT = "completion.text";
 
     /**
-     * The JSON representation of the variables used in the prompt template
+     * The name of the decision model being utilized. Mirrors `llm.model_name` for `DECISION` spans.
      */
-    public static final String PROMPT_TEMPLATE_VARIABLES = PROMPT_TEMPLATE_PREFIX + ".variables";
+    public static final String DECISION_MODEL_NAME = "decision.model_name";
 
     /**
-     * A prompt template
+     * The hosting provider of the decision model: who runs the hardware that answered, e.g. `typesafe` when calling TypeSafe directly, `openai` for the OpenAI Decisions API, or the cloud or self-hosting provider for a model served elsewhere. Distinct from `decision.system`, which names the API shape. The well-known values alias the matching `llm.provider` values.
      */
-    public static final String PROMPT_TEMPLATE_TEMPLATE = PROMPT_TEMPLATE_PREFIX + ".template";
+    public static final String DECISION_PROVIDER = "decision.provider";
 
     /**
-     * A prompt template version
+     * The decision model requested by the caller, as sent in the request. May differ from `decision.response.model_name` when the provider resolves an alias or routes the request.
      */
-    public static final String PROMPT_TEMPLATE_VERSION = PROMPT_TEMPLATE_PREFIX + ".version";
+    public static final String DECISION_REQUEST_MODEL_NAME = "decision.request.model_name";
 
     /**
-     * Text choices returned from a completions API.
+     * The decision model that actually produced the response, as reported by the provider. May differ from `decision.request.model_name`.
      */
-    public static final String LLM_CHOICES = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.CHOICES;
+    public static final String DECISION_RESPONSE_MODEL_NAME = "decision.response.model_name";
 
     /**
-     * The JSON representation of a function call of an LLM
+     * The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks, as identified by the client or server instrumentation: `typesafe` for the TypeSafe System One / Jev API, `openai` for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible `/v1/systemone` shape is still `typesafe`. Distinct from `decision.provider`, which says who hosts the model. The well-known values alias the matching `llm.system` values.
      */
-    public static final String LLM_FUNCTION_CALL =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.FUNCTION_CALL;
+    public static final String DECISION_SYSTEM = "decision.system";
 
     /**
-     * List of tools that are advertised to the LLM to be able to call
+     * The number of input tokens consumed by a decision model call: the state, questions, and candidate options. Maps to `usage.input_tokens` in TypeSafe System One responses.
      */
-    public static final String LLM_TOOLS = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOOLS;
+    public static final String DECISION_TOKEN_COUNT_INPUT = "decision.token_count.input";
 
     /**
-     * The identifier for the result of the tool call.
+     * The number of output tokens produced by a decision model call. Decision models emit typed answers rather than text, so this is typically small. Maps to `usage.output_tokens` in TypeSafe System One responses.
      */
-    public static final String TOOL_ID = SemanticAttributePrefixes.TOOL + "." + ToolAttributePostfixes.ID;
+    public static final String DECISION_TOKEN_COUNT_OUTPUT = "decision.token_count.output";
 
     /**
-     * The name of a tool
+     * The text content of a document: a retrieved passage, or an inline text document passed to a model (e.g. an Anthropic `text` source)
      */
-    public static final String TOOL_NAME = SemanticAttributePrefixes.TOOL + "." + ToolAttributePostfixes.NAME;
+    public static final String DOCUMENT_CONTENT = "document.content";
 
     /**
-     * The description of a tool
+     * Unique identifier for a document: a retrieved document or chunk in a retrieval system, or the provider file id (e.g. an OpenAI or Anthropic Files API id) for a document passed to a model.
      */
-    public static final String TOOL_DESCRIPTION =
-            SemanticAttributePrefixes.TOOL + "." + ToolAttributePostfixes.DESCRIPTION;
+    public static final String DOCUMENT_ID = "document.id";
 
     /**
-     * The parameters of the tool represented as a JSON string
+     * Metadata associated with a document
      */
-    public static final String TOOL_PARAMETERS =
-            SemanticAttributePrefixes.TOOL + "." + ToolAttributePostfixes.PARAMETERS;
+    public static final String DOCUMENT_METADATA = "document.metadata";
 
     /**
-     * The json schema of a tool input, It is RECOMMENDED that this be in the
-     * OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
+     * The MIME type of a file document such as a PDF
      */
-    public static final String TOOL_JSON_SCHEMA =
-            SemanticAttributePrefixes.TOOL + "." + ToolAttributePostfixes.JSON_SCHEMA;
+    public static final String DOCUMENT_MIME_TYPE = "document.mime_type";
 
     /**
-     * The session id of a trace. Used to correlate spans in a single session.
+     * The name supplied with a document, copied verbatim: a file name (OpenAI `filename`) or a title (Anthropic `title`, Bedrock `name`, Gemini `display_name`); not a unique identifier
      */
-    public static final String SESSION_ID = SemanticAttributePrefixes.SESSION + "." + SessionAttributePostfixes.ID;
+    public static final String DOCUMENT_NAME = "document.name";
 
     /**
-     * The user id of a trace. Used to correlate spans for a single user.
+     * Score representing the relevance of a document
      */
-    public static final String USER_ID = SemanticAttributePrefixes.USER + "." + UserAttributePostfixes.ID;
+    public static final String DOCUMENT_SCORE = "document.score";
 
     /**
-     * The documents used as input to the reranker
+     * The URL, object-store URI, or base64 data URI of a file document such as a PDF
      */
-    public static final String RERANKER_INPUT_DOCUMENTS =
-            SemanticAttributePrefixes.RERANKER + "." + RerankerAttributePostfixes.INPUT_DOCUMENTS;
+    public static final String DOCUMENT_URL = "document.url";
 
     /**
-     * The documents output by the reranker
+     * List of embedding objects including text and vector data
      */
-    public static final String RERANKER_OUTPUT_DOCUMENTS =
-            SemanticAttributePrefixes.RERANKER + "." + RerankerAttributePostfixes.OUTPUT_DOCUMENTS;
+    public static final String EMBEDDING_EMBEDDINGS = "embedding.embeddings";
 
     /**
-     * The query string for the reranker
+     * Parameters used during the invocation of an embedding model or API (excluding input)
      */
-    public static final String RERANKER_QUERY =
-            SemanticAttributePrefixes.RERANKER + "." + RerankerAttributePostfixes.QUERY;
+    public static final String EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters";
 
     /**
-     * The model name for the reranker
+     * Name of the embedding model used
      */
-    public static final String RERANKER_MODEL_NAME =
-            SemanticAttributePrefixes.RERANKER + "." + RerankerAttributePostfixes.MODEL_NAME;
+    public static final String EMBEDDING_MODEL_NAME = "embedding.model_name";
 
     /**
-     * The top k parameter for the reranker
+     * The text represented in the embedding
      */
-    public static final String RERANKER_TOP_K =
-            SemanticAttributePrefixes.RERANKER + "." + RerankerAttributePostfixes.TOP_K;
+    public static final String EMBEDDING_TEXT = "embedding.text";
 
     /**
-     * Metadata for a span, used to store user-defined key-value pairs
+     * The embedding vector consisting of a list of floats
      */
-    public static final String METADATA = "metadata";
+    public static final String EMBEDDING_VECTOR = "embedding.vector";
 
     /**
-     * The tags associated with a span
+     * Judge kind: `HUMAN`, `LLM`, `CODE`, or custom. See [Annotator Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/feedback/annotations.md#annotator-kinds)
      */
-    public static final String TAG_TAGS = SemanticAttributePrefixes.TAG + "." + TagAttributePostfixes.TAGS;
+    public static final String EVALUATION_ANNOTATOR_KIND = "evaluation.annotator_kind";
 
     /**
-     * The url of an audio file
+     * Reason or evidence for the result
      */
-    public static final String AUDIO_URL = SemanticAttributePrefixes.AUDIO + "." + AudioAttributesPostfixes.URL;
+    public static final String EVALUATION_EXPLANATION = "evaluation.explanation";
 
     /**
-     * The audio mime type
+     * Stable result ID for the same name and target
      */
-    public static final String AUDIO_MIME_TYPE =
-            SemanticAttributePrefixes.AUDIO + "." + AudioAttributesPostfixes.MIME_TYPE;
+    public static final String EVALUATION_IDENTIFIER = "evaluation.identifier";
 
     /**
-     * The audio transcript as text
+     * Categorical result
      */
-    public static final String AUDIO_TRANSCRIPT =
-            SemanticAttributePrefixes.AUDIO + "." + AudioAttributesPostfixes.TRANSCRIPT;
+    public static final String EVALUATION_LABEL = "evaluation.label";
 
     /**
-     * The vendor or origin of the prompt, e.g. a prompt library, a specialized service, etc.
+     * Additional result or judge data
      */
-    public static final String PROMPT_VENDOR = SemanticAttributePrefixes.PROMPT + "." + PromptAttributePostfixes.VENDOR;
+    public static final String EVALUATION_METADATA = "evaluation.metadata";
 
     /**
-     * A vendor-specific id used to locate the prompt
+     * Criterion or metric name
      */
-    public static final String PROMPT_ID = SemanticAttributePrefixes.PROMPT + "." + PromptAttributePostfixes.ID;
+    public static final String EVALUATION_NAME = "evaluation.name";
 
     /**
-     * A vendor-specific URL used to locate the prompt
+     * Numeric result.
      */
-    public static final String PROMPT_URL = SemanticAttributePrefixes.PROMPT + "." + PromptAttributePostfixes.URL;
+    public static final String EVALUATION_SCORE = "evaluation.score";
 
     /**
-     * The name of the agent. Agents that perform the same functions should have the same name.
+     * Span-scoped feedback using evaluation or eval terminology, flattened as `evaluations.0.evaluation.*`
      */
-    public static final String AGENT_NAME = SemanticAttributePrefixes.AGENT + "." + AgentPostfixes.NAME;
+    public static final String EVALUATIONS = "evaluations";
 
     /**
-     * The id of the node in the execution graph. This along with graph.node.parent_id are used to visualize the execution graph.
+     * The id of the node in the execution graph. This along with `graph.node.parent_id` are used to visualize the execution graph.
      */
-    public static final String GRAPH_NODE_ID = SemanticAttributePrefixes.GRAPH + "." + GraphPostfixes.NODE_ID;
+    public static final String GRAPH_NODE_ID = "graph.node.id";
 
     /**
      * The name of the node in the execution graph. Use this to present a human readable name for the node. Optional
      */
-    public static final String GRAPH_NODE_NAME = SemanticAttributePrefixes.GRAPH + "." + GraphPostfixes.NODE_NAME;
+    public static final String GRAPH_NODE_NAME = "graph.node.name";
 
     /**
      * This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node.
      */
-    public static final String GRAPH_NODE_PARENT_ID =
-            SemanticAttributePrefixes.GRAPH + "." + GraphPostfixes.NODE_PARENT_ID;
-
-    public static final String OPENINFERENCE_SPAN_KIND = SemanticAttributePrefixes.OPENINFERENCE + ".span.kind";
+    public static final String GRAPH_NODE_PARENT_ID = "graph.node.parent_id";
 
     /**
-     * Semantic conventions for OpenInference span kinds
+     * The link to the image or its base64 encoding
+     */
+    public static final String IMAGE_URL = "image.url";
+
+    /**
+     * File document (e.g. PDF) inputs to an operation, independent of span kind, e.g. `input.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents)
+     */
+    public static final String INPUT_DOCUMENTS = "input.documents";
+
+    /**
+     * Image inputs to an operation, independent of span kind, e.g. `input.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images)
+     */
+    public static final String INPUT_IMAGES = "input.images";
+
+    /**
+     * MIME type representing the format of `input.value`
+     */
+    public static final String INPUT_MIME_TYPE = "input.mime_type";
+
+    /**
+     * The input value to an operation
+     */
+    public static final String INPUT_VALUE = "input.value";
+
+    /**
+     * Text choices returned from a completions API, e.g. `llm.choices.0.completion.text`
+     */
+    public static final String LLM_CHOICES = "llm.choices";
+
+    /**
+     * Total cost of all output tokens generated by the LLM in USD
+     */
+    public static final String LLM_COST_COMPLETION = "llm.cost.completion";
+
+    /**
+     * Cost of audio tokens in the completion in USD
+     */
+    public static final String LLM_COST_COMPLETION_DETAILS_AUDIO = "llm.cost.completion_details.audio";
+
+    /**
+     * Total cost of output tokens in USD
+     */
+    public static final String LLM_COST_OUTPUT = "llm.cost.completion_details.output";
+
+    /**
+     * Cost of reasoning steps in the completion in USD
+     */
+    public static final String LLM_COST_COMPLETION_DETAILS_REASONING = "llm.cost.completion_details.reasoning";
+
+    /**
+     * Total cost of all input tokens sent to the LLM in USD
+     */
+    public static final String LLM_COST_PROMPT = "llm.cost.prompt";
+
+    /**
+     * Cost of audio tokens in the prompt in USD
+     */
+    public static final String LLM_COST_PROMPT_DETAILS_AUDIO = "llm.cost.prompt_details.audio";
+
+    /**
+     * Cost of input tokens in the prompt that were cached in USD
+     */
+    public static final String LLM_COST_PROMPT_DETAILS_CACHE_INPUT = "llm.cost.prompt_details.cache_input";
+
+    /**
+     * Cost of prompt tokens read from cache in USD
+     */
+    public static final String LLM_COST_PROMPT_DETAILS_CACHE_READ = "llm.cost.prompt_details.cache_read";
+
+    /**
+     * Cost of prompt tokens written to cache in USD
+     */
+    public static final String LLM_COST_PROMPT_DETAILS_CACHE_WRITE = "llm.cost.prompt_details.cache_write";
+
+    /**
+     * Total cost of input tokens in USD
+     */
+    public static final String LLM_COST_INPUT = "llm.cost.prompt_details.input";
+
+    /**
+     * Total cost of the LLM call in USD (prompt + completion)
+     */
+    public static final String LLM_COST_TOTAL = "llm.cost.total";
+
+    /**
+     * The reason the model stopped generating tokens.
+     */
+    public static final String LLM_FINISH_REASON = "llm.finish_reason";
+
+    /**
+     * Object recording details of a function call in models or APIs
+     *
+     * @deprecated Use `message.tool_calls` instead.
+     */
+    @Deprecated
+    public static final String LLM_FUNCTION_CALL = "llm.function_call";
+
+    /**
+     * List of messages sent to the LLM in a chat API request, e.g. `llm.input_messages.0.message.role`. See [Messages](https://github.com/Arize-ai/openinference/blob/main/spec/content/messages.md)
+     */
+    public static final String LLM_INPUT_MESSAGES = "llm.input_messages";
+
+    /**
+     * Parameters used during the invocation of an LLM or API
+     */
+    public static final String LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters";
+
+    /**
+     * The name of the language model being utilized
+     */
+    public static final String LLM_MODEL_NAME = "llm.model_name";
+
+    /**
+     * List of messages received from the LLM in a chat API response, e.g. `llm.output_messages.0.message.role`. See [Messages](https://github.com/Arize-ai/openinference/blob/main/spec/content/messages.md)
+     */
+    public static final String LLM_OUTPUT_MESSAGES = "llm.output_messages";
+
+    /**
+     * Template used to generate prompts (e.g., using `{variable}` placeholder syntax)
+     */
+    public static final String PROMPT_TEMPLATE_TEMPLATE = "llm.prompt_template.template";
+
+    /**
+     * JSON of key value pairs applied to the prompt template
+     */
+    public static final String PROMPT_TEMPLATE_VARIABLES = "llm.prompt_template.variables";
+
+    /**
+     * The version of the prompt template
+     */
+    public static final String PROMPT_TEMPLATE_VERSION = "llm.prompt_template.version";
+
+    /**
+     * Prompts provided to a completions API, e.g. `llm.prompts.0.prompt.text`
+     */
+    public static final String LLM_PROMPTS = "llm.prompts";
+
+    /**
+     * The hosting provider of the LLM, e.g. `azure`. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-provider-values).
+     */
+    public static final String LLM_PROVIDER = "llm.provider";
+
+    /**
+     * The model requested by the caller, as sent in the request. May differ from `llm.response.model_name` when the provider routes the request to a different model.
+     */
+    public static final String LLM_REQUEST_MODEL_NAME = "llm.request.model_name";
+
+    /**
+     * The model that actually generated the response, as reported by the provider. May differ from `llm.request.model_name` when the provider routes the request to a different model.
+     */
+    public static final String LLM_RESPONSE_MODEL_NAME = "llm.response.model_name";
+
+    /**
+     * The AI product as identified by the client or server instrumentation. See [well-known values](https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md#llm-system-values).
+     */
+    public static final String LLM_SYSTEM = "llm.system";
+
+    /**
+     * The number of tokens in the completion
+     */
+    public static final String LLM_TOKEN_COUNT_COMPLETION = "llm.token_count.completion";
+
+    /**
+     * The number of audio tokens generated by the model
+     */
+    public static final String LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = "llm.token_count.completion_details.audio";
+
+    /**
+     * The number of tokens used for model reasoning
+     */
+    public static final String LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING =
+            "llm.token_count.completion_details.reasoning";
+
+    /**
+     * The number of tokens in the prompt
+     */
+    public static final String LLM_TOKEN_COUNT_PROMPT = "llm.token_count.prompt";
+
+    /**
+     * The number of audio input tokens presented in the prompt
+     */
+    public static final String LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = "llm.token_count.prompt_details.audio";
+
+    /**
+     * The number of input tokens in the prompt that were cached
+     */
+    public static final String LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT =
+            "llm.token_count.prompt_details.cache_input";
+
+    /**
+     * The number of prompt tokens successfully retrieved from cache (cache hits). Maps to `cached_tokens` in OpenAI responses
+     */
+    public static final String LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = "llm.token_count.prompt_details.cache_read";
+
+    /**
+     * The number of prompt tokens not found in cache that were written to cache (cache misses). Maps to `cache_write_tokens` in OpenAI responses
+     */
+    public static final String LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE =
+            "llm.token_count.prompt_details.cache_write";
+
+    /**
+     * Total number of tokens, including prompt and completion
+     */
+    public static final String LLM_TOKEN_COUNT_TOTAL = "llm.token_count.total";
+
+    /**
+     * List of tools that are advertised to the LLM to be able to call, e.g. `llm.tools.0.tool.name`, `llm.tools.0.tool.description`, `llm.tools.0.tool.json_schema`. See [Tool Calling](https://github.com/Arize-ai/openinference/blob/main/spec/content/tool-calling.md)
+     */
+    public static final String LLM_TOOLS = "llm.tools";
+
+    /**
+     * The content of a message in a chat
+     */
+    public static final String MESSAGE_CONTENT = "message.content";
+
+    /**
+     * The message contents to the LLM, an array of `message_content` objects. Use this form when a message has multiple content items or when item ordering matters.
+     */
+    public static final String MESSAGE_CONTENTS = "message.contents";
+
+    /**
+     * The arguments to the function call in JSON
+     *
+     * @deprecated Use `message.tool_calls` instead.
+     */
+    @Deprecated
+    public static final String MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = "message.function_call_arguments_json";
+
+    /**
+     * Function call function name
+     *
+     * @deprecated Use `message.tool_calls` instead.
+     */
+    @Deprecated
+    public static final String MESSAGE_FUNCTION_CALL_NAME = "message.function_call_name";
+
+    /**
+     * The name of the function or tool that produced a tool/function role message. Used when `message.role` is `"tool"` or `"function"` to identify the origin.
+     */
+    public static final String MESSAGE_NAME = "message.name";
+
+    /**
+     * Role of the entity in a message (e.g., user, system)
+     */
+    public static final String MESSAGE_ROLE = "message.role";
+
+    /**
+     * Tool call result identifier corresponding to `tool_call.id`
+     */
+    public static final String MESSAGE_TOOL_CALL_ID = "message.tool_call_id";
+
+    /**
+     * List of tool calls (e.g. function calls) generated by the LLM, e.g. `llm.output_messages.0.message.tool_calls.0.tool_call.id`
+     */
+    public static final String MESSAGE_TOOL_CALLS = "message.tool_calls";
+
+    /**
+     * The audio content of the message, if the type is `"audio"`. Nested leaves are `audio.url` and `audio.transcript`.
+     */
+    public static final String MESSAGE_CONTENT_AUDIO = "message_content.audio";
+
+    /**
+     * Opaque vendor-issued data captured verbatim. Maps to Anthropic `redacted_thinking.data`.
+     */
+    public static final String MESSAGE_CONTENT_DATA = "message_content.data";
+
+    /**
+     * The document content of the message (e.g. a PDF, an uploaded file, or inline text), if the type is `"document"`. Nested leaves are `document.url`, `document.content`, `document.mime_type`, `document.id`, and `document.name`.
+     */
+    public static final String MESSAGE_CONTENT_DOCUMENT = "message_content.document";
+
+    /**
+     * OpenAI `encrypted_content` captured verbatim.
+     */
+    public static final String MESSAGE_CONTENT_ENCRYPTED_CONTENT = "message_content.encrypted_content";
+
+    /**
+     * Provider-assigned identifier for this message content item. For OpenAI Responses reasoning items, this maps to `ResponseReasoningItem.id` and should be preserved for stateless replay.
+     */
+    public static final String MESSAGE_CONTENT_ID = "message_content.id";
+
+    /**
+     * The image content of the message, if the type is `"image"`.
+     */
+    public static final String MESSAGE_CONTENT_IMAGE = "message_content.image";
+
+    /**
+     * Opaque vendor-issued signature captured verbatim. Maps to provider `signature` fields, and to Gemini `thoughtSignature` fields when the signature is attached to a non-tool content part such as text.
+     */
+    public static final String MESSAGE_CONTENT_SIGNATURE = "message_content.signature";
+
+    /**
+     * The text content of the message. Used when `message_content.type` is `"text"` or `"reasoning"` (visible reasoning or summary text). For OpenAI `summary_text` arrays, concatenate the array items into this single text value for now.
+     */
+    public static final String MESSAGE_CONTENT_TEXT = "message_content.text";
+
+    /**
+     * The type of the content. Use `"reasoning"` for reasoning/thinking content, including Anthropic `redacted_thinking` blocks. Use `"tool_use"` when a provider returns a tool call as an ordered content part.
+     */
+    public static final String MESSAGE_CONTENT_TYPE = "message_content.type";
+
+    /**
+     * The video content of the message, if the type is `"video"`. The nested leaf is `video.url`. Consumers infer MIME type from the URL path extension or a data URI prefix.
+     */
+    public static final String MESSAGE_CONTENT_VIDEO = "message_content.video";
+
+    /**
+     * Metadata associated with a span
+     */
+    public static final String METADATA = "metadata";
+
+    /**
+     * The role an operation plays in an AI application.
+     */
+    public static final String OPENINFERENCE_SPAN_KIND = "openinference.span.kind";
+
+    /**
+     * File document (e.g. PDF) outputs of an operation, independent of span kind, e.g. `output.documents.0.document.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-documents)
+     */
+    public static final String OUTPUT_DOCUMENTS = "output.documents";
+
+    /**
+     * Image outputs of an operation, independent of span kind, e.g. `output.images.0.image.url`. See [Multimodal Content](https://github.com/Arize-ai/openinference/blob/main/spec/content/multimodal.md#span-kind-independent-images)
+     */
+    public static final String OUTPUT_IMAGES = "output.images";
+
+    /**
+     * MIME type representing the format of `output.value`
+     */
+    public static final String OUTPUT_MIME_TYPE = "output.mime_type";
+
+    /**
+     * The output value of an operation
+     */
+    public static final String OUTPUT_VALUE = "output.value";
+
+    /**
+     * A vendor-specific id used to identify the prompt.
+     */
+    public static final String PROMPT_ID = "prompt.id";
+
+    /**
+     * The text of a prompt in a completions API request. Used under `llm.prompts`.
+     */
+    public static final String PROMPT_TEXT = "prompt.text";
+
+    /**
+     * A vendor-specific URL used to locate the prompt via the web
+     */
+    public static final String PROMPT_URL = "prompt.url";
+
+    /**
+     * The vendor or origin of the prompt, e.g. `langsmith`, `portkey`, `arize-phoenix`
+     */
+    public static final String PROMPT_VENDOR = "prompt.vendor";
+
+    /**
+     * List of documents as input to the reranker
+     */
+    public static final String RERANKER_INPUT_DOCUMENTS = "reranker.input_documents";
+
+    /**
+     * Model name of the reranker
+     */
+    public static final String RERANKER_MODEL_NAME = "reranker.model_name";
+
+    /**
+     * List of documents outputted by the reranker
+     */
+    public static final String RERANKER_OUTPUT_DOCUMENTS = "reranker.output_documents";
+
+    /**
+     * Query parameter of the reranker
+     */
+    public static final String RERANKER_QUERY = "reranker.query";
+
+    /**
+     * Top K parameter of the reranker
+     */
+    public static final String RERANKER_TOP_K = "reranker.top_k";
+
+    /**
+     * List of retrieved documents
+     */
+    public static final String RETRIEVAL_DOCUMENTS = "retrieval.documents";
+
+    /**
+     * Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id`
+     */
+    public static final String SESSION_ANNOTATIONS = "session.annotations";
+
+    /**
+     * Session-scoped feedback using evaluation terminology, flattened as `session.evaluations.0.evaluation.*`; requires `session.id`
+     */
+    public static final String SESSION_EVALUATIONS = "session.evaluations";
+
+    /**
+     * Unique identifier for a session, such as a multi-turn conversation.
+     */
+    public static final String SESSION_ID = "session.id";
+
+    /**
+     * List of tags to give the span a category
+     */
+    public static final String TAG_TAGS = "tag.tags";
+
+    /**
+     * Description of the tool's purpose and functionality. On a `TOOL` span, the tool being invoked; under `llm.tools.&lt;index&gt;`, an advertised tool definition
+     */
+    public static final String TOOL_DESCRIPTION = "tool.description";
+
+    /**
+     * The identifier for the result of the tool call (corresponding to `tool_call.id`)
+     */
+    public static final String TOOL_ID = "tool.id";
+
+    /**
+     * The JSON schema of a tool input
+     */
+    public static final String TOOL_JSON_SCHEMA = "tool.json_schema";
+
+    /**
+     * The name of the tool. On a `TOOL` span, the tool being invoked; under `llm.tools.&lt;index&gt;`, the name of an advertised tool definition
+     */
+    public static final String TOOL_NAME = "tool.name";
+
+    /**
+     * The parameters definition for invoking the tool
+     */
+    public static final String TOOL_PARAMETERS = "tool.parameters";
+
+    /**
+     * The arguments for the function being invoked by a tool call
+     */
+    public static final String TOOL_CALL_FUNCTION_ARGUMENTS_JSON = "tool_call.function.arguments";
+
+    /**
+     * The name of the function being invoked by a tool call
+     */
+    public static final String TOOL_CALL_FUNCTION_NAME = "tool_call.function.name";
+
+    /**
+     * The id of a tool call (useful when there is more than one call at the same time)
+     */
+    public static final String TOOL_CALL_ID = "tool_call.id";
+
+    /**
+     * Opaque vendor-issued reasoning echo token attached to a tool call. Used by Gemini, which puts `thoughtSignature` on `functionCall` parts rather than on the reasoning summary.
+     */
+    public static final String TOOL_CALL_REASONING_SIGNATURE = "tool_call.reasoning_signature";
+
+    /**
+     * Trace-scoped feedback using annotation terminology, flattened as `trace.annotations.0.annotation.*`
+     */
+    public static final String TRACE_ANNOTATIONS = "trace.annotations";
+
+    /**
+     * Trace-scoped feedback using evaluation terminology, flattened as `trace.evaluations.0.evaluation.*`
+     */
+    public static final String TRACE_EVALUATIONS = "trace.evaluations";
+
+    /**
+     * Unique identifier for a user.
+     */
+    public static final String USER_ID = "user.id";
+
+    /**
+     * The URL, object-store URI, or base64 data URI of a video. Consumers infer MIME type from the path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix.
+     */
+    public static final String VIDEO_URL = "video.url";
+
+    /**
+     * Key prefix for additional prompt token count details. Each detail is a separate attribute with this prefix, e.g. llm.token_count.prompt_details.audio. All values are in tokens.
+     */
+    public static final String LLM_TOKEN_COUNT_PROMPT_DETAILS = "llm.token_count.prompt_details";
+
+    /**
+     * Key prefix for additional completion token count details. Each detail is a separate attribute with this prefix, e.g. llm.token_count.completion_details.reasoning. All values are in tokens.
+     */
+    public static final String LLM_TOKEN_COUNT_COMPLETION_DETAILS = "llm.token_count.completion_details";
+
+    /**
+     * Key prefix for cost information. All values are in USD.
+     */
+    public static final String LLM_COST = "llm.cost";
+
+    /**
+     * Well-known values for {@code openinference.span.kind}.
      */
     public enum OpenInferenceSpanKind {
         LLM("LLM"),
@@ -941,7 +935,8 @@ public class SemanticConventions {
         GUARDRAIL("GUARDRAIL"),
         EVALUATOR("EVALUATOR"),
         PROMPT("PROMPT"),
-        DECISION("DECISION");
+        DECISION("DECISION"),
+        UNKNOWN("UNKNOWN");
 
         private final String value;
 
@@ -959,6 +954,9 @@ public class SemanticConventions {
         }
     }
 
+    /**
+     * Well-known values for {@code annotation.annotator_kind}.
+     */
     public enum AnnotatorKind {
         HUMAN("HUMAN"),
         LLM("LLM"),
@@ -981,7 +979,7 @@ public class SemanticConventions {
     }
 
     /**
-     * An enum of common mime types. Not exhaustive.
+     * Well-known values for {@code input.mime_type}.
      */
     public enum MimeType {
         TEXT("text/plain"),
@@ -1004,6 +1002,9 @@ public class SemanticConventions {
         }
     }
 
+    /**
+     * Well-known values for {@code llm.system}.
+     */
     public enum LLMSystem {
         OPENAI("openai"),
         ANTHROPIC("anthropic"),
@@ -1014,7 +1015,8 @@ public class SemanticConventions {
         AMAZON("amazon"),
         META("meta"),
         AI21("ai21"),
-        TYPESAFE("typesafe");
+        TYPESAFE("typesafe"),
+        XAI("xai");
 
         private final String value;
 
@@ -1032,12 +1034,14 @@ public class SemanticConventions {
         }
     }
 
+    /**
+     * Well-known values for {@code llm.provider}.
+     */
     public enum LLMProvider {
         OPENAI("openai"),
         ANTHROPIC("anthropic"),
         MISTRALAI("mistralai"),
         COHERE("cohere"),
-        // Cloud Providers of LLM systems
         GOOGLE("google"),
         AWS("aws"),
         AZURE("azure"),
@@ -1075,15 +1079,10 @@ public class SemanticConventions {
     }
 
     /**
-     * Well-known values for {@code decision.system}: the decision API ecosystem a DECISION span conforms to.
-     * Each constant aliases the {@link LLMSystem} constant for the same vendor, so the same string names the
-     * same vendor on LLM and DECISION spans. The list is the subset of vendors currently known to offer a
-     * decision API.
+     * Well-known values for {@code decision.system}. Each constant aliases the {@link LLMSystem} constant for the same vendor.
      */
     public enum DecisionSystem {
-        /** TypeSafe AI System One / Jev API, including Jev-compatible servers. */
         TYPESAFE(LLMSystem.TYPESAFE),
-        /** OpenAI Decisions API. */
         OPENAI(LLMSystem.OPENAI);
 
         private final LLMSystem llmSystem;
@@ -1108,8 +1107,7 @@ public class SemanticConventions {
     }
 
     /**
-     * Well-known values for {@code decision.provider}: who hosts the decision model that answered. Each
-     * constant aliases the {@link LLMProvider} constant for the same vendor.
+     * Well-known values for {@code decision.provider}. Each constant aliases the {@link LLMProvider} constant for the same vendor.
      */
     public enum DecisionProvider {
         TYPESAFE(LLMProvider.TYPESAFE),

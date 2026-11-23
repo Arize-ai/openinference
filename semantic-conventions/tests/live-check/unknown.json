@@ -1,0 +1,6 @@
+[
+  {"attribute": {"name": "llm.not_a_real_attribute", "value": "x"}},
+  {"attribute": {"name": "llm.input_message.0.message.role", "value": "user"}},
+  {"attribute": {"name": "openinference.span_kind", "value": "LLM"}},
+  {"attribute": {"name": "llm.token_count.prompts", "value": 1}}
+]

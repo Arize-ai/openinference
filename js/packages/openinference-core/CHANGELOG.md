@@ -1,5 +1,26 @@
 # @arizeai/openinference-core
 
+## 2.9.1
+
+### Patch Changes
+
+- Updated dependencies [15a4c5e]
+  - @arizeai/openinference-semantic-conventions@2.18.0
+
+## 2.9.0
+
+### Minor Changes
+
+- 5f72487: feat(core): add experimental `enableGenAISemconv` trace config option and `OPENINFERENCE_ENABLE_GENAI_SEMCONV` environment variable. When enabled, spans created through `OITracer` also emit OpenTelemetry GenAI semantic convention (`gen_ai.*`) attributes, derived at span end from the span's masked OpenInference attributes. The conversion is also exported as `getGenAIAttributes`.
+
+## 2.8.4
+
+### Patch Changes
+
+- 3154e2b: Stop building and publishing the unused `dist/esnext` output and the non-standard `esnext` package field. Entry points resolved through `exports`, `main` and `module` are unchanged.
+- Updated dependencies [3154e2b]
+  - @arizeai/openinference-semantic-conventions@2.17.1
+
 ## 2.8.3
 
 ### Patch Changes

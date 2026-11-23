@@ -9,7 +9,9 @@ on:
   push:
     branches: ["main"]
 
-  # Allows you to run this workflow manually from the Actions tab
+  # Allows you to run this workflow manually from the Actions tab. The
+  # "Semantic Conventions Release" workflow also starts it this way, once it
+  # has attached a registry's assets to its release.
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -94,6 +96,61 @@ jobs:
       - name: Extract the Python API
         working-directory: site
         run: uv run scripts/python-api.py
+
+      # The semantic convention registry, served at its schema URL
+      # (/schemas/<version>/). Released versions are served from their release
+      # assets, so a published version never changes. The version in the
+      # repository is built from the model when it has no release yet.
+      - name: Download the released registries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # Tags are listed by prefix: the repository has far more releases
+          # than one page of `gh release list`. The matching tags are paged
+          # too (30 a page), so every page is read.
+          gh api --paginate "repos/${GH_REPO}/git/matching-refs/tags/semantic-conventions-v" --jq '.[].ref' |
+          while read -r ref; do
+            tag="${ref#refs/tags/}"
+            version="${tag#semantic-conventions-v}"
+            target="site/src/generated/schemas/${version}"
+            mkdir -p "$target"
+            # A release whose assets are missing is skipped, not fatal: the
+            # site must still deploy. Both files are needed: the download
+            # succeeds when only one of them is attached.
+            if ! gh release download "$tag" --dir "$target" --pattern manifest.yaml --pattern registry.yaml ||
+              [[ ! -s "$target/manifest.yaml" || ! -s "$target/registry.yaml" ]]; then
+              echo "::warning::Registry assets are missing on release ${tag}; /schemas/${version}/ is not served from them."
+              rm -f "$target/manifest.yaml" "$target/registry.yaml"
+              rmdir "$target"
+            fi
+          done
+
+      - name: Load the Weaver version
+        id: versions
+        working-directory: semantic-conventions
+        run: |
+          weaver_version="$(sed -n 's/^WEAVER_VERSION=v\{0,1\}//p' versions.env)"
+          if [[ -z "$weaver_version" ]]; then
+            echo "Failed to load WEAVER_VERSION from versions.env" >&2
+            exit 1
+          fi
+          echo "weaver_version=$weaver_version" >> "$GITHUB_OUTPUT"
+
+      - name: Install Weaver
+        uses: open-telemetry/weaver/.github/actions/setup-weaver@f8e1b42fbd1e09df5263c26b7df6011eaafd454d
+        with:
+          version: ${{ steps.versions.outputs.weaver_version }}
+
+      - name: Build the registry for an unreleased version
+        working-directory: semantic-conventions
+        run: |
+          version="$(make -s print-version)"
+          if [[ -f "../site/src/generated/schemas/${version}/manifest.yaml" ]]; then
+            echo "Version ${version} is released; serving its release assets."
+          else
+            make site-schemas
+          fi
 
       - name: Install, build, and upload site
         uses: withastro/action@a8b97df764791eb61fbf3338ef713b0e61ae05c5 # v6.1.4

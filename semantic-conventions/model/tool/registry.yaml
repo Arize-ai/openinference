@@ -1,0 +1,57 @@
+file_format: definition/2
+attributes:
+  - key: tool.name
+    type: string
+    brief: "The name of the tool. On a `TOOL` span, the tool being invoked; under `llm.tools.<index>`, the name of an advertised tool definition"
+    examples: ["WeatherAPI"]
+    stability: development
+  - key: tool.description
+    type: string
+    brief: "Description of the tool's purpose and functionality. On a `TOOL` span, the tool being invoked; under `llm.tools.<index>`, an advertised tool definition"
+    examples: ["An API to get weather data."]
+    stability: development
+  - key: tool.json_schema
+    type: string
+    brief: "The JSON schema of a tool input"
+    examples: ["{'type': 'function', 'function': {'name': 'get_weather'}}"]
+    stability: development
+    annotations:
+      openinference:
+        encoding: json
+  - key: tool.parameters
+    type: string
+    brief: "The parameters definition for invoking the tool"
+    examples: ["{ 'a': 'int' }"]
+    stability: development
+    annotations:
+      openinference:
+        encoding: json
+  - key: tool.id
+    type: string
+    brief: "The identifier for the result of the tool call (corresponding to `tool_call.id`)"
+    examples: ["call_62136355"]
+    stability: development
+  - key: tool_call.id
+    type: string
+    brief: "The id of a tool call (useful when there is more than one call at the same time)"
+    examples: ["call_62136355"]
+    stability: development
+  - key: tool_call.function.name
+    type: string
+    brief: "The name of the function being invoked by a tool call"
+    examples: ["get_current_weather"]
+    stability: development
+  - key: tool_call.function.arguments
+    type: string
+    brief: "The arguments for the function being invoked by a tool call"
+    examples: ["{'city': 'London'}"]
+    stability: development
+    annotations:
+      openinference:
+        constant_key: tool_call.function.arguments_json
+        encoding: json
+  - key: tool_call.reasoning_signature
+    type: string
+    brief: "Opaque vendor-issued reasoning echo token attached to a tool call. Used by Gemini, which puts `thoughtSignature` on `functionCall` parts rather than on the reasoning summary."
+    examples: ["CiQB..."]
+    stability: development

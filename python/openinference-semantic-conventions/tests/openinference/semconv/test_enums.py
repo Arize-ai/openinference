@@ -47,12 +47,17 @@ class TestOpenInferenceMimeTypeValues:
 class TestOpenInferenceLLMSystemValues:
     def test_values(self) -> None:
         assert {e: e.value for e in OpenInferenceLLMSystemValues} == {
+            OpenInferenceLLMSystemValues.AI21: "ai21",
+            OpenInferenceLLMSystemValues.AMAZON: "amazon",
             OpenInferenceLLMSystemValues.ANTHROPIC: "anthropic",
             OpenInferenceLLMSystemValues.COHERE: "cohere",
+            OpenInferenceLLMSystemValues.DEEPSEEK: "deepseek",
+            OpenInferenceLLMSystemValues.META: "meta",
             OpenInferenceLLMSystemValues.MISTRALAI: "mistralai",
             OpenInferenceLLMSystemValues.OPENAI: "openai",
             OpenInferenceLLMSystemValues.TYPESAFE: "typesafe",
             OpenInferenceLLMSystemValues.VERTEXAI: "vertexai",
+            OpenInferenceLLMSystemValues.XAI: "xai",
         }
 
 

@@ -19,21 +19,28 @@ OpenInference models these calls as `DECISION` spans rather than `LLM` spans bec
 
 [Requirement levels](../attributes/conventions.md#requirement-levels) follow the OpenTelemetry definitions.
 
-| Attribute | Requirement level | Notes |
-| --- | --- | --- |
-| `openinference.span.kind` | Required | `"DECISION"` |
-| `decision.system` | Required | The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks (e.g. `"typesafe"` for the System One / Jev API, `"openai"` for the OpenAI Decisions API) |
-| `decision.model_name` | Recommended | The decision model used, e.g. `"jev-1.13.0"` |
-| `decision.request.model_name` | Recommended | The model requested by the caller, when it can differ from the model that served the response (e.g. an alias such as `"jev-latest"`) |
-| `decision.response.model_name` | Recommended | The model that actually produced the decision, as reported by the provider, e.g. `"jev-1.13.0"` |
-| `decision.provider` | Recommended | Who hosts the model that answered, when it differs from the system (e.g. a self-hosted vLLM deployment serving a Jev-compatible API) |
-| `input.value` | Recommended | The raw request as a JSON string, including the candidate options |
-| `input.mime_type` | Recommended | Usually `"application/json"` |
-| `output.value` | Recommended | The raw response as a JSON string, including the selection or scores |
-| `output.mime_type` | Recommended | Usually `"application/json"` |
-| `decision.token_count.input` | Recommended | Number of input tokens consumed (state, questions, and candidate options) |
-| `decision.token_count.output` | Recommended | Number of output tokens produced; typically small because the answers are typed values, not text |
-| `llm.*` identification and token counts | Not used | See [Attributes Not Used in Decision Spans](#attributes-not-used-in-decision-spans) |
+<!-- weaver ["openinference.span.kind", "decision.system", "decision.model_name", "decision.request.model_name", "decision.response.model_name", "decision.provider", "input.value", "input.mime_type", "output.value", "output.mime_type", "decision.token_count.input", "decision.token_count.output"] as $keys | .registry.spans[] | select(.type == "openinference.decision") | {span: .type, span_attributes: [$keys[] as $k | .attributes[] | select(.key == $k)]} -->
+<!-- Generated from semantic-conventions/model. Do not edit by hand: change the model and run `make -C semantic-conventions generate`. -->
+
+| Attribute | Stability | Requirement level | Type | Notes |
+| --- | --- | --- | --- | --- |
+| `openinference.span.kind` | ![Development](https://img.shields.io/badge/-development-blue) | Required | String | `"DECISION"` |
+| `decision.system` | ![Development](https://img.shields.io/badge/-development-blue) | Required | String | The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks, as identified by the client or server instrumentation: `typesafe` for the TypeSafe System One / Jev API, `openai` for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible `/v1/systemone` shape is still `typesafe`. Distinct from `decision.provider`, which says who hosts the model. The well-known values alias the matching `llm.system` values. |
+| `decision.model_name` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The name of the decision model being utilized. Mirrors `llm.model_name` for `DECISION` spans. |
+| `decision.request.model_name` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The decision model requested by the caller, as sent in the request. May differ from `decision.response.model_name` when the provider resolves an alias or routes the request. When the requested model can differ from the model that served the response. |
+| `decision.response.model_name` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The decision model that actually produced the response, as reported by the provider. May differ from `decision.request.model_name`. When the requested model can differ from the model that served the response. |
+| `decision.provider` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The hosting provider of the decision model: who runs the hardware that answered, e.g. `typesafe` when calling TypeSafe directly, `openai` for the OpenAI Decisions API, or the cloud or self-hosting provider for a model served elsewhere. Distinct from `decision.system`, which names the API shape. The well-known values alias the matching `llm.provider` values. When the hosting provider differs from the system. |
+| `input.value` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The raw request as a JSON string, including the candidate options. |
+| `input.mime_type` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | MIME type of `input.value`, usually `application/json`. When `input.value` is set and is not plain text. |
+| `output.value` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The raw response as a JSON string, including the selection or scores. |
+| `output.mime_type` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | MIME type of `output.value`, usually `application/json`. When `output.value` is set and is not plain text. |
+| `decision.token_count.input` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | Integer | The number of input tokens consumed by a decision model call: the state, questions, and candidate options. Maps to `usage.input_tokens` in TypeSafe System One responses. |
+| `decision.token_count.output` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | Integer | The number of output tokens produced by a decision model call. Decision models emit typed answers rather than text, so this is typically small. Maps to `usage.output_tokens` in TypeSafe System One responses. |
+
+<!-- endweaver -->
+
+The `llm.*` identification and token count attributes are not used on decision spans; see
+[Attributes Not Used in Decision Spans](#attributes-not-used-in-decision-spans).
 
 ## Model Identification
 

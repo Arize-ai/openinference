@@ -3,11 +3,12 @@
  * Twitter tags `BaseLayout` writes. See DESIGN.md ("Social cards").
  *
  * Each card is drawn from the same data as its page (the spec's markdown,
- * the API references' JSON), so a page and its card can't disagree. A page
+ * the API references' JSON, the news posts' frontmatter), so a page and its card can't disagree. A page
  * with no card of its own (a README translation) shares the landing card.
  */
 import { packages as jsPackages } from "../js-api";
 import { packages as pythonPackages } from "../python-api";
+import { formatDate, getNews } from "../news";
 import { base, pages, site } from "../site";
 import { getSpecSections, ledeOf, titleOf } from "../spec";
 
@@ -26,7 +27,7 @@ export interface Card {
   url: string;
 }
 
-/** The card id for a page's pathname: `/openinference/spec/spans/llm.html` → `spec/spans/llm`. */
+/** The card id for a page's pathname: `/spec/spans/llm.html` → `spec/spans/llm`. */
 export function cardIdOf(pathname: string): string {
   const route = pathname.startsWith(base) ? pathname.slice(base.length) : pathname.replace(/^\//, "");
   return route.replace(/\.html$/, "").replace(/(^|\/)$/, "$1index");
@@ -97,10 +98,23 @@ export function getCards(): Promise<Card[]> {
       ];
     });
 
+    const news = [
+      page({ id: "news/index", eyebrow: "News", ...pages.news }),
+      ...(await getNews()).map((post) =>
+        page({
+          id: `news/${post.id}`,
+          eyebrow: `News · ${formatDate(post.data.pubDate)}`,
+          title: post.data.title,
+          description: post.data.description,
+        }),
+      ),
+    ];
+
     return [
       landing,
       ...spec,
       ...api,
+      ...news,
       page({ id: "mission", eyebrow: "Mission", ...pages.mission }),
       page({ id: "brand", eyebrow: "Brand", ...pages.brand }),
       page({ id: "credits", eyebrow: "Credits", ...pages.credits }),

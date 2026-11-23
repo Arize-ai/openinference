@@ -8,23 +8,31 @@ and the response that came back.
 
 [Requirement levels](../attributes/conventions.md#requirement-levels) follow the OpenTelemetry definitions.
 
-| Attribute | Requirement level | Notes |
-| --- | --- | --- |
-| `openinference.span.kind` | Required | `"LLM"` |
-| `llm.system` | Required | The AI system or product, e.g. `"openai"`, `"anthropic"`. See [Model Identification](#model-identification) |
-| `llm.model_name` | Recommended | The specific model used, e.g. `"gpt-4-0613"` |
-| `llm.provider` | Recommended | The hosting provider, when it differs from the system, e.g. `"azure"` |
-| `llm.request.model_name` | Recommended | The model requested by the caller, when it can differ from the model that served the response (e.g. provider-side fallback) |
-| `llm.response.model_name` | Recommended | The model that actually generated the response, when it can differ from the requested model |
-| `llm.invocation_parameters` | Recommended | JSON string of parameters sent to the model |
-| `input.value` | Recommended | The raw input, usually a JSON string |
-| `input.mime_type` | Recommended | Usually `"application/json"` |
-| `output.value` | Recommended | The raw output, usually a JSON string |
-| `output.mime_type` | Recommended | Usually `"application/json"` |
-| `llm.input_messages` | Recommended | Flattened list of input messages. See [Messages](../content/messages.md) |
-| `llm.output_messages` | Recommended | Flattened list of output messages. See [Messages](../content/messages.md) |
-| `llm.tools` | Recommended | Tool definitions advertised to the model. See [Tool Calling](../content/tool-calling.md) |
-| `llm.token_count.*` | Recommended | Token usage. See [Token Counts](#token-counts) |
+<!-- weaver ["openinference.span.kind", "llm.system", "llm.model_name", "llm.provider", "llm.request.model_name", "llm.response.model_name", "llm.invocation_parameters", "llm.finish_reason", "input.value", "input.mime_type", "output.value", "output.mime_type", "llm.input_messages", "llm.output_messages", "llm.tools", "llm.token_count.prompt", "llm.token_count.completion", "llm.token_count.total"] as $keys | .registry.spans[] | select(.type == "openinference.llm") | {span: .type, span_attributes: [$keys[] as $k | .attributes[] | select(.key == $k)]} -->
+<!-- Generated from semantic-conventions/model. Do not edit by hand: change the model and run `make -C semantic-conventions generate`. -->
+
+| Attribute | Stability | Requirement level | Type | Notes |
+| --- | --- | --- | --- | --- |
+| `openinference.span.kind` | ![Development](https://img.shields.io/badge/-development-blue) | Required | String | `"LLM"` |
+| `llm.system` | ![Development](https://img.shields.io/badge/-development-blue) | Required | String | The AI product as identified by the client or server instrumentation. See [well-known values](../attributes/semantic-conventions.md#llm-system-values). |
+| `llm.model_name` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The name of the language model being utilized |
+| `llm.provider` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The hosting provider of the LLM, e.g. `azure`. See [well-known values](../attributes/semantic-conventions.md#llm-provider-values). When the hosting provider differs from the system. |
+| `llm.request.model_name` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The model requested by the caller, as sent in the request. May differ from `llm.response.model_name` when the provider routes the request to a different model. When the requested model can differ from the model that served the response. |
+| `llm.response.model_name` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The model that actually generated the response, as reported by the provider. May differ from `llm.request.model_name` when the provider routes the request to a different model. When the requested model can differ from the model that served the response. |
+| `llm.invocation_parameters` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | JSON String | Parameters used during the invocation of an LLM or API |
+| `llm.finish_reason` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The reason the model stopped generating tokens. |
+| `input.value` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The raw input, usually a JSON string. |
+| `input.mime_type` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | MIME type of `input.value`, usually `application/json`. When `input.value` is set and is not plain text. |
+| `output.value` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | The raw output, usually a JSON string. |
+| `output.mime_type` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | String | MIME type of `output.value`, usually `application/json`. When `output.value` is set and is not plain text. |
+| `llm.input_messages` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | List of objects | List of messages sent to the LLM in a chat API request, e.g. `llm.input_messages.0.message.role`. See [Messages](../content/messages.md). For chat API calls. |
+| `llm.output_messages` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | List of objects | List of messages received from the LLM in a chat API response, e.g. `llm.output_messages.0.message.role`. See [Messages](../content/messages.md). For chat API calls. |
+| `llm.tools` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | List of objects | List of tools that are advertised to the LLM to be able to call, e.g. `llm.tools.0.tool.name`, `llm.tools.0.tool.description`, `llm.tools.0.tool.json_schema`. See [Tool Calling](../content/tool-calling.md). When tools are advertised to the model. |
+| `llm.token_count.prompt` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | Integer | The number of tokens in the prompt |
+| `llm.token_count.completion` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | Integer | The number of tokens in the completion |
+| `llm.token_count.total` | ![Development](https://img.shields.io/badge/-development-blue) | Recommended | Integer | Total number of tokens, including prompt and completion |
+
+<!-- endweaver -->
 
 A completions (non-chat) API call records `llm.prompts` and `llm.choices` in place of the message lists; see
 [Completions API](../content/messages.md#completions-api). LLM spans also carry the

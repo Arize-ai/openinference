@@ -1,5 +1,39 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.7.1
+
+### Patch Changes
+
+- Updated dependencies [15a4c5e]
+  - @arizeai/openinference-semantic-conventions@2.18.0
+  - @arizeai/openinference-core@2.9.1
+
+## 4.7.0
+
+### Minor Changes
+
+- 80c7da0: feat(openai): record `llm.request.model_name` and `llm.response.model_name` on chat completion, completion, Responses and image spans. `llm.model_name` is unchanged: it still holds the requested model until a response arrives and the served model afterwards. Streamed chat completions now also update `llm.model_name` to the served model, as non-streamed ones already did.
+
+### Patch Changes
+
+- Updated dependencies [5f72487]
+  - @arizeai/openinference-core@2.9.0
+
+## 4.6.0
+
+### Minor Changes
+
+- e35372b: Capture span-level image attributes for OpenAI image workflows. The OpenAI instrumentation records input and output images for Images API calls and output images from Responses image generation. The OpenAI Agents instrumentation records output images on response spans.
+
+## 4.5.1
+
+### Patch Changes
+
+- 3154e2b: Stop building and publishing the unused `dist/esnext` output and the non-standard `esnext` package field. Entry points resolved through `exports`, `main` and `module` are unchanged.
+- Updated dependencies [3154e2b]
+  - @arizeai/openinference-core@2.8.4
+  - @arizeai/openinference-semantic-conventions@2.17.1
+
 ## 4.5.0
 
 ### Minor Changes

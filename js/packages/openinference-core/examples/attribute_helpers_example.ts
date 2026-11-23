@@ -122,8 +122,8 @@ function modelNamesDemo() {
   // the one that served the response (e.g. a server-side fallback).
   // llm.model_name is mirrored from responseModelName ?? requestModelName.
   const attrs = getLLMAttributes({
-    requestModelName: "claude-sonnet-4-5",
-    responseModelName: "claude-haiku-4-5",
+    requestModelName: "claude-sonnet-5-5",
+    responseModelName: "claude-haiku-5-5",
   });
   console.log("model name attrs:", attrs);
 }

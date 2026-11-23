@@ -1,0 +1,69 @@
+---
+/**
+ * The published versions of the semantic convention registry. Each version's
+ * page is the URL that the registry's `schema_url` names.
+ */
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getSchemaVersions } from "../../lib/schemas";
+import { base, pages, routeOf, site } from "../../lib/site";
+
+const versions = getSchemaVersions();
+---
+
+<BaseLayout title={pages.schemas.title} description={pages.schemas.description}>
+  <div class="schemas">
+    <header class="page-head">
+      <h1>Schemas</h1>
+      <p class="intro">
+        The OpenInference semantic conventions as a machine-readable registry, in the format of the
+        <a href="https://github.com/open-telemetry/weaver">OpenTelemetry Weaver</a> toolchain. Each version is published
+        here at its schema URL. The source is in
+        <a href={`${site.repo}/tree/main/semantic-conventions`}><code>semantic-conventions/</code></a>, and the
+        <a href={`${base}spec/`}>specification</a> explains the conventions.
+      </p>
+      <p class="intro">
+        <a href={routeOf("spec/attributes/registry.md")}>Using the registry</a> shows how to download a version, read it,
+        check telemetry against it, and build your own conventions on it.
+      </p>
+    </header>
+    {
+      versions.length === 0 ? (
+        <p>
+          No registry has been generated for this build. Run <code>make -C semantic-conventions site-schemas</code> and
+          rebuild the site.
+        </p>
+      ) : (
+        <ul>
+          {versions.map((schema) => (
+            <li>
+              <p class="title">
+                <a href={`${base}schemas/${schema.version}/`}>{schema.version}</a>
+                {!schema.released && " (unreleased)"}
+              </p>
+              <p>
+                {schema.attributeCount} attributes, stability <code>{schema.stability}</code>.{" "}
+                <a href={`${base}schemas/${schema.version}/manifest.yaml`}>manifest.yaml</a>,{" "}
+                <a href={`${base}schemas/${schema.version}/registry.yaml`}>registry.yaml</a>
+              </p>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .schemas {
+    max-width: var(--page-max);
+    margin-inline: auto;
+  }
+  .schemas ul {
+    list-style: none;
+    padding: 0;
+    margin-block-start: 2rem;
+  }
+  .schemas li + li {
+    margin-block-start: 1.5rem;
+  }
+</style>

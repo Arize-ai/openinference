@@ -1,0 +1,14 @@
+file_format: definition/2
+# Resource-level conventions. An entity's attributes are recorded on the
+# OpenTelemetry resource, not on spans; the language packages expose them as
+# resource attributes.
+entities:
+  - type: openinference.project
+    stability: development
+    requirement_level: recommended
+    brief: >
+      The project that telemetry is grouped under in an OpenInference-compatible
+      backend.
+    # Identity attributes are always required, so they take no requirement level.
+    identity:
+      - ref: openinference.project.name

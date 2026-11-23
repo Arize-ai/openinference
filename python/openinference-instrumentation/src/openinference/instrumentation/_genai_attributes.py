@@ -40,7 +40,7 @@ class GenAIAttributes:
     GEN_AI_TOOL_DESCRIPTION = "gen_ai.tool.description"
     GEN_AI_TOOL_NAME = "gen_ai.tool.name"
     GEN_AI_TOOL_TYPE = "gen_ai.tool.type"
-    GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS = "gen_ai.usage.cache_creation.input_tokens"
+    GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS = "gen_ai.usage.cache_write.input_tokens"
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input_tokens"
     GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
     GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"

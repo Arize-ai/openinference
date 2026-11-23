@@ -60,3 +60,8 @@ Use `@arizeai/openinference-core` attribute helpers instead of setting semantic 
 - **Named object args**: `{ original, oiTracer }` not positional
 - **No `any`**: strong types from the instrumented SDK only
 - **Type guards** narrow to actual SDK types, not structural equivalents
+- **Named guards over inline checks**: use `isString`, `isRecord`, `isDefined`, `isPresent`, etc. from `@arizeai/openinference-core` instead of `typeof`, `Array.isArray` or `=== undefined`
+
+## Documentation
+
+Every function, class member, type, interface field and module-level constant gets a TSDoc comment, exported or not. Document each parameter with `@param` (`@param params.foo` for object arguments) and explain behavior, not the name. See the `openinference-typescript` skill for the full rules.

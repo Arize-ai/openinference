@@ -136,6 +136,9 @@ a { color: inherit; }
    grey, like any other metadata. */
 .prose img[src*="img.shields.io"] { filter: grayscale(1); opacity: 0.85; }
 .prose img[src*="img.shields.io"]:hover { filter: none; opacity: 1; }
+/* Stability badges in the spec's tables (development, stable, deprecated):
+   label-less badges, whose colour is the information, so they keep it. */
+.prose img[src*="img.shields.io/badge/-"] { filter: none; opacity: 1; }
 
 /* Code */
 .prose code { font: 0.84em var(--font-mono); }

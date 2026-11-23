@@ -1,0 +1,119 @@
+{# Layout of the module. Each class lists the attribute keys it holds:
+   `prefixes` selects by key prefix, `keys` selects exact keys. An attribute
+   that no item class claims lands in SpanAttributes, so a new span-level
+   attribute needs no change here. Class names and membership are public API:
+   add to them, never remove. #}
+{% set item_classes = [
+  {"name": "AnnotationAttributes", "doc": "Attributes for feedback about a span.", "prefixes": ["annotation."], "keys": []},
+  {"name": "EvaluationAttributes", "doc": "Attributes for feedback using evaluation or eval terminology.", "prefixes": ["evaluation."], "keys": []},
+  {"name": "MessageAttributes", "doc": "Attributes for a message sent to or from an LLM.", "prefixes": ["message."], "keys": []},
+  {"name": "MessageContentAttributes", "doc": "Attributes for the contents of messages sent to or from an LLM.", "prefixes": ["message_content."], "keys": []},
+  {"name": "ImageAttributes", "doc": "Attributes for images.", "prefixes": ["image."], "keys": []},
+  {"name": "AudioAttributes", "doc": "Attributes for audio.", "prefixes": ["audio."], "keys": []},
+  {"name": "VideoAttributes", "doc": "Attributes for video.", "prefixes": ["video."], "keys": []},
+  {"name": "DocumentAttributes", "doc": "Attributes for a document.", "prefixes": ["document."], "keys": []},
+  {"name": "RerankerAttributes", "doc": "Attributes for a reranker.", "prefixes": ["reranker."], "keys": []},
+  {"name": "EmbeddingAttributes", "doc": "Attributes for an embedding.", "prefixes": [], "keys": ["embedding.text", "embedding.vector"]},
+  {"name": "ToolCallAttributes", "doc": "Attributes for a tool call.", "prefixes": ["tool_call."], "keys": []},
+  {"name": "PromptAttributes", "doc": "Attributes for a prompt in the completions API.", "prefixes": [], "keys": ["prompt.text"]},
+  {"name": "ChoiceAttributes", "doc": "Attributes for a choice in the completions API.", "prefixes": [], "keys": ["completion.text"]},
+  {"name": "ToolAttributes", "doc": "Attributes for tools.", "prefixes": [], "keys": ["tool.json_schema", "tool.name", "tool.description"]},
+] %}
+{# Keys that SpanAttributes holds even though an item class also holds them. #}
+{% set also_span_keys = ["tool.name", "tool.description"] %}
+{# Key prefixes that are constants but not attributes: each `*_details.<kind>`
+   key is its own attribute in the registry. #}
+{% set prefix_constants = [
+  {"key": "llm.token_count.prompt_details", "doc": "Key prefix for additional prompt token count details. Each detail is a separate attribute with this prefix, e.g. llm.token_count.prompt_details.audio. All values are in tokens."},
+  {"key": "llm.cost.prompt_details", "doc": "Key prefix for additional prompt cost details. Each detail is a separate attribute with this prefix, e.g. llm.cost.prompt_details.audio. All values are in USD."},
+  {"key": "llm.cost.completion_details", "doc": "Key prefix for additional completion cost details. Each detail is a separate attribute with this prefix, e.g. llm.cost.completion_details.audio. All values are in USD."},
+] %}
+{# Enum classes for well-known values, by the attribute that defines them. #}
+{% set enum_classes = [
+  {"name": "OpenInferenceSpanKindValues", "key": "openinference.span.kind"},
+  {"name": "OpenInferenceAnnotatorKindValues", "key": "annotation.annotator_kind"},
+  {"name": "OpenInferenceMimeTypeValues", "key": "input.mime_type"},
+  {"name": "OpenInferenceLLMSystemValues", "key": "llm.system"},
+  {"name": "OpenInferenceLLMProviderValues", "key": "llm.provider"},
+  {"name": "OpenInferenceDecisionSystemValues", "key": "decision.system"},
+  {"name": "OpenInferenceDecisionProviderValues", "key": "decision.provider"},
+] %}
+{# For a docstring: `"""` cannot appear inside it, and a trailing `"` would
+   run into the closing quotes. #}
+{% macro text(value) -%}
+{%- set escaped = value | default("", true) | trim | replace("\\", "\\\\") | replace('"""', "'''") -%}
+{%- if escaped is endingwith('"') %}{{ escaped[:-1] }}\"{% else %}{{ escaped }}{% endif -%}
+{%- endmacro %}
+{% macro doc(attribute) -%}
+{% if attribute.deprecated %}Deprecated{% if attribute.deprecated.note %}: {{ text(attribute.deprecated.note) }}{% else %}.{% endif %} {% endif %}{{ text(attribute.brief) | replace("\n", " ") }}
+{%- endmacro %}
+{% macro constant(attribute) %}
+    {{ attribute.const_key | screaming_snake_case }} = "{{ attribute.key }}"
+    """{{ doc(attribute) }}"""
+{% endmacro %}
+{# Membership of a class: by exact key or by key prefix. #}
+{% macro belongs(attribute, class) -%}
+{%- set found = namespace(value=attribute.key in class["keys"]) -%}
+{%- for prefix in class["prefixes"] if attribute.key is startingwith(prefix) %}{% set found.value = true %}{% endfor -%}
+{{ "yes" if found.value else "" }}
+{%- endmacro %}
+{% set claimed = namespace(keys=[]) %}
+{% for class in item_classes %}
+{% for attribute in ctx.attributes if belongs(attribute, class) == "yes" %}
+{% set claimed.keys = claimed.keys + [attribute.key] %}
+{% endfor %}
+{% endfor %}
+{% set span = namespace(attributes=[]) %}
+{% for attribute in ctx.attributes if attribute.key not in claimed.keys or attribute.key in also_span_keys %}
+{% set span.attributes = span.attributes + [attribute] %}
+{% endfor %}
+# ruff: noqa: E501
+# Generated from the semantic convention registry in semantic-conventions/model.
+# Do not edit by hand: change the model or semantic-conventions/templates/registry/python,
+# then run `make -C semantic-conventions generate`.
+from enum import Enum
+
+
+class SpanAttributes:
+{% for attribute in span.attributes %}
+{{ constant(attribute) }}
+{% endfor %}
+{% for prefix in prefix_constants %}
+    {{ prefix["key"] | screaming_snake_case }} = "{{ prefix["key"] }}"
+    """{{ prefix["doc"] }}"""
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% for class in item_classes %}
+{% set members = namespace(attributes=[]) %}
+{% for attribute in ctx.attributes if belongs(attribute, class) == "yes" %}
+{% set members.attributes = members.attributes + [attribute] %}
+{% endfor %}
+
+
+class {{ class["name"] }}:
+    """{{ class["doc"] }}"""
+
+{% for attribute in members.attributes %}
+{{ constant(attribute) | trim("\n") }}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% for enum in enum_classes %}
+{% for attribute in ctx.attributes if attribute.key == enum["key"] %}
+
+
+class {{ enum["name"] }}(Enum):
+    """Well-known values for `{{ attribute.key }}`."""
+
+{% for member in attribute.type.members %}
+    {{ member.id | screaming_snake_case }} = "{{ member.value }}"
+{% if member.brief and member.brief | trim != member.value %}
+    """{{ text(member.brief) | replace("\n", " ") }}"""
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% endfor %}

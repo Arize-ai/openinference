@@ -1,0 +1,88 @@
+name: Semantic Conventions Release
+
+# Attaches the packaged registry (publication manifest + resolved registry) to
+# a `semantic-conventions-v*` GitHub release, so that other registries and
+# tools can consume a pinned version. release-please creates the release; see
+# semantic-conventions/RELEASING.md.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)attach the registry to, e.g. semantic-conventions-v0.0.1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  attach-registry:
+    name: Attach registry to release
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.event.release.tag_name, 'semantic-conventions-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # upload release assets
+    defaults:
+      run:
+        working-directory: semantic-conventions
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/tags/${{ github.event.release.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      - name: Load version pins
+        id: versions
+        run: |
+          weaver_version="$(sed -n 's/^WEAVER_VERSION=v\{0,1\}//p' versions.env)"
+          if [[ -z "$weaver_version" ]]; then
+            echo "Failed to load WEAVER_VERSION from versions.env" >&2
+            exit 1
+          fi
+          echo "weaver_version=$weaver_version" >> "$GITHUB_OUTPUT"
+
+      - name: Install Weaver
+        uses: open-telemetry/weaver/.github/actions/setup-weaver@f8e1b42fbd1e09df5263c26b7df6011eaafd454d
+        with:
+          version: ${{ steps.versions.outputs.weaver_version }}
+
+      # The same target CI rehearses on every change: checks the tag against
+      # the schema URL version, validates the model, and builds the assets.
+      - name: Validate and build release assets
+        run: make release-assets TAG="$TAG"
+
+      - name: Upload registry to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release upload "$TAG" \
+            .build/package/manifest.yaml \
+            .build/package/registry.yaml \
+            --clobber
+
+  # The push that created the release deployed the site before the assets
+  # existed, so the site still serves this version as unreleased, built from
+  # the model. Deploy again now that the assets are attached.
+  redeploy-site:
+    name: Redeploy the site
+    needs: attach-registry
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # start the deploy workflow
+    steps:
+      - name: Start the GitHub Pages deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run gh-pages.yml --ref main

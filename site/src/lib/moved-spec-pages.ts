@@ -102,7 +102,7 @@ export const movedSpecPages: Record<string, MovedSpecPage> = {
   },
 };
 
-/** `spans/llm#token-counts` → `/openinference/spec/spans/llm.html#token-counts`. */
+/** `spans/llm#token-counts` → `/spec/spans/llm.html#token-counts`. */
 const hrefOf = (target: string) => {
   const [id, anchor] = target.split("#");
   return `${routeOf(`spec/${id}.md`)}${anchor ? `#${anchor}` : ""}`;

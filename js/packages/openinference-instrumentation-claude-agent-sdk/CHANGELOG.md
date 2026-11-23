@@ -1,5 +1,28 @@
 # @arizeai/openinference-instrumentation-claude-agent-sdk
 
+## 0.3.11
+
+### Patch Changes
+
+- Updated dependencies [15a4c5e]
+  - @arizeai/openinference-semantic-conventions@2.18.0
+  - @arizeai/openinference-core@2.9.1
+
+## 0.3.10
+
+### Patch Changes
+
+- Updated dependencies [5f72487]
+  - @arizeai/openinference-core@2.9.0
+
+## 0.3.9
+
+### Patch Changes
+
+- Updated dependencies [3154e2b]
+  - @arizeai/openinference-core@2.8.4
+  - @arizeai/openinference-semantic-conventions@2.17.1
+
 ## 0.3.8
 
 ### Patch Changes

@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.2.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.4...python-openinference-instrumentation-agno-v1.2.5) (2026-11-21)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.82 ([#4413](https://github.com/Arize-ai/openinference/issues/4413)) ([6f8332e](https://github.com/Arize-ai/openinference/commit/6f8332ebba39e401193f599c5e8b87b8a1707ff6))
+
+## [1.2.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.3...python-openinference-instrumentation-agno-v1.2.4) (2026-11-20)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.81 ([#4379](https://github.com/Arize-ai/openinference/issues/4379)) ([b9bd21e](https://github.com/Arize-ai/openinference/commit/b9bd21e3f07985a4d1d8ef195c2c536998e93bd0))
+
+## [1.2.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.2...python-openinference-instrumentation-agno-v1.2.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* **agno:** keep the tool span current while a generator tool is consumed ([#4353](https://github.com/Arize-ai/openinference/issues/4353)) ([4b5e982](https://github.com/Arize-ai/openinference/commit/4b5e982aba40235f4764122583e02a34c631fb2e))
+
+## [1.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.1...python-openinference-instrumentation-agno-v1.2.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.79 ([#4335](https://github.com/Arize-ai/openinference/issues/4335)) ([e03fde3](https://github.com/Arize-ai/openinference/commit/e03fde31a743fedd77fa3e2ab043bfa9b95b7058))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.46 ([#4334](https://github.com/Arize-ai/openinference/issues/4334)) ([70ce76a](https://github.com/Arize-ai/openinference/commit/70ce76aefaf3daa99292bf3d456e496ff75742bd))
+
 ## [1.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.0...python-openinference-instrumentation-agno-v1.2.1) (2026-11-16)
 
 

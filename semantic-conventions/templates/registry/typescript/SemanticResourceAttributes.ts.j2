@@ -1,0 +1,18 @@
+{% macro text(value) -%}
+{{ value | default("", true) | trim | replace("\n", " ") | replace("*/", "*\\/") }}
+{%- endmacro %}
+/**
+ * Semantic conventions for OpenInference resource attributes
+ *
+ * Generated from the semantic convention registry in semantic-conventions/model.
+ * Do not edit by hand: change the model or
+ * semantic-conventions/templates/registry/typescript, then run
+ * `make -C semantic-conventions generate`.
+ */
+{% for attribute in ctx.attributes %}
+
+/**
+ * {{ text(attribute.brief) }}
+ */
+export const SEMRESATTRS_{{ attribute.const_key | screaming_snake_case }} = "{{ attribute.key }}";
+{% endfor %}

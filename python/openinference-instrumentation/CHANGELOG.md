@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.1.83](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.82...python-openinference-instrumentation-v0.1.83) (2026-11-21)
+
+
+### Features
+
+* **semantic-conventions:** generate the language packages from the model ([#4408](https://github.com/Arize-ai/openinference/issues/4408)) ([15a4c5e](https://github.com/Arize-ai/openinference/commit/15a4c5e555510a14e1a83aa4ab9fdc2df4791805))
+
+## [0.1.82](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.81...python-openinference-instrumentation-v0.1.82) (2026-11-20)
+
+
+### Bug Fixes
+
+* **python:** align GenAI dual-write and conformance harness with semantic-conventions-genai ([#4031](https://github.com/Arize-ai/openinference/issues/4031)) ([9c9f8fe](https://github.com/Arize-ai/openinference/commit/9c9f8fe8f37654d7786b93984100ae4b51317938))
+
+
+### Documentation
+
+* **spec:** document OPENINFERENCE_ENABLE_GENAI_SEMCONV and Weaver conformance ([#4381](https://github.com/Arize-ai/openinference/issues/4381)) ([f845b63](https://github.com/Arize-ai/openinference/commit/f845b631313d2c4437bafe39e71ff2427924bfca))
+
+## [0.1.81](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.80...python-openinference-instrumentation-v0.1.81) (2026-11-19)
+
+
+### Bug Fixes
+
+* **instrumentation:** don't call str attribute values as lazy values ([#4272](https://github.com/Arize-ai/openinference/issues/4272)) ([72a3f55](https://github.com/Arize-ai/openinference/commit/72a3f554ef4e827681f719b8c1a016ef41e0e912))
+
+## [0.1.80](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.79...python-openinference-instrumentation-v0.1.80) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.46 ([#4334](https://github.com/Arize-ai/openinference/issues/4334)) ([70ce76a](https://github.com/Arize-ai/openinference/commit/70ce76aefaf3daa99292bf3d456e496ff75742bd))
+
 ## [0.1.79](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.78...python-openinference-instrumentation-v0.1.79) (2026-11-16)
 
 
