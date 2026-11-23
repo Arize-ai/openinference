@@ -320,13 +320,25 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      # Minted after the Claude run and tox, so no package code ever sees it.
+      - name: Mint factory app token
+        id: factory-token
+        if: ${{ steps.preflight.outputs.skip != 'true' && steps.auto-fix.outcome == 'success' }}
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.FACTORY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Commit and open PR
         id: publish
         if: ${{ steps.preflight.outputs.skip != 'true' && steps.auto-fix.outcome == 'success' }}
         env:
-          # PAT is present only in this git/gh-only step. No package code or tox
-          # runs here, so freshly installed upstream deps never see the token.
-          GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
+          # The factory app token is present only in this git/gh-only step. No
+          # package code or tox runs here, so freshly installed upstream deps
+          # never see the token.
+          GH_TOKEN: ${{ steps.factory-token.outputs.token }}
           PACKAGE: ${{ matrix.package }}
         run: |
           gh auth setup-git
