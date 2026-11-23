@@ -285,7 +285,7 @@ export function extractModelName(modelId: string): string {
   }
 
   // Known region prefixes used by cross-region inference profiles.
-  const regionPrefixes = new Set(["us", "eu", "ap", "global", "apac"]);
+  const regionPrefixes = new Set(["us", "eu", "ap", "global", "apac", "jp", "au", "ca", "in"]);
 
   let startIndex = 0;
   // Strip the optional region prefix.
