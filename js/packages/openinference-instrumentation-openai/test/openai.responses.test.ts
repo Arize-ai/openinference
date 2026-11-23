@@ -197,6 +197,67 @@ describe("OpenAIInstrumentation - Responses", () => {
     expect(span.attributes["output.images.0.image.url"]).toBe("data:image/webp;base64,Zmlyc3Q=");
     expect(span.attributes["output.images.1.image.url"]).toBe("data:image/jpeg;base64,c2Vjb25k");
     expect(span.attributes["output.images.2.image.url"]).toBeUndefined();
+    // The images are only recorded on output.images.*, where base64ImageMaxLength applies
+    const outputValue = JSON.parse(String(span.attributes["output.value"]));
+    expect(outputValue.output).toEqual([
+      { id: "ig_failed", type: "image_generation_call", status: "failed" },
+      { id: "ig_first", type: "image_generation_call", status: "completed" },
+      {
+        id: "ig_second",
+        type: "image_generation_call",
+        status: "completed",
+        output_format: "jpeg",
+      },
+    ]);
+    expect(outputValue.id).toBe("resp_images");
+  });
+
+  it("leaves replayed generated images out of input.value", async () => {
+    const response = {
+      ...responseBase,
+      id: "resp_replay",
+      output: [],
+      model: "gpt-image-1",
+      output_text: "",
+    } satisfies ResponseType;
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        Promise.resolve({
+          response: new Response(),
+          options: {},
+          controller: new AbortController(),
+        }) as never,
+        () => response,
+      );
+    });
+    const replayedImage = {
+      id: "ig_first",
+      type: "image_generation_call" as const,
+      status: "completed" as const,
+      result: "Zmlyc3Q=",
+    };
+
+    await openai.responses.create({
+      model: "gpt-image-1",
+      tools: [{ type: "image_generation" }],
+      input: [
+        { role: "user", content: "Draw a lighthouse" },
+        replayedImage,
+        { role: "user", content: "Make it darker" },
+      ],
+    });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    const inputValue = JSON.parse(String(span.attributes["input.value"]));
+    expect(inputValue.input).toEqual([
+      { role: "user", content: "Draw a lighthouse" },
+      { id: "ig_first", type: "image_generation_call", status: "completed" },
+      { role: "user", content: "Make it darker" },
+    ]);
+    expect(inputValue.model).toBe("gpt-image-1");
+    // The caller's request, which is what OpenAI receives, keeps the image
+    expect(replayedImage.result).toBe("Zmlyc3Q=");
   });
 
   it("creates a span for responses with multiple messages and instructions", async () => {

@@ -277,6 +277,42 @@ export function getResponsesOutputImageAttributes({
   return attributes;
 }
 
+/**
+ * Drops the base64 `result` from the image_generation_call items of a list of
+ * Responses items. Other items are returned as they are.
+ */
+function withoutGeneratedImageResults(
+  items: ReadonlyArray<ResponseInputItem | ResponseOutputItem>,
+): unknown[] {
+  return items.map((item) => {
+    if (item.type !== "image_generation_call") return item;
+    const { result: _result, ...imageGenerationCall } = item;
+    return imageGenerationCall;
+  });
+}
+
+/**
+ * Serializes a Responses response for output.value without the base64 images of its
+ * image_generation_call items. They are recorded on output.images.*, where
+ * base64ImageMaxLength applies to them.
+ */
+export function stringifyResponse(response: ResponseType): string {
+  return JSON.stringify({
+    ...response,
+    output: response.output ? withoutGeneratedImageResults(response.output) : response.output,
+  });
+}
+
+/**
+ * Serializes a Responses request body for input.value without the base64 images of the
+ * image_generation_call items it replays from an earlier turn's output. The image was
+ * already recorded on the output.images.* of the span that generated it.
+ */
+export function stringifyResponseCreateParams(body: ResponseCreateParamsBase): string {
+  if (!Array.isArray(body.input)) return JSON.stringify(body);
+  return JSON.stringify({ ...body, input: withoutGeneratedImageResults(body.input) });
+}
+
 export async function consumeResponseStreamEvents(
   stream: Stream<ResponseStreamEvent>,
 ): Promise<ResponseType | undefined> {
