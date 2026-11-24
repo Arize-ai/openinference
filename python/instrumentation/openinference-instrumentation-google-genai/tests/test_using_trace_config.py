@@ -93,17 +93,3 @@ async def test_override_hides_input_images_inside_input_value(
     attributes = _span_attributes(in_memory_span_exporter)
     assert "describe" in str(attributes["input.value"])
     assert not _contains_image(attributes)
-
-
-@pytest.mark.parametrize("streaming", [False, True], ids=["non_streaming", "streaming"])
-async def test_override_image_length_limit_reaches_input_value(
-    streaming: bool,
-    client: genai.Client,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_google_genai_instrumentation: None,
-) -> None:
-    # The base64 length limit is applied only by the instrumentor when it builds input.value.
-    with using_trace_config(base64_image_max_length=1):
-        await _call(client, asynchronous=False, streaming=streaming)
-    attributes = _span_attributes(in_memory_span_exporter)
-    assert _IMAGE_B64 not in str(attributes["input.value"])

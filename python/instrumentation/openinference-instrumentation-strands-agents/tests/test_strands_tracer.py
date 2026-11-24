@@ -258,6 +258,17 @@ def test_span_started_outside_using_trace_config_is_not_masked(
     assert "Hello" in json.dumps(attributes, default=str)
 
 
+def test_shutdown_drops_configs_of_unended_spans() -> None:
+    processor = StrandsAgentsToOpenInferenceProcessor()
+    provider = trace_sdk.TracerProvider()
+    provider.add_span_processor(processor)
+    with using_trace_config(hide_inputs=True):
+        provider.get_tracer(__name__).start_span("never-ended")
+    assert processor._span_configs
+    provider.shutdown()
+    assert not processor._span_configs
+
+
 @pytest.mark.parametrize("mode", MODES)
 def test_image_only_message_is_not_dropped(
     mode: str,

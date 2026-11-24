@@ -7,6 +7,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    FrozenSet,
     Optional,
     Type,
     Union,
@@ -663,15 +664,16 @@ def is_base64_url(url: str) -> bool:
     return url.startswith("data:image/") and "base64" in url
 
 
-_TRACE_CONFIG_OVERRIDES_KEY = create_key("openinference-trace-config-overrides")
+_HIDDEN_FIELDS_KEY = create_key("openinference-trace-config-hidden-fields")
+_HIDE_FIELDS = frozenset(f.name for f in fields(TraceConfig) if f.name.startswith("hide_"))
 
 
 class using_trace_config(_UsingAttributesContextManager):
     """
-    Context manager (or decorator) that overrides ``TraceConfig`` fields for spans
-    started within its scope. Only the fields passed here change; every other field
-    keeps the value of the instrumentor's config. Nested blocks merge on top of the
-    enclosing block.
+    Context manager (or decorator) that hides more content for spans started within
+    its scope. It accepts only ``hide_*`` fields set to ``True``: a scope can add
+    masking on top of the instrumentor's config but never remove it. Nested blocks
+    combine their hidden fields.
 
     The config is resolved when a span starts and kept for that span's lifetime, so
     spans that end after the block exits (e.g. streamed responses) still use it.
@@ -689,52 +691,45 @@ class using_trace_config(_UsingAttributesContextManager):
             ...
     """
 
-    def __init__(self, **overrides: Any) -> None:
+    def __init__(self, **hidden: bool) -> None:
         super().__init__()
-        _validate_overrides(overrides)
-        self._overrides = overrides
+        _validate_hidden_fields(hidden)
+        self._hidden = frozenset(hidden)
 
     def _context_with_attributes(self) -> Context:
         ctx = get_current()
-        outer = cast(Optional[Dict[str, Any]], get_value(_TRACE_CONFIG_OVERRIDES_KEY, ctx))
-        merged = {**outer, **self._overrides} if outer else dict(self._overrides)
-        return set_value(_TRACE_CONFIG_OVERRIDES_KEY, merged, ctx)
+        outer = cast(Optional[FrozenSet[str]], get_value(_HIDDEN_FIELDS_KEY, ctx))
+        return set_value(_HIDDEN_FIELDS_KEY, (outer or frozenset()) | self._hidden, ctx)
 
 
 def get_current_trace_config(default: TraceConfig) -> TraceConfig:
     """
-    Return ``default`` with the fields set by the innermost active
-    ``using_trace_config`` applied, or ``default`` itself when no override is active.
+    Return ``default`` with every field hidden by the active ``using_trace_config``
+    scopes set to ``True``, or ``default`` itself when no scope is active.
 
     Instrumentors call this when a span starts and use the result for everything
     they record on that span.
     """
-    overrides = cast(Optional[Dict[str, Any]], get_value(_TRACE_CONFIG_OVERRIDES_KEY))
-    if not overrides:
+    hidden = cast(Optional[FrozenSet[str]], get_value(_HIDDEN_FIELDS_KEY))
+    if not hidden:
         return default
     # Copy instead of dataclasses.replace so __post_init__ does not re-read the
-    # environment or reload the blob uploader; overrides are validated up front.
+    # environment or reload the blob uploader.
     merged = copy.copy(default)
-    for name, value in overrides.items():
-        object.__setattr__(merged, name, value)
+    for name in hidden:
+        object.__setattr__(merged, name, True)
     return merged
 
 
-_TRACE_CONFIG_FIELDS = {f.name: f for f in fields(TraceConfig)}
-
-
-def _validate_overrides(overrides: Dict[str, Any]) -> None:
-    for name, value in overrides.items():
-        f = _TRACE_CONFIG_FIELDS.get(name)
-        if f is None:
-            raise TypeError(f"using_trace_config() got an unexpected field {name!r}")
-        if name == "blob_uploader":
-            if value is not None and not isinstance(value, BlobUploader):
-                raise TypeError("blob_uploader must satisfy the BlobUploader protocol or be None")
-            continue
-        expected_type = get_args(f.type)[0]
-        if not isinstance(value, expected_type):
+def _validate_hidden_fields(hidden: Dict[str, Any]) -> None:
+    for name, value in hidden.items():
+        if name not in _HIDE_FIELDS:
             raise TypeError(
-                f"The field {name} must be of type '{expected_type.__name__}' "
-                f"but '{type(value).__name__}' was found."
+                f"using_trace_config() got an unexpected field {name!r}; "
+                "only hide_* fields can be set"
+            )
+        if value is not True:
+            raise TypeError(
+                f"using_trace_config() only accepts {name}=True; "
+                "a scope can hide more content but cannot reveal it"
             )

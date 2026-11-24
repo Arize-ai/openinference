@@ -65,7 +65,7 @@ def test_nesting_restores_outer_config(
             _emit(tracer, "inner")
         _emit(tracer, "outer")
     spans = {s.name: dict(s.attributes or {}) for s in in_memory_span_exporter.get_finished_spans()}
-    # The inner block merges on top of the outer one.
+    # The inner block adds its hidden fields to the outer ones.
     assert spans["inner"][SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert spans["inner"][SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
     assert spans["outer"][SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
@@ -144,26 +144,7 @@ def test_span_started_outside_block_ignores_override(
     assert _attrs(in_memory_span_exporter)[SpanAttributes.INPUT_VALUE] == "secret-in"
 
 
-def test_override_merges_with_instrumentor_config() -> None:
-    base = TraceConfig(hide_outputs=True, base64_image_max_length=10)
-    with using_trace_config(hide_inputs=True):
-        merged = get_current_trace_config(base)
-    assert merged.hide_inputs is True
-    assert merged.hide_outputs is True
-    assert merged.base64_image_max_length == 10
-    assert base.hide_inputs is False
-
-
-@pytest.mark.parametrize("trace_config", [TraceConfig(hide_inputs=True)])
-def test_override_can_unhide_instrumentor_setting(
-    tracer: OITracer, in_memory_span_exporter: InMemorySpanExporter
-) -> None:
-    with using_trace_config(hide_inputs=False):
-        _emit(tracer)
-    assert _attrs(in_memory_span_exporter)[SpanAttributes.INPUT_VALUE] == "secret-in"
-
-
-def test_override_keeps_instrumentor_blob_uploader() -> None:
+def test_override_keeps_other_instrumentor_fields() -> None:
     class _Uploader:
         def upload(self, blob: Any) -> None:
             return None
@@ -172,16 +153,48 @@ def test_override_keeps_instrumentor_blob_uploader() -> None:
             pass
 
     uploader = _Uploader()
-    base = TraceConfig(blob_uploader=uploader)
+    base = TraceConfig(hide_outputs=True, base64_image_max_length=10, blob_uploader=uploader)
     with using_trace_config(hide_inputs=True):
-        assert get_current_trace_config(base).blob_uploader is uploader
-    with using_trace_config(blob_uploader=None):
-        assert get_current_trace_config(base).blob_uploader is None
+        merged = get_current_trace_config(base)
+    assert merged.hide_inputs is True
+    assert merged.hide_outputs is True
+    assert merged.base64_image_max_length == 10
+    assert merged.blob_uploader is uploader
+    assert base.hide_inputs is False
+
+
+@pytest.mark.parametrize("trace_config", [TraceConfig(hide_inputs=True, hide_outputs=True)])
+def test_instrumentor_masking_cannot_be_removed_by_scope(
+    tracer: OITracer, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
+    with using_trace_config(hide_input_images=True):
+        with using_trace_config(hide_embeddings_text=True):
+            _emit(tracer)
+    attrs = _attrs(in_memory_span_exporter)
+    assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+
+
+def test_nested_scopes_combine_hidden_fields() -> None:
+    with using_trace_config(hide_inputs=True):
+        with using_trace_config(hide_outputs=True):
+            inner = get_current_trace_config(BASE)
+        outer = get_current_trace_config(BASE)
+    assert inner.hide_inputs and inner.hide_outputs
+    assert outer.hide_inputs and not outer.hide_outputs
 
 
 @pytest.mark.parametrize(
     "overrides",
-    [{"hide_everything": True}, {"hide_inputs": "yes"}, {"base64_image_max_length": "1"}],
+    [
+        {"hide_inputs": False},
+        {"hide_inputs": "yes"},
+        {"hide_inputs": 1},
+        {"hide_everything": True},
+        {"enable_genai_semconv": True},
+        {"base64_image_max_length": True},
+        {"blob_uploader": None},
+    ],
 )
 def test_invalid_overrides_rejected(overrides: Dict[str, Any]) -> None:
     with pytest.raises(TypeError):

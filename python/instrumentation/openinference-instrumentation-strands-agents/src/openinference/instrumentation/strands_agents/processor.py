@@ -1225,8 +1225,9 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         return safe_json_dumps(value)
 
     def shutdown(self) -> None:
-        """Shutdown the processor. No-op for this processor."""
-        pass
+        """Shutdown the processor and drop configs of spans that never ended."""
+        with self._span_configs_lock:
+            self._span_configs.clear()
 
     def force_flush(self, timeout_millis: Optional[int] = None) -> bool:
         return True

@@ -171,7 +171,9 @@ OpenAIInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
 
 ### Overriding the configuration for a scope
 
-`using_trace_config` overrides `TraceConfig` fields for spans started within its scope, for example to hide content for some requests only. It works as a context manager or a decorator, for sync and async code. Only the fields you pass change; all other fields keep the instrumentor's value. Nested blocks merge on top of the enclosing block.
+`using_trace_config` hides more content for spans started within its scope, for example for some requests only. It works as a context manager or a decorator, for sync and async code.
+
+A scope can only add masking. It accepts the `hide_*` fields, set to `True`, and raises `TypeError` for `False` or any other field. Content that the instrumentor's config (or an `OPENINFERENCE_HIDE_*` environment variable) hides stays hidden inside every scope, and every other field keeps the instrumentor's value. Nested scopes combine their hidden fields, so an inner scope can't unhide what an outer scope hides.
 
 ```python
 from openinference.instrumentation import using_trace_config
