@@ -528,13 +528,15 @@ class _TraceCallLlm(_WithTracer):
                 input_messages_index += 1
 
         if contents := llm_request.contents:
-            for i, content in enumerate(contents, input_messages_index):
-                for k, v in _get_attributes_from_content(
-                    content,
-                    span_attribute=SpanAttributes.LLM_INPUT_MESSAGES,
-                    message_index=i,
-                ):
-                    span.set_attribute(k, v)
+            for content in contents:
+                for message in _split_function_responses(content):
+                    for k, v in _get_attributes_from_content(
+                        message,
+                        span_attribute=SpanAttributes.LLM_INPUT_MESSAGES,
+                        message_index=input_messages_index,
+                    ):
+                        span.set_attribute(k, v)
+                    input_messages_index += 1
 
 
 class _TraceToolCall(_WithTracer):
@@ -711,6 +713,30 @@ def _get_attributes_from_usage_metadata(
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion
 
 
+def _split_function_responses(content: types.Content) -> list[types.Content]:
+    """Split a Content so each function_response part becomes its own message.
+
+    Every function_response is a separate tool message, while consecutive other
+    parts stay together in one message. The order of the parts is preserved.
+    """
+    parts = content.parts or []
+    if not any(part.function_response is not None for part in parts):
+        return [content]
+    messages: list[types.Content] = []
+    pending: list[types.Part] = []
+    for part in parts:
+        if part.function_response is None:
+            pending.append(part)
+            continue
+        if pending:
+            messages.append(types.Content(role=content.role, parts=pending))
+            pending = []
+        messages.append(types.Content(role=content.role, parts=[part]))
+    if pending:
+        messages.append(types.Content(role=content.role, parts=pending))
+    return messages
+
+
 @stop_on_exception
 def _get_attributes_from_content(
     obj: types.Content,
@@ -788,7 +814,6 @@ def _get_attributes_from_parts(
                     f"{prefix}{MessageAttributes.MESSAGE_CONTENT}",
                     safe_json_dumps(function_response.response),
                 )
-            message_index += 1
         elif inline_data := part.inline_data:
             prefix = f"{span_attribute}.{message_index}.{MESSAGE_CONTENTS}.{i}."
             yield from _get_attributes_from_inline_data(inline_data, prefix)
