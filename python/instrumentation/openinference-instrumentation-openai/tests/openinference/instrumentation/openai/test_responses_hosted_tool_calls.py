@@ -14,6 +14,7 @@ from typing import Any, Dict, Mapping, cast
 import pytest
 from httpx import Response
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv.attributes.server_attributes import SERVER_ADDRESS, SERVER_PORT
 from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
 
@@ -128,6 +129,8 @@ def test_hosted_tool_calls_are_recorded_as_tool_calls(
     )
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "openai"
     assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "openai"
+    assert attributes.pop(SERVER_ADDRESS) == "api.openai.com"
+    assert attributes.pop(SERVER_PORT) == 443
     assert json.loads(cast(str, attributes.pop(SpanAttributes.INPUT_VALUE))) == request
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
     assert json.loads(cast(str, attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS))) == {
