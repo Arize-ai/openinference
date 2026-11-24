@@ -81,6 +81,47 @@ def test_text_after_a_function_response_does_not_overwrite_the_next_message() ->
 
     attributes = span.attributes
     assert attributes["llm.input_messages.0.message.role"] == "tool"
-    assert attributes["llm.input_messages.1.message.contents.1.message_content.text"] == "note"
+    assert attributes["llm.input_messages.1.message.role"] == "user"
+    assert attributes["llm.input_messages.1.message.contents.0.message_content.text"] == "note"
     assert attributes["llm.input_messages.2.message.role"] == "model"
     assert attributes["llm.input_messages.2.message.contents.0.message_content.text"] == "done"
+
+
+def test_text_before_and_between_function_responses_keeps_the_part_order() -> None:
+    llm_request = LlmRequest(
+        contents=[
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part(text="first"),
+                    types.Part(
+                        function_response=types.FunctionResponse(
+                            id="a", name="tool_a", response={"result": "A"}
+                        )
+                    ),
+                    types.Part(text="middle"),
+                    types.Part(
+                        function_response=types.FunctionResponse(
+                            id="b", name="tool_b", response={"result": "B"}
+                        )
+                    ),
+                ],
+            ),
+            types.Content(role="model", parts=[types.Part(text="done")]),
+        ]
+    )
+    span = _Span()
+
+    _TraceCallLlm._derive_request_attributes(span, llm_request)
+
+    attributes = span.attributes
+    assert attributes["llm.input_messages.0.message.role"] == "user"
+    assert attributes["llm.input_messages.0.message.contents.0.message_content.text"] == "first"
+    assert attributes["llm.input_messages.1.message.role"] == "tool"
+    assert attributes["llm.input_messages.1.message.tool_call_id"] == "a"
+    assert attributes["llm.input_messages.2.message.role"] == "user"
+    assert attributes["llm.input_messages.2.message.contents.0.message_content.text"] == "middle"
+    assert attributes["llm.input_messages.3.message.role"] == "tool"
+    assert attributes["llm.input_messages.3.message.tool_call_id"] == "b"
+    assert attributes["llm.input_messages.4.message.role"] == "model"
+    assert attributes["llm.input_messages.4.message.contents.0.message_content.text"] == "done"
