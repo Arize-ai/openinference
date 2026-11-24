@@ -7,6 +7,7 @@ exception escapes into _finish_tracing, which exports the span with no
 attributes at all (no model, no messages, no token counts).
 """
 
+import json
 import logging
 from typing import Iterator, Tuple
 
@@ -113,8 +114,8 @@ def test_message_extractor_strips_output_token_placeholder_when_completion_unkno
 
     attributes = dict(_MessageExtractor(snapshot, completion_known=False).get_attributes())
 
-    import json
-
-    dumped_usage = json.loads(attributes[SpanAttributes.OUTPUT_VALUE])["usage"]
+    output_value = attributes[SpanAttributes.OUTPUT_VALUE]
+    assert isinstance(output_value, str)
+    dumped_usage = json.loads(output_value)["usage"]
     assert "output_tokens" not in dumped_usage
     assert dumped_usage["input_tokens"] == 12
