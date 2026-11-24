@@ -708,6 +708,14 @@ def _get_attributes_from_computer_call_output(
 def _get_attributes_from_generation_span_data(
     obj: GenerationSpanData,
 ) -> Iterator[tuple[str, AttributeValue]]:
+    # The OTel SDK keeps at most OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT (default 128) attributes
+    # per span and evicts the oldest first. Yield the attributes whose count grows with the
+    # request first and the fixed-count ones last, so a long conversation sheds its oldest
+    # input messages rather than the model name, invocation parameters and token counts.
+    yield from _get_attributes_from_chat_completions_input(obj.input)
+    # openai-agents >= 0.25.0 records the tools sent with the request; older versions don't.
+    yield from _get_attributes_from_chat_completions_tools(getattr(obj, "tools", None))
+    yield from _get_attributes_from_chat_completions_output(obj.output)
     if isinstance(model := obj.model, str):
         yield LLM_MODEL_NAME, model
     if isinstance(obj.model_config, dict) and (
@@ -719,11 +727,7 @@ def _get_attributes_from_generation_span_data(
         ):
             if provider := infer_llm_provider_from_host(host):
                 yield LLM_PROVIDER, provider.value
-    yield from _get_attributes_from_chat_completions_input(obj.input)
-    yield from _get_attributes_from_chat_completions_output(obj.output)
     yield from _get_attributes_from_chat_completions_usage(obj.usage)
-    # openai-agents >= 0.25.0 records the tools sent with the request; older versions don't.
-    yield from _get_attributes_from_chat_completions_tools(getattr(obj, "tools", None))
 
 
 def _get_attributes_from_mcp_list_tool_span_data(
@@ -738,15 +742,17 @@ def _get_attributes_from_chat_completions_input(
 ) -> Iterator[tuple[str, AttributeValue]]:
     if not obj:
         return
+    # The per-message attributes come first: under the span attribute limit they are
+    # evicted oldest-first, while input.value still holds the whole conversation.
+    yield from _get_attributes_from_chat_completions_message_dicts(
+        obj,
+        f"{LLM_INPUT_MESSAGES}.",
+    )
     try:
         yield INPUT_VALUE, safe_json_dumps(obj)
         yield INPUT_MIME_TYPE, JSON
     except Exception:
         pass
-    yield from _get_attributes_from_chat_completions_message_dicts(
-        obj,
-        f"{LLM_INPUT_MESSAGES}.",
-    )
 
 
 def _get_attributes_from_chat_completions_output(
