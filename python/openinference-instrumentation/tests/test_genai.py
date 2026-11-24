@@ -823,12 +823,11 @@ def test_get_genai_attributes_omits_unknown_response_finish_reasons() -> None:
     genai_attributes = get_genai_attributes(openinference_attributes)
 
     assert GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS not in genai_attributes
-    # The output message schema requires finish_reason, so the message still carries one.
+    # finish_reason is optional (and deprecated) on output messages, so none is invented.
     assert _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_OUTPUT_MESSAGES) == [
         {
             "role": "assistant",
             "parts": [{"type": "text", "content": "Hello"}],
-            "finish_reason": "stop",
         }
     ]
 
@@ -848,7 +847,7 @@ def test_get_genai_attributes_reports_only_known_response_finish_reasons() -> No
 
     assert genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS] == ("length",)
     output_messages = _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_OUTPUT_MESSAGES)
-    assert [message["finish_reason"] for message in output_messages] == ["length", "stop"]
+    assert [message.get("finish_reason") for message in output_messages] == ["length", None]
 
 
 def test_get_genai_attributes_ignores_empty_llm_finish_reason() -> None:

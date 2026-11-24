@@ -143,20 +143,9 @@ def get_genai_message_attributes(
     if input_messages:
         genai_attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES] = safe_json_dumps(input_messages)
     if output_messages:
-        genai_attributes[GenAIAttributes.GEN_AI_OUTPUT_MESSAGES] = safe_json_dumps(
-            [_with_required_finish_reason(message) for message in output_messages]
-        )
+        genai_attributes[GenAIAttributes.GEN_AI_OUTPUT_MESSAGES] = safe_json_dumps(output_messages)
 
     return genai_attributes
-
-
-def _with_required_finish_reason(message: Dict[str, Any]) -> Dict[str, Any]:
-    # The output message schema requires finish_reason. Messages carry it only
-    # when it was recorded or inferred, so "stop" fills the gap here and is not
-    # reported in gen_ai.response.finish_reasons.
-    if message.get("finish_reason"):
-        return message
-    return {**message, "finish_reason": "stop"}
 
 
 def get_genai_response_attributes(
