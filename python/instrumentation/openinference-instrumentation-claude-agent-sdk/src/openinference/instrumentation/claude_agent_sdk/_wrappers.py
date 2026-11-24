@@ -416,9 +416,7 @@ class _TurnUsageAccumulator:
                 if isinstance(value, int):
                     totals[key] = totals.get(key, 0) + value
         if totals and self._result_output_tokens is not None:
-            completion = self._result_output_tokens + sum(
-                self._pending_output_by_message_id.values()
-            )
+            completion = self._result_output_tokens
             totals[LLM_TOKEN_COUNT_COMPLETION] = completion
             totals[LLM_TOKEN_COUNT_TOTAL] = totals.get(LLM_TOKEN_COUNT_PROMPT, 0) + completion
         return totals
