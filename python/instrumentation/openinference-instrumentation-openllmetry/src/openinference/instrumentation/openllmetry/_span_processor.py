@@ -290,6 +290,9 @@ def _parse_messages_from_attributes(
         msg = oi.Message(role=role)
         if "content" in raw:
             msg["content"] = raw["content"]
+        # Tool result messages carry the id of the call they answer.
+        if raw.get("tool_call_id"):
+            msg["tool_call_id"] = str(raw["tool_call_id"])
         # Note: finish_reason is not part of the Message TypedDict, so we handle it separately
         finish_reason = raw.get("finish_reason")
 
@@ -365,6 +368,8 @@ def _parse_messages_from_json(
             elif ptype == "tool_call_response":
                 # tool role messages carry the response as content
                 text_parts.append(str(part.get("response", "")))
+                if part.get("id") and "tool_call_id" not in msg:
+                    msg["tool_call_id"] = str(part["id"])
 
         # If no parts array, fall back to top-level content
         if not parts and "content" in item:
