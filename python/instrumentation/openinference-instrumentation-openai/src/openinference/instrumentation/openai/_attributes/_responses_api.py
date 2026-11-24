@@ -23,6 +23,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+# The finish reason of a response, from its status or, when it is incomplete, from the reason
+# why; the same mapping as the openai-agents instrumentation's.
+_STATUS_TO_FINISH_REASON = {
+    "completed": "stop",
+    "failed": "error",
+    "cancelled": "cancelled",
+    "incomplete": "incomplete",
+}
+_INCOMPLETE_REASON_TO_FINISH_REASON = {
+    "max_output_tokens": "length",
+    "content_filter": "content_filter",
+}
+
 
 def stop_on_exception(
     wrapped: Callable[..., Iterator[Tuple[str, Any]]],
@@ -137,6 +150,13 @@ class _ResponsesApiAttributes:
         yield SpanAttributes.LLM_MODEL_NAME, obj.model
         if obj.usage:
             yield from cls._get_attributes_from_response_usage(obj.usage)
+        if obj.incomplete_details is not None and (reason := obj.incomplete_details.reason):
+            yield (
+                SpanAttributes.LLM_FINISH_REASON,
+                _INCOMPLETE_REASON_TO_FINISH_REASON.get(reason, reason),
+            )
+        elif obj.status in _STATUS_TO_FINISH_REASON:
+            yield SpanAttributes.LLM_FINISH_REASON, _STATUS_TO_FINISH_REASON[obj.status]
         if isinstance(obj.output, Iterable):
             image_index = 0
             image_format = cls._get_image_generation_output_format(request_parameters)
@@ -349,6 +369,72 @@ class _ResponsesApiAttributes:
 
     @classmethod
     @stop_on_exception
+    def _get_attributes_from_response_code_interpreter_tool_call(
+        cls,
+        obj: responses.ResponseCodeInterpreterToolCall,
+        prefix: str = "",
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", obj.id
+        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", obj.type
+        if (code := obj.code) is not None:
+            yield (
+                f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                safe_json_dumps({"code": code}),
+            )
+
+    @classmethod
+    @stop_on_exception
+    def _get_attributes_from_response_code_interpreter_tool_call_param(
+        cls,
+        obj: responses.ResponseCodeInterpreterToolCallParam,
+        prefix: str = "",
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if (id := obj.get("id")) is not None:
+            yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", id
+        if (type := obj.get("type")) is not None:
+            yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", type
+        if (code := obj.get("code")) is not None:
+            yield (
+                f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                safe_json_dumps({"code": code}),
+            )
+
+    @classmethod
+    @stop_on_exception
+    def _get_attributes_from_response_mcp_tool_call(
+        cls,
+        obj: responses.response_output_item.McpCall,
+        prefix: str = "",
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        # A call that OpenAI makes on a remote MCP server. Its server is the `server_label` in the
+        # output value.
+        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", obj.id
+        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", obj.name
+        if obj.arguments != "{}":
+            yield (
+                f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                obj.arguments,
+            )
+
+    @classmethod
+    @stop_on_exception
+    def _get_attributes_from_response_mcp_tool_call_param(
+        cls,
+        obj: responses.response_input_param.McpCall,
+        prefix: str = "",
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if (id := obj.get("id")) is not None:
+            yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", id
+        if (name := obj.get("name")) is not None:
+            yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", name
+        if (arguments := obj.get("arguments")) is not None and arguments != "{}":
+            yield (
+                f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                arguments,
+            )
+
+    @classmethod
+    @stop_on_exception
     def _get_attributes_from_response_function_web_search(
         cls,
         obj: responses.response_function_web_search.ResponseFunctionWebSearch,
@@ -453,8 +539,11 @@ class _ResponsesApiAttributes:
             # TODO: Handle image generation call
             pass
         elif obj["type"] == "code_interpreter_call":
-            # TODO: Handle code interpreter call
-            pass
+            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
+            yield from cls._get_attributes_from_response_code_interpreter_tool_call_param(
+                obj,
+                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
+            )
         elif obj["type"] == "local_shell_call":
             # TODO: Handle local shell call
             pass
@@ -471,8 +560,11 @@ class _ResponsesApiAttributes:
             # TODO: Handle mcp approval response
             pass
         elif obj["type"] == "mcp_call":
-            # TODO: Handle mcp call
-            pass
+            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
+            yield from cls._get_attributes_from_response_mcp_tool_call_param(
+                obj,
+                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
+            )
         elif obj["type"] == "shell_call":
             # TODO: Handle shell call
             pass
@@ -627,14 +719,20 @@ class _ResponsesApiAttributes:
                     image_b64_to_data_url(result, output_format),
                 )
         elif obj.type == "code_interpreter_call":
-            # TODO: Handle code interpreter call
-            pass
+            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
+            yield from cls._get_attributes_from_response_code_interpreter_tool_call(
+                obj,
+                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
+            )
         elif obj.type == "local_shell_call":
             # TODO: Handle local shell call
             pass
         elif obj.type == "mcp_call":
-            # TODO: Handle mcp call
-            pass
+            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
+            yield from cls._get_attributes_from_response_mcp_tool_call(
+                obj,
+                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
+            )
         elif obj.type == "mcp_list_tools":
             # TODO: Handle mcp list tools
             pass

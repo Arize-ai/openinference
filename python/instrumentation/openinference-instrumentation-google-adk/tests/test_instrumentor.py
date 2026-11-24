@@ -43,27 +43,20 @@ from openinference.instrumentation.google_adk._wrappers import (
 )
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
-
-def _adk_schema_version() -> int:
-    from google.adk.telemetry._schema_version import resolve_schema_version
-
-    return resolve_schema_version()
+_ADK_NATIVE_PREFIXES = ("gen_ai.", "gcp.vertex.agent.")
 
 
-def _pop_adk_schema_call_llm_attributes(attributes: dict[str, Any]) -> None:
-    """Pops the ADK-native `call_llm` attributes that depend on ADK's telemetry schema.
+def _openinference_attributes(span: ReadableSpan) -> dict[str, Any]:
+    """Returns the span's attributes minus the ones ADK's own telemetry writes.
 
-    google-adk >= 2.13 defaults to schema v2, which drops ADK's request/response
-    payload attributes and replaces `gen_ai.system` with `gen_ai.provider.name`.
+    ADK's `gen_ai.*` and `gcp.vertex.agent.*` keys follow ADK's telemetry schema,
+    which changes between releases, so exhaustive checks cover only OpenInference keys.
     """
-    if _adk_schema_version() < 2:
-        assert attributes.pop("gcp.vertex.agent.llm_request", None)
-        assert attributes.pop("gcp.vertex.agent.llm_response", None)
-        assert attributes.pop("gcp.vertex.agent.session_id", None)
-        assert attributes.pop("gen_ai.system", None) == "gcp.vertex.agent"
-    else:
-        assert attributes.pop("gen_ai.provider.name", None)
-        attributes.pop("gen_ai.tool.definitions", None)
+    return {
+        key: value
+        for key, value in (span.attributes or {}).items()
+        if not key.startswith(_ADK_NATIVE_PREFIXES)
+    }
 
 
 _WEATHER_QUESTION = "What is the weather in New York?"
@@ -183,18 +176,10 @@ def _failing_tool() -> dict[str, str]:
 
 
 def _get_usage_metadata_from_llm_response(attributes: Mapping[str, Any]) -> Mapping[str, Any]:
-    for key in (SpanAttributes.OUTPUT_VALUE, "gcp.vertex.agent.llm_response"):
-        payload = attributes.get(key)
-        if not isinstance(payload, str):
-            continue
-        try:
-            response = json.loads(payload)
-        except json.JSONDecodeError:
-            continue
-        usage_metadata = response.get("usage_metadata") or response.get("usageMetadata")
-        if isinstance(usage_metadata, Mapping):
-            return usage_metadata
-    raise AssertionError("Expected LLM response usage metadata in span attributes.")
+    response = json.loads(attributes[SpanAttributes.OUTPUT_VALUE])
+    usage_metadata = response.get("usage_metadata") or response.get("usageMetadata")
+    assert isinstance(usage_metadata, Mapping), "Expected usage metadata in output.value"
+    return usage_metadata
 
 
 def _get_count(metadata: Mapping[str, Any], snake_case: str, camel_case: str) -> int:
@@ -790,7 +775,7 @@ async def test_google_adk_instrumentor(
     invocation_span = spans_by_name[f"invocation [{app_name}]"][0]
     assert invocation_span.status.is_ok
     assert not invocation_span.parent
-    invocation_attributes = dict(invocation_span.attributes or {})
+    invocation_attributes = _openinference_attributes(invocation_span)
     assert invocation_attributes.pop("user.id", None) == user_id
     assert invocation_attributes.pop("session.id", None) == session_id
     assert invocation_attributes.pop("openinference.span.kind", None) == "CHAIN"
@@ -804,26 +789,20 @@ async def test_google_adk_instrumentor(
     assert agent_run_span.status.is_ok
     assert agent_run_span.parent
     assert agent_run_span.parent is invocation_span.get_span_context()
-    agent_run_attributes = dict(agent_run_span.attributes or {})
+    agent_run_attributes = _openinference_attributes(agent_run_span)
     assert agent_run_attributes.pop("user.id", None) == user_id
     assert agent_run_attributes.pop("session.id", None) == session_id
     assert agent_run_attributes.pop("openinference.span.kind", None) == "AGENT"
     assert agent_run_attributes.pop("agent.name", None) == agent_name
     assert agent_run_attributes.pop("output.mime_type", None) == "application/json"
     assert agent_run_attributes.pop("output.value", None)
-    # GenAI attributes set by google-adk library
-    agent_run_attributes.pop("gen_ai.agent.description", None)
-    agent_run_attributes.pop("gen_ai.agent.name", None)
-    agent_run_attributes.pop("gen_ai.conversation.id", None)
-    agent_run_attributes.pop("gen_ai.operation.name", None)
-    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     call_llm_span0 = spans_by_name["call_llm"][0]
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
     assert call_llm_span0.parent is agent_run_span.get_span_context()
-    call_llm_attributes0 = dict(call_llm_span0.attributes or {})
+    call_llm_attributes0 = _openinference_attributes(call_llm_span0)
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
     assert call_llm_attributes0.pop("openinference.span.kind", None) == "LLM"
@@ -866,17 +845,6 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes0.pop("llm.token_count.total", None) == 113
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
-    assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.invocation_id", None)
-    _pop_adk_schema_call_llm_attributes(call_llm_attributes0)
-    assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 107
-    assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 6
-    call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
-    call_llm_attributes0.pop("gen_ai.agent.name", None)
-    call_llm_attributes0.pop("gen_ai.conversation.id", None)
-    call_llm_attributes0.pop("gen_ai.operation.name", None)
-    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
@@ -885,7 +853,7 @@ async def test_google_adk_instrumentor(
     # _with_caller_context restores the caller context around the model
     # call, so this tool span's parent is the agent span.
     assert tool_span.parent is agent_run_span.get_span_context()
-    tool_attributes = dict(tool_span.attributes or {})
+    tool_attributes = _openinference_attributes(tool_span)
     assert tool_attributes.pop("user.id", None) == user_id
     assert tool_attributes.pop("session.id", None) == session_id
     assert tool_attributes.pop("openinference.span.kind", None) == "TOOL"
@@ -899,34 +867,14 @@ async def test_google_adk_instrumentor(
     )
     assert tool_attributes.pop("tool.name", None) == "get_weather"
     assert tool_attributes.pop("tool.parameters", None) == '{"city": "New York"}'
-    assert tool_attributes.pop("gcp.vertex.agent.event_id", None)
-    if _adk_schema_version() < 2:
-        assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
-        assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
-        assert (
-            tool_attributes.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "New York"}'
-        )
-        assert (
-            tool_attributes.pop("gcp.vertex.agent.tool_response", None)
-            == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-        )
     _pop_tool_span_id(tool_attributes)
-    # GenAI attributes set by google-adk library
-    tool_attributes.pop("gen_ai.operation.name", None)
-    tool_attributes.pop("gen_ai.system", None)
-    tool_attributes.pop("gen_ai.tool.call.id", None)
-    tool_attributes.pop("gen_ai.tool.description", None)
-    tool_attributes.pop("gen_ai.tool.name", None)
-    tool_attributes.pop("gen_ai.tool.type", None)
-    tool_attributes.pop("gen_ai.agent.name", None)
-    tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
     call_llm_span1 = spans_by_name["call_llm"][1]
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
     assert call_llm_span1.parent is agent_run_span.get_span_context()
-    call_llm_attributes1 = dict(call_llm_span1.attributes or {})
+    call_llm_attributes1 = _openinference_attributes(call_llm_span1)
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
     assert call_llm_attributes1.pop("openinference.span.kind", None) == "LLM"
@@ -988,17 +936,6 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes1.pop("llm.token_count.total", None) == 165
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
-    assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.invocation_id", None)
-    _pop_adk_schema_call_llm_attributes(call_llm_attributes1)
-    assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 141
-    assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 24
-    call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
-    call_llm_attributes1.pop("gen_ai.agent.name", None)
-    call_llm_attributes1.pop("gen_ai.conversation.id", None)
-    call_llm_attributes1.pop("gen_ai.operation.name", None)
-    call_llm_attributes1.pop("gen_ai.agent.version", None)
     _pop_input_message_tool_call_ids(call_llm_attributes1)
     assert not call_llm_attributes1
 
@@ -1058,7 +995,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     invocation_span = spans_by_name[f"invocation [{app_name}]"][0]
     assert invocation_span.status.is_ok
     assert not invocation_span.parent
-    invocation_attributes = dict(invocation_span.attributes or {})
+    invocation_attributes = _openinference_attributes(invocation_span)
     assert invocation_attributes.pop("user.id", None) == user_id
     assert invocation_attributes.pop("session.id", None) == session_id
     assert invocation_attributes.pop("openinference.span.kind", None) == "CHAIN"
@@ -1072,19 +1009,13 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert agent_run_span.status.is_ok
     assert agent_run_span.parent
     assert agent_run_span.parent is invocation_span.get_span_context()
-    agent_run_attributes = dict(agent_run_span.attributes or {})
+    agent_run_attributes = _openinference_attributes(agent_run_span)
     assert agent_run_attributes.pop("user.id", None) == user_id
     assert agent_run_attributes.pop("session.id", None) == session_id
     assert agent_run_attributes.pop("openinference.span.kind", None) == "AGENT"
     assert agent_run_attributes.pop("agent.name", None) == agent_name
     assert agent_run_attributes.pop("output.mime_type", None) == "application/json"
     assert agent_run_attributes.pop("output.value", None)
-    # GenAI attributes set by google-adk library
-    agent_run_attributes.pop("gen_ai.agent.description", None)
-    agent_run_attributes.pop("gen_ai.agent.name", None)
-    agent_run_attributes.pop("gen_ai.conversation.id", None)
-    agent_run_attributes.pop("gen_ai.operation.name", None)
-    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     # call_llm[0]: first LLM call returns get_weather for New York only (with thoughts)
@@ -1092,7 +1023,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
     assert call_llm_span0.parent is agent_run_span.get_span_context()
-    call_llm_attributes0 = dict(call_llm_span0.attributes or {})
+    call_llm_attributes0 = _openinference_attributes(call_llm_span0)
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
     assert call_llm_attributes0.pop("openinference.span.kind", None) == "LLM"
@@ -1139,19 +1070,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes0.pop("llm.token_count.total", None) == 228
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
-    assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.invocation_id", None)
-    _pop_adk_schema_call_llm_attributes(call_llm_attributes0)
-    assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
-    assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 136
     # Output tokens include reasoning tokens.
-    assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 92
-    assert call_llm_attributes0.pop("gen_ai.usage.reasoning.output_tokens", None) == 76
-    call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
-    call_llm_attributes0.pop("gen_ai.agent.name", None)
-    call_llm_attributes0.pop("gen_ai.conversation.id", None)
-    call_llm_attributes0.pop("gen_ai.operation.name", None)
-    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
@@ -1160,7 +1079,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     # _with_caller_context restores the caller context around the model
     # call, so this tool span's parent is the agent span.
     assert tool_span.parent is agent_run_span.get_span_context()
-    tool_attributes = dict(tool_span.attributes or {})
+    tool_attributes = _openinference_attributes(tool_span)
     assert tool_attributes.pop("user.id", None) == user_id
     assert tool_attributes.pop("session.id", None) == session_id
     assert tool_attributes.pop("openinference.span.kind", None) == "TOOL"
@@ -1174,27 +1093,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     )
     assert tool_attributes.pop("tool.name", None) == "get_weather"
     assert tool_attributes.pop("tool.parameters", None) == '{"city": "New York"}'
-    assert tool_attributes.pop("gcp.vertex.agent.event_id", None)
-    if _adk_schema_version() < 2:
-        assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
-        assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
-        assert (
-            tool_attributes.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "New York"}'
-        )
-        assert (
-            tool_attributes.pop("gcp.vertex.agent.tool_response", None)
-            == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-        )
     _pop_tool_span_id(tool_attributes)
-    # GenAI attributes set by google-adk library
-    tool_attributes.pop("gen_ai.operation.name", None)
-    tool_attributes.pop("gen_ai.system", None)
-    tool_attributes.pop("gen_ai.tool.call.id", None)
-    tool_attributes.pop("gen_ai.tool.description", None)
-    tool_attributes.pop("gen_ai.tool.name", None)
-    tool_attributes.pop("gen_ai.tool.type", None)
-    tool_attributes.pop("gen_ai.agent.name", None)
-    tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
     # call_llm[1]: second LLM call returns get_weather for London only (no thoughts)
@@ -1202,7 +1101,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
     assert call_llm_span1.parent is agent_run_span.get_span_context()
-    call_llm_attributes1 = dict(call_llm_span1.attributes or {})
+    call_llm_attributes1 = _openinference_attributes(call_llm_span1)
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
     assert call_llm_attributes1.pop("openinference.span.kind", None) == "LLM"
@@ -1267,17 +1166,6 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes1.pop("llm.token_count.total", None) == 209
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
-    assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.invocation_id", None)
-    _pop_adk_schema_call_llm_attributes(call_llm_attributes1)
-    assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
-    assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 194
-    assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 15
-    call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
-    call_llm_attributes1.pop("gen_ai.agent.name", None)
-    call_llm_attributes1.pop("gen_ai.conversation.id", None)
-    call_llm_attributes1.pop("gen_ai.operation.name", None)
-    call_llm_attributes1.pop("gen_ai.agent.version", None)
     _pop_input_message_tool_call_ids(call_llm_attributes1)
     assert not call_llm_attributes1
 
@@ -1287,7 +1175,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     # _with_caller_context restores the caller context around the model
     # call, so this tool span's parent is the agent span.
     assert tool_span1.parent is agent_run_span.get_span_context()
-    tool_attributes1 = dict(tool_span1.attributes or {})
+    tool_attributes1 = _openinference_attributes(tool_span1)
     assert tool_attributes1.pop("user.id", None) == user_id
     assert tool_attributes1.pop("session.id", None) == session_id
     assert tool_attributes1.pop("openinference.span.kind", None) == "TOOL"
@@ -1301,25 +1189,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     )
     assert tool_attributes1.pop("tool.name", None) == "get_weather"
     assert tool_attributes1.pop("tool.parameters", None) == '{"city": "London"}'
-    assert tool_attributes1.pop("gcp.vertex.agent.event_id", None)
-    if _adk_schema_version() < 2:
-        assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
-        assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
-        assert tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "London"}'
-        assert (
-            tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
-            == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-        )
     _pop_tool_span_id(tool_attributes1)
-    # GenAI attributes set by google-adk library
-    tool_attributes1.pop("gen_ai.operation.name", None)
-    tool_attributes1.pop("gen_ai.system", None)
-    tool_attributes1.pop("gen_ai.tool.call.id", None)
-    tool_attributes1.pop("gen_ai.tool.description", None)
-    tool_attributes1.pop("gen_ai.tool.name", None)
-    tool_attributes1.pop("gen_ai.tool.type", None)
-    tool_attributes1.pop("gen_ai.agent.name", None)
-    tool_attributes1.pop("gen_ai.agent.version", None)
     assert not tool_attributes1
 
     # call_llm[2]: final LLM call returns text response
@@ -1327,7 +1197,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_span2.status.is_ok
     assert call_llm_span2.parent
     assert call_llm_span2.parent is agent_run_span.get_span_context()
-    call_llm_attributes2 = dict(call_llm_span2.attributes or {})
+    call_llm_attributes2 = _openinference_attributes(call_llm_span2)
     assert call_llm_attributes2.pop("user.id", None) == user_id
     assert call_llm_attributes2.pop("session.id", None) == session_id
     assert call_llm_attributes2.pop("openinference.span.kind", None) == "LLM"
@@ -1411,17 +1281,6 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes2.pop("llm.token_count.total", None) == 293
     assert call_llm_attributes2.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes2.pop("llm.provider", None) == "google"
-    assert call_llm_attributes2.pop("gcp.vertex.agent.event_id", None)
-    assert call_llm_attributes2.pop("gcp.vertex.agent.invocation_id", None)
-    _pop_adk_schema_call_llm_attributes(call_llm_attributes2)
-    assert call_llm_attributes2.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
-    assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) == 250
-    assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) == 43
-    call_llm_attributes2.pop("gen_ai.response.finish_reasons", None)
-    call_llm_attributes2.pop("gen_ai.agent.name", None)
-    call_llm_attributes2.pop("gen_ai.conversation.id", None)
-    call_llm_attributes2.pop("gen_ai.operation.name", None)
-    call_llm_attributes2.pop("gen_ai.agent.version", None)
     _pop_input_message_tool_call_ids(call_llm_attributes2)
     assert not call_llm_attributes2
 
@@ -1461,7 +1320,7 @@ async def test_google_adk_instrumentor_code_execution_token_counts(
     spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
     call_llm_spans = [span for span in spans if span.name == "call_llm"]
     assert len(call_llm_spans) == 1
-    call_llm_attributes = dict(call_llm_spans[0].attributes or {})
+    call_llm_attributes = _openinference_attributes(call_llm_spans[0])
     usage_metadata = _get_usage_metadata_from_llm_response(call_llm_attributes)
 
     prompt_token_count = _get_count(usage_metadata, "prompt_token_count", "promptTokenCount")
@@ -1586,7 +1445,7 @@ async def test_google_adk_instrumentor_multi_agent(
     invocation_span = spans_by_name[f"invocation [{app_name}]"][0]
     assert invocation_span.status.is_ok
     assert not invocation_span.parent
-    invocation_attributes = dict(invocation_span.attributes or {})
+    invocation_attributes = _openinference_attributes(invocation_span)
     assert invocation_attributes.pop("user.id", None) == user_id
     assert invocation_attributes.pop("session.id", None) == session_id
     assert invocation_attributes.pop("openinference.span.kind", None) == "CHAIN"
@@ -1601,7 +1460,7 @@ async def test_google_adk_instrumentor_multi_agent(
     assert root_agent_run_span.status.is_ok
     assert root_agent_run_span.parent
     assert root_agent_run_span.parent is invocation_span.get_span_context()
-    root_agent_run_attributes = dict(root_agent_run_span.attributes or {})
+    root_agent_run_attributes = _openinference_attributes(root_agent_run_span)
     assert root_agent_run_attributes.pop("user.id", None) == user_id
     assert root_agent_run_attributes.pop("session.id", None) == session_id
     assert root_agent_run_attributes.pop("openinference.span.kind", None) == "AGENT"
@@ -1610,12 +1469,6 @@ async def test_google_adk_instrumentor_multi_agent(
     # response, so this span has no output of its own.
     assert "output.mime_type" not in root_agent_run_attributes
     assert "output.value" not in root_agent_run_attributes
-    # GenAI attributes set by google-adk library
-    root_agent_run_attributes.pop("gen_ai.agent.description", None)
-    root_agent_run_attributes.pop("gen_ai.agent.name", None)
-    root_agent_run_attributes.pop("gen_ai.conversation.id", None)
-    root_agent_run_attributes.pop("gen_ai.operation.name", None)
-    root_agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not root_agent_run_attributes
 
     # 3. call_llm (root agent - transfer_to_agent)
@@ -1623,7 +1476,7 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
     assert call_llm_span0.parent is root_agent_run_span.get_span_context()
-    call_llm_attributes0 = dict(call_llm_span0.attributes or {})
+    call_llm_attributes0 = _openinference_attributes(call_llm_span0)
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
     assert call_llm_attributes0.pop("openinference.span.kind", None) == "LLM"
@@ -1666,17 +1519,6 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes0.pop("llm.token_count.total", None) == 334
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
-    assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
-    assert call_llm_attributes0.pop("gcp.vertex.agent.invocation_id", None)
-    _pop_adk_schema_call_llm_attributes(call_llm_attributes0)
-    assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 323
-    assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 11
-    call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
-    call_llm_attributes0.pop("gen_ai.agent.name", None)
-    call_llm_attributes0.pop("gen_ai.conversation.id", None)
-    call_llm_attributes0.pop("gen_ai.operation.name", None)
-    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     # 4. execute_tool transfer_to_agent
@@ -1686,7 +1528,7 @@ async def test_google_adk_instrumentor_multi_agent(
     # _with_caller_context restores the caller context around the model
     # call, so this tool span's parent is the agent span.
     assert transfer_tool_span.parent is root_agent_run_span.get_span_context()
-    transfer_tool_attributes = dict(transfer_tool_span.attributes or {})
+    transfer_tool_attributes = _openinference_attributes(transfer_tool_span)
     assert transfer_tool_attributes.pop("user.id", None) == user_id
     assert transfer_tool_attributes.pop("session.id", None) == session_id
     assert transfer_tool_attributes.pop("openinference.span.kind", None) == "TOOL"
@@ -1699,27 +1541,7 @@ async def test_google_adk_instrumentor_multi_agent(
     assert (
         transfer_tool_attributes.pop("tool.parameters", None) == '{"agent_name": "weather_agent"}'
     )
-    assert transfer_tool_attributes.pop("gcp.vertex.agent.event_id", None)
-    if _adk_schema_version() < 2:
-        assert transfer_tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
-        assert transfer_tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
-        assert (
-            transfer_tool_attributes.pop("gcp.vertex.agent.tool_call_args", None)
-            == '{"agent_name": "weather_agent"}'
-        )
-        assert (
-            transfer_tool_attributes.pop("gcp.vertex.agent.tool_response", None)
-            == '{"result": null}'
-        )
     _pop_tool_span_id(transfer_tool_attributes)
-    # GenAI attributes set by google-adk library
-    transfer_tool_attributes.pop("gen_ai.operation.name", None)
-    transfer_tool_attributes.pop("gen_ai.system", None)
-    transfer_tool_attributes.pop("gen_ai.tool.call.id", None)
-    transfer_tool_attributes.pop("gen_ai.tool.description", None)
-    transfer_tool_attributes.pop("gen_ai.tool.name", None)
-    transfer_tool_attributes.pop("gen_ai.tool.type", None)
-    transfer_tool_attributes.pop("gen_ai.agent.name", None)
     assert not transfer_tool_attributes
 
     # 5. agent_run [weather_agent]
@@ -1728,19 +1550,13 @@ async def test_google_adk_instrumentor_multi_agent(
     assert weather_agent_run_span.parent
     # The transferred sub-agent runs directly under the invocation.
     assert weather_agent_run_span.parent is invocation_span.get_span_context()
-    weather_agent_run_attributes = dict(weather_agent_run_span.attributes or {})
+    weather_agent_run_attributes = _openinference_attributes(weather_agent_run_span)
     assert weather_agent_run_attributes.pop("user.id", None) == user_id
     assert weather_agent_run_attributes.pop("session.id", None) == session_id
     assert weather_agent_run_attributes.pop("openinference.span.kind", None) == "AGENT"
     assert weather_agent_run_attributes.pop("agent.name", None) == weather_agent_name
     assert weather_agent_run_attributes.pop("output.mime_type", None) == "application/json"
     assert weather_agent_run_attributes.pop("output.value", None)
-    # GenAI attributes set by google-adk library
-    weather_agent_run_attributes.pop("gen_ai.agent.description", None)
-    weather_agent_run_attributes.pop("gen_ai.agent.name", None)
-    weather_agent_run_attributes.pop("gen_ai.conversation.id", None)
-    weather_agent_run_attributes.pop("gen_ai.operation.name", None)
-    weather_agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not weather_agent_run_attributes
 
     # 6. call_llm (weather agent - get_weather)
@@ -1748,7 +1564,7 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
     assert call_llm_span1.parent is weather_agent_run_span.get_span_context()
-    call_llm_attributes1 = dict(call_llm_span1.attributes or {})
+    call_llm_attributes1 = _openinference_attributes(call_llm_span1)
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
     assert call_llm_attributes1.pop("openinference.span.kind", None) == "LLM"
@@ -1842,17 +1658,6 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.tools.1.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
-    assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
-    assert call_llm_attributes1.pop("gcp.vertex.agent.invocation_id", None)
-    _pop_adk_schema_call_llm_attributes(call_llm_attributes1)
-    assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 453
-    assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 6
-    call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
-    call_llm_attributes1.pop("gen_ai.agent.name", None)
-    call_llm_attributes1.pop("gen_ai.conversation.id", None)
-    call_llm_attributes1.pop("gen_ai.operation.name", None)
-    call_llm_attributes1.pop("gen_ai.agent.version", None)
     _pop_input_message_tool_call_ids(call_llm_attributes1)
     assert not call_llm_attributes1
 
@@ -1863,7 +1668,7 @@ async def test_google_adk_instrumentor_multi_agent(
     # _with_caller_context restores the caller context around the model
     # call, so this tool span's parent is the agent span.
     assert get_weather_tool_span.parent is weather_agent_run_span.get_span_context()
-    get_weather_tool_attributes = dict(get_weather_tool_span.attributes or {})
+    get_weather_tool_attributes = _openinference_attributes(get_weather_tool_span)
     assert get_weather_tool_attributes.pop("user.id", None) == user_id
     assert get_weather_tool_attributes.pop("session.id", None) == session_id
     assert get_weather_tool_attributes.pop("openinference.span.kind", None) == "TOOL"
@@ -1877,27 +1682,7 @@ async def test_google_adk_instrumentor_multi_agent(
     )
     assert get_weather_tool_attributes.pop("tool.name", None) == "get_weather"
     assert get_weather_tool_attributes.pop("tool.parameters", None) == '{"city": "New York"}'
-    assert get_weather_tool_attributes.pop("gcp.vertex.agent.event_id", None)
-    if _adk_schema_version() < 2:
-        assert get_weather_tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
-        assert get_weather_tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
-        assert (
-            get_weather_tool_attributes.pop("gcp.vertex.agent.tool_call_args", None)
-            == '{"city": "New York"}'
-        )
-        assert (
-            get_weather_tool_attributes.pop("gcp.vertex.agent.tool_response", None)
-            == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-        )
     _pop_tool_span_id(get_weather_tool_attributes)
-    # GenAI attributes set by google-adk library
-    get_weather_tool_attributes.pop("gen_ai.operation.name", None)
-    get_weather_tool_attributes.pop("gen_ai.system", None)
-    get_weather_tool_attributes.pop("gen_ai.tool.call.id", None)
-    get_weather_tool_attributes.pop("gen_ai.tool.description", None)
-    get_weather_tool_attributes.pop("gen_ai.tool.name", None)
-    get_weather_tool_attributes.pop("gen_ai.tool.type", None)
-    get_weather_tool_attributes.pop("gen_ai.agent.name", None)
     assert not get_weather_tool_attributes
 
     # 8. call_llm (weather agent - final response)
@@ -1905,7 +1690,7 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_span2.status.is_ok
     assert call_llm_span2.parent
     assert call_llm_span2.parent is weather_agent_run_span.get_span_context()
-    call_llm_attributes2 = dict(call_llm_span2.attributes or {})
+    call_llm_attributes2 = _openinference_attributes(call_llm_span2)
     assert call_llm_attributes2.pop("user.id", None) == user_id
     assert call_llm_attributes2.pop("session.id", None) == session_id
     assert call_llm_attributes2.pop("openinference.span.kind", None) == "LLM"
@@ -2018,17 +1803,6 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes2.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes2.pop("llm.tools.1.tool.json_schema", None)
     assert call_llm_attributes2.pop("llm.provider", None) == "google"
-    assert call_llm_attributes2.pop("gcp.vertex.agent.event_id", None)
-    assert call_llm_attributes2.pop("gcp.vertex.agent.invocation_id", None)
-    _pop_adk_schema_call_llm_attributes(call_llm_attributes2)
-    assert call_llm_attributes2.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) == 487
-    assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) == 25
-    call_llm_attributes2.pop("gen_ai.response.finish_reasons", None)
-    call_llm_attributes2.pop("gen_ai.agent.name", None)
-    call_llm_attributes2.pop("gen_ai.conversation.id", None)
-    call_llm_attributes2.pop("gen_ai.operation.name", None)
-    call_llm_attributes2.pop("gen_ai.agent.version", None)
     _pop_input_message_tool_call_ids(call_llm_attributes2)
     assert not call_llm_attributes2
 
@@ -2092,7 +1866,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     invocation_span = spans_by_name[f"invocation [{app_name}]"][0]
     assert invocation_span.status.is_ok
     assert not invocation_span.parent
-    invocation_attributes = dict(invocation_span.attributes or {})
+    invocation_attributes = _openinference_attributes(invocation_span)
     assert invocation_attributes.pop("user.id", None) == user_id
     assert invocation_attributes.pop("session.id", None) == session_id
     assert invocation_attributes.pop("openinference.span.kind", None) == "CHAIN"
@@ -2106,26 +1880,20 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert agent_run_span.status.is_ok
     assert agent_run_span.parent
     assert agent_run_span.parent is invocation_span.get_span_context()
-    agent_run_attributes = dict(agent_run_span.attributes or {})
+    agent_run_attributes = _openinference_attributes(agent_run_span)
     assert agent_run_attributes.pop("user.id", None) == user_id
     assert agent_run_attributes.pop("session.id", None) == session_id
     assert agent_run_attributes.pop("openinference.span.kind", None) == "AGENT"
     assert agent_run_attributes.pop("agent.name", None) == agent_name
     assert agent_run_attributes.pop("output.mime_type", None) == "application/json"
     assert agent_run_attributes.pop("output.value", None)
-    # GenAI attributes set by google-adk library
-    agent_run_attributes.pop("gen_ai.agent.description", None)
-    agent_run_attributes.pop("gen_ai.agent.name", None)
-    agent_run_attributes.pop("gen_ai.conversation.id", None)
-    agent_run_attributes.pop("gen_ai.operation.name", None)
-    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     call_llm_span = spans_by_name["call_llm"][-1]
     assert call_llm_span.status.is_ok
     assert call_llm_span.parent
     assert call_llm_span.parent is agent_run_span.get_span_context()
-    call_llm_attributes = dict(call_llm_span.attributes or {})
+    call_llm_attributes = _openinference_attributes(call_llm_span)
     assert call_llm_attributes.pop("user.id", None) == user_id
     assert call_llm_attributes.pop("session.id", None) == session_id
     assert call_llm_attributes.pop("openinference.span.kind", None) == "LLM"
@@ -2181,26 +1949,30 @@ async def test_google_adk_instrumentor_image_artifacts(
         call_llm_attributes.pop("llm.input_messages.5.message.content", "")
     )
     assert call_llm_attributes.pop("llm.input_messages.5.message.role", None) == "tool"
+
     assert call_llm_attributes.pop("llm.input_messages.6.message.role", None) == "user"
+    assert "sample.png" in str(
+        call_llm_attributes.pop("llm.input_messages.6.message.contents.0.message_content.text")
+    )
     assert (
-        call_llm_attributes.pop(
-            "llm.input_messages.6.message.contents.0.message_content.text", None
-        )
+        call_llm_attributes.pop("llm.input_messages.6.message.contents.0.message_content.type")
+        == "text"
+    )
+
+    assert call_llm_attributes.pop("llm.input_messages.7.message.role", None) == "user"
+    assert (
+        call_llm_attributes.pop("llm.input_messages.7.message.contents.0.message_content.text")
         == "Artifact sample.png is:"
     )
     assert (
-        call_llm_attributes.pop(
-            "llm.input_messages.6.message.contents.0.message_content.type", None
-        )
+        call_llm_attributes.pop("llm.input_messages.7.message.contents.0.message_content.type")
         == "text"
     )
     assert call_llm_attributes.pop(
-        "llm.input_messages.6.message.contents.1.message_content.image.image.url", None
+        "llm.input_messages.7.message.contents.1.message_content.image.image.url"
     )
     assert (
-        call_llm_attributes.pop(
-            "llm.input_messages.6.message.contents.1.message_content.type", None
-        )
+        call_llm_attributes.pop("llm.input_messages.7.message.contents.1.message_content.type")
         == "image"
     )
 
@@ -2233,25 +2005,14 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert call_llm_attributes.pop("llm.token_count.total", None) == 723
     assert call_llm_attributes.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes.pop("llm.provider", None) == "google"
-    assert call_llm_attributes.pop("gcp.vertex.agent.event_id", None)
-    assert call_llm_attributes.pop("gcp.vertex.agent.invocation_id", None)
-    _pop_adk_schema_call_llm_attributes(call_llm_attributes)
-    assert call_llm_attributes.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
-    assert call_llm_attributes.pop("gen_ai.usage.input_tokens", None) == 608
-    assert call_llm_attributes.pop("gen_ai.usage.output_tokens", None) == 115
-    call_llm_attributes.pop("gen_ai.response.finish_reasons", None)
     call_llm_attributes.pop("llm.tools.1.tool.json_schema", None)
-    call_llm_attributes.pop("gen_ai.agent.name", None)
-    call_llm_attributes.pop("gen_ai.conversation.id", None)
-    call_llm_attributes.pop("gen_ai.operation.name", None)
-    call_llm_attributes.pop("gen_ai.agent.version", None)
     _pop_input_message_tool_call_ids(call_llm_attributes)
     assert not call_llm_attributes
 
     tool_span = spans_by_name["execute_tool load_remote_image"][0]
     assert tool_span.status.is_ok
     assert tool_span.parent
-    tool_attributes = dict(tool_span.attributes or {})
+    tool_attributes = _openinference_attributes(tool_span)
     assert tool_attributes.pop("user.id", None) == user_id
     assert tool_attributes.pop("session.id", None) == session_id
     assert tool_attributes.pop("openinference.span.kind", None) == "TOOL"
@@ -2262,30 +2023,13 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert tool_attributes.pop("tool.description", None)
     assert tool_attributes.pop("tool.name", None) == "load_remote_image"
     assert tool_attributes.pop("tool.parameters", None) == '{"file_path": "sample.png"}'
-    assert tool_attributes.pop("gcp.vertex.agent.event_id", None)
-    if _adk_schema_version() < 2:
-        assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
-        assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
-        assert (
-            tool_attributes.pop("gcp.vertex.agent.tool_call_args", None)
-            == '{"file_path": "sample.png"}'
-        )
-        assert tool_attributes.pop("gcp.vertex.agent.tool_response", None)
     _pop_tool_span_id(tool_attributes)
-    # GenAI attributes set by google-adk library
-    tool_attributes.pop("gen_ai.operation.name", None)
-    tool_attributes.pop("gen_ai.system", None)
-    tool_attributes.pop("gen_ai.tool.call.id", None)
-    tool_attributes.pop("gen_ai.tool.description", None)
-    tool_attributes.pop("gen_ai.tool.name", None)
-    tool_attributes.pop("gen_ai.tool.type", None)
-    tool_attributes.pop("gen_ai.agent.name", None)
     assert not tool_attributes
 
     tool_span1 = spans_by_name["execute_tool load_artifacts"][0]
     assert tool_span1.status.is_ok
     assert tool_span1.parent
-    tool_attributes1 = dict(tool_span1.attributes or {})
+    tool_attributes1 = _openinference_attributes(tool_span1)
     assert tool_attributes1.pop("user.id", None) == user_id
     assert tool_attributes1.pop("session.id", None) == session_id
     assert tool_attributes1.pop("openinference.span.kind", None) == "TOOL"
@@ -2296,24 +2040,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert tool_attributes1.pop("tool.description", None)
     assert tool_attributes1.pop("tool.name", None) == "load_artifacts"
     assert tool_attributes1.pop("tool.parameters", None) == '{"artifact_names": ["sample.png"]}'
-    assert tool_attributes1.pop("gcp.vertex.agent.event_id", None)
-    if _adk_schema_version() < 2:
-        assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
-        assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
-        assert (
-            tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None)
-            == '{"artifact_names": ["sample.png"]}'
-        )
-        assert tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
     _pop_tool_span_id(tool_attributes1)
-    # GenAI attributes set by google-adk library
-    tool_attributes1.pop("gen_ai.operation.name", None)
-    tool_attributes1.pop("gen_ai.system", None)
-    tool_attributes1.pop("gen_ai.tool.call.id", None)
-    tool_attributes1.pop("gen_ai.tool.description", None)
-    tool_attributes1.pop("gen_ai.tool.name", None)
-    tool_attributes1.pop("gen_ai.tool.type", None)
-    tool_attributes1.pop("gen_ai.agent.name", None)
     assert not tool_attributes1
 
 
@@ -3037,7 +2764,7 @@ async def test_google_adk_instrumentor_reasoning_content(
 
     call_llm_span = spans_by_name["call_llm"][0]
     assert call_llm_span.status.is_ok
-    call_llm_attributes = dict(call_llm_span.attributes or {})
+    call_llm_attributes = _openinference_attributes(call_llm_span)
 
     contents_prefix = "llm.output_messages.0.message.contents"
 
@@ -3065,7 +2792,7 @@ async def test_google_adk_instrumentor_reasoning_content(
 
     # Everything else on the span is boilerplate covered by other tests.
     for key in list(call_llm_attributes):
-        if key.startswith("llm.") or key.startswith("gcp.") or key.startswith("gen_ai."):
+        if key.startswith("llm."):
             call_llm_attributes.pop(key, None)
     for key in (
         "user.id",
