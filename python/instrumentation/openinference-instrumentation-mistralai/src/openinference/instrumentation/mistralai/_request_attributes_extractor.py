@@ -13,6 +13,7 @@ from typing import (
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.mistralai._utils import _is_tool_call_id
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
 __all__ = ("_RequestAttributesExtractor",)
@@ -81,6 +82,8 @@ def _get_attributes_from_message_param(
                 yield MessageAttributes.MESSAGE_CONTENT, json_string
     if name := message.get("name"):
         yield MessageAttributes.MESSAGE_NAME, name
+    if (tool_call_id := message.get("tool_call_id")) and isinstance(tool_call_id, str):
+        yield MessageAttributes.MESSAGE_TOOL_CALL_ID, tool_call_id
     if (function_call := message.get("function_call")) and hasattr(function_call, "get"):
         if function_name := function_call.get("name"):
             yield MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, function_name
@@ -93,6 +96,12 @@ def _get_attributes_from_message_param(
         for index, tool_call in enumerate(tool_calls):
             if not hasattr(tool_call, "get"):
                 continue
+            if _is_tool_call_id(tool_call_id := tool_call.get("id")):
+                yield (
+                    f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                    f"{ToolCallAttributes.TOOL_CALL_ID}",
+                    tool_call_id,
+                )
             if (function := tool_call.get("function")) and hasattr(function, "get"):
                 if name := function.get("name"):
                     yield (

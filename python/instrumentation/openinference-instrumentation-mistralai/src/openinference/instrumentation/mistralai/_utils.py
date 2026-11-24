@@ -76,3 +76,8 @@ def _as_output_attributes(
     # It's assumed to be TEXT by default, so we can skip to save one attribute.
     if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
         yield SpanAttributes.OUTPUT_MIME_TYPE, value_and_type.type.value
+
+
+def _is_tool_call_id(value: Any) -> bool:
+    # The mistralai SDK fills a tool call's missing id with the string "null".
+    return isinstance(value, str) and bool(value) and value != "null"
