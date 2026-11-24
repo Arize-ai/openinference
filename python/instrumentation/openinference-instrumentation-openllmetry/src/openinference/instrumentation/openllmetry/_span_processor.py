@@ -508,11 +508,16 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             prompt_toks + comp_toks
         )
         cache_read = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_CACHE_READ_INPUT_TOKENS)) or 0
+        prompt_details = oi.PromptDetails(cache_read=cache_read)
+        cache_write = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_CACHE_CREATION_INPUT_TOKENS))
+        if cache_write is not None:
+            prompt_details["cache_write"] = cache_write
+        reasoning_toks = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_REASONING_TOKENS))
         token_count = oi.TokenCount(
             prompt=prompt_toks,
             completion=comp_toks,
             total=total_toks,
-            prompt_details={"cache_read": cache_read},
+            prompt_details=prompt_details,
         )
 
         # Invocation parameters
@@ -590,6 +595,12 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             **get_input_attributes(request_body),
             **get_output_attributes(response_body),
         }
+
+        # TokenCount has no completion details, so set the reasoning count directly.
+        if reasoning_toks is not None:
+            oi_attrs[sc.SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = (
+                reasoning_toks
+            )
 
         attrs.update(oi_attrs)
         self._write_attributes(span, attrs)
