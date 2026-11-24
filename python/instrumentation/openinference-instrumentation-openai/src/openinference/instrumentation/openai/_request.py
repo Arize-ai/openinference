@@ -51,6 +51,7 @@ from openinference.instrumentation.openai._utils import (
     _finish_tracing,
     _get_decision_type,
     _io_value_and_type,
+    _without_generated_image_results,
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import (
@@ -222,7 +223,9 @@ class _WithOpenAI(ABC):
             else:
                 processed_params = dict(request_parameters)
 
-            yield from _as_input_attributes(_io_value_and_type(processed_params))
+            yield from _as_input_attributes(
+                _io_value_and_type(_without_generated_image_results(processed_params))
+            )
             if (
                 extract_image_files
                 and cast_to is self._openai.types.ImagesResponse

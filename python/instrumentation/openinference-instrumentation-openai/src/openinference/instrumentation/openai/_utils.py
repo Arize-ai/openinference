@@ -5,12 +5,14 @@ from importlib.metadata import version
 from types import ModuleType
 from typing import (
     Any,
+    Dict,
     Iterator,
     Mapping,
     NamedTuple,
     Optional,
     Protocol,
     Sequence,
+    Set,
     Tuple,
     cast,
 )
@@ -45,13 +47,56 @@ class _ValueAndType(NamedTuple):
     type: OpenInferenceMimeTypeValues
 
 
+def _is_image_generation_call(item: Any) -> bool:
+    if isinstance(item, Mapping):
+        return item.get("type") == "image_generation_call"
+    return getattr(item, "type", None) == "image_generation_call"
+
+
+def _generated_image_results(obj: Any) -> Optional[Dict[str, Dict[int, Set[str]]]]:
+    """
+    Returns a `model_dump_json` exclude for the base64 `result` of the image_generation_call
+    items in a Responses response, or `None` when it has none. Those images are recorded on
+    `output.images.*`, where `base64_image_max_length` applies to them.
+    """
+    output = getattr(obj, "output", None)
+    if not isinstance(output, list):
+        return None
+    indices = {i: {"result"} for i, item in enumerate(output) if _is_image_generation_call(item)}
+    return {"output": indices} if indices else None
+
+
+def _without_generated_image_results(request_parameters: Mapping[str, Any]) -> Mapping[str, Any]:
+    """
+    Returns the request parameters of a Responses request without the base64 `result` of the
+    image_generation_call items that a later turn replays from an earlier turn's output, for
+    `input.value`. The image was already recorded on the `output.images.*` of the span that
+    generated it. The request parameters themselves are left as they are.
+    """
+    items = request_parameters.get("input")
+    if not isinstance(items, list) or not any(map(_is_image_generation_call, items)):
+        return request_parameters
+    return {
+        **request_parameters,
+        "input": [
+            {key: value for key, value in item.items() if key != "result"}
+            if isinstance(item, Mapping) and _is_image_generation_call(item)
+            else item
+            for item in items
+        ],
+    }
+
+
 def _io_value_and_type(obj: Any) -> _ValueAndType:
     if hasattr(obj, "model_dump_json") and callable(obj.model_dump_json):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 # `warnings=False` in `model_dump_json()` is only supported in Pydantic v2
-                value = obj.model_dump_json(exclude_unset=True)
+                value = obj.model_dump_json(
+                    exclude_unset=True,
+                    exclude=_generated_image_results(obj),
+                )
             assert isinstance(value, str)
         except Exception:
             logger.exception("Failed to get model dump json")

@@ -72,6 +72,8 @@ import {
   getResponsesOutputImageAttributes,
   getResponsesOutputMessagesAttributes,
   getResponsesUsageAttributes,
+  stringifyResponse,
+  stringifyResponseCreateParams,
 } from "./responsesAttributes";
 import { assertUnreachable, getNumberProperty, isString } from "./typeUtils";
 import { VERSION } from "./version";
@@ -591,7 +593,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
                 [SemanticConventions.LLM_MODEL_NAME]: body.model,
                 [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
-                [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
+                [SemanticConventions.INPUT_VALUE]: stringifyResponseCreateParams(body),
                 [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
                 [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
                   JSON.stringify(invocationParameters),
@@ -625,7 +627,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   return;
                 }
                 span.setAttributes({
-                  [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
+                  [SemanticConventions.OUTPUT_VALUE]: stringifyResponse(result),
                   [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                   // Override the model from the value sent by the server
                   [SemanticConventions.LLM_MODEL_NAME]: result.model,
@@ -1011,7 +1013,7 @@ async function consumeImagesStreamEvents({
   span,
   getUploadAttributes,
 }: {
-  stream: AsyncIterable<ImagesStreamEvent>;
+  stream: Stream<ImagesStreamEvent>;
   span: Span;
   getUploadAttributes: () => Attributes;
 }) {
@@ -1031,7 +1033,8 @@ async function consumeImagesStreamEvents({
         ...getCompletedImageEventAttributes(completedEvents),
       });
       span.setStatus({ code: SpanStatusCode.OK });
-    } else {
+    } else if (!stream.controller.signal.aborted) {
+      // An aborted request ends the stream without a completed image, but without an error either
       span.setStatus({ code: SpanStatusCode.ERROR });
     }
   } catch (error) {

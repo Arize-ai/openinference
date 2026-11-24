@@ -307,6 +307,41 @@ describe("BedrockInstrumentation", () => {
           false,
         );
       });
+
+      it("should record the system prompt of an Amazon Nova request", async () => {
+        const novaModelId = "us.amazon.nova-micro-v1:0";
+        createNockMock(
+          {
+            output: { message: { role: "assistant", content: [{ text: "Hi." }] } },
+            stopReason: "end_turn",
+            usage: { inputTokens: 5, outputTokens: 2 },
+          },
+          novaModelId,
+        );
+        const client = createTestClient(false);
+        await client.send(
+          new InvokeModelCommand({
+            modelId: novaModelId,
+            body: JSON.stringify({
+              schemaVersion: "messages-v1",
+              system: [{ text: "Be brief." }, { text: "" }, { text: "Use plain words." }],
+              messages: [{ role: "user", content: [{ text: "Hi" }] }],
+              inferenceConfig: { maxTokens: TEST_MAX_TOKENS },
+            }),
+            contentType: "application/json",
+            accept: "application/json",
+          }),
+        );
+
+        const { attributes } = verifySpanBasics(spanExporter);
+        expect(attributes).toMatchObject({
+          "llm.input_messages.0.message.role": "system",
+          "llm.input_messages.0.message.content": "Be brief.\n\nUse plain words.",
+          "llm.input_messages.1.message.role": "user",
+          "llm.input_messages.1.message.contents.0.message_content.text": "Hi",
+        });
+        expect(attributes["llm.input_messages.2.message.role"]).toBeUndefined();
+      });
     });
     describe("Tool Calling", () => {
       it("should handle tool calling with function definitions", async () => {

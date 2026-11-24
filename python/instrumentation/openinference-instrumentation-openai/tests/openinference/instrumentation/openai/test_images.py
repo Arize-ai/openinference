@@ -591,13 +591,123 @@ def test_responses_image_generation_records_completed_results_only(
         "Generated two images."
     )
     assert json.loads(cast(str, attributes.pop("llm.tools.0.tool.json_schema"))) == image_tool
-    assert isinstance(attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
+    # The images are only recorded on output.images.*, where base64_image_max_length applies
+    output_value = json.loads(cast(str, attributes.pop(SpanAttributes.OUTPUT_VALUE)))
+    assert output_value["id"] == "resp_123"
+    assert [item for item in output_value["output"] if item["type"] != "message"] == [
+        {"id": "ig_1", "type": "image_generation_call", "status": "failed"},
+        {"id": "ig_2", "type": "image_generation_call", "status": "completed"},
+        {"id": "ig_3", "type": "image_generation_call", "status": "completed"},
+    ]
     assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
     # The failed call is skipped, and the two results that came back are numbered
     # from zero rather than by their position in the output list.
     assert attributes.pop(_output_image(0)) == "data:image/webp;base64,c2Vjb25k"
     assert attributes.pop(_output_image(1)) == "data:image/webp;base64,dGhpcmQ="
     assert attributes == {}
+
+
+_IMAGE_RESPONSE = {
+    "id": "resp_456",
+    "status": "completed",
+    "object": "response",
+    "model": "gpt-image-1",
+    "usage": None,
+    "output": [
+        {
+            "id": "ig_1",
+            "type": "image_generation_call",
+            "status": "completed",
+            "result": "aW1hZ2U=",
+            "output_format": "png",
+        },
+        {"id": "ig_2", "type": "image_generation_call", "status": "failed", "result": None},
+    ],
+}
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_streamed_responses_image_generation_leaves_results_out_of_output_value(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    is_async: bool,
+) -> None:
+    event = {"type": "response.completed", "sequence_number": 0, "response": _IMAGE_RESPONSE}
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, "responses")).mock(
+        return_value=Response(
+            status_code=200,
+            text=f"event: response.completed\ndata: {json.dumps(event)}\n\n",
+            headers={"content-type": "text/event-stream"},
+        )
+    )
+
+    stream = _client(is_async).responses.create(
+        input="Draw a lighthouse",
+        model="gpt-image-1",
+        tools=[{"type": "image_generation"}],
+        stream=True,
+    )
+    if is_async:
+        async for _ in await stream:
+            pass
+    else:
+        for _ in stream:
+            pass
+
+    span = _openinference_span(in_memory_span_exporter, "Response")
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    output_value = json.loads(cast(str, attributes[SpanAttributes.OUTPUT_VALUE]))
+    assert output_value["output"] == [
+        {
+            "id": "ig_1",
+            "type": "image_generation_call",
+            "status": "completed",
+            "output_format": "png",
+        },
+        {"id": "ig_2", "type": "image_generation_call", "status": "failed"},
+    ]
+    assert attributes[_output_image()] == "data:image/png;base64,aW1hZ2U="
+
+
+def test_responses_replayed_image_generation_results_are_left_out_of_input_value(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, "responses")).mock(
+        return_value=Response(status_code=200, json={**_IMAGE_RESPONSE, "output": []})
+    )
+    replayed_image = {
+        "id": "ig_1",
+        "type": "image_generation_call",
+        "status": "completed",
+        "result": "aW1hZ2U=",
+    }
+    request = {
+        "input": [
+            {"role": "user", "content": "Draw a lighthouse"},
+            replayed_image,
+            {"role": "user", "content": "Make it darker"},
+        ],
+        "model": "gpt-image-1",
+        "tools": [{"type": "image_generation"}],
+    }
+
+    _client(False).responses.create(**request)
+
+    span = _openinference_span(in_memory_span_exporter, "Response")
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert json.loads(cast(str, attributes[SpanAttributes.INPUT_VALUE])) == {
+        **request,
+        "input": [
+            {"role": "user", "content": "Draw a lighthouse"},
+            {"id": "ig_1", "type": "image_generation_call", "status": "completed"},
+            {"role": "user", "content": "Make it darker"},
+        ],
+    }
+    # The request sent to OpenAI keeps the image
+    sent = json.loads(respx_mock.calls.last.request.content)
+    assert sent["input"][1]["result"] == "aW1hZ2U="
+    assert replayed_image["result"] == "aW1hZ2U="
 
 
 def test_responses_item_format_wins_over_the_requested_tool_format() -> None:

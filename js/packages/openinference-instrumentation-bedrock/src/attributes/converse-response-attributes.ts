@@ -141,9 +141,26 @@ function extractUsageAttributes({
   const usage: TokenUsage | undefined = response.usage;
   if (!usage) return;
 
-  setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, usage.inputTokens);
+  const { cacheReadInputTokens, cacheWriteInputTokens } = usage;
+  // inputTokens excludes cache reads and writes, while totalTokens includes them. Fold the
+  // cache tokens into the prompt count so that prompt + completion matches the total.
+  const promptTokens =
+    usage.inputTokens === undefined
+      ? undefined
+      : usage.inputTokens + (cacheReadInputTokens ?? 0) + (cacheWriteInputTokens ?? 0);
+  setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, promptTokens);
   setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, usage.outputTokens);
   setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, usage.totalTokens);
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+    cacheReadInputTokens,
+  );
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+    cacheWriteInputTokens,
+  );
 }
 
 /**
