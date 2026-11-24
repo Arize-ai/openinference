@@ -13,7 +13,12 @@ from typing import (
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
-from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 
 __all__ = ("_RequestAttributesExtractor",)
 
@@ -49,8 +54,14 @@ def _get_attributes_from_chat_completion_create_param(
     invocation_params = dict(params)
     invocation_params.pop("messages", None)
     invocation_params.pop("functions", None)
-    invocation_params.pop("tools", None)
+    tools = invocation_params.pop("tools", None)
     yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+    if isinstance(tools, list):
+        for index, tool in enumerate(tools):
+            yield (
+                f"{SpanAttributes.LLM_TOOLS}.{index}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+                safe_json_dumps(tool),
+            )
     if (input_messages := params.get("messages")) and isinstance(input_messages, Iterable):
         # Use reversed() to get the last message first. This is because OTEL has a default limit of
         # 128 attributes per span, and flattening increases the number of attributes very quickly.
