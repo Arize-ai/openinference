@@ -20,6 +20,7 @@ import pytest
 from httpx import AsyncByteStream, Response
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv.attributes.server_attributes import SERVER_ADDRESS, SERVER_PORT
 from opentelemetry.trace import StatusCode
 from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
@@ -203,6 +204,8 @@ def _pop_request_attributes(attributes: Dict[str, Any], is_stream: bool) -> None
     )
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "openai"
     assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "openai"
+    assert attributes.pop(SERVER_ADDRESS) == "api.openai.com"
+    assert attributes.pop(SERVER_PORT) == 443
     assert json.loads(attributes.pop(SpanAttributes.INPUT_VALUE)) == {
         "model": _MODEL,
         "input": _INPUT,
