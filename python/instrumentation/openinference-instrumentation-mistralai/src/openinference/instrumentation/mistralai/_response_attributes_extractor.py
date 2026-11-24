@@ -10,6 +10,7 @@ from typing import (
 
 from opentelemetry.util.types import AttributeValue
 
+from openinference.instrumentation.mistralai._utils import _is_tool_call_id
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceLLMProviderValues,
@@ -101,6 +102,12 @@ def _get_attributes_from_chat_completion_message(
         tool_calls, Iterable
     ):
         for index, tool_call in enumerate(tool_calls):
+            if _is_tool_call_id(tool_call_id := _get_attribute_or_value(tool_call, "id")):
+                yield (
+                    f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                    f"{ToolCallAttributes.TOOL_CALL_ID}",
+                    tool_call_id,
+                )
             if function := _get_attribute_or_value(tool_call, "function"):
                 if name := _get_attribute_or_value(function, "name"):
                     yield (

@@ -265,10 +265,11 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
                             "content": "",
                             "tool_calls": [
                                 {
+                                    "id": "call_weather",
                                     "function": {
                                         "name": "get_weather",
                                         "arguments": '{"city": "San Francisco"}',
-                                    }
+                                    },
                                 }
                             ],
                         },
@@ -369,6 +370,10 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
 
     output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
     assert output_message_role == "assistant"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
+        == "call_weather"
+    )
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
@@ -1206,11 +1211,13 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     else:
         response_stream = mistral_chat()
 
+    tool_call_ids: List[Optional[str]] = []
     for chunk in response_stream:
         delta = chunk.data.choices[0].delta
         assert not delta.content
         if tool_calls := delta.tool_calls:
             tool_call = tool_calls[0]
+            tool_call_ids.append(tool_call.id)
             assert tool_call.function.name == "get_weather"
             assert tool_call.function.arguments == '{"city": "San Francisco"}'
 
@@ -1249,6 +1256,13 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
 
     output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
     assert output_message_role == "assistant"
+    assert isinstance(
+        tool_call_id := attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}"
+        ),
+        str,
+    )
+    assert tool_call_id == tool_call_ids[0]
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
@@ -1537,6 +1551,9 @@ def test_messages_passed_as_sdk_models_are_recorded(
     )
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "assistant"
     assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}") == "call_1"
+    )
+    assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
     )
@@ -1549,6 +1566,7 @@ def test_messages_passed_as_sdk_models_are_recorded(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}") == "tool"
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny"
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_NAME}") == "get_weather"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_TOOL_CALL_ID}") == "call_1"
     input_messages = json.loads(cast(str, attributes.pop(INPUT_VALUE)))["messages"]
     assert len(input_messages) == 4
     assert input_messages[0] == {"content": "You are a weather assistant.", "role": "system"}
@@ -1630,6 +1648,9 @@ _TOOL_CALL = ToolCall(
             [{"role": "assistant", "content": "", "tool_calls": [_TOOL_CALL]}],
             {
                 f"0.{MessageAttributes.MESSAGE_ROLE}": "assistant",
+                (
+                    f"0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}"
+                ): "call_1",
                 (
                     f"0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
                     f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
@@ -1857,6 +1878,8 @@ MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
