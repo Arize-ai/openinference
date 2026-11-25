@@ -278,6 +278,84 @@ def test_generation_span_tools_respect_trace_config_masking(config: TraceConfig)
     assert not [k for k in attrs if k.startswith("llm.tools.")]
 
 
+# --- generation spans under the OTel span attribute count limit ------------------------
+
+
+def _run_long_generation(
+    turns: int, tools: Optional[list[dict[str, Any]]] = None
+) -> tuple[ReadableSpan, dict[str, Any]]:
+    """Run a chat-completions generation span whose conversation has ``turns`` messages
+    through a processor using the SDK's default span limits (128 attributes per span).
+    """
+    processor, exporter = _make_processor()
+    trace = _FakeTrace()
+    span = _FakeSpan(
+        "gen",
+        None,
+        GenerationSpanData(
+            input=[
+                {"role": "user" if i % 2 == 0 else "assistant", "content": f"message {i}"}
+                for i in range(turns)
+            ],
+            output=[{"role": "assistant", "content": "ok"}],
+            model="gpt-4o-mini",
+            model_config={"temperature": 0.2},
+            usage={"requests": 1, "input_tokens": 900, "output_tokens": 3, "total_tokens": 903},
+        ),
+    )
+    processor.on_trace_start(trace)  # type: ignore[arg-type]
+    processor.on_span_start(span)  # type: ignore[arg-type]
+    if tools is not None:
+        span.span_data.tools = tools  # type: ignore[attr-defined, unused-ignore]
+    processor.on_span_end(span)  # type: ignore[arg-type]
+    processor.on_trace_end(trace)  # type: ignore[arg-type]
+    [llm_span] = [s for s in exporter.get_finished_spans() if s.name == "generation"]
+    return llm_span, _attrs(llm_span)
+
+
+@pytest.mark.parametrize("turns", [60, 80, 200])
+def test_long_generation_span_keeps_fixed_size_attributes(turns: int) -> None:
+    """A long conversation must evict its oldest input messages, not the model name,
+    invocation parameters, output or token counts (#4315).
+    """
+    llm_span, attrs = _run_long_generation(turns)
+
+    assert llm_span.dropped_attributes > 0, "the conversation should exceed the limit"
+    assert attrs["openinference.span.kind"] == "LLM"
+    assert attrs["llm.model_name"] == "gpt-4o-mini"
+    assert attrs["llm.invocation_parameters"] == '{"temperature": 0.2}'
+    assert attrs["output.value"] == '[{"role": "assistant", "content": "ok"}]'
+    assert attrs["output.mime_type"] == "application/json"
+    assert attrs["llm.output_messages.0.message.content"] == "ok"
+    assert attrs["llm.token_count.prompt"] == 900
+    assert attrs["llm.token_count.completion"] == 3
+    assert attrs["llm.token_count.total"] == 903
+    # input.value is one attribute however long the conversation, so it survives too.
+    assert len(json.loads(attrs["input.value"])) == turns
+    assert attrs["input.mime_type"] == "application/json"
+    # What gets evicted is the oldest input messages; the newest one survives.
+    last = turns - 1
+    assert attrs[f"llm.input_messages.{last}.message.content"] == f"message {last}"
+    assert "llm.input_messages.0.message.content" not in attrs
+
+
+@requires_generation_tools
+def test_long_tool_list_does_not_evict_model_name() -> None:
+    """The offered tools also grow with the request, so they must not push the model
+    name or token counts out either.
+    """
+    tools = [
+        {**_GENERATION_TOOL, "function": {**_GENERATION_TOOL["function"], "name": f"tool_{i}"}}
+        for i in range(40)
+    ]
+    llm_span, attrs = _run_long_generation(50, tools=tools)
+
+    assert llm_span.dropped_attributes > 0
+    assert attrs["llm.model_name"] == "gpt-4o-mini"
+    assert attrs["llm.token_count.total"] == 903
+    assert attrs["output.value"] == '[{"role": "assistant", "content": "ok"}]'
+
+
 def test_response_spans_round_trip_reasoning_output_to_follow_up_input() -> None:
     processor, exporter = _make_processor()
     reasoning_id = "reason-123"
