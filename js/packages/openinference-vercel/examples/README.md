@@ -20,5 +20,6 @@ pnpm i
 pnpx tsx examples/ai-sdk-stream-tools.ts
 pnpx tsx examples/ai-sdk-tool-loop-agent.ts
 pnpx tsx examples/ai-sdk-decision.ts
+pnpx tsx examples/ai-sdk-usage-token-counts.ts
 # ... etc
 ```
