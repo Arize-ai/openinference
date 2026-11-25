@@ -57,6 +57,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -131,6 +132,7 @@ async def test_instrumentor(
         assert attributes.pop(LLM_FINISH_REASON, None) == "STOP"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
+    assert_tool_schemas(attributes)
     status = span.status
     if has_error:
         assert not status.is_ok
@@ -358,6 +360,8 @@ async def test_instrumentor_config_hiding_inputs(
     assert attributes.pop(LLM_FINISH_REASON, None) == "STOP"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
+    if not hide_inputs:
+        assert_tool_schemas(attributes)
     assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
@@ -488,6 +492,7 @@ async def test_instrumentor_config_hiding_outputs(
     assert attributes.pop(LLM_FINISH_REASON, None) == "STOP"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
+    assert_tool_schemas(attributes)
     assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
@@ -1273,6 +1278,64 @@ EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 IMAGE_URL = ImageAttributes.IMAGE_URL
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+
+
+def assert_tool_schemas(attributes: Dict[str, Any]) -> None:
+    # The mock request carries the single `get_current_weather` tool (see the `tool` fixture).
+    schema = attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}", None)
+    assert isinstance(schema, str)
+    assert json.loads(schema) == {
+        "name": "get_current_weather",
+        "description": "Get the current weather in a given location",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "location": {
+                    "type": "STRING",
+                    "description": "The city and state, e.g. San Francisco, CA",
+                },
+                "unit": {"type": "STRING", "enum": ["celsius", "fahrenheit"]},
+            },
+            "required": ["location"],
+        },
+    }
+    assert not any(k.startswith(f"{LLM_TOOLS}.1.") for k in attributes)
+
+
+def test_instrumentor_function_declarations_and_builtin_tools(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer: Tracer,
+    tool: Tool,
+) -> None:
+    # Every function declaration gets its own llm.tools.N entry, across tools.
+    second = Tool(
+        dict(
+            function_declarations=[
+                FunctionDeclaration(dict(name="get_time", description="Current time"))
+            ]
+        )
+    )
+    request = GenerateContentRequest(
+        dict(
+            model="publishers/google/models/gemini-2.0-flash",
+            contents=[dict(role="user", parts=[dict(text="hi")])],
+            tools=[tool, second],
+        )
+    )
+    with ExitStack() as stack:
+        mock_generate_content(request, GenerateContentResponse(), False, stack, tracer)
+    span = next(s for s in in_memory_span_exporter.get_finished_spans() if s.name != "TEST")
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    schemas = [
+        json.loads(cast(str, attributes[f"{LLM_TOOLS}.{i}.{TOOL_JSON_SCHEMA}"])) for i in range(2)
+    ]
+    assert schemas[0]["name"] == "get_current_weather"
+    assert schemas[1] == {"name": "get_time", "description": "Current time"}
+    assert f"{LLM_TOOLS}.2.{TOOL_JSON_SCHEMA}" not in attributes
+
+
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 JSON = OpenInferenceMimeTypeValues.JSON.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES

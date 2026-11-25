@@ -26,6 +26,7 @@ import proto
 import wrapt
 from google.cloud import aiplatform_v1 as v1  # Stable
 from google.cloud import aiplatform_v1beta1 as v1beta1  # Supports latest preview features
+from google.protobuf import json_format
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -50,6 +51,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -328,6 +330,28 @@ def _get_prediction_service_request(args: Iterable[Any]) -> Optional[proto.Messa
     return None
 
 
+def _get_tool_attributes(tools: Iterable[Any]) -> Iterator[Tuple[str, AttributeValue]]:
+    """
+    Yields one `llm.tools.N.tool.json_schema` attribute per function declaration,
+    shaped like the google-genai instrumentor (name, description, parameters). A
+    tool without function declarations (e.g. google_search) is recorded whole.
+    """
+    index = 0
+    for tool in tools:
+        try:
+            tool_dict = json_format.MessageToDict(type(tool).pb(tool))
+            for schema in tool_dict.get("functionDeclarations") or [tool_dict]:
+                if "parameters" not in schema and "parametersJsonSchema" in schema:
+                    schema = {**schema, "parameters": schema.pop("parametersJsonSchema")}
+                yield (
+                    f"{SpanAttributes.LLM_TOOLS}.{index}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+                    safe_json_dumps(schema),
+                )
+                index += 1
+        except Exception:
+            logger.exception(f"Failed to extract tool attributes: {tool}")
+
+
 @singledispatch
 def _update_span(obj: Any, span: Span) -> None: ...
 
@@ -348,6 +372,8 @@ def _(req: GenerateContentRequest, span: Span) -> None:
             )
         ),
     )
+    for k, v in _get_tool_attributes(req.tools):
+        span.set_attribute(k, v)
     msg_idx = -1
     if (system_instruction := req.system_instruction).parts:
         msg_idx += 1
