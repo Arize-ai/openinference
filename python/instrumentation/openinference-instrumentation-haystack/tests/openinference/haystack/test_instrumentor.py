@@ -477,6 +477,9 @@ def test_tool_calling_llm_span_has_expected_attributes(
         ),
         str,
     )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}"), str
+    )
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert json.loads(tool_call_arguments) == {"location": "Berlin"}
     assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
@@ -580,6 +583,9 @@ def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
         ),
         str,
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}"), str
     )
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert json.loads(tool_call_arguments) == {"location": "Berlin, Germany"}
@@ -1255,6 +1261,7 @@ async def test_agent_run_component_spans(
     assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     tool_prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0"
     assert attributes.pop(f"{tool_prefix}.{TOOL_CALL_FUNCTION_NAME}") == "search"
+    assert isinstance(attributes.pop(f"{tool_prefix}.{TOOL_CALL_ID}"), str)
     assert isinstance(
         tool_call_arguments := attributes.pop(f"{tool_prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"),
         str,
@@ -1591,6 +1598,7 @@ MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_A
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
@@ -1605,6 +1613,7 @@ SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 USER_ID = SpanAttributes.USER_ID
@@ -1686,6 +1695,10 @@ def test_output_messages_keep_content_without_finish_reason(
         str,
     )
     assert json.loads(tool_call_arguments) == {"city": "Paris"}
+    assert (
+        chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
+        == "call_1"
+    )
     assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "streamed answer"
     assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
@@ -1704,3 +1717,48 @@ def test_output_messages_keep_content_without_finish_reason(
     assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "answer two"
     assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
     assert not text_attributes
+
+
+def test_input_messages_include_tool_calls_and_tool_results(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    tool_call = ToolCall(tool_name="get_weather", arguments={"city": "Paris"}, id="call_1")
+    pipe = Pipeline()
+    pipe.add_component("chat_llm", FakeChatGenerator())
+    pipe.run(
+        {
+            "chat_llm": {
+                "messages": [
+                    ChatMessage.from_user("weather in Paris?"),
+                    ChatMessage.from_assistant(tool_calls=[tool_call]),
+                    ChatMessage.from_tool(tool_result="sunny, 22C", origin=tool_call),
+                ]
+            }
+        }
+    )
+
+    span = next(
+        span
+        for span in in_memory_span_exporter.get_finished_spans()
+        if span.name == "FakeChatGenerator.run"
+    )
+    attributes = dict(span.attributes or {})
+    prefix = LLM_INPUT_MESSAGES
+    assert attributes.pop(f"{prefix}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{prefix}.0.{MESSAGE_CONTENT}") == "weather in Paris?"
+    # the assistant turn has no text, only the tool call it made
+    assert attributes.pop(f"{prefix}.1.{MESSAGE_ROLE}") == "assistant"
+    tool_call_prefix = f"{prefix}.1.{MESSAGE_TOOL_CALLS}.0"
+    assert attributes.pop(f"{tool_call_prefix}.{TOOL_CALL_ID}") == "call_1"
+    assert attributes.pop(f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_NAME}") == "get_weather"
+    assert isinstance(
+        arguments := attributes.pop(f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"),
+        str,
+    )
+    assert json.loads(arguments) == {"city": "Paris"}
+    # the tool turn carries its output in tool_call_results, linked back by id
+    assert attributes.pop(f"{prefix}.2.{MESSAGE_ROLE}") == "tool"
+    assert attributes.pop(f"{prefix}.2.{MESSAGE_CONTENT}") == "sunny, 22C"
+    assert attributes.pop(f"{prefix}.2.{MESSAGE_TOOL_CALL_ID}") == "call_1"
