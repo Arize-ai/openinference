@@ -1123,7 +1123,7 @@ class TestConvertIO:
         path_input: dict[str, Any] = {"input": path_obj}
         result = list(_convert_io(path_input))
         assert len(result) == 1, f"Expected 1 item for Path, got {len(result)} items: {result}"
-        assert result[0] == '"/home/user/documents/file.txt"', (
+        assert result[0] == json.dumps(str(path_obj)), (
             f"Expected quoted path string, got {result[0]}"
         )
 
@@ -1131,7 +1131,7 @@ class TestConvertIO:
         rel_path = Path("relative/path/to/file.py")
         rel_path_input: dict[str, Any] = {"input": rel_path}
         result = list(_convert_io(rel_path_input))
-        assert result[0] == '"relative/path/to/file.py"', f"Expected relative path, got {result[0]}"
+        assert result[0] == json.dumps(str(rel_path)), f"Expected relative path, got {result[0]}"
 
         # Test in complex structure
         complex_obj: dict[str, Any] = {
@@ -1145,8 +1145,8 @@ class TestConvertIO:
         assert len(result) == 2
 
         parsed = json.loads(result[0])
-        assert parsed["files"]["input"] == "/input/data.csv"
-        assert parsed["files"]["output"] == "/output/results.json"
+        assert parsed["files"]["input"] == str(Path("/input/data.csv"))
+        assert parsed["files"]["output"] == str(Path("/output/results.json"))
         assert parsed["files"]["config"] == "config.yaml"
 
     def test_convert_io_complex_number_support(self) -> None:
@@ -1283,7 +1283,7 @@ class TestConvertIO:
 
         assert metadata["id"] == "12345678-1234-5678-9abc-123456789abc"
         assert metadata["price"] == "999.99"
-        assert metadata["log_path"] == "/tmp/output.log"
+        assert metadata["log_path"] == str(test_path)
         assert metadata["signal"] == "(1-1j)"
         assert metadata["timestamp"] == "2023-12-25T10:30:45"
 

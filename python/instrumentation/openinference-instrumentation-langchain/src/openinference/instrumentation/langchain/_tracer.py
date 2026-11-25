@@ -39,6 +39,7 @@ from langchain_core.messages import BaseMessage
 from langchain_core.messages.ai import UsageMetadata
 from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
+from langsmith.run_helpers import get_current_run_tree
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
@@ -168,6 +169,27 @@ class OpenInferenceTracer(BaseTracer):
     def get_span(self, run_id: UUID) -> Optional[Span]:
         return self._spans_by_run.get(run_id)
 
+    def _get_parent_span(self, parent_run_id: UUID) -> Optional[Span]:
+        if span := self._spans_by_run.get(parent_run_id):
+            return span
+        # LangSmith @traceable runs (e.g. create_agent middleware) do not emit
+        # LangChain callbacks. Their dotted order still includes the callback
+        # ancestors, even when the tree was reconstructed without parent_run links.
+        try:
+            if (run_tree := get_current_run_tree()) is None:
+                return None
+            ancestor_ids = [UUID(part[-36:]) for part in run_tree.dotted_order.split(".")]
+            if parent_run_id not in ancestor_ids:
+                return None
+            # Only consider ancestors of the requested parent, not descendants
+            # or unrelated runs that happen to be active in the current context.
+            for ancestor_id in reversed(ancestor_ids[: ancestor_ids.index(parent_run_id)]):
+                if span := self._spans_by_run.get(ancestor_id):
+                    return span
+        except Exception:
+            logger.exception("Failed to resolve parent span from LangSmith run tree.")
+        return None
+
     @audit_timing  # type: ignore
     def _start_trace(self, run: Run) -> None:
         self.run_map[str(run.id)] = run
@@ -177,7 +199,7 @@ class OpenInferenceTracer(BaseTracer):
             parent_context = (
                 trace_api.set_span_in_context(parent)
                 if (parent_run_id := run.parent_run_id)
-                and (parent := self._spans_by_run.get(parent_run_id))
+                and (parent := self._get_parent_span(parent_run_id))
                 else (context_api.Context() if self._separate_trace_from_runtime_context else None)
             )
         # We can't use real time because the handler may be
