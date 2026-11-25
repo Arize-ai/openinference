@@ -9,7 +9,11 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.anthropic._sdk_spans import _StartApiCallSpanWrapper
+from openinference.instrumentation.anthropic._sdk_spans import (
+    _StartApiCallSpanWrapper,
+    _StartToolRunnerSpanWrapper,
+    _ToolUseSpanWrapper,
+)
 from openinference.instrumentation.anthropic._wrappers import (
     _AsyncCountTokensWrapper,
     _AsyncMessagesStreamWrapper,
@@ -18,6 +22,7 @@ from openinference.instrumentation.anthropic._wrappers import (
     _AsyncPrepareRequestDataWrapper,
     _BetaAsyncMessageStreamManager,
     _BetaMessageStreamManager,
+    _BetaToolRunnerWrapper,
     _CountTokensWrapper,
     _MessagesStreamWrapper,
     _MessageStreamManager,
@@ -239,12 +244,14 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             (BetaMessages, AsyncBetaMessages, "beta.messages.count_tokens"),
         ]:
             self._wrap_count_tokens(cls, async_cls, span_name)
+        self._wrap_tool_runner(BetaMessages, AsyncBetaMessages)
 
         for module in platform_beta_messages_modules:
             self._wrap_platform_beta_messages(module)
 
         self._wrap_request_preparation()
         self._wrap_sdk_span_start()
+        self._wrap_sdk_tool_runner_span_start()
 
     def _wrap(self, cls: Any, name: str, wrapper: Any) -> None:
         # only a method of the class itself, e.g. not one a platform class lacks and inherits
@@ -266,6 +273,18 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "count_tokens",
             _AsyncCountTokensWrapper(config=self._config, tracer=tracer, span_name=span_name),
         )
+
+    def _wrap_tool_runner(self, cls: Any, async_cls: Any) -> None:
+        # an OITracer, which the wrappers' annotations do not name
+        tracer: Any = self._tracer
+        for target in (cls, async_cls):
+            self._wrap(
+                target,
+                "tool_runner",
+                _BetaToolRunnerWrapper(
+                    config=self._config, tracer=tracer, span_name="beta.messages.tool_runner"
+                ),
+            )
 
     def _wrap_platform_beta_messages(self, module: Any) -> None:
         # an OITracer, which the wrappers' annotations do not name
@@ -306,6 +325,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ),
         )
         self._wrap_count_tokens(sync_cls, async_cls, "beta.messages.count_tokens")
+        self._wrap_tool_runner(sync_cls, async_cls)
 
     def _wrap_request_preparation(self) -> None:
         from anthropic import _base_client
@@ -340,6 +360,18 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             # an anthropic version that starts no spans of its own
             return
         wrap_function_wrapper(_base_client, "start_api_call_span", _StartApiCallSpanWrapper())
+
+    def _wrap_sdk_tool_runner_span_start(self) -> None:
+        """
+        anthropic>=1.14.0 starts spans of its own for a tool runner's run and for each tool that
+        it calls, which a runner that is traced here has instead, see _sdk_spans.
+        """
+        try:
+            from anthropic.lib.tools import _beta_runner
+        except ImportError:
+            return
+        self._wrap(_beta_runner, "start_tool_runner_span", _StartToolRunnerSpanWrapper())
+        self._wrap(_beta_runner, "tool_use_span", _ToolUseSpanWrapper())
 
     def _uninstrument(self, **kwargs: Any) -> None:
         from anthropic import _base_client
