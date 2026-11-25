@@ -9,5 +9,5 @@ dependencies:
   # `make test` resolves this from the offline copy of the model. A real
   # consumer points at a release instead:
   #   registry_path: https://github.com/Arize-ai/openinference.git@semantic-conventions-vX.Y.Z[semantic-conventions/model]
-  - schema_url: https://openinf.dev/schemas/0.0.1 # x-release-please-version
+  - schema_url: https://openinf.dev/schemas/0.0.2 # x-release-please-version
     registry_path: .build/model

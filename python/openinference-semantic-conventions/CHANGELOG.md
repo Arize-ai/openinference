@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.47...python-openinference-semantic-conventions-v0.1.48) (2026-11-25)
+
+
+### Features
+
+* **semconv:** add google decision.system/provider and llm.system for the Gemini Decisions API ([#4470](https://github.com/Arize-ai/openinference/issues/4470)) ([2d10c59](https://github.com/Arize-ai/openinference/commit/2d10c590ad6a779382e740ca6182e70dee54f1e3))
+
 ## [0.1.47](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.46...python-openinference-semantic-conventions-v0.1.47) (2026-11-21)
 
 

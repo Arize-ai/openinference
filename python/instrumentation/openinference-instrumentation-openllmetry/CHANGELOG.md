@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.34...python-openinference-instrumentation-openllmetry-v0.1.35) (2026-11-25)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.83 ([#4429](https://github.com/Arize-ai/openinference/issues/4429)) ([1d6cf21](https://github.com/Arize-ai/openinference/commit/1d6cf21550b91f8d136db94d4bf81a50fbdc5c16))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.33...python-openinference-instrumentation-openllmetry-v0.1.34) (2026-11-21)
 
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.78](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.77...python-openinference-instrumentation-openai-v0.1.78) (2026-11-25)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.83 ([#4429](https://github.com/Arize-ai/openinference/issues/4429)) ([1d6cf21](https://github.com/Arize-ai/openinference/commit/1d6cf21550b91f8d136db94d4bf81a50fbdc5c16))
+* leave generated base64 images out of Responses output.value ([#4427](https://github.com/Arize-ai/openinference/issues/4427)) ([5a4b992](https://github.com/Arize-ai/openinference/commit/5a4b992bb5cdb5ff9730c6c4088a06adb1493ef9))
+* **openai:** record Responses API MCP and code interpreter calls as tool calls ([#4241](https://github.com/Arize-ai/openinference/issues/4241)) ([31d5187](https://github.com/Arize-ai/openinference/commit/31d5187f9e74cbfad3bc843841e046355796cbc7))
+* **openai:** set error status and finish reason for Responses API replies ([#4240](https://github.com/Arize-ai/openinference/issues/4240)) ([b601fbd](https://github.com/Arize-ai/openinference/commit/b601fbd902bfd9491319ae61f5648f3426fb9d42))
+
 ## [0.1.77](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.76...python-openinference-instrumentation-openai-v0.1.77) (2026-11-21)
 
 
