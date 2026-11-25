@@ -196,7 +196,52 @@ def _build_messages(
     return input_msgs, output_msgs
 
 
+def _parse_genai_messages(raw: Any) -> list[oi.Message]:
+    """Convert a JSON list of OTel GenAI {"role", "parts"} messages to OpenInference messages."""
+    try:
+        items = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    messages: list[oi.Message] = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        texts: list[str] = []
+        tool_calls: list[oi.ToolCall] = []
+        parts = item.get("parts")
+        for part in parts if isinstance(parts, list) else []:
+            part_type = part.get("type") if isinstance(part, dict) else None
+            if part_type == "text":
+                texts.append(str(part.get("content", "")))
+            elif part_type == "tool_call":
+                function = oi.ToolCallFunction(
+                    name=part.get("name", ""), arguments=part.get("arguments", {})
+                )
+                tool_calls.append(oi.ToolCall(id=part.get("id", ""), function=function))
+            elif part_type == "tool_call_response":
+                # Each tool result becomes its own tool message; openlit's Anthropic module writes
+                # the results inside a user message.
+                response = str(part.get("response", ""))
+                messages.append(
+                    oi.Message(role="tool", tool_call_id=part.get("id", ""), content=response)
+                )
+        if texts or tool_calls:
+            message = oi.Message(role=item.get("role", ""))
+            if texts:
+                message["content"] = "\n".join(texts)
+            if tool_calls:
+                message["tool_calls"] = tool_calls
+            messages.append(message)
+    return messages
+
+
 def parse_messages(events: Any, attrs: Dict[str, Any]) -> Tuple[list[oi.Message], list[oi.Message]]:
+    # openlit 1.37+ writes the messages as these attributes instead of gen_ai.content.* events.
+    if "gen_ai.input.messages" in attrs or "gen_ai.output.messages" in attrs:
+        return (
+            _parse_genai_messages(attrs.get("gen_ai.input.messages")),
+            _parse_genai_messages(attrs.get("gen_ai.output.messages")),
+        )
     prompt_text = _parse_prompt_from_events(events)
     completion_text = _parse_completion_from_events(events)
     tool_calls_json = attrs.get("gen_ai.response.tool_calls")

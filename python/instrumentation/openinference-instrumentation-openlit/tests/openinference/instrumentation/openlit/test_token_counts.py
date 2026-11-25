@@ -18,9 +18,11 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolCallAttributes,
 )
 
 OPENINFERENCE_KEY_PREFIXES = ("openinference.", "llm.", "input.", "output.")
+INPUT_MESSAGE_0 = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
 OUTPUT_MESSAGE_0 = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
 PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
@@ -173,7 +175,7 @@ def _message(**cache_usage: int) -> Dict[str, Any]:
         ),
         pytest.param(
             "anthropic",
-            _message(),
+            _message(cache_read_input_tokens=0, cache_creation_input_tokens=0),
             OpenInferenceLLMSystemValues.ANTHROPIC.value,
             {PROMPT: 50, COMPLETION: 300},
             id="anthropic-no-cache",
@@ -217,8 +219,6 @@ ANTHROPIC_PARAMETERS = {
 }
 
 
-# openlit 1.37+ writes the prompt and the completion as gen_ai.input.messages and
-# gen_ai.output.messages, which the processor doesn't read, so the messages are empty.
 @pytest.mark.parametrize(
     "api, body, expected",
     [
@@ -232,14 +232,19 @@ ANTHROPIC_PARAMETERS = {
                 SpanAttributes.LLM_FINISH_REASON: "stop",
                 SpanAttributes.LLM_INVOCATION_PARAMETERS: OPENAI_PARAMETERS,
                 SpanAttributes.INPUT_MIME_TYPE: JSON,
-                SpanAttributes.INPUT_VALUE: {"messages": [], **OPENAI_PARAMETERS},
+                SpanAttributes.INPUT_VALUE: {
+                    "messages": [{"role": "user", "content": "hello"}],
+                    **OPENAI_PARAMETERS,
+                },
                 SpanAttributes.OUTPUT_MIME_TYPE: JSON,
                 SpanAttributes.OUTPUT_VALUE: {
                     "id": "chatcmpl-1",
-                    "messages": [{"role": "assistant", "content": ""}],
+                    "messages": [{"role": "assistant", "content": "hi"}],
                 },
+                f"{INPUT_MESSAGE_0}.{MessageAttributes.MESSAGE_ROLE}": "user",
+                f"{INPUT_MESSAGE_0}.{MessageAttributes.MESSAGE_CONTENT}": "hello",
                 f"{OUTPUT_MESSAGE_0}.{MessageAttributes.MESSAGE_ROLE}": "assistant",
-                f"{OUTPUT_MESSAGE_0}.{MessageAttributes.MESSAGE_CONTENT}": "",
+                f"{OUTPUT_MESSAGE_0}.{MessageAttributes.MESSAGE_CONTENT}": "hi",
                 PROMPT: 1200,
                 COMPLETION: 300,
                 CACHE_READ: 1000,
@@ -256,14 +261,19 @@ ANTHROPIC_PARAMETERS = {
                 SpanAttributes.LLM_FINISH_REASON: "end_turn",
                 SpanAttributes.LLM_INVOCATION_PARAMETERS: ANTHROPIC_PARAMETERS,
                 SpanAttributes.INPUT_MIME_TYPE: JSON,
-                SpanAttributes.INPUT_VALUE: {"messages": [], **ANTHROPIC_PARAMETERS},
+                SpanAttributes.INPUT_VALUE: {
+                    "messages": [{"role": "user", "content": "hello"}],
+                    **ANTHROPIC_PARAMETERS,
+                },
                 SpanAttributes.OUTPUT_MIME_TYPE: JSON,
                 SpanAttributes.OUTPUT_VALUE: {
                     "id": "msg_1",
-                    "messages": [{"role": "assistant", "content": ""}],
+                    "messages": [{"role": "assistant", "content": "hi"}],
                 },
+                f"{INPUT_MESSAGE_0}.{MessageAttributes.MESSAGE_ROLE}": "user",
+                f"{INPUT_MESSAGE_0}.{MessageAttributes.MESSAGE_CONTENT}": "hello",
                 f"{OUTPUT_MESSAGE_0}.{MessageAttributes.MESSAGE_ROLE}": "assistant",
-                f"{OUTPUT_MESSAGE_0}.{MessageAttributes.MESSAGE_CONTENT}": "",
+                f"{OUTPUT_MESSAGE_0}.{MessageAttributes.MESSAGE_CONTENT}": "hi",
                 PROMPT: 50,
                 COMPLETION: 300,
                 CACHE_READ: 1000,
@@ -291,6 +301,57 @@ def test_openlit_llm_span_attributes(
     assert [key for key in attributes if key.startswith(OPENINFERENCE_KEY_PREFIXES)] == []
 
 
+def test_openlit_message_parts(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    in_memory_span_exporter.clear()
+    http_client = httpx.Client(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=_message()))
+    )
+    Anthropic(api_key="sk-test", http_client=http_client).messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=100,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Weather in Paris?"},
+                    {"type": "text", "text": "In Celsius."},
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_1",
+                        "name": "get_weather",
+                        "input": {"city": "Paris"},
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": "sunny"}],
+            },
+        ],
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
+    prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    tool_call = f"{prefix}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    assert {key: value for key, value in attributes.items() if key.startswith(prefix)} == {
+        f"{prefix}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{prefix}.0.{MessageAttributes.MESSAGE_CONTENT}": "Weather in Paris?\nIn Celsius.",
+        f"{prefix}.1.{MessageAttributes.MESSAGE_ROLE}": "assistant",
+        f"{tool_call}.{ToolCallAttributes.TOOL_CALL_ID}": "toolu_1",
+        f"{tool_call}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
+        f"{tool_call}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}": '{"city": "Paris"}',
+        f"{prefix}.2.{MessageAttributes.MESSAGE_ROLE}": "tool",
+        f"{prefix}.2.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "toolu_1",
+        f"{prefix}.2.{MessageAttributes.MESSAGE_CONTENT}": "sunny",
+    }
+
+
 def _processed_attributes(openlit_attributes: Mapping[str, Any]) -> Dict[str, Any]:
     exporter = InMemorySpanExporter()
     tracer_provider = TracerProvider()
@@ -299,6 +360,28 @@ def _processed_attributes(openlit_attributes: Mapping[str, Any]) -> Dict[str, An
     with tracer_provider.get_tracer(__name__).start_as_current_span("chat") as span:
         span.set_attributes(openlit_attributes)
     return dict(cast(Mapping[str, Any], exporter.get_finished_spans()[0].attributes))
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["user: hello", "42", '["Paris", "Rome"]', '[{"role": "user", "parts": 5}, {"parts": ["hi"]}]'],
+)
+def test_plain_text_message_attributes(text: str) -> None:
+    # openlit's Together module writes the prompt and the reply as plain text, which may also
+    # parse as JSON; the span still gets its OpenInference attributes.
+    attributes = _processed_attributes(
+        {
+            "gen_ai.provider.name": "together",
+            "server.address": "api.together.xyz",
+            "server.port": 443,
+            "gen_ai.input.messages": text,
+            "gen_ai.output.messages": text,
+        }
+    )
+    assert (
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    )
 
 
 @pytest.mark.parametrize(
@@ -338,6 +421,7 @@ def test_span_kind_and_system_from_either_key(
     assert attributes.get(SpanAttributes.LLM_SYSTEM) == system
 
 
+@pytest.mark.parametrize("reasoning_tokens, expected", [(120, {REASONING: 120}), (0, {})])
 @pytest.mark.parametrize("system_key", ["gen_ai.system", "gen_ai.provider.name"])
 @pytest.mark.parametrize(
     "reasoning_key",
@@ -346,7 +430,9 @@ def test_span_kind_and_system_from_either_key(
         "gen_ai.usage.completion_tokens_details.reasoning_tokens",
     ],
 )
-def test_reasoning_tokens_and_both_system_keys(system_key: str, reasoning_key: str) -> None:
+def test_reasoning_tokens_and_both_system_keys(
+    system_key: str, reasoning_key: str, reasoning_tokens: int, expected: Dict[str, int]
+) -> None:
     attributes = _processed_attributes(
         {
             system_key: "openai",
@@ -354,7 +440,7 @@ def test_reasoning_tokens_and_both_system_keys(system_key: str, reasoning_key: s
             "server.port": 443,
             "gen_ai.usage.input_tokens": 1200,
             "gen_ai.usage.output_tokens": 300,
-            reasoning_key: 120,
+            reasoning_key: reasoning_tokens,
         }
     )
     assert (
@@ -362,4 +448,4 @@ def test_reasoning_tokens_and_both_system_keys(system_key: str, reasoning_key: s
         == OpenInferenceSpanKindValues.LLM.value
     )
     assert attributes.get(SpanAttributes.LLM_SYSTEM) == OpenInferenceLLMSystemValues.OPENAI.value
-    assert _token_counts(attributes) == {PROMPT: 1200, COMPLETION: 300, REASONING: 120}
+    assert _token_counts(attributes) == {PROMPT: 1200, COMPLETION: 300, **expected}
