@@ -479,6 +479,7 @@ def test_tool_calling_llm_span_has_expected_attributes(
     )
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert json.loads(tool_call_arguments) == {"location": "Berlin"}
+    assert attributes.pop(LLM_INVOCATION_PARAMETERS) == json.dumps({"tools": tools})
     assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
@@ -583,6 +584,7 @@ def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     )
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert json.loads(tool_call_arguments) == {"location": "Berlin, Germany"}
+    assert attributes.pop(LLM_INVOCATION_PARAMETERS) == json.dumps({"tools": tools})
     assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
@@ -1618,8 +1620,15 @@ from haystack.dataclasses import ToolCall  # noqa: E402
 
 @component
 class FakeChatGenerator:
+    def __init__(self, generation_kwargs: Optional[Dict[str, Any]] = None) -> None:
+        self.generation_kwargs = generation_kwargs
+
     @component.output_types(replies=List[ChatMessage])
-    def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+    def run(
+        self,
+        messages: List[ChatMessage],
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         # A reply that pairs text with a tool call, and one whose meta carries no
         # finish_reason (haystack's own streaming conversion leaves it None when no
         # chunk reports one).
@@ -1650,11 +1659,17 @@ def test_output_messages_keep_content_without_finish_reason(
     setup_haystack_instrumentation: Any,
 ) -> None:
     pipe = Pipeline()
-    pipe.add_component("chat_llm", FakeChatGenerator())
+    pipe.add_component(
+        "chat_llm",
+        FakeChatGenerator(generation_kwargs={"temperature": 0.9, "top_p": 0.5, "max_tokens": 1}),
+    )
     pipe.add_component("text_llm", FakeTextGenerator())
     pipe.run(
         {
-            "chat_llm": {"messages": [ChatMessage.from_user("hi")]},
+            "chat_llm": {
+                "messages": [ChatMessage.from_user("hi")],
+                "generation_kwargs": {"temperature": 0.0, "max_tokens": 50},
+            },
             "text_llm": {"prompt": "hi"},
         }
     )
@@ -1669,6 +1684,9 @@ def test_output_messages_keep_content_without_finish_reason(
     assert isinstance(chat_attributes.pop(OUTPUT_VALUE), str)
     assert chat_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hi"
     assert chat_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert chat_attributes.pop(LLM_INVOCATION_PARAMETERS) == (
+        '{"temperature": 0.0, "top_p": 0.5, "max_tokens": 50}'
+    )
     assert (
         chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
         == "Let me check that for you."

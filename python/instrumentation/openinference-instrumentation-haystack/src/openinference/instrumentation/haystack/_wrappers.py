@@ -502,6 +502,23 @@ def _get_output_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, A
     yield OUTPUT_VALUE, safe_json_dumps(masked_response)
 
 
+def _get_llm_invocation_parameters(
+    component: "Component", arguments: Mapping[str, Any]
+) -> Iterator[Tuple[str, Any]]:
+    """
+    Yields LLM invocation parameters from component defaults and per-run overrides.
+    """
+    component_kwargs = getattr(component, "generation_kwargs", None)
+    run_kwargs = arguments.get("generation_kwargs")
+    invocation_parameters = {
+        **(component_kwargs if isinstance(component_kwargs, Mapping) else {}),
+        **(run_kwargs if isinstance(run_kwargs, Mapping) else {}),
+    }
+    if not invocation_parameters:
+        return
+    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
+
+
 def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """
     Extracts input messages.
@@ -867,6 +884,7 @@ def _set_component_runner_request_attributes(
             {
                 **dict(_get_span_kind_attributes(LLM)),
                 **dict(_get_llm_input_message_attributes(bound_arguments.arguments)),
+                **dict(_get_llm_invocation_parameters(component, bound_arguments.arguments)),
             }
         )
     elif component_type is ComponentType.EMBEDDER:
