@@ -1,0 +1,33 @@
+[
+  {
+    "scope": "https://api.openai.com:443",
+    "method": "POST",
+    "path": "/v1/embeddings",
+    "body": {
+      "input": "A happy moment",
+      "model": "text-embedding-3-small",
+      "dimensions": 3,
+      "encoding_format": "base64"
+    },
+    "status": 200,
+    "response": {
+      "object": "list",
+      "data": [
+        {
+          "object": "embedding",
+          "embedding": "AKA0PwCgtL4AYB2/",
+          "index": 0
+        }
+      ],
+      "model": "text-embedding-3-small",
+      "usage": {
+        "prompt_tokens": 3,
+        "total_tokens": 3
+      }
+    },
+    "rawHeaders": {
+      "content-type": "application/json"
+    },
+    "responseIsBinary": false
+  }
+]

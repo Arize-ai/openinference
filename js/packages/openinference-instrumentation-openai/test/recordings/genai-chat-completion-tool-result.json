@@ -1,0 +1,100 @@
+[
+  {
+    "scope": "https://api.openai.com:443",
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "gpt-4o",
+      "temperature": 0.2,
+      "max_completion_tokens": 256,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a weather assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is the weather in Boston?"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_5ERYvu4iTGSvDlcDQjDP3g3J",
+              "type": "function",
+              "function": {
+                "name": "getWeather",
+                "arguments": "{\"location\":\"Boston\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_5ERYvu4iTGSvDlcDQjDP3g3J",
+          "content": "{\"temperature\":52,\"precipitation\":\"rainy\"}"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "getWeather",
+            "description": "Get the weather for a location",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "location": {
+                  "type": "string"
+                }
+              },
+              "required": ["location"]
+            }
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "id": "chatcmpl-EmQ2jh0E5lsvoIOZINEkxQxQTzN9C",
+      "object": "chat.completion",
+      "created": 1795208561,
+      "model": "gpt-4o-2024-08-06",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "The weather in Boston is currently 52°F and rainy.",
+            "refusal": null,
+            "annotations": []
+          },
+          "logprobs": null,
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 91,
+        "completion_tokens": 13,
+        "total_tokens": 104,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "service_tier": "default",
+      "system_fingerprint": "fp_d00f95a9ec"
+    },
+    "rawHeaders": {
+      "content-type": "application/json"
+    },
+    "responseIsBinary": false
+  }
+]

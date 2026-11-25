@@ -1,0 +1,150 @@
+[
+  {
+    "scope": "https://api.openai.com:443",
+    "method": "POST",
+    "path": "/v1/responses",
+    "body": {
+      "model": "gpt-4.1",
+      "instructions": "You are a weather assistant.",
+      "input": "What is the weather in Boston?",
+      "temperature": 0.2,
+      "max_output_tokens": 256,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the weather for a location",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string"
+              }
+            },
+            "required": ["location"],
+            "additionalProperties": false
+          },
+          "strict": true
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "id": "resp_085f118e44b56947006b00b573908487d1bd9f263fdb521b8e",
+      "object": "response",
+      "created_at": 1795208563,
+      "status": "completed",
+      "access_programs": null,
+      "background": false,
+      "billing": {
+        "payer": "developer"
+      },
+      "completed_at": 1795208564,
+      "error": null,
+      "frequency_penalty": 0,
+      "image": {
+        "context_compression": "disabled"
+      },
+      "incomplete_details": null,
+      "input_transformations": [],
+      "instructions": "You are a weather assistant.",
+      "max_output_tokens": 256,
+      "max_tool_calls": null,
+      "model": "gpt-4.1-2025-04-14",
+      "moderation": null,
+      "output": [
+        {
+          "id": "fc_085f118e44b56947006b00b57415a887d18f1be5aa0dc1259b",
+          "type": "function_call",
+          "status": "completed",
+          "arguments": "{\"location\":\"Boston\"}",
+          "call_id": "call_j22jbXaHUpVfl2y4CRaNQAwG",
+          "name": "get_weather"
+        }
+      ],
+      "parallel_tool_calls": true,
+      "presence_penalty": 0,
+      "previous_response_id": null,
+      "prompt_cache_key": null,
+      "prompt_cache_retention": "in_memory",
+      "reasoning": {
+        "context": null,
+        "effort": null,
+        "summary": null
+      },
+      "safety_identifier": null,
+      "service_tier": "default",
+      "store": true,
+      "temperature": 0.2,
+      "text": {
+        "format": {
+          "type": "text"
+        },
+        "verbosity": "medium"
+      },
+      "tool_choice": "auto",
+      "tool_usage": {
+        "image_gen": {
+          "input_tokens": 0,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 0
+          },
+          "output_tokens": 0,
+          "output_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 0
+          },
+          "total_tokens": 0
+        },
+        "web_search": {
+          "num_requests": 0
+        }
+      },
+      "tools": [
+        {
+          "type": "function",
+          "description": "Get the weather for a location",
+          "name": "get_weather",
+          "output_schema": null,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string"
+              }
+            },
+            "required": ["location"],
+            "additionalProperties": false
+          },
+          "strict": true
+        }
+      ],
+      "top_logprobs": 0,
+      "top_p": 1,
+      "truncation": "disabled",
+      "usage": {
+        "input_tokens": 55,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cache_write_tokens_details": {
+            "ttl_12h_tokens": 0,
+            "ttl_30m_tokens": 0
+          },
+          "cached_tokens": 0
+        },
+        "output_tokens": 15,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 70
+      },
+      "user": null,
+      "metadata": {}
+    },
+    "rawHeaders": {
+      "content-type": "application/json"
+    },
+    "responseIsBinary": false
+  }
+]
