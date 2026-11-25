@@ -769,7 +769,6 @@ def _get_attributes_from_chat_completions_message_dicts(
     obj: Iterable[Mapping[str, Any]],
     prefix: str = "",
     msg_idx: int = 0,
-    tool_call_idx: int = 0,
 ) -> Iterator[tuple[str, AttributeValue]]:
     if not isinstance(obj, Iterable):
         return
@@ -784,12 +783,11 @@ def _get_attributes_from_chat_completions_message_dicts(
         if isinstance(tool_call_id := msg.get("tool_call_id"), str):
             yield f"{prefix}{msg_idx}.{MESSAGE_TOOL_CALL_ID}", tool_call_id
         if isinstance(tool_calls := msg.get("tool_calls"), Iterable):
-            for tc in tool_calls:
+            for tool_call_idx, tc in enumerate(tool_calls):
                 yield from _get_attributes_from_chat_completions_tool_call_dict(
                     tc,
                     f"{prefix}{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}.",
                 )
-                tool_call_idx += 1
         msg_idx += 1
 
 
