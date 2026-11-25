@@ -35,7 +35,9 @@ A good test drives the real SDK client through the instrumentor and asserts on t
 
 For logic that needs no SDK call, such as attribute extraction or TraceConfig masking, test the function that holds it directly.
 
-The sandbox has no provider API keys, so you can't record a new cassette. When no existing cassette covers the call, write one by hand from the provider's documented response shape, or use a mock transport, and say which in your report.
+Don't record new cassettes. When no existing cassette covers the call, write one by hand from the provider's documented response shape, or use a mock transport, and say which in your report.
+
+**Live round trip.** When the bug is in the spans a Python instrumentor emits for a provider call and that provider's key is in the environment (`ANTHROPIC_AUTH_TOKEN` for Anthropic, which the SDK reads by itself; the bootstrap report says whether it is set, and the sandbox only ever holds a placeholder), also write a live round trip on `main` as `python/scripts/roundtrip/README.md` says: a script in `/tmp` that makes the reported call against the real API, exports to the Phoenix that `factory/bootstrap.sh phoenix` started, reads the spans back with `phoenix_spans.py`, and checks the span facts the issue says are wrong. Take the expected values from the issue, `spec/` and the semantic conventions, never from what `main` emits. A check that fails on `main` with the reported symptom is live evidence. It never replaces the failing test, which CI must run without a key: report it beside the test, or in place of one only when no cassette or mock transport can cover the call. Never commit the script.
 
 Run the test and confirm it fails for the reason the issue describes, not for an unrelated one such as a missing fixture, cassette or import. It must exercise real code: a test that only asserts on mocks proves nothing. Stop and choose another layer when the test needs any of these:
 
@@ -48,5 +50,5 @@ Do not edit non-test code.
 
 Report exactly one of:
 
-- `REPRODUCED`: the test file path, the command to run it, the failing output, and whether it uses an existing cassette, a hand-written one, or a mock transport.
+- `REPRODUCED`: the test file path, the command to run it, the failing output, and whether it uses an existing cassette, a hand-written one, or a mock transport. With a live round trip, also its script path, its command and its failing check rows.
 - `NOT_REPRODUCED`: every attempt you made, what happened, and what information from the reporter would help.
