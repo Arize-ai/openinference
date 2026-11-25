@@ -545,6 +545,8 @@ class OpenInferenceLLMSystemValues(Enum):
     """Cohere"""
     VERTEXAI = "vertexai"
     """Vertex AI"""
+    GOOGLE = "google"
+    """Gemini Developer API"""
     DEEPSEEK = "deepseek"
     """DeepSeek"""
     AMAZON = "amazon"
@@ -617,6 +619,8 @@ class OpenInferenceDecisionSystemValues(Enum):
     """[TypeSafe AI System One / Jev API](https://typesafe.ai/blog/introducing-system-one-models-and-jev), including Jev-compatible servers such as vLLM's `/v1/systemone`"""
     OPENAI = "openai"
     """[OpenAI Decisions API](https://openai.com/index/devday-2026-recap/)"""
+    GOOGLE = "google"
+    """[Gemini Decisions API](https://aistudio.google.com/docs/decisions-api) (`gemini-decision-1`), available on the Gemini Developer API"""
 
 
 class OpenInferenceDecisionProviderValues(Enum):
@@ -626,3 +630,5 @@ class OpenInferenceDecisionProviderValues(Enum):
     """TypeSafe AI"""
     OPENAI = "openai"
     """OpenAI"""
+    GOOGLE = "google"
+    """Google"""

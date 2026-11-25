@@ -81,6 +81,9 @@ const (
 	// LLMSystemVertexAI: Vertex AI
 	LLMSystemVertexAI = "vertexai"
 
+	// LLMSystemGoogle: Gemini Developer API
+	LLMSystemGoogle = "google"
+
 	// LLMSystemDeepSeek: DeepSeek
 	LLMSystemDeepSeek = "deepseek"
 
@@ -179,6 +182,9 @@ const (
 
 	// DecisionSystemOpenAI: [OpenAI Decisions API](https://openai.com/index/devday-2026-recap/)
 	DecisionSystemOpenAI = "openai"
+
+	// DecisionSystemGoogle: [Gemini Decisions API](https://aistudio.google.com/docs/decisions-api) (`gemini-decision-1`), available on the Gemini Developer API
+	DecisionSystemGoogle = "google"
 )
 
 // Well-known values for the decision.provider attribute.
@@ -188,4 +194,7 @@ const (
 
 	// DecisionProviderOpenAI: OpenAI
 	DecisionProviderOpenAI = "openai"
+
+	// DecisionProviderGoogle: Google
+	DecisionProviderGoogle = "google"
 )

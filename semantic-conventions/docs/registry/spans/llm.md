@@ -145,6 +145,7 @@ See [Span Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/genera
 | `mistralai` | Mistral AI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `cohere` | Cohere | ![Development](https://img.shields.io/badge/-development-blue) |
 | `vertexai` | Vertex AI | ![Development](https://img.shields.io/badge/-development-blue) |
+| `google` | Gemini Developer API | ![Development](https://img.shields.io/badge/-development-blue) |
 | `deepseek` | DeepSeek | ![Development](https://img.shields.io/badge/-development-blue) |
 | `amazon` | Amazon Bedrock native | ![Development](https://img.shields.io/badge/-development-blue) |
 | `meta` | Meta (Llama) | ![Development](https://img.shields.io/badge/-development-blue) |

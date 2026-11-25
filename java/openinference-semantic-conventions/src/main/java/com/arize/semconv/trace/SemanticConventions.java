@@ -1011,6 +1011,7 @@ public class SemanticConventions {
         MISTRALAI("mistralai"),
         COHERE("cohere"),
         VERTEXAI("vertexai"),
+        GOOGLE("google"),
         DEEPSEEK("deepseek"),
         AMAZON("amazon"),
         META("meta"),
@@ -1083,7 +1084,8 @@ public class SemanticConventions {
      */
     public enum DecisionSystem {
         TYPESAFE(LLMSystem.TYPESAFE),
-        OPENAI(LLMSystem.OPENAI);
+        OPENAI(LLMSystem.OPENAI),
+        GOOGLE(LLMSystem.GOOGLE);
 
         private final LLMSystem llmSystem;
 
@@ -1111,7 +1113,8 @@ public class SemanticConventions {
      */
     public enum DecisionProvider {
         TYPESAFE(LLMProvider.TYPESAFE),
-        OPENAI(LLMProvider.OPENAI);
+        OPENAI(LLMProvider.OPENAI),
+        GOOGLE(LLMProvider.GOOGLE);
 
         private final LLMProvider llmProvider;
 

@@ -23,6 +23,10 @@ attributes:
           value: "vertexai"
           brief: "Vertex AI"
           stability: development
+        - id: google
+          value: "google"
+          brief: "Gemini Developer API"
+          stability: development
         - id: deepseek
           value: "deepseek"
           brief: "DeepSeek"
