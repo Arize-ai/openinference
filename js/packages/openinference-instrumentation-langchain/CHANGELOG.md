@@ -1,5 +1,13 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 4.2.5
+
+### Patch Changes
+
+- Updated dependencies [2d10c59]
+  - @arizeai/openinference-semantic-conventions@2.18.1
+  - @arizeai/openinference-core@2.9.2
+
 ## 4.2.4
 
 ### Patch Changes

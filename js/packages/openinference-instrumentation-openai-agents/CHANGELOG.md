@@ -1,5 +1,14 @@
 # @arizeai/openinference-instrumentation-openai-agents
 
+## 0.4.3
+
+### Patch Changes
+
+- 5a4b992: fix: leave the base64 `result` of `image_generation_call` items out of `output.value` on Responses spans and OpenAI Agents response spans. The image stays on `output.images.*`, where `base64ImageMaxLength` applies, as the Images API path already does for `b64_json`. This changes `output.value` for Responses users of the `image_generation` tool: the `result` field is dropped rather than replaced with a placeholder.
+- Updated dependencies [2d10c59]
+  - @arizeai/openinference-semantic-conventions@2.18.1
+  - @arizeai/openinference-core@2.9.2
+
 ## 0.4.2
 
 ### Patch Changes
