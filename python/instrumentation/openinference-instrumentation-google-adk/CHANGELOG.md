@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.1.9...python-openinference-instrumentation-google-adk-v1.1.10) (2026-11-25)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.83 ([#4429](https://github.com/Arize-ai/openinference/issues/4429)) ([1d6cf21](https://github.com/Arize-ai/openinference/commit/1d6cf21550b91f8d136db94d4bf81a50fbdc5c16))
+* **google-adk:** give each function_response its own input message index ([#4439](https://github.com/Arize-ai/openinference/issues/4439)) ([85b6290](https://github.com/Arize-ai/openinference/commit/85b62900ae588b1392e52a7bf1acb063316cec7d))
+
 ## [1.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v1.1.8...python-openinference-instrumentation-google-adk-v1.1.9) (2026-11-21)
 
 

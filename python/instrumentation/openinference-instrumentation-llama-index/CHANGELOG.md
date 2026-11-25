@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.11...python-openinference-instrumentation-llama-index-v4.7.12) (2026-11-25)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.83 ([#4429](https://github.com/Arize-ai/openinference/issues/4429)) ([1d6cf21](https://github.com/Arize-ai/openinference/commit/1d6cf21550b91f8d136db94d4bf81a50fbdc5c16))
+
 ## [4.7.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.7.10...python-openinference-instrumentation-llama-index-v4.7.11) (2026-11-21)
 
 

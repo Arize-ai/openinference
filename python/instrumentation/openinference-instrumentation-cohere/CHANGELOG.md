@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.25...python-openinference-instrumentation-cohere-v0.1.26) (2026-11-25)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.83 ([#4429](https://github.com/Arize-ai/openinference/issues/4429)) ([1d6cf21](https://github.com/Arize-ai/openinference/commit/1d6cf21550b91f8d136db94d4bf81a50fbdc5c16))
+* **cohere:** record cached prompt tokens from chat usage ([#4405](https://github.com/Arize-ai/openinference/issues/4405)) ([faf2fe9](https://github.com/Arize-ai/openinference/commit/faf2fe94f2b3efe12819422427518cec8d2a3645))
+
 ## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.24...python-openinference-instrumentation-cohere-v0.1.25) (2026-11-21)
 
 

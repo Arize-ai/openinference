@@ -5,7 +5,7 @@ description: >
   This registry defines the attributes and span conventions that describe
   LLM calls, embeddings, retrieval, reranking, tool execution, agents,
   guardrails, evaluations, prompts, and decision models as OpenTelemetry traces.
-schema_url: https://openinf.dev/schemas/0.0.1 # x-release-please-version
+schema_url: https://openinf.dev/schemas/0.0.2 # x-release-please-version
 stability: development
 dependencies:
   # OpenInference reuses OpenTelemetry attributes where one exists for the same
