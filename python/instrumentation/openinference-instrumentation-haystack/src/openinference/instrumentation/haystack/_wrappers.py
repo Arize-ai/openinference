@@ -518,9 +518,43 @@ def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[
                 yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}", role
             if (name := message.name) is not None:
                 yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_NAME}", name
+            if content is None and (tool_call_results := message.tool_call_results):
+                tool_call_result = tool_call_results[0]
+                # a tool message carries its output in tool_call_results rather than text
+                yield (
+                    f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}",
+                    _tool_call_result_to_str(tool_call_result.result),
+                )
+                if (tool_call_id := tool_call_result.origin.id) is not None:
+                    yield (
+                        f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALL_ID}",
+                        tool_call_id,
+                    )
+            for tool_call_index, tool_call in enumerate(message.tool_calls or []):
+                yield from _get_tool_call_attributes(
+                    f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}",
+                    tool_call,
+                )
     elif isinstance(prompt := arguments.get("prompt"), str):
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", USER
+
+
+def _get_tool_call_attributes(prefix: str, tool_call: Any) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts the attributes of a single haystack ToolCall under the given prefix.
+    """
+    if (tool_call_id := tool_call.id) is not None:
+        yield f"{prefix}.{TOOL_CALL_ID}", tool_call_id
+    if (tool_call_arguments := tool_call.arguments) is not None:
+        yield f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps(tool_call_arguments)
+    if (tool_name := tool_call.tool_name) is not None:
+        yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", tool_name
+
+
+def _tool_call_result_to_str(result: Any) -> str:
+    # ToolCallResult.result is a str in haystack, but can be richer content parts
+    return result if isinstance(result, str) else safe_json_dumps(result)
 
 
 def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -537,16 +571,10 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
                 yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", text
             yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", reply.role.value
             for tool_call_index, tool_call in enumerate(reply.tool_calls or []):
-                if (tool_call_arguments := tool_call.arguments) is not None:
-                    yield (
-                        f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                        safe_json_dumps(tool_call_arguments),
-                    )
-                if (tool_name := tool_call.tool_name) is not None:
-                    yield (
-                        f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
-                        tool_name,
-                    )
+                yield from _get_tool_call_attributes(
+                    f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}",
+                    tool_call,
+                )
         elif isinstance(reply, str):
             yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply
             yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", ASSISTANT
@@ -1009,6 +1037,7 @@ MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
@@ -1023,4 +1052,5 @@ SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 USER_ID = SpanAttributes.USER_ID
