@@ -807,7 +807,6 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
             else:
                 continue
             if url and index == 0:
-                _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
                 _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
             image_url = url
             if not image_url and b64_json:

@@ -2908,7 +2908,6 @@ def test_image_generation_url(
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 0
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 0
 
-    assert attributes.pop(ImageAttributes.IMAGE_URL) == "https://dummy-url"
     assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
     assert (
         attributes.pop(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
@@ -3060,6 +3059,37 @@ def test_image_generation_output_images_respect_trace_config(
     assert not attributes
 
 
+def test_image_generation_hide_outputs_hides_hosted_first_image(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+) -> None:
+    LiteLLMInstrumentor().instrument(
+        tracer_provider=tracer_provider, config=TraceConfig(hide_outputs=True)
+    )
+    in_memory_span_exporter.clear()
+    mock_response_image_gen = ImageResponse(
+        created=1722359754,
+        data=[
+            ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url"),  # type: ignore
+        ],
+    )
+    with patch.object(
+        OpenAIChatCompletion, "image_generation", return_value=mock_response_image_gen
+    ):
+        litellm.image_generation(model="dall-e-2", prompt="a sunrise over the mountains")
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 0
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 0
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 0
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "__REDACTED__"
+    assert not attributes
+
+
 def test_image_generation_extractor_error_does_not_raise(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
@@ -3170,7 +3200,6 @@ async def test_aimage_generation(
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 0
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 0
 
-    assert attributes.pop(ImageAttributes.IMAGE_URL) == "https://dummy-url"
     assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
     assert (
         attributes.pop(f"{SpanAttributes.OUTPUT_IMAGES}.0.{ImageAttributes.IMAGE_URL}")
