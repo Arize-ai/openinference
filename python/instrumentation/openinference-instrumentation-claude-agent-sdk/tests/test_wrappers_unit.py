@@ -302,6 +302,65 @@ def test_turn_usage_accumulator_excludes_subagent_and_unidentified_messages() ->
     assert accumulator.attributes() == {}
 
 
+def _step(message_id: str, output_tokens: int, parent: Any = None) -> dict[str, Any]:
+    return {
+        "type": "assistant",
+        "message_id": message_id,
+        "parent_tool_use_id": parent,
+        "usage": {"input_tokens": 10, "output_tokens": output_tokens},
+    }
+
+
+def _result(output_tokens: int, parent: Any = None) -> dict[str, Any]:
+    return {
+        "type": "result",
+        "subtype": "success",
+        "parent_tool_use_id": parent,
+        "usage": {"input_tokens": 999, "output_tokens": output_tokens},
+    }
+
+
+def test_turn_usage_accumulator_reads_output_tokens_from_result() -> None:
+    # Step output_tokens is only the count reported at message_start.
+    accumulator = _TurnUsageAccumulator()
+    accumulator.add(_step("message-1", 16))
+    accumulator.add(_step("message-2", 8))
+    accumulator.add(_result(2329))
+    attributes = accumulator.attributes()
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 20
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 2329
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 2349
+
+
+def test_turn_usage_accumulator_sums_output_tokens_across_results() -> None:
+    accumulator = _TurnUsageAccumulator()
+    accumulator.add(_step("message-1", 6))
+    accumulator.add(_result(517))
+    accumulator.add(_step("message-2", 3))
+    accumulator.add(_result(962))
+    attributes = accumulator.attributes()
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 1479
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 1499
+
+
+def test_turn_usage_accumulator_keeps_step_output_when_result_reports_none() -> None:
+    accumulator = _TurnUsageAccumulator()
+    accumulator.add(_step("message-1", 6))
+    accumulator.add(_result(517))
+    accumulator.add(_step("message-2", 4))
+    accumulator.add(_result(0))
+    assert accumulator.attributes()[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 521
+
+
+def test_turn_usage_accumulator_ignores_results_from_other_agents() -> None:
+    accumulator = _TurnUsageAccumulator()
+    accumulator.add(_step("message-1", 6))
+    accumulator.add(_result(500, parent="task-1"))
+    assert accumulator.attributes()[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 6
+    accumulator.add(_result(40))
+    assert accumulator.attributes()[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 40
+
+
 # ---------------------------------------------------------------------------
 # `_extract_prompt` — positional prompt must survive alongside other kwargs
 # ---------------------------------------------------------------------------
