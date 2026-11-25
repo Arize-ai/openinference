@@ -11,6 +11,10 @@ attributes:
           value: "openai"
           brief: "[OpenAI Decisions API](https://openai.com/index/devday-2026-recap/)"
           stability: development
+        - id: google
+          value: "google"
+          brief: "[Gemini Decisions API](https://aistudio.google.com/docs/decisions-api) (`gemini-decision-1`), available on the Gemini Developer API"
+          stability: development
     brief: "The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks, as identified by the client or server instrumentation: `typesafe` for the TypeSafe System One / Jev API, `openai` for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible `/v1/systemone` shape is still `typesafe`. Distinct from `decision.provider`, which says who hosts the model. The well-known values alias the matching `llm.system` values."
     examples: ["typesafe"]
     stability: development
@@ -24,6 +28,10 @@ attributes:
         - id: openai
           value: "openai"
           brief: "OpenAI"
+          stability: development
+        - id: google
+          value: "google"
+          brief: "Google"
           stability: development
     brief: "The hosting provider of the decision model: who runs the hardware that answered, e.g. `typesafe` when calling TypeSafe directly, `openai` for the OpenAI Decisions API, or the cloud or self-hosting provider for a model served elsewhere. Distinct from `decision.system`, which names the API shape. The well-known values alias the matching `llm.provider` values."
     examples: ["typesafe"]

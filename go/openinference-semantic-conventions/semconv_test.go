@@ -202,6 +202,7 @@ func TestEnumValues(t *testing.T) {
 		{LLMSystemCohere, "cohere"},
 		{LLMSystemMistralAI, "mistralai"},
 		{LLMSystemVertexAI, "vertexai"},
+		{LLMSystemGoogle, "google"},
 		{LLMSystemTypeSafe, "typesafe"},
 
 		{LLMProviderOpenAI, "openai"},
@@ -229,8 +230,10 @@ func TestEnumValues(t *testing.T) {
 
 		{DecisionSystemTypeSafe, "typesafe"},
 		{DecisionSystemOpenAI, "openai"},
+		{DecisionSystemGoogle, "google"},
 		{DecisionProviderTypeSafe, "typesafe"},
 		{DecisionProviderOpenAI, "openai"},
+		{DecisionProviderGoogle, "google"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

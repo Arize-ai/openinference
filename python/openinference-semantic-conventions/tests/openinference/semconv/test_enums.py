@@ -52,6 +52,7 @@ class TestOpenInferenceLLMSystemValues:
             OpenInferenceLLMSystemValues.ANTHROPIC: "anthropic",
             OpenInferenceLLMSystemValues.COHERE: "cohere",
             OpenInferenceLLMSystemValues.DEEPSEEK: "deepseek",
+            OpenInferenceLLMSystemValues.GOOGLE: "google",
             OpenInferenceLLMSystemValues.META: "meta",
             OpenInferenceLLMSystemValues.MISTRALAI: "mistralai",
             OpenInferenceLLMSystemValues.OPENAI: "openai",
@@ -95,6 +96,7 @@ class TestOpenInferenceDecisionSystemValues:
         assert {e: e.value for e in OpenInferenceDecisionSystemValues} == {
             OpenInferenceDecisionSystemValues.OPENAI: "openai",
             OpenInferenceDecisionSystemValues.TYPESAFE: "typesafe",
+            OpenInferenceDecisionSystemValues.GOOGLE: "google",
         }
 
     def test_aliases_llm_system_values(self) -> None:
@@ -107,6 +109,7 @@ class TestOpenInferenceDecisionProviderValues:
         assert {e: e.value for e in OpenInferenceDecisionProviderValues} == {
             OpenInferenceDecisionProviderValues.OPENAI: "openai",
             OpenInferenceDecisionProviderValues.TYPESAFE: "typesafe",
+            OpenInferenceDecisionProviderValues.GOOGLE: "google",
         }
 
     def test_aliases_llm_provider_values(self) -> None:

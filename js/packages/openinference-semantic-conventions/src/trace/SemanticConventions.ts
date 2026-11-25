@@ -1067,6 +1067,7 @@ export enum LLMSystem {
   MISTRALAI = "mistralai",
   COHERE = "cohere",
   VERTEXAI = "vertexai",
+  GOOGLE = "google",
   DEEPSEEK = "deepseek",
   AMAZON = "amazon",
   META = "meta",
@@ -1107,6 +1108,7 @@ export enum LLMProvider {
 export enum DecisionSystem {
   TYPESAFE = "typesafe",
   OPENAI = "openai",
+  GOOGLE = "google",
 }
 
 /**
@@ -1115,4 +1117,5 @@ export enum DecisionSystem {
 export enum DecisionProvider {
   TYPESAFE = "typesafe",
   OPENAI = "openai",
+  GOOGLE = "google",
 }

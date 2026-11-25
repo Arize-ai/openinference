@@ -78,6 +78,7 @@ See [Span Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/genera
 | --- | --- | --- |
 | `typesafe` | TypeSafe AI | ![Development](https://img.shields.io/badge/-development-blue) |
 | `openai` | OpenAI | ![Development](https://img.shields.io/badge/-development-blue) |
+| `google` | Google | ![Development](https://img.shields.io/badge/-development-blue) |
 
 ---
 
@@ -87,6 +88,7 @@ See [Span Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/genera
 | --- | --- | --- |
 | `typesafe` | [TypeSafe AI System One / Jev API](https://typesafe.ai/blog/introducing-system-one-models-and-jev), including Jev-compatible servers such as vLLM's `/v1/systemone` | ![Development](https://img.shields.io/badge/-development-blue) |
 | `openai` | [OpenAI Decisions API](https://openai.com/index/devday-2026-recap/) | ![Development](https://img.shields.io/badge/-development-blue) |
+| `google` | [Gemini Decisions API](https://aistudio.google.com/docs/decisions-api) (`gemini-decision-1`), available on the Gemini Developer API | ![Development](https://img.shields.io/badge/-development-blue) |
 
 ---
 

@@ -69,8 +69,10 @@ class SemanticConventionsTest {
     void decisionSystemAndProviderValuesAliasTheLlmValues() {
         assertThat(SemanticConventions.DecisionSystem.TYPESAFE.getValue()).isEqualTo("typesafe");
         assertThat(SemanticConventions.DecisionSystem.OPENAI.getValue()).isEqualTo("openai");
+        assertThat(SemanticConventions.DecisionSystem.GOOGLE.getValue()).isEqualTo("google");
         assertThat(SemanticConventions.DecisionProvider.TYPESAFE.getValue()).isEqualTo("typesafe");
         assertThat(SemanticConventions.DecisionProvider.OPENAI.getValue()).isEqualTo("openai");
+        assertThat(SemanticConventions.DecisionProvider.GOOGLE.getValue()).isEqualTo("google");
         for (SemanticConventions.DecisionSystem system : SemanticConventions.DecisionSystem.values()) {
             assertThat(system.getLLMSystem()).isEqualTo(SemanticConventions.LLMSystem.valueOf(system.name()));
             assertThat(system.toString()).isEqualTo(system.getLLMSystem().getValue());
