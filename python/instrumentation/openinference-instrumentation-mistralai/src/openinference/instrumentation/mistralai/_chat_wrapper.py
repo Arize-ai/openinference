@@ -151,16 +151,20 @@ class _WithMistralAI(ABC):
         bound_arguments = bound_signature.arguments
         request_data: Dict[str, Any] = {}
         for key, value in bound_arguments.items():
+            if value is UNSET:
+                continue
+            # The SDK sends an explicit None as null only for parameters that default to UNSET.
+            # Elsewhere None is the default, and the SDK leaves the field out of the request.
+            if value is None and signature.parameters[key].default is not UNSET:
+                continue
             try:
-                if value is not UNSET:
-                    value = to_jsonable_python(value, by_alias=True, fallback=str)
-                if value is not None:
-                    try:
-                        # ensure the value is JSON-serializable
-                        safe_json_dumps(value)
-                        request_data[key] = value
-                    except json.JSONDecodeError:
-                        request_data[key] = str(value)
+                value = to_jsonable_python(value, by_alias=True, fallback=str)
+                try:
+                    # ensure the value is JSON-serializable
+                    safe_json_dumps(value)
+                    request_data[key] = value
+                except json.JSONDecodeError:
+                    request_data[key] = str(value)
             except Exception:
                 request_data[key] = str(value)
         return request_data
