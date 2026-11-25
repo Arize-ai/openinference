@@ -1,3 +1,4 @@
+import copy
 import inspect
 import os
 from dataclasses import dataclass, field, fields
@@ -6,16 +7,22 @@ from typing import (
     Any,
     Callable,
     Dict,
+    FrozenSet,
     Optional,
     Type,
     Union,
+    cast,
     get_args,
 )
 
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
+    Context,
     attach,
+    create_key,
     detach,
+    get_current,
+    get_value,
     set_value,
 )
 from opentelemetry.util.types import AttributeValue
@@ -37,6 +44,7 @@ from ._blob_upload import (
     is_valid_reference_uri,
     load_blob_uploader,
 )
+from .context_attributes import _UsingAttributesContextManager
 from .logging import logger
 
 
@@ -654,3 +662,74 @@ def is_base64_url(url: str) -> bool:
     if not isinstance(url, str):
         return False
     return url.startswith("data:image/") and "base64" in url
+
+
+_HIDDEN_FIELDS_KEY = create_key("openinference-trace-config-hidden-fields")
+_HIDE_FIELDS = frozenset(f.name for f in fields(TraceConfig) if f.name.startswith("hide_"))
+
+
+class using_trace_config(_UsingAttributesContextManager):
+    """
+    Context manager (or decorator) that hides more content for spans started within
+    its scope. It accepts only ``hide_*`` fields set to ``True``: a scope can add
+    masking on top of the instrumentor's config but never remove it. Nested blocks
+    combine their hidden fields.
+
+    The config is resolved when a span starts and kept for that span's lifetime, so
+    spans that end after the block exits (e.g. streamed responses) still use it.
+
+    The override lives in the OpenTelemetry context, which is not propagated to
+    threads started inside the block (e.g. ``ThreadPoolExecutor`` workers). Spans
+    created there use the instrumentor's config unless the context is propagated.
+
+    Examples:
+        with using_trace_config(hide_inputs=True, hide_outputs=True):
+            client.chat.completions.create(...)
+
+        @using_trace_config(hide_inputs=True)
+        def call_fn(*args, **kwargs):
+            ...
+    """
+
+    def __init__(self, **hidden: bool) -> None:
+        super().__init__()
+        _validate_hidden_fields(hidden)
+        self._hidden = frozenset(hidden)
+
+    def _context_with_attributes(self) -> Context:
+        ctx = get_current()
+        outer = cast(Optional[FrozenSet[str]], get_value(_HIDDEN_FIELDS_KEY, ctx))
+        return set_value(_HIDDEN_FIELDS_KEY, (outer or frozenset()) | self._hidden, ctx)
+
+
+def get_current_trace_config(default: TraceConfig) -> TraceConfig:
+    """
+    Return ``default`` with every field hidden by the active ``using_trace_config``
+    scopes set to ``True``, or ``default`` itself when no scope is active.
+
+    Instrumentors call this when a span starts and use the result for everything
+    they record on that span.
+    """
+    hidden = cast(Optional[FrozenSet[str]], get_value(_HIDDEN_FIELDS_KEY))
+    if not hidden:
+        return default
+    # Copy instead of dataclasses.replace so __post_init__ does not re-read the
+    # environment or reload the blob uploader.
+    merged = copy.copy(default)
+    for name in hidden:
+        object.__setattr__(merged, name, True)
+    return merged
+
+
+def _validate_hidden_fields(hidden: Dict[str, Any]) -> None:
+    for name, value in hidden.items():
+        if name not in _HIDE_FIELDS:
+            raise TypeError(
+                f"using_trace_config() got an unexpected field {name!r}; "
+                "only hide_* fields can be set"
+            )
+        if value is not True:
+            raise TypeError(
+                f"using_trace_config() only accepts {name}=True; "
+                "a scope can hide more content but cannot reveal it"
+            )

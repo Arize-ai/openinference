@@ -179,6 +179,98 @@ def test_web_search_citations_respect_trace_config(
     assert all(citation["url"].startswith("https://") for citation in citations)
 
 
+_CITATION_CASES = [
+    ({}, False, False),
+    ({"hide_inputs": True}, True, True),
+    ({"hide_input_messages": True}, True, True),
+    ({"hide_input_text": True}, False, True),
+    ({"hide_outputs": True}, True, True),
+    ({"hide_output_messages": True}, True, True),
+    ({"hide_output_text": True}, False, True),
+]
+
+
+def _assert_citations(
+    exporter: InMemorySpanExporter,
+    hides_citations: bool,
+    hides_cited_text: bool,
+    hides_outputs: bool = False,
+) -> None:
+    attributes = _get_attributes(exporter)
+    metadata = json.loads(attributes[METADATA])
+    assert metadata["server_tool_use"]["web_search_requests"] == 1
+    if hides_citations:
+        assert "citations" not in metadata
+    else:
+        citations = [c for block in metadata["citations"].values() for c in block]
+        assert citations
+        assert all(("cited_text" in c) is not hides_cited_text for c in citations)
+    if hides_outputs:
+        # output.value holds the raw response, so only hide_outputs removes cited_text everywhere
+        assert not [key for key, value in attributes.items() if "cited_text" in str(value)]
+
+
+@pytest.mark.default_cassette("test_web_search_server_tool_calls.yaml")
+@pytest.mark.vcr(record_mode="none")
+@pytest.mark.parametrize("overrides, hides_citations, hides_cited_text", _CITATION_CASES)
+def test_web_search_citations_respect_using_trace_config(
+    in_memory_span_exporter: InMemorySpanExporter,
+    instrument_with_config: Callable[..., None],
+    overrides: Dict[str, Any],
+    hides_citations: bool,
+    hides_cited_text: bool,
+) -> None:
+    from openinference.instrumentation import using_trace_config
+
+    instrument_with_config()
+    client = Anthropic(api_key=_api_key())
+    with using_trace_config(**overrides):
+        client.messages.create(
+            model=MODEL,
+            max_tokens=1024,
+            tools=[WEB_SEARCH_TOOL],
+            messages=[{"role": "user", "content": WEB_SEARCH_PROMPT}],
+        )
+    _assert_citations(
+        in_memory_span_exporter,
+        hides_citations,
+        hides_cited_text,
+        hides_outputs=bool(overrides.get("hide_outputs")),
+    )
+
+
+@pytest.mark.default_cassette("test_streaming_web_search_server_tool_calls.yaml")
+@pytest.mark.vcr(record_mode="none")
+@pytest.mark.parametrize("overrides, hides_citations, hides_cited_text", _CITATION_CASES)
+def test_streaming_web_search_citations_respect_using_trace_config(
+    in_memory_span_exporter: InMemorySpanExporter,
+    instrument_with_config: Callable[..., None],
+    overrides: Dict[str, Any],
+    hides_citations: bool,
+    hides_cited_text: bool,
+) -> None:
+    from openinference.instrumentation import using_trace_config
+
+    instrument_with_config()
+    client = Anthropic(api_key=_api_key())
+    # the span starts inside the block; the stream is consumed after it exits
+    with using_trace_config(**overrides):
+        manager = client.messages.stream(
+            model=MODEL,
+            max_tokens=1024,
+            tools=[WEB_SEARCH_TOOL],
+            messages=[{"role": "user", "content": WEB_SEARCH_PROMPT}],
+        )
+    with manager as stream:
+        stream.until_done()
+    _assert_citations(
+        in_memory_span_exporter,
+        hides_citations,
+        hides_cited_text,
+        hides_outputs=bool(overrides.get("hide_outputs")),
+    )
+
+
 _COUNT_TOKENS_KWARGS: Dict[str, Any] = {
     "model": MODEL,
     "system": "Be brief.",

@@ -21,7 +21,7 @@ from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value, set_value
 from opentelemetry.trace import Span, Status, StatusCode, set_span_in_context
 
-from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation import OITracer, TraceConfig, get_current_trace_config
 from openinference.instrumentation.openai_agents._processor import _map_finish_reason
 from openinference.semconv.trace import (
     OpenInferenceLLMSystemValues,
@@ -1116,7 +1116,10 @@ def make_realtime_wrapper(tracer: OITracer, config: TraceConfig) -> Any:
         event = args[0]
 
         if instance not in _session_states:
-            _session_states[instance] = _RealtimeSessionState(tracer, config)
+            # Resolve once per session so every turn uses the config active at session start.
+            _session_states[instance] = _RealtimeSessionState(
+                tracer, get_current_trace_config(config)
+            )
             logger.debug(
                 "realtime: created session state for %s id=%s",
                 type(instance).__name__,

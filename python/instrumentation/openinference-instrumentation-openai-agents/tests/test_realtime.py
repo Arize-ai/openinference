@@ -14,6 +14,7 @@ from openinference.instrumentation import (
     using_metadata,
     using_session,
     using_tags,
+    using_trace_config,
     using_user,
 )
 from openinference.instrumentation.openai_agents import _realtime
@@ -1753,6 +1754,39 @@ def test_hide_inputs_drops_input_audio_attrs(
     assert "input.audio.url" not in user_attrs
     assert "input.audio.mime_type" not in user_attrs
     assert "input.audio.transcript" not in user_attrs
+
+
+def test_using_trace_config_at_session_start_hides_audio_for_whole_session(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """An override active when the session starts applies to all of its turns, even
+    ones driven after the block exits; the instrumentor's own config hides nothing."""
+    config = TraceConfig()
+    tracer = OITracer(
+        trace_api.get_tracer(__name__, tracer_provider=tracer_provider), config=config
+    )
+    wrapper = make_realtime_wrapper(tracer, config)
+
+    class _FakeSession:
+        pass
+
+    session: Any = _FakeSession()
+
+    async def _original_put_event(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    with using_trace_config(hide_inputs=True, hide_outputs=True):
+        asyncio.run(wrapper(_original_put_event, session, (object(),), {}))
+    _drive_audio_turn(_session_states[session])
+
+    spans = _spans_by_kind(in_memory_span_exporter)
+    user_attrs = spans[_USER_KIND][0].attributes
+    llm_attrs = spans[OpenInferenceSpanKindValues.LLM.value][0].attributes
+    for key in ("input.audio.url", "input.audio.mime_type", "input.audio.transcript"):
+        assert key not in user_attrs
+    for key in ("output.audio.url", "output.audio.mime_type", "output.audio.transcript"):
+        assert key not in llm_attrs
 
 
 def test_hide_outputs_drops_output_audio_attrs(
