@@ -1,5 +1,15 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.5.13
+
+### Patch Changes
+
+- e1e6aab: Include cache read and cache write tokens in `llm.token_count.prompt` for Converse and ConverseStream, so that prompt plus completion matches `llm.token_count.total` when prompt caching is on. Also record `llm.token_count.prompt_details.cache_read` and `llm.token_count.prompt_details.cache_write`.
+- 4b0a3ad: Record the system prompt of Amazon Nova InvokeModel requests as a leading system message
+- Updated dependencies [2d10c59]
+  - @arizeai/openinference-semantic-conventions@2.18.1
+  - @arizeai/openinference-core@2.9.2
+
 ## 0.5.12
 
 ### Patch Changes

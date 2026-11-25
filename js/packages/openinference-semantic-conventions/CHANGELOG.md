@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.18.1
+
+### Patch Changes
+
+- 2d10c59: Add the well-known `google` value to `DecisionSystem` and `DecisionProvider` for the Gemini Decisions API (`gemini-decision-1`), and add `google` (Gemini Developer API) to `LLMSystem` so the decision value has an `llm.system` counterpart to alias.
+
 ## 2.18.0
 
 ### Minor Changes
