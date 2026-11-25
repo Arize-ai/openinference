@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from pipecat.frames.frames import (
@@ -26,6 +27,7 @@ from pipecat.metrics.metrics import (
 from pipecat.processors.aggregators.llm_context import LLMContext
 
 from openinference.instrumentation.pipecat._attributes import (
+    _llm_token_metrics_data_extractor,
     detect_provider_from_service,
     detect_service_type,
     detect_service_type_from_class_string,
@@ -393,6 +395,45 @@ class TestMetricsExtraction:
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 50
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 150
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 20
+
+    def test_anthropic_prompt_tokens_include_cache_reads_and_writes(self) -> None:
+        """Anthropic reports prompt_tokens net of the prompt cache; total_tokens is gross."""
+        token_usage = LLMTokenUsage(
+            prompt_tokens=10,
+            completion_tokens=50,
+            total_tokens=1260,
+            cache_read_input_tokens=1000,
+            cache_creation_input_tokens=200,
+        )
+        metrics_data = LLMUsageMetricsData(
+            processor="AnthropicLLMService",
+            model="claude-sonnet-4-5",
+            value=token_usage,
+        )
+        attributes = extract_attributes_from_frame(MetricsFrame(data=[metrics_data]))
+
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 1210
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 50
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 1260
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 1000
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 200
+
+    def test_audio_token_details_map_to_their_own_direction(self) -> None:
+        """Input audio goes to prompt details and output audio to completion details."""
+        token_usage = SimpleNamespace(
+            prompt_tokens=300,
+            completion_tokens=120,
+            total_tokens=420,
+            input_audio_tokens=250,
+            output_audio_tokens=100,
+        )
+        attributes = _llm_token_metrics_data_extractor.extract_from_metrics_data(
+            token_usage  # type: ignore[arg-type]
+        )
+
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 300
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO] == 250
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO] == 100
 
     def test_extract_tts_usage_metrics(self) -> None:
         """Test TTS usage metrics extraction."""
