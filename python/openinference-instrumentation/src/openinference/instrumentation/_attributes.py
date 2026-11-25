@@ -530,13 +530,35 @@ class IOValueJSONEncoder(JSONEncoder):
             return str(obj)
 
 
+def _stringify_non_json_key(key: Any) -> Any:
+    """JSON only accepts str, int, float, bool, and None as mapping keys."""
+    return key if isinstance(key, (str, int, float, bool, type(None))) else str(key)
+
+
+def _normalize_mapping_keys(obj: Any) -> Any:
+    """Recursively stringify mapping keys that ``json.dumps`` cannot encode.
+
+    ``json.dumps`` does not route mapping keys through ``default``, so the
+    encoder cannot handle keys such as tuples, bytes, or enums. Normalizing
+    before serialization keeps those keys instead of silently dropping them.
+    """
+    if isinstance(obj, Mapping):
+        return {
+            _stringify_non_json_key(key): _normalize_mapping_keys(value)
+            for key, value in obj.items()
+        }
+    if isinstance(obj, (list, tuple)):
+        return [_normalize_mapping_keys(value) for value in obj]
+    return obj
+
+
 def _json_serialize(obj: Any, **kwargs: Any) -> str:
     """
     Safely JSON dumps input and handles special types such as dataclasses and
     pydantic models.
     """
     return json.dumps(
-        obj,
+        _normalize_mapping_keys(obj),
         cls=IOValueJSONEncoder,
         ensure_ascii=False,
     )
