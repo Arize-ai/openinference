@@ -90,23 +90,35 @@ def _finish_tracing(
 
 def _materialize_content_iterables(kwargs: Mapping[str, Any]) -> Mapping[str, Any]:
     """
-    Turns one-shot iterables (e.g. generators) in the chat messages into lists, so the
-    message contents can be recorded on the span and still be sent by the SDK.
+    Turns one-shot iterables (e.g. generators) in the chat messages and tool definitions
+    into lists, so their contents can be recorded on the span and still be sent by the SDK.
+
+    Returns the given mapping unchanged when there is nothing to materialize.
     """
+    changed = False
+
+    tools = kwargs.get("tools")
+    if isinstance(tools, Iterable) and not isinstance(tools, (str, bytes, Mapping, Sequence)):
+        # Attribute extraction iterates the tool definitions before the SDK does,
+        # so a one-shot iterable would leave the request without any tools.
+        kwargs = {**kwargs, "tools": list(tools)}
+        changed = True
+
     messages = kwargs.get("messages")
-    if not isinstance(messages, Iterable) or isinstance(messages, (str, bytes, Mapping)):
-        return kwargs
-    changed = not isinstance(messages, Sequence)
-    materialized = []
-    for message in messages:
-        if isinstance(message, Mapping):
-            content = message.get("content")
-            if isinstance(content, Iterable) and not isinstance(
-                content, (str, bytes, Sequence, Mapping)
-            ):
-                message = {**message, "content": list(content)}
-                changed = True
-        materialized.append(message)
-    if not changed:
-        return kwargs
-    return {**kwargs, "messages": materialized}
+    if isinstance(messages, Iterable) and not isinstance(messages, (str, bytes, Mapping)):
+        materialized = []
+        content_changed = False
+        for message in messages:
+            if isinstance(message, Mapping):
+                content = message.get("content")
+                if isinstance(content, Iterable) and not isinstance(
+                    content, (str, bytes, Sequence, Mapping)
+                ):
+                    message = {**message, "content": list(content)}
+                    content_changed = True
+            materialized.append(message)
+        if content_changed or not isinstance(messages, Sequence):
+            kwargs = {**kwargs, "messages": materialized}
+            changed = True
+
+    return {**kwargs} if changed else kwargs

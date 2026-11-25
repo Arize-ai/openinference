@@ -53,7 +53,11 @@ class _RequestAttributesExtractor:
         invocation_params = dict(request_parameters)
         invocation_params.pop("messages", None)  # Remove LLM input messages
 
-        if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
+        if isinstance((tools := invocation_params.pop("tools", None)), Sequence) and not isinstance(
+            tools, (str, bytes)
+        ):
+            # Only materialized sequences: iterating a string or a single tool mapping
+            # would record each character or key as if it were a tool definition.
             for i, tool in enumerate(tools):
                 yield (
                     f"{SpanAttributes.LLM_TOOLS}.{i}.{ToolAttributes.TOOL_JSON_SCHEMA}",
