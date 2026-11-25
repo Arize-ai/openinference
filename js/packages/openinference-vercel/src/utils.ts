@@ -1140,6 +1140,21 @@ const getTokenCountAttributes = (
     result[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = completionCount;
   }
 
+  const totalCount = attributes[VercelAISemanticConventions.TOKEN_COUNT_TOTAL];
+  if (typeof totalCount === "number") {
+    result[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = totalCount;
+  }
+
+  const reasoningCount = attributes[VercelAISemanticConventions.TOKEN_COUNT_REASONING];
+  if (typeof reasoningCount === "number") {
+    result[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = reasoningCount;
+  }
+
+  const cachedInputCount = attributes[VercelAISemanticConventions.TOKEN_COUNT_CACHED_INPUT];
+  if (typeof cachedInputCount === "number") {
+    result[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cachedInputCount;
+  }
+
   return Object.keys(result).length > 0 ? result : null;
 };
 

@@ -616,6 +616,51 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
       },
     ],
     [
+      "ai.usage total, reasoning and cached input tokens to OpenInference token counts",
+      {
+        vercelFunctionName: "ai.generateText.doGenerate",
+        vercelAttributes: {
+          [VercelAISemanticConventions.TOKEN_COUNT_PROMPT]: 100,
+          [VercelAISemanticConventions.TOKEN_COUNT_COMPLETION]: 50,
+          [VercelAISemanticConventions.TOKEN_COUNT_TOTAL]: 150,
+          [VercelAISemanticConventions.TOKEN_COUNT_REASONING]: 30,
+          [VercelAISemanticConventions.TOKEN_COUNT_CACHED_INPUT]: 40,
+        },
+        expectedOpenInferenceAttributes: {
+          [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 100,
+          [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 50,
+          [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 150,
+          [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]: 30,
+          [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: 40,
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+        },
+      },
+    ],
+    [
+      "gen_ai.usage token counts take precedence over ai.usage token counts",
+      {
+        vercelFunctionName: "ai.generateText.doGenerate",
+        vercelAttributes: {
+          "gen_ai.usage.input_tokens": 12,
+          "gen_ai.usage.output_tokens": 8,
+          "gen_ai.usage.cache_read.input_tokens": 3,
+          [VercelAISemanticConventions.TOKEN_COUNT_INPUT]: 99,
+          [VercelAISemanticConventions.TOKEN_COUNT_OUTPUT]: 99,
+          [VercelAISemanticConventions.TOKEN_COUNT_TOTAL]: 99,
+          [VercelAISemanticConventions.TOKEN_COUNT_REASONING]: 5,
+          [VercelAISemanticConventions.TOKEN_COUNT_CACHED_INPUT]: 99,
+        },
+        expectedOpenInferenceAttributes: {
+          [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 12,
+          [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 8,
+          [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 20,
+          [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]: 5,
+          [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: 3,
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+        },
+      },
+    ],
+    [
       "Token counts should not be mapped for CHAIN spans",
       {
         vercelFunctionName: "ai.embed",
