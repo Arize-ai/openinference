@@ -259,23 +259,27 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         otel_span.update_name(_get_span_name(span))
         data = span.span_data
         if isinstance(data, ResponseSpanData):
+            # Set per-message input attributes before input.value, and both before the
+            # response attributes below. The SDK caps spans at 128 attributes and evicts
+            # the oldest first, so the small, high-value response block (token counts,
+            # model name, output) must be the most recently set to survive long inputs.
+            if input := data.input:
+                if isinstance(input, str):
+                    otel_span.set_attribute(INPUT_VALUE, input)
+                elif isinstance(input, list):
+                    for k, v in _get_attributes_from_input(input):
+                        otel_span.set_attribute(k, v)
+                    otel_span.set_attribute(INPUT_MIME_TYPE, JSON)
+                    otel_span.set_attribute(
+                        INPUT_VALUE, safe_json_dumps(_without_computer_screenshot_urls(input))
+                    )
+                elif TYPE_CHECKING:
+                    assert_never(input)
             if isinstance(response := data.response, Response):
                 otel_span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 otel_span.set_attribute(OUTPUT_VALUE, response.model_dump_json())
                 for k, v in _get_attributes_from_response(response):
                     otel_span.set_attribute(k, v)
-            if input := data.input:
-                if isinstance(input, str):
-                    otel_span.set_attribute(INPUT_VALUE, input)
-                elif isinstance(input, list):
-                    otel_span.set_attribute(INPUT_MIME_TYPE, JSON)
-                    otel_span.set_attribute(
-                        INPUT_VALUE, safe_json_dumps(_without_computer_screenshot_urls(input))
-                    )
-                    for k, v in _get_attributes_from_input(input):
-                        otel_span.set_attribute(k, v)
-                elif TYPE_CHECKING:
-                    assert_never(input)
         elif isinstance(data, GenerationSpanData):
             for k, v in _get_attributes_from_generation_span_data(data):
                 otel_span.set_attribute(k, v)
