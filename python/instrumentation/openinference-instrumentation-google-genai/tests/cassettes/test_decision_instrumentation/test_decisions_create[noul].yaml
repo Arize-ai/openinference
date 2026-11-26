@@ -1,0 +1,18 @@
+interactions:
+- request:
+    body: '{"input":"Hi, I was charged twice for order #4242 and would like my money
+      back.","model":"gemini-decision-1","questions":{"is_refund":{"instructions":"Is
+      this a refund request?","type":"noul"}}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/decisions
+  response:
+    body:
+      string: '{"answers":{"is_refund":{"confidence":0.9799475107845199,"noul":0.9799475107845199,"type":"noul"}},"usage":{"total_tokens":108,"total_input_tokens":108,"input_tokens_by_modality":[{"modality":"text","tokens":108}],"total_output_tokens":0}}'
+    headers:
+      content-type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+version: 1

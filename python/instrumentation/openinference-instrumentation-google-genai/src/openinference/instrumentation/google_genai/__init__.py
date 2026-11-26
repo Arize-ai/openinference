@@ -268,8 +268,8 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         # Decisions (client.decisions.create) only exists in google-genai >= 3.2. The package
         # floor is >= 2.0.0, so guard the setup and leave the slots unset-to-None when the
         # resource is absent
-        self._original_create_decisions_resource = None
-        self._original_async_create_decisions_resource = None
+        self._original_create_decisions_resource: Any = None
+        self._original_async_create_decisions_resource: Any = None
         try:
             self._instrument_decisions()
         except (ImportError, AttributeError):
