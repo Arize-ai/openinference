@@ -730,6 +730,88 @@ describe("formatTokenCounts", () => {
     });
   });
 
+  it("should add cache read and cache write counts from input token details", () => {
+    const outputs = {
+      generations: [
+        [
+          {
+            message: {
+              usage_metadata: {
+                input_tokens: 20,
+                output_tokens: 10,
+                total_tokens: 30,
+                input_token_details: {
+                  cache_read: 3,
+                  cache_creation: 5,
+                },
+              },
+            },
+          },
+        ],
+      ],
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toEqual({
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 30,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: 3,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: 5,
+    });
+  });
+
+  it("should omit zero cache read and cache write counts from input token details", () => {
+    const outputs = {
+      generations: [
+        [
+          {
+            message: {
+              usage_metadata: {
+                input_tokens: 20,
+                output_tokens: 10,
+                total_tokens: 30,
+                input_token_details: {
+                  cache_read: 0,
+                  cache_creation: 0,
+                },
+              },
+            },
+          },
+        ],
+      ],
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toEqual({
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 30,
+    });
+  });
+
+  it("should omit cache counts when input token details are absent", () => {
+    const outputs = {
+      generations: [
+        [
+          {
+            message: {
+              usage_metadata: {
+                input_tokens: 20,
+                output_tokens: 10,
+                total_tokens: 30,
+              },
+            },
+          },
+        ],
+      ],
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toEqual({
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 30,
+    });
+  });
+
   it("should add token counts from llmOutput.usage if present adding together input and output tokens if total tokens is not present", () => {
     const outputs = {
       llmOutput: {
