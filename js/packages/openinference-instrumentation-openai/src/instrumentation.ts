@@ -768,20 +768,25 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
        *
        * @param params.span - The Images span
        * @param params.uploads - The request's uploads
+       * @param params.preserveIndices - Reserve a slot for unreadable uploads, so a mask
+       *   keeps its position after an unreadable source image
        * @returns A getter for whichever upload attributes have been read so far
        */
       const captureUploadAttributes = ({
         span,
         uploads,
+        preserveIndices = false,
       }: {
         span: Span;
         uploads: ReadonlyArray<unknown>;
+        preserveIndices?: boolean;
       }): (() => Attributes) => {
         let uploadAttributes: Attributes = {};
         if (span.isRecording()) {
           void getInputImageAttributes({
             uploads,
             traceConfigOptions: instrumentation.traceConfig,
+            preserveIndices,
           })
             .then((attributes) => {
               uploadAttributes = attributes;
@@ -851,6 +856,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             const getUploadAttributes = captureUploadAttributes({
               span,
               uploads: mask === undefined ? [image] : [image, mask],
+              preserveIndices: true,
             });
             const execContext = getExecContext(span);
             const recordError = (error: unknown) => {

@@ -345,13 +345,17 @@ async function getUploadDataURL({
 /**
  * @param params.uploads - The request's uploads; an array entry holds several images
  * @param params.traceConfigOptions - The trace config, for masking and the size limit
+ * @param params.preserveIndices - Reserve a slot for unreadable uploads so later images keep
+ *   their position in the request. Off by default, so callers with a single upload stay at index 0.
  */
 export async function getInputImageAttributes({
   uploads,
   traceConfigOptions = {},
+  preserveIndices = false,
 }: {
   uploads: ReadonlyArray<unknown>;
   traceConfigOptions?: TraceConfigOptions;
+  preserveIndices?: boolean;
 }): Promise<Attributes> {
   const traceConfig = generateTraceConfig(traceConfigOptions);
   if (traceConfig.hideInputs || traceConfig.hideInputImages) return {};
@@ -364,11 +368,12 @@ export async function getInputImageAttributes({
   const attributes: Attributes = {};
   let imageIndex = 0;
   for (const dataURL of dataURLs) {
-    if (!dataURL) continue;
-    attributes[
-      getImageAttributeKey({ namespace: SemanticConventions.INPUT_IMAGES, index: imageIndex })
-    ] = dataURL;
-    imageIndex++;
+    if (dataURL) {
+      attributes[
+        getImageAttributeKey({ namespace: SemanticConventions.INPUT_IMAGES, index: imageIndex })
+      ] = dataURL;
+    }
+    if (dataURL || preserveIndices) imageIndex++;
   }
   return attributes;
 }
