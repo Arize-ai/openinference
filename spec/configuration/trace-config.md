@@ -15,8 +15,8 @@ in code, as a `TraceConfig` object passed to an instrumentor.
 | `OPENINFERENCE_HIDE_INPUT_MESSAGES` | bool | `false` | Hides all input messages (independent of `HIDE_INPUTS`) |
 | `OPENINFERENCE_HIDE_OUTPUT_MESSAGES` | bool | `false` | Hides all output messages (independent of `HIDE_OUTPUTS`) |
 | `OPENINFERENCE_HIDE_INPUT_IMAGES` | bool | `false` | Hides images from input messages and all `input.images` attributes |
-| `OPENINFERENCE_HIDE_INPUT_TEXT` | bool | `false` | Hides text from input messages, including message document `document.content` |
-| `OPENINFERENCE_HIDE_OUTPUT_TEXT` | bool | `false` | Hides text from output messages, including message document `document.content` |
+| `OPENINFERENCE_HIDE_INPUT_TEXT` | bool | `false` | Hides text from input messages, including message document `document.content` and tool call arguments (Python only) |
+| `OPENINFERENCE_HIDE_OUTPUT_TEXT` | bool | `false` | Hides text from output messages, including message document `document.content` and tool call arguments (Python only) |
 | `OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS` | bool | `false` | Hides LLM invocation parameters (independent of input/output hiding) |
 | `OPENINFERENCE_HIDE_LLM_TOOLS` | bool | `false` | Hides the tool definitions advertised to the LLM (`llm.tools.*`) |
 | `OPENINFERENCE_HIDE_PROMPTS` | bool | `false` | Hides LLM prompts (completions API) |

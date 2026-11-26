@@ -552,10 +552,13 @@ async def test_instrumentor_config_hiding_outputs(
                         tool_call_function_arguments(prefix, i, tc_idx), None
                     )
                     assert isinstance(args_json_str, str)
-                    assert (
-                        json.loads(args_json_str)
-                        == FunctionCall.to_dict(part.function_call)["args"]
-                    )
+                    if hide_output_text:
+                        assert args_json_str == REDACTED_VALUE
+                    else:
+                        assert (
+                            json.loads(args_json_str)
+                            == FunctionCall.to_dict(part.function_call)["args"]
+                        )
                     tc_idx += 1
     assert attributes == {}
 

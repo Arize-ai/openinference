@@ -28,6 +28,10 @@ When messages are not already hidden, finer settings hide parts of them:
 - `OPENINFERENCE_HIDE_OUTPUT_TEXT` does the same for output messages.
 - `OPENINFERENCE_HIDE_INPUT_IMAGES` replaces image URLs in input messages with `"__REDACTED__"`.
 
+In Python, each text-hiding setting also replaces tool call argument payloads on its respective side with
+`"__REDACTED__"`: `message.function_call_arguments_json` and `message.tool_calls.*.tool_call.function.arguments`.
+Tool call IDs and function names remain visible.
+
 ## LLM Request Details
 
 - `OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS` hides `llm.invocation_parameters`, independent of input and output
