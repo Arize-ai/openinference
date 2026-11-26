@@ -50,6 +50,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -281,25 +282,25 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
         )
     )
 
-    def mistral_chat() -> ChatCompletionResponse:
-        tool = {
-            "type": "function",
-            "function": {
-                "name": "get_weather",
-                "description": "finds the weather for a given city",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "city": {
-                            "type": "string",
-                            "description": "The city to find the weather for, e.g. 'London'",
-                        }
-                    },
-                    "required": ["city"],
+    tool = {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "finds the weather for a given city",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "The city to find the weather for, e.g. 'London'",
+                    }
                 },
+                "required": ["city"],
             },
-        }
+        },
+    }
 
+    def mistral_chat() -> ChatCompletionResponse:
         return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
             tool_choice="any",
@@ -360,6 +361,9 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
         invocation_parameters[key] == explicit_invocation_parameters[key]
         for key in explicit_invocation_parameters
     )
+    assert "tools" not in invocation_parameters
+    assert isinstance(tool_schema := attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str)
+    assert json.loads(tool_schema) == tool
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -1240,6 +1244,9 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
         invocation_parameters[key] == explicit_invocation_parameters[key]
         for key in explicit_invocation_parameters
     )
+    assert "tools" not in invocation_parameters
+    assert isinstance(tool_schema := attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str)
+    assert json.loads(tool_schema) == tool
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -1851,6 +1858,8 @@ LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
