@@ -160,11 +160,13 @@ def get_genai_response_attributes(
         genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS] = tuple(finish_reasons)
 
     if _get_oi_span_kind(attributes) == OpenInferenceSpanKindValues.LLM.value:
-        if response_payload := _get_response_payload(attributes):
-            if response_id := _as_optional_str(response_payload.get("id")):
-                genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_ID] = response_id
-            if response_model := _as_optional_str(response_payload.get("model")):
-                genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_MODEL] = response_model
+        response_payload = _get_response_payload(attributes) or {}
+        if response_id := _as_optional_str(response_payload.get("id")):
+            genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_ID] = response_id
+        if response_model := _as_optional_str(
+            attributes.get(SpanAttributes.LLM_RESPONSE_MODEL_NAME)
+        ) or _as_optional_str(response_payload.get("model")):
+            genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_MODEL] = response_model
 
     return genai_attributes
 
@@ -533,11 +535,11 @@ def _build_genai_message_from_marshaled(
     elif name := _as_optional_str(message.get("message.name")):
         genai_message["name"] = name
 
-    finish_reason = _as_optional_str(message.get("finish_reason"))
     if is_output:
-        genai_message["finish_reason"] = _normalize_finish_reason(
-            finish_reason
-        ) or _default_finish_reason(genai_message)
+        if finish_reason := _normalize_finish_reason(
+            _as_optional_str(message.get("finish_reason"))
+        ) or _infer_finish_reason_from_parts(genai_message):
+            genai_message["finish_reason"] = finish_reason
 
     return genai_message
 
@@ -595,9 +597,12 @@ def _build_genai_message_from_bucket(
         finish_reason = _normalize_finish_reason(
             _as_optional_str(bucket.get("message.finish_reason"))
         )
-        genai_message["finish_reason"] = (
-            finish_reason or fallback_finish_reason or _default_finish_reason(genai_message)
-        )
+        if finish_reason := (
+            finish_reason
+            or fallback_finish_reason
+            or _infer_finish_reason_from_parts(genai_message)
+        ):
+            genai_message["finish_reason"] = finish_reason
 
     return genai_message
 
@@ -839,7 +844,7 @@ def _get_choice_texts(attributes: Mapping[str, AttributeValue]) -> List[str]:
     return [buckets[index] for index in sorted(buckets)]
 
 
-def _get_default_output_finish_reason(attributes: Mapping[str, AttributeValue]) -> str:
+def _get_default_output_finish_reason(attributes: Mapping[str, AttributeValue]) -> Optional[str]:
     explicit_finish_reasons = _get_explicit_finish_reasons(attributes)
     if explicit_finish_reasons:
         return explicit_finish_reasons[0]
@@ -850,7 +855,7 @@ def _get_default_output_finish_reason(attributes: Mapping[str, AttributeValue]) 
         for key in attributes
     ):
         return "tool_call"
-    return "stop"
+    return None
 
 
 def _get_response_finish_reasons(
@@ -866,16 +871,18 @@ def _get_response_finish_reasons(
         _output_messages if _output_messages is not None else _get_output_messages(attributes)
     )
     return [
-        _normalize_finish_reason(_as_optional_str(message.get("finish_reason"))) or "stop"
+        finish_reason
         for message in output_messages
         if isinstance(message, Mapping)
+        and (finish_reason := _as_optional_str(message.get("finish_reason")))
     ]
 
 
 def _get_explicit_finish_reasons(attributes: Mapping[str, AttributeValue]) -> List[str]:
     finish_reason = attributes.get(SpanAttributes.LLM_FINISH_REASON)
     if isinstance(finish_reason, str):
-        return [_normalize_finish_reason(finish_reason) or "stop"]
+        normalized_finish_reason = _normalize_finish_reason(finish_reason)
+        return [normalized_finish_reason] if normalized_finish_reason else []
     if isinstance(finish_reason, Sequence) and not isinstance(finish_reason, str):
         return [
             normalized_finish_reason
@@ -894,17 +901,17 @@ def _normalize_finish_reason(finish_reason: Optional[str]) -> Optional[str]:
     return lowered
 
 
-def _default_finish_reason(message: Mapping[str, Any]) -> str:
+def _infer_finish_reason_from_parts(message: Mapping[str, Any]) -> Optional[str]:
     parts = message.get("parts")
     if not isinstance(parts, Sequence) or isinstance(parts, str):
-        return "stop"
+        return None
     if any(
         isinstance(part, Mapping)
         and _as_optional_str(part.get("type")) == GenAIMessagePartTypeValues.TOOL_CALL.value
         for part in parts
     ):
         return "tool_call"
-    return "stop"
+    return None
 
 
 def _get_tool_definitions(attributes: Mapping[str, AttributeValue]) -> List[Dict[str, Any]]:
