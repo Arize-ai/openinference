@@ -590,6 +590,8 @@ function formatTokenCounts(outputs: Run["outputs"]): TokenCountAttributes | null
     if (isObject(usageMetadata.input_token_details)) {
       tokenCountAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
         getTokenCount(usageMetadata.input_token_details.cache_read) || undefined;
+      tokenCountAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] =
+        getTokenCount(usageMetadata.input_token_details.cache_creation) || undefined;
       tokenCountAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO] =
         getTokenCount(usageMetadata.input_token_details.audio) || undefined;
     }
