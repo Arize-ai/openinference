@@ -411,6 +411,41 @@ class TestUpdatedGenAIMessageFormat:
         )
 
 
+def test_span_processor_records_reasoning_and_cache_write_tokens() -> None:
+    in_memory_span_exporter = InMemorySpanExporter()
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+    tracer = tracer_provider.get_tracer(__name__)
+
+    # Usage attributes written by the OpenLLMetry OpenAI (reasoning) and
+    # Anthropic (cache creation) instrumentors.
+    with tracer.start_as_current_span("chat") as recording_span:
+        recording_span.set_attribute("llm.request.type", "chat")
+        recording_span.set_attribute("gen_ai.prompt.0.role", "user")
+        recording_span.set_attribute("gen_ai.prompt.0.content", "Hello")
+        recording_span.set_attribute("gen_ai.completion.0.role", "assistant")
+        recording_span.set_attribute("gen_ai.completion.0.content", "Hi")
+        recording_span.set_attribute("gen_ai.request.model", "gpt-4.1")
+        recording_span.set_attribute("gen_ai.usage.input_tokens", 20)
+        recording_span.set_attribute("gen_ai.usage.output_tokens", 30)
+        recording_span.set_attribute("llm.usage.total_tokens", 50)
+        recording_span.set_attribute("llm.usage.reasoning_tokens", 16)
+        recording_span.set_attribute("gen_ai.usage.cache_read_input_tokens", 4)
+        recording_span.set_attribute("gen_ai.usage.cache_creation_input_tokens", 8)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 20
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 30
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 50
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] == 16
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 4
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 8
+
+
 def test_langgraph_operation_without_kind_has_ok_status() -> None:
     in_memory_span_exporter = InMemorySpanExporter()
     tracer_provider = TracerProvider()
