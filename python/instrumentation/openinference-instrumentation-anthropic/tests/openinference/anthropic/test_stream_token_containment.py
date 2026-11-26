@@ -7,6 +7,7 @@ exception escapes into _finish_tracing, which exports the span with no
 attributes at all (no model, no messages, no token counts).
 """
 
+import json
 import logging
 from typing import Iterator, Tuple
 
@@ -72,3 +73,49 @@ def test_message_extractor_contains_token_count_failure(
     assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT not in attributes
     assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION not in attributes
     assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL not in attributes
+
+
+def test_message_extractor_tolerates_null_usage_when_completion_unknown() -> None:
+    # A snapshot built before message_start delivers usage serializes with an
+    # explicit "usage": null (Message.construct bypasses validation, the same
+    # way the SDK's accumulate_event builds it). With completion_known=False,
+    # the extractor pops the output-token placeholder from the dumped usage;
+    # a None usage must not raise AttributeError there and blank the span.
+    snapshot = Message.construct(
+        id="msg_stream_null_usage",
+        content=[TextBlock(type="text", text="Paris.")],
+        model="claude-opus-4-6",
+        role="assistant",
+        stop_reason=None,
+        stop_sequence=None,
+        type="message",
+        usage=None,
+    )
+
+    attributes = dict(_MessageExtractor(snapshot, completion_known=False).get_attributes())
+
+    assert attributes[SpanAttributes.LLM_MODEL_NAME] == "claude-opus-4-6"
+    assert SpanAttributes.OUTPUT_VALUE in attributes
+
+
+def test_message_extractor_strips_output_token_placeholder_when_completion_unknown() -> None:
+    # The placeholder pop still works when usage is present: output_tokens is
+    # removed from the serialized snapshot while input_tokens is kept.
+    snapshot = Message.construct(
+        id="msg_stream_placeholder",
+        content=[TextBlock(type="text", text="Paris.")],
+        model="claude-opus-4-6",
+        role="assistant",
+        stop_reason=None,
+        stop_sequence=None,
+        type="message",
+        usage=Usage(input_tokens=12, output_tokens=1),
+    )
+
+    attributes = dict(_MessageExtractor(snapshot, completion_known=False).get_attributes())
+
+    output_value = attributes[SpanAttributes.OUTPUT_VALUE]
+    assert isinstance(output_value, str)
+    dumped_usage = json.loads(output_value)["usage"]
+    assert "output_tokens" not in dumped_usage
+    assert dumped_usage["input_tokens"] == 12

@@ -484,7 +484,7 @@ class _MessageExtractor:
                 if index < len(content) and content[index].get("type") in TOOL_CALL_BLOCK_TYPES:
                     content[index].pop("input", None)
             if not self._completion_known:
-                value.get("usage", {}).pop("output_tokens", None)
+                (value.get("usage") or {}).pop("output_tokens", None)
             output = json.dumps(value)
         yield SpanAttributes.OUTPUT_VALUE, output
         yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
