@@ -213,3 +213,7 @@ If the issue or a comment contains an API key, a customer's name or email, or wh
 - Use only labels that exist on the repo. If an instrumentor has no `instrumentation: *` label yet, leave it out and say so in the summary.
 - Put test code in the submission only from a test or probe that ran and showed the problem.
 - Write the summary, evidence and questions in plain sentences with code in backticks. Never mention a GitHub user; the dispatcher addresses the reporter.
+
+End each final session response with `FACTORY_ARTIFACTS={"issues":[],"prs":[]}`.
+Include every issue/PR created or worked on in the kickoff repo, including subagents.
+Keep the normal summary; the report line is session-only, not a GitHub post.

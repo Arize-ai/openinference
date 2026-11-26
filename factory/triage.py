@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "anthropic==1.12.1",
+#     "PyJWT[crypto]==2.15.1",
+# ]
+# ///
 """Triage one OpenInference issue in the factory sandbox.
 
 `start` checks that the issue can be triaged now and creates a Managed Agents session with the
@@ -201,12 +208,25 @@ def list_triage_sessions(*, client: anthropic.Anthropic, agent_id: str) -> list[
     return sorted(sessions, key=lambda session: (session.created_at, session.id))
 
 
+def read_session_issue_numbers(*, metadata: dict[str, str]) -> list[int]:
+    """The issues a session's metadata names: the JSON `issues` array, or the single `issue`
+    that sessions created before the array existed carry."""
+    if "issues" in metadata:
+        try:
+            issue_numbers = json.loads(metadata["issues"])
+        except json.JSONDecodeError:
+            return []
+        return issue_numbers if isinstance(issue_numbers, list) else []
+    legacy_issue = metadata.get("issue", "")
+    return [int(legacy_issue)] if legacy_issue.isdigit() else []
+
+
 def count_issue_sessions(*, sessions: list[Any], repo: str, issue_number: int) -> int:
     return sum(
         1
         for session in sessions
         if session.metadata.get("repo") == repo
-        and session.metadata.get("issue") == str(issue_number)
+        and issue_number in read_session_issue_numbers(metadata=session.metadata)
     )
 
 
@@ -307,7 +327,12 @@ def create_session(
         environment_id=read_lock_id(lock=lock, lock_key=ENVIRONMENT_LOCK_KEY),
         vault_ids=[vault_id],
         title=f"triage: {repo}#{issue['number']}",
-        metadata={"repo": repo, "issue": str(issue["number"]), "lane": "triage"},
+        metadata={
+            "repo": repo,
+            "issues": json.dumps([issue["number"]]),
+            "prs": "[]",
+            "lane": "triage",
+        },
         budget={
             "type": "limit",
             "max_list_cost": {"amount": str(budget_cents), "currency": "USD"},

@@ -4,7 +4,7 @@ The session ends in exactly one of two states. Grade the criteria for the state 
 
 ## State A: draft PR opened
 
-1. The transcript shows a test added in this PR failing for the reason the issue reports before the fix and passing after it.
+1. The reproducer's first report shows a test added in this PR failing for the reason the issue reports before the fix, and its verify report, called back after the fix and after review, shows the same test passing on the fixed tree. The test is unchanged between the two runs, and the fixer did not run, edit or substitute for the verify run itself.
 2. Every test added in this PR drives real code, the SDK client through the instrumentor against a cassette or mock transport or the function that holds the logic, and would fail if the fix were reverted. None mocks the instrumentor, its wrappers or the SDK method it wraps, builds spans by hand, or silences warnings so fake payloads pass.
 3. The diff is confined to the bug's path; no unrelated refactors, formatting churn, or comments that narrate the change.
 4. For every touched Python package, `tox run -e ci-<env>` ran and passed in the transcript; for a change to `python/openinference-instrumentation/` or `python/openinference-semantic-conventions/`, that is `ci-instrumentation` or `ci-semconv` plus the instrumentors the issue names. For every touched TypeScript package, its tests and type check ran and passed, and so did `pnpm run lint` and `pnpm run fmt:check`; for a change to `openinference-core`, `openinference-semantic-conventions` or `openinference-genai`, `pnpm run -r test` and `pnpm run type:check` ran and passed.

@@ -57,12 +57,9 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           python-version: "3.12"
-
-      - name: Install the Anthropic SDK and PyJWT
-        run: pip install --quiet "anthropic==1.12.1" "PyJWT[crypto]==2.15.1"
 
       # Factory Sync keeps the agent, environment and vault IDs on the factory-state branch.
       - name: Pull claude-lock.json
@@ -86,7 +83,7 @@ jobs:
             issue_comment) TRIGGER=reply ;;
             *) TRIGGER=dispatch ;;
           esac
-          python factory/triage.py --repo "$GH_REPO" --issue "$ISSUE_NUMBER" start --requested-by "$REQUESTED_BY" --trigger "$TRIGGER"
+          uv run --script factory/triage.py --repo "$GH_REPO" --issue "$ISSUE_NUMBER" start --requested-by "$REQUESTED_BY" --trigger "$TRIGGER"
 
       # Answers the session's submissions, then labels the issue and posts the report as the app.
       # A run that ends without a valid submission fails here and posts nothing on the issue;
@@ -99,4 +96,4 @@ jobs:
           FACTORY_APP_PRIVATE_KEY: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
           FACTORY_GITHUB_LOGIN: ${{ vars.FACTORY_GITHUB_LOGIN }}
           SESSION_ID: ${{ steps.start.outputs.session_id }}
-        run: python factory/triage.py --repo "$GH_REPO" --issue "$ISSUE_NUMBER" watch --session-id "$SESSION_ID"
+        run: uv run --script factory/triage.py --repo "$GH_REPO" --issue "$ISSUE_NUMBER" watch --session-id "$SESSION_ID"
