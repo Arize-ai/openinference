@@ -1,0 +1,15 @@
+file_format: definition/2
+attributes:
+  - key: metadata
+    type: string
+    brief: "Metadata associated with a span"
+    examples: ["{'author': 'John Doe', 'date': '2023-09-09'}"]
+    stability: development
+    annotations:
+      openinference:
+        encoding: json
+  - key: tag.tags
+    type: string[]
+    brief: "List of tags to give the span a category"
+    examples: [["shopping", "travel"]]
+    stability: development

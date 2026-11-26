@@ -1,0 +1,215 @@
+@import "@fontsource-variable/urbanist/wght.css";
+@import "@fontsource-variable/geist-mono/wght.css";
+@import "./tokens.css";
+
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: calc(var(--header-height) + var(--space-5)); }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 var(--text-body) / 1.55 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+img, svg, video { display: block; max-width: 100%; }
+img { height: auto; }
+h1, h2, h3, h4, p, figure, blockquote, ul, ol { margin: 0; }
+a { color: inherit; }
+/* Selected text: solid signal with ink text, the same in both themes (a
+   translucent signal turns muddy brown on the dark ground). */
+::selection { background: var(--accent); color: var(--color-ink); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/*
+ * Page grid. A full-bleed three-track grid: children sit in the centred
+ * content column by default; `.bleed` children span edge to edge.
+ */
+.page-grid {
+  display: grid;
+  grid-template-columns:
+    [full-start] minmax(var(--gutter), 1fr)
+    [content-start] minmax(0, var(--page-max))
+    [content-end] minmax(var(--gutter), 1fr)
+    [full-end];
+}
+.page-grid > * { grid-column: content; min-width: 0; }
+.page-grid > .bleed { grid-column: full; }
+/* The wide frame (the header, the footer, docs pages): --frame-max, centred,
+   holding the gutter. Inside the page grid it spans the full track. */
+.frame { width: min(var(--frame-max), 100% - 2 * var(--gutter)); margin-inline: auto; }
+.page-grid > .frame { grid-column: full; }
+
+/* Shared type primitives. Mono caps labels: the `.eyebrow` class, and the
+   markdown elements that can't take one. */
+.eyebrow, .prose th {
+  font: 500 var(--text-micro) / 1.4 var(--font-mono);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* A standalone page's title block (the brand and credits pages). */
+.page-head { display: grid; gap: var(--space-4); }
+.page-head h1 { font: 600 var(--text-h2) / 1.05 var(--font-sans); letter-spacing: var(--tracking-tight); }
+.page-head .intro { color: var(--soft); font-size: var(--text-lede); line-height: 1.45; text-wrap: pretty; }
+
+/* A disclosure with a +/− marker instead of the browser's triangle. */
+.disclosure > summary { cursor: pointer; list-style: none; }
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary::after { content: "+"; }
+.disclosure[open] > summary::after { content: "−"; }
+
+.button {
+  display: inline-block;
+  padding: 11px 16px;
+  border: 1px solid var(--fg);
+  color: var(--fg);
+  font: 500 12px / 1 var(--font-mono);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.button:hover, .button:focus-visible { background: var(--fg); color: var(--bg); }
+.button.solid { background: var(--fg); color: var(--bg); }
+.button.solid:hover, .button.solid:focus-visible { background: transparent; color: var(--fg); }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * Rendered markdown (the README, the spec, translations). The markdown is
+ * written for GitHub, so style the elements it produces and don't add
+ * classes to it.
+ */
+.prose { font-size: var(--text-body-lg); line-height: 1.65; overflow-wrap: break-word; }
+.prose > * + * { margin-top: 1.1em; }
+
+/* A spec page's `# Title` is its title block. */
+.prose h1 {
+  margin-bottom: var(--space-6);
+  font: 600 var(--text-h2) / 1.05 var(--font-sans);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+.prose h2 {
+  margin-top: 2.2em;
+  font: 600 var(--text-section) / 1.2 var(--font-sans);
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+.prose h3 { margin-top: 1.8em; font: 600 var(--text-h3) / 1.25 var(--font-sans); letter-spacing: -0.01em; }
+.prose h4 { margin-top: 1.6em; font: 600 var(--text-h4) / 1.3 var(--font-sans); }
+.prose h2 + *, .prose h3 + *, .prose h4 + * { margin-top: 0.6em; }
+.prose > :first-child { margin-top: 0; }
+
+/* Links in running text, here and in the landing page's lede. */
+:is(.prose, .lede) a { text-decoration-color: color-mix(in srgb, var(--fg) 35%, transparent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+:is(.prose, .lede) a:hover { color: var(--accent); text-decoration-color: currentColor; }
+/* Heading anchors and other self-links stay quiet. */
+.prose :is(h1, h2, h3, h4) a { text-decoration: none; }
+
+.prose ul, .prose ol { padding-left: 1.25em; }
+.prose li + li { margin-top: 0.35em; }
+.prose li > ul, .prose li > ol { margin-top: 0.35em; }
+.prose li::marker { color: var(--dim); }
+.prose strong { font-weight: 600; }
+.prose blockquote { padding-left: var(--space-4); border-left: 2px solid var(--accent); color: var(--soft); }
+.prose hr { margin-block: var(--space-7); border: 0; border-top: 1px solid var(--rule); }
+
+.prose img { display: inline-block; vertical-align: middle; }
+/* Version badges: shields.io's blue is not in the palette, so they read in
+   grey, like any other metadata. */
+.prose img[src*="img.shields.io"] { filter: grayscale(1); opacity: 0.85; }
+.prose img[src*="img.shields.io"]:hover { filter: none; opacity: 1; }
+/* Stability badges in the spec's tables (development, stable, deprecated):
+   label-less badges, whose colour is the information, so they keep it. */
+.prose img[src*="img.shields.io/badge/-"] { filter: none; opacity: 1; }
+
+/* Code */
+.prose code { font: 0.84em var(--font-mono); }
+.prose :not(pre) > code { padding: 0.12em 0.32em; background: var(--tint); border-radius: 3px; }
+.prose pre {
+  padding: var(--space-4) var(--space-5);
+  overflow-x: auto;
+  font-size: var(--text-small);
+  line-height: 1.6;
+  border: 1px solid var(--rule);
+}
+.prose pre code { font-size: inherit; }
+/* Copy button on code blocks (added by CodeCopy.astro). It sits in the
+   wrapper, not the pre, so it stays in the corner while the code scrolls,
+   at the end of the lines in either text direction. With a mouse it shows on
+   hover, or when the block or button has focus; on touch screens, always. */
+.prose .code-block { position: relative; }
+.code-copy {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--dim);
+  font: 500 var(--text-micro) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.code-block:hover .code-copy, .code-block:focus-within .code-copy, .code-copy[data-state] { opacity: 1; }
+@media (hover: none) { .code-copy { opacity: 1; } }
+.code-copy:hover { color: var(--fg); border-color: var(--fg); }
+.code-copy:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.code-copy[data-state="copied"] { color: var(--accent); border-color: var(--accent); }
+/* Code blocks: Pierre's dark colours with the site's dark theme (an explicit
+   choice, or the system preference when none is set). */
+:root[data-theme="dark"] .astro-code,
+:root[data-theme="dark"] .astro-code span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .astro-code,
+  :root:not([data-theme]) .astro-code span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+  }
+}
+
+/*
+ * Tables: ruled rows, mono caps headers. Each one sits in a `.table-scroll`
+ * box (added by rehype-table-scroll), so a wide one scrolls inside itself and
+ * the page never scrolls sideways.
+ */
+.prose .table-scroll { overflow-x: auto; }
+.prose table { width: 100%; border-collapse: collapse; font-size: var(--text-small); line-height: 1.5; font-variant-numeric: tabular-nums; }
+.prose th, .prose td { padding: 10px var(--space-5) 10px 0; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top; }
+.prose th:last-child, .prose td:last-child { padding-right: 0; }
+.prose th { border-bottom-color: var(--fg); white-space: nowrap; }
+.prose th[align="right"], .prose td[align="right"] { text-align: right; }
+.prose th[align="center"], .prose td[align="center"] { text-align: center; }
+.prose td:first-child code { white-space: nowrap; }
+/* Elsewhere a long value (a `go get` line) wraps rather than widening the table. */
+.prose td:not(:first-child) code { overflow-wrap: anywhere; }
+/* Package names fill a whole column; a tint behind each one is noise. */
+.prose td:first-child > a > code { padding: 0; background: none; }
+
+@media (max-width: 720px) {
+  .prose { font-size: var(--text-body); }
+  .prose pre { padding: var(--space-3) var(--space-4); }
+}

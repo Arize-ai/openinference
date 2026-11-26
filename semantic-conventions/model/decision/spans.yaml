@@ -1,0 +1,51 @@
+file_format: definition/2
+spans:
+  - type: openinference.decision
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    annotations:
+      openinference:
+        # The page of the prose specification that covers this span.
+        spec: "[Decision Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md)"
+    brief: >
+      A call to a decision model, which scores or selects among candidate
+      options provided in the request rather than generating free-form text.
+    note: |
+      `openinference.span.kind` MUST be `DECISION`.
+
+      Decision spans do not use the `llm.*` identification and token count
+      attributes; the `decision.*` attributes take their place.
+
+      See [Decision Spans](https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md).
+    name:
+      note: |
+        **Span name** is not constrained. It SHOULD identify the operation.
+    attributes:
+      - ref_group: attributes.openinference.common
+      # What the common input and output attributes hold on this kind of span.
+      - ref: input.value
+        brief: The raw request as a JSON string, including the candidate options.
+      - ref: input.mime_type
+        brief: MIME type of `input.value`, usually `application/json`.
+      - ref: output.value
+        brief: The raw response as a JSON string, including the selection or scores.
+      - ref: output.mime_type
+        brief: MIME type of `output.value`, usually `application/json`.
+      - ref: decision.system
+        requirement_level: required
+      - ref: decision.model_name
+        requirement_level: recommended
+      - ref: decision.provider
+        requirement_level:
+          recommended: When the hosting provider differs from the system.
+      - ref: decision.request.model_name
+        requirement_level:
+          recommended: When the requested model can differ from the model that served the response.
+      - ref: decision.response.model_name
+        requirement_level:
+          recommended: When the requested model can differ from the model that served the response.
+      - ref: decision.token_count.input
+        requirement_level: recommended
+      - ref: decision.token_count.output
+        requirement_level: recommended

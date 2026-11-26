@@ -18,6 +18,12 @@ class _ValueAndType(NamedTuple):
     type: OpenInferenceMimeTypeValues
 
 
+def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(attr_name, default)
+    return getattr(obj, attr_name, default)
+
+
 def _io_value_and_type(obj: Any) -> _ValueAndType:
     if hasattr(obj, "model_dump_json") and callable(obj.model_dump_json):
         try:

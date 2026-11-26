@@ -1,3 +1,4 @@
+import { SpanStatusCode } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import OpenAI, { APIPromise } from "openai";
@@ -128,6 +129,8 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.output_messages.0.message.contents.0.message_content.type": "output_text",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4.1",
+        "llm.response.model_name": "gpt-4.1",
         "llm.system": "openai",
         "llm.token_count.completion": 6,
         "llm.token_count.completion_details.reasoning": 0,
@@ -138,8 +141,123 @@ describe("OpenAIInstrumentation - Responses", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
+  });
+
+  it("captures image generation results as span-level output images", async () => {
+    const response = {
+      ...responseBase,
+      id: "resp_images",
+      output: [
+        {
+          id: "ig_failed",
+          type: "image_generation_call" as const,
+          status: "failed" as const,
+          result: null,
+        },
+        {
+          id: "ig_first",
+          type: "image_generation_call" as const,
+          status: "completed" as const,
+          result: "Zmlyc3Q=",
+        },
+        {
+          id: "ig_second",
+          type: "image_generation_call" as const,
+          status: "completed" as const,
+          result: "c2Vjb25k",
+          output_format: "jpeg",
+        },
+      ],
+      model: "gpt-image-1",
+      output_text: "",
+    } satisfies ResponseType;
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        Promise.resolve({
+          response: new Response(),
+          options: {},
+          controller: new AbortController(),
+        }) as never,
+        () => response,
+      );
+    });
+
+    await openai.responses.create({
+      input: "Draw two lighthouses",
+      model: "gpt-image-1",
+      tools: [{ type: "image_generation", output_format: "webp" }],
+    });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.attributes["output.images.0.image.url"]).toBe("data:image/webp;base64,Zmlyc3Q=");
+    expect(span.attributes["output.images.1.image.url"]).toBe("data:image/jpeg;base64,c2Vjb25k");
+    expect(span.attributes["output.images.2.image.url"]).toBeUndefined();
+    // The images are only recorded on output.images.*, where base64ImageMaxLength applies
+    const outputValue = JSON.parse(String(span.attributes["output.value"]));
+    expect(outputValue.output).toEqual([
+      { id: "ig_failed", type: "image_generation_call", status: "failed" },
+      { id: "ig_first", type: "image_generation_call", status: "completed" },
+      {
+        id: "ig_second",
+        type: "image_generation_call",
+        status: "completed",
+        output_format: "jpeg",
+      },
+    ]);
+    expect(outputValue.id).toBe("resp_images");
+  });
+
+  it("leaves replayed generated images out of input.value", async () => {
+    const response = {
+      ...responseBase,
+      id: "resp_replay",
+      output: [],
+      model: "gpt-image-1",
+      output_text: "",
+    } satisfies ResponseType;
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        Promise.resolve({
+          response: new Response(),
+          options: {},
+          controller: new AbortController(),
+        }) as never,
+        () => response,
+      );
+    });
+    const replayedImage = {
+      id: "ig_first",
+      type: "image_generation_call" as const,
+      status: "completed" as const,
+      result: "Zmlyc3Q=",
+    };
+
+    await openai.responses.create({
+      model: "gpt-image-1",
+      tools: [{ type: "image_generation" }],
+      input: [
+        { role: "user", content: "Draw a lighthouse" },
+        replayedImage,
+        { role: "user", content: "Make it darker" },
+      ],
+    });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    const inputValue = JSON.parse(String(span.attributes["input.value"]));
+    expect(inputValue.input).toEqual([
+      { role: "user", content: "Draw a lighthouse" },
+      { id: "ig_first", type: "image_generation_call", status: "completed" },
+      { role: "user", content: "Make it darker" },
+    ]);
+    expect(inputValue.model).toBe("gpt-image-1");
+    // The caller's request, which is what OpenAI receives, keeps the image
+    expect(replayedImage.result).toBe("Zmlyc3Q=");
   });
 
   it("creates a span for responses with multiple messages and instructions", async () => {
@@ -215,6 +333,8 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.output_messages.0.message.contents.0.message_content.type": "output_text",
         "llm.output_messages.0.message.role": "assistant",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4.1",
+        "llm.response.model_name": "gpt-4.1",
         "llm.system": "openai",
         "llm.token_count.completion": 6,
         "llm.token_count.completion_details.reasoning": 0,
@@ -225,6 +345,8 @@ describe("OpenAIInstrumentation - Responses", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
@@ -293,6 +415,7 @@ describe("OpenAIInstrumentation - Responses", () => {
     expect(spans.length).toBe(1);
     const span = spans[0];
     expect(span.name).toBe("OpenAI Responses");
+    expect(span.status).toEqual({ code: SpanStatusCode.OK });
     expect(span.attributes).toMatchInlineSnapshot(`
       {
         "input.mime_type": "application/json",
@@ -302,6 +425,8 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.invocation_parameters": "{"model":"gpt-4.1","stream":true}",
         "llm.model_name": "gpt-4.1",
         "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4.1",
+        "llm.response.model_name": "gpt-4.1",
         "llm.system": "openai",
         "llm.token_count.completion": 6,
         "llm.token_count.completion_details.reasoning": 0,
@@ -312,10 +437,146 @@ describe("OpenAIInstrumentation - Responses", () => {
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp-567","model":"gpt-4.1","output":[{"type":"output_text","text":"I am streaming!","annotations":[]}]}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
       }
     `);
   });
 
+  it.each([
+    {
+      eventType: "response.incomplete",
+      status: "incomplete",
+      extra: { incomplete_details: { reason: "max_output_tokens" } },
+      spanStatus: SpanStatusCode.OK,
+    },
+    {
+      eventType: "response.failed",
+      status: "failed",
+      extra: { error: { code: "server_error", message: "The model failed" } },
+      spanStatus: SpanStatusCode.ERROR,
+    },
+  ])(
+    "records output and token counts for a stream that ends with $eventType",
+    async ({ eventType, status, extra, spanStatus }) => {
+      vi.spyOn(openai, "post").mockImplementation(
+        // @ts-expect-error the response type is not correct - this is just for testing
+        (): Promise<unknown> => {
+          const iterator = () =>
+            (async function* () {
+              yield { type: "response.output_text.delta", delta: "I am cut" };
+              yield {
+                type: eventType,
+                response: {
+                  ...responseBase,
+                  ...extra,
+                  status,
+                  id: "resp-789",
+                  model: "gpt-4.1",
+                  output: [
+                    {
+                      type: "message",
+                      id: "msg_1",
+                      status: "incomplete",
+                      role: "assistant",
+                      content: [{ type: "output_text", text: "I am cut", annotations: [] }],
+                    },
+                  ],
+                },
+              };
+            })();
+          const controller = new AbortController();
+          const stream = new Stream(iterator, controller);
+          return new APIPromise(
+            new OpenAI({ apiKey: "fake-api-key" }),
+            // @ts-expect-error the response type is not correct - this is just for testing
+            Promise.resolve({ response: new Response(), options: {}, controller }),
+            () => stream,
+          );
+        },
+      );
+      const stream = await openai.responses.create({
+        input: "Say something long",
+        model: "gpt-4.1",
+        stream: true,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _event of stream) {
+        // drain the stream so the span is recorded
+      }
+      await new Promise((resolve) => setTimeout(resolve));
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      const attributes = spans[0].attributes;
+      expect(spans[0].status.code).toBe(spanStatus);
+      expect(attributes["output.value"]).toContain("I am cut");
+      expect(attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+      expect(attributes["llm.token_count.prompt"]).toBe(12);
+      expect(attributes["llm.token_count.completion"]).toBe(6);
+      expect(attributes["llm.token_count.total"]).toBe(18);
+    },
+  );
+
+  describe("streaming span status", () => {
+    // Mocks a stream that yields the given events and then awaits `end`, which can throw
+    const mockStream = (events: object[], end?: (signal: AbortSignal) => Promise<void>) => {
+      const controller = new AbortController();
+      vi.spyOn(openai, "post").mockImplementation(
+        // @ts-expect-error the response type is not correct - this is just for testing
+        (): Promise<unknown> => {
+          const iterator = () =>
+            (async function* () {
+              for (const event of events) {
+                yield event;
+              }
+              await end?.(controller.signal);
+            })();
+          const stream = new Stream(iterator, controller);
+          return new APIPromise(
+            new OpenAI({ apiKey: "fake-api-key" }),
+            // @ts-expect-error the response type is not correct - this is just for testing
+            Promise.resolve({ response: new Response(), options: {}, controller }),
+            () => stream,
+          );
+        },
+      );
+      return controller;
+    };
+    const createStream = () =>
+      openai.responses.create({ input: "Say I am streaming!", model: "gpt-4.1", stream: true });
+
+    it("ends the span with status ERROR when the stream fails", async () => {
+      mockStream([{ type: "response.output_text.delta", delta: "I " }], async () => {
+        throw new Error("connection reset");
+      });
+      const stream = await createStream();
+      await expect(async () => {
+        for await (const _event of stream) {
+          // consume the stream
+        }
+      }).rejects.toThrow("connection reset");
+      await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: "connection reset" });
+      expect(span.events.map((event) => event.name)).toEqual(["exception"]);
+      expect(span.events[0].attributes?.["exception.message"]).toBe("connection reset");
+    });
+
+    it("leaves the status unset when the stream is aborted", async () => {
+      // Like the SDK, the stream waits on the server and then ends quietly once aborted
+      const controller = mockStream(
+        [{ type: "response.output_text.delta", delta: "I " }],
+        (signal) => new Promise((resolve) => signal.addEventListener("abort", () => resolve())),
+      );
+      for await (const _event of await createStream()) {
+        controller.abort();
+      }
+      await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.status).toEqual({ code: SpanStatusCode.UNSET });
+      expect(span.events).toEqual([]);
+    });
+  });
   it("should capture tool calls with streaming responses", async () => {
     // Mock out the post endpoint to return a stream with tool calls
     vi.spyOn(openai, "post").mockImplementation(
@@ -438,26 +699,30 @@ describe("OpenAIInstrumentation - Responses", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Responses");
     expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"input":"What's the weather in Boston?","model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
-  "llm.input_messages.0.message.content": "What's the weather in Boston?",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
-  "llm.model_name": "gpt-4.1",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"boston"}",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc123",
-  "llm.provider": "openai",
-  "llm.system": "openai",
-  "llm.token_count.total": 101,
-  "llm.tools.0.tool.json_schema": "{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
-}
-`);
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"input":"What's the weather in Boston?","model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
+        "llm.input_messages.0.message.content": "What's the weather in Boston?",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
+        "llm.model_name": "gpt-4.1",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"boston"}",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc123",
+        "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4.1",
+        "llm.response.model_name": "gpt-4.1",
+        "llm.system": "openai",
+        "llm.token_count.total": 101,
+        "llm.tools.0.tool.json_schema": "{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}",
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "application/json",
+        "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
+      }
+    `);
   });
 
   it("should capture tool calls, instructions, and multiple messages with streaming responses", async () => {
@@ -589,28 +854,32 @@ describe("OpenAIInstrumentation - Responses", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Responses");
     expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"instructions":"You are a helpful weather assistant.","input":[{"type":"message","content":"What's the weather in Boston?","role":"user"}],"model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
-  "llm.input_messages.0.message.content": "You are a helpful weather assistant.",
-  "llm.input_messages.0.message.role": "system",
-  "llm.input_messages.1.message.content": "What's the weather in Boston?",
-  "llm.input_messages.1.message.role": "user",
-  "llm.invocation_parameters": "{"instructions":"You are a helpful weather assistant.","model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
-  "llm.model_name": "gpt-4.1",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"boston"}",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc123",
-  "llm.provider": "openai",
-  "llm.system": "openai",
-  "llm.token_count.total": 101,
-  "llm.tools.0.tool.json_schema": "{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
-}
-`);
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"instructions":"You are a helpful weather assistant.","input":[{"type":"message","content":"What's the weather in Boston?","role":"user"}],"model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
+        "llm.input_messages.0.message.content": "You are a helpful weather assistant.",
+        "llm.input_messages.0.message.role": "system",
+        "llm.input_messages.1.message.content": "What's the weather in Boston?",
+        "llm.input_messages.1.message.role": "user",
+        "llm.invocation_parameters": "{"instructions":"You are a helpful weather assistant.","model":"gpt-4.1","tools":[{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"stream":true}",
+        "llm.model_name": "gpt-4.1",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"boston"}",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc123",
+        "llm.provider": "openai",
+        "llm.request.model_name": "gpt-4.1",
+        "llm.response.model_name": "gpt-4.1",
+        "llm.system": "openai",
+        "llm.token_count.total": 101,
+        "llm.tools.0.tool.json_schema": "{"name":"get_weather","type":"function","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}",
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "application/json",
+        "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
+        "server.address": "api.openai.com",
+        "server.port": 443,
+      }
+    `);
   });
 
   it("should capture reasoning blocks in non-streaming output", async () => {

@@ -43,6 +43,7 @@ For internal diagnostics use `diag` from `@opentelemetry/api` (`diag.debug`/`dia
 
 - Vite with **manual module mocking**: `instrumentation._modules[0].moduleExports = module`
 - Tests must cover: suppress tracing, context propagation, trace config
+- Prefer **network recordings** over hand-written response fixtures: record real SDK calls with nock and replay them. Copy `test/helpers/recordings.ts` from the OpenAI or Anthropic instrumentation; its header explains usage and how to re-record (`NOCK_BACK_MODE=record`)
 
 ## Core Helpers
 
@@ -60,3 +61,8 @@ Use `@arizeai/openinference-core` attribute helpers instead of setting semantic 
 - **Named object args**: `{ original, oiTracer }` not positional
 - **No `any`**: strong types from the instrumented SDK only
 - **Type guards** narrow to actual SDK types, not structural equivalents
+- **Named guards over inline checks**: use `isString`, `isRecord`, `isDefined`, `isPresent`, etc. from `@arizeai/openinference-core` instead of `typeof`, `Array.isArray` or `=== undefined`
+
+## Documentation
+
+Every function, class member, type, interface field and module-level constant gets a TSDoc comment, exported or not. Document each parameter with `@param` (`@param params.foo` for object arguments) and explain behavior, not the name. See the `openinference-typescript` skill for the full rules.

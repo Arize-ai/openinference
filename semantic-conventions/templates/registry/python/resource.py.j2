@@ -1,0 +1,20 @@
+{# For a docstring: `"""` cannot appear inside it, and a trailing `"` would
+   run into the closing quotes. #}
+{% macro text(value) -%}
+{%- set escaped = value | default("", true) | trim | replace("\\", "\\\\") | replace('"""', "'''") | replace("\n", " ") -%}
+{%- if escaped is endingwith('"') %}{{ escaped[:-1] }}\"{% else %}{{ escaped }}{% endif -%}
+{%- endmacro %}
+# ruff: noqa: E501
+# Generated from the semantic convention registry in semantic-conventions/model.
+# Do not edit by hand: change the model or semantic-conventions/templates/registry/python,
+# then run `make -C semantic-conventions generate`.
+
+
+class ResourceAttributes:
+{% for attribute in ctx.attributes %}
+    {{ attribute.const_key | screaming_snake_case }} = "{{ attribute.key }}"
+    """{{ text(attribute.brief) }}"""
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}

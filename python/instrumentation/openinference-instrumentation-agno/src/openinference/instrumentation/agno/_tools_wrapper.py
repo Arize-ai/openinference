@@ -1,3 +1,5 @@
+import asyncio
+import threading
 from enum import Enum
 from types import AsyncGeneratorType, GeneratorType
 from typing import (
@@ -16,11 +18,13 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
+from agno.exceptions import RunCancelledException
 from agno.run.agent import RunContentEvent, RunOutputEvent
 from agno.run.team import RunContentEvent as TeamRunContentEvent
 from agno.run.team import TeamRunOutputEvent
 from agno.tools.function import FunctionCall, ToolResult
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.agno._context import DEFAULT_ACTIVATION, SpanActivation
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -72,8 +76,11 @@ def _output_value_and_mime_type_for_tool_span(result: Any) -> Iterator[Tuple[str
 
 
 class _FunctionCallWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(
+        self, tracer: trace_api.Tracer, activation: SpanActivation = DEFAULT_ACTIVATION
+    ) -> None:
         self._tracer = tracer
+        self._activation = activation
 
     def run(
         self,
@@ -94,6 +101,7 @@ class _FunctionCallWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: TOOL,
                 **dict(_input_value_and_mime_type_for_tool_span(function_arguments)),
@@ -103,7 +111,7 @@ class _FunctionCallWrapper:
         )
 
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            with self._activation.use_span(span):
                 response = wrapped(*args, **kwargs)
 
             if response.status == "success":
@@ -154,6 +162,7 @@ class _FunctionCallWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=self._activation.get_current(),
             attributes={
                 OPENINFERENCE_SPAN_KIND: TOOL,
                 **dict(_input_value_and_mime_type_for_tool_span(function_arguments)),
@@ -163,7 +172,7 @@ class _FunctionCallWrapper:
         )
 
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            with self._activation.use_span(span):
                 response = await wrapped(*args, **kwargs)
 
             if response.status == "success":
@@ -226,51 +235,79 @@ class _FunctionCallWrapper:
     ) -> Iterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
         """Handle streaming success case: set span attributes and close span."""
         function_result = ""
+        # The generator body runs while it is iterated here, not when the tool was
+        # called, so keep the tool span current for the whole iteration. Spans the
+        # body starts (e.g. a member agent run in delegate_task_to_member) are then
+        # children of the tool span. Manually attach/detach, like the run wrappers,
+        # because the consumer may resume the generator from another thread.
+        initial_thread = threading.current_thread()
+        ctx_token = self._activation.attach_span(span)
         try:
             for item in result:
                 yield item
-                if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
-                    function_result += self._parse_content(item.content)
-                elif isinstance(item, str):
-                    function_result += str(item)
-        except Exception:
-            # Don't break if observability fails
-            pass
-        span.set_status(trace_api.StatusCode.OK)
-        span.set_attributes(
-            dict(
-                _output_value_and_mime_type_for_tool_span(
-                    result=function_result,
-                )
-            )
-        )
-        span.end()
+                try:
+                    if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
+                        function_result += self._parse_content(item.content)
+                    elif isinstance(item, str):
+                        function_result += str(item)
+                except Exception:
+                    # Don't break if observability fails
+                    pass
+            span.set_status(trace_api.StatusCode.OK)
+        except RunCancelledException:
+            # A cancelled run is not a tool failure, so the status stays unset.
+            raise
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
+            raise
+        finally:
+            # On early close, close the tool's generator first so the spans it still
+            # holds open detach before the tool span does.
+            close = getattr(result, "close", None)
+            if close is not None:
+                close()
+            if threading.current_thread() is initial_thread:
+                self._activation.detach(ctx_token)
+            span.set_attributes(dict(_output_value_and_mime_type_for_tool_span(function_result)))
+            span.end()
 
     async def _handle_async_success_streaming(
         self, result: AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]], span: trace_api.Span
     ) -> AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
         """Handle streaming success case: set span attributes and close span."""
         function_result = ""
-        async for item in result:
-            yield item
-            try:
-                if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
-                    function_result += self._parse_content(item.content)
-                elif isinstance(item, str):
-                    function_result += str(item)
-            except Exception:
-                # Don't break if observability fails
-                pass
-
-        span.set_status(trace_api.StatusCode.OK)
-        span.set_attributes(
-            dict(
-                _output_value_and_mime_type_for_tool_span(
-                    result=function_result,
-                )
-            )
-        )
-        span.end()
+        # See _handle_success_streaming: keep the tool span current while the
+        # generator body runs. Detach only from the task that attached.
+        initial_task = asyncio.current_task()
+        ctx_token = self._activation.attach_span(span)
+        try:
+            async for item in result:
+                yield item
+                try:
+                    if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
+                        function_result += self._parse_content(item.content)
+                    elif isinstance(item, str):
+                        function_result += str(item)
+                except Exception:
+                    # Don't break if observability fails
+                    pass
+            span.set_status(trace_api.StatusCode.OK)
+        except RunCancelledException:
+            # A cancelled run is not a tool failure, so the status stays unset.
+            raise
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
+            raise
+        finally:
+            aclose = getattr(result, "aclose", None)
+            if aclose is not None:
+                await aclose()
+            if asyncio.current_task() is initial_task:
+                self._activation.detach(ctx_token)
+            span.set_attributes(dict(_output_value_and_mime_type_for_tool_span(function_result)))
+            span.end()
 
     def _parse_content(self, content: Any) -> str:
         from pydantic import BaseModel

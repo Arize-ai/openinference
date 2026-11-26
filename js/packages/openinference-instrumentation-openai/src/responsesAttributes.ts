@@ -11,6 +11,7 @@ import type { Stream } from "openai/streaming";
 import { safelyJSONStringify } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+import { getImageDataURL } from "./imageAttributes";
 import { getNumberProperty } from "./typeUtils";
 
 /**
@@ -248,6 +249,70 @@ export function getResponsesOutputMessagesAttributes(response: ResponseType): At
   return attributes;
 }
 
+function getImageGenerationOutputFormat(body: ResponseCreateParamsBase): string | undefined {
+  const imageGenerationTool = body.tools?.find((tool) => tool.type === "image_generation");
+  return imageGenerationTool?.output_format;
+}
+
+export function getResponsesOutputImageAttributes({
+  response,
+  body,
+}: {
+  response: ResponseType;
+  body: ResponseCreateParamsBase;
+}): Attributes {
+  const attributes: Attributes = {};
+  const imageFormat = getImageGenerationOutputFormat(body);
+  let imageIndex = 0;
+  for (const item of response.output) {
+    if (item.type !== "image_generation_call" || !item.result) continue;
+    attributes[
+      `${SemanticConventions.OUTPUT_IMAGES}.${imageIndex}.${SemanticConventions.IMAGE_URL}`
+    ] = getImageDataURL({
+      base64: item.result,
+      imageFormat: item.output_format ?? imageFormat,
+    });
+    imageIndex++;
+  }
+  return attributes;
+}
+
+/**
+ * Drops the base64 `result` from the image_generation_call items of a list of
+ * Responses items. Other items are returned as they are.
+ */
+function withoutGeneratedImageResults(
+  items: ReadonlyArray<ResponseInputItem | ResponseOutputItem>,
+): unknown[] {
+  return items.map((item) => {
+    if (item.type !== "image_generation_call") return item;
+    const { result: _result, ...imageGenerationCall } = item;
+    return imageGenerationCall;
+  });
+}
+
+/**
+ * Serializes a Responses response for output.value without the base64 images of its
+ * image_generation_call items. They are recorded on output.images.*, where
+ * base64ImageMaxLength applies to them.
+ */
+export function stringifyResponse(response: ResponseType): string {
+  return JSON.stringify({
+    ...response,
+    output: response.output ? withoutGeneratedImageResults(response.output) : response.output,
+  });
+}
+
+/**
+ * Serializes a Responses request body for input.value without the base64 images of the
+ * image_generation_call items it replays from an earlier turn's output. The image was
+ * already recorded on the output.images.* of the span that generated it.
+ */
+export function stringifyResponseCreateParams(body: ResponseCreateParamsBase): string {
+  if (!Array.isArray(body.input)) return JSON.stringify(body);
+  return JSON.stringify({ ...body, input: withoutGeneratedImageResults(body.input) });
+}
+
 export async function consumeResponseStreamEvents(
   stream: Stream<ResponseStreamEvent>,
 ): Promise<ResponseType | undefined> {
@@ -255,7 +320,11 @@ export async function consumeResponseStreamEvents(
 
   for await (const event of stream) {
     switch (event.type) {
-      case "response.completed": {
+      // A stream can end on any of these; the incomplete and failed ones still carry the
+      // partial output and the usage.
+      case "response.completed":
+      case "response.incomplete":
+      case "response.failed": {
         response = event.response;
         break;
       }

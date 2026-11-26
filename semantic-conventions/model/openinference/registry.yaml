@@ -1,0 +1,64 @@
+file_format: definition/2
+attributes:
+  - key: openinference.span.kind
+    type:
+      members:
+        - id: llm
+          value: "LLM"
+          brief: "A call to a large language model."
+          stability: development
+        - id: chain
+          value: "CHAIN"
+          brief: "A link between application steps, or the start of a request."
+          stability: development
+        - id: tool
+          value: "TOOL"
+          brief: "Execution of a tool or function."
+          stability: development
+        - id: retriever
+          value: "RETRIEVER"
+          brief: "A query to a vector store, search engine, or database."
+          stability: development
+        - id: reranker
+          value: "RERANKER"
+          brief: "Reordering of candidate documents by relevance."
+          stability: development
+        - id: embedding
+          value: "EMBEDDING"
+          brief: "Generation of vector embeddings."
+          stability: development
+        - id: agent
+          value: "AGENT"
+          brief: "A reasoning step that acts on tools using an LLM's guidance."
+          stability: development
+        - id: guardrail
+          value: "GUARDRAIL"
+          brief: "An input or output moderation check."
+          stability: development
+        - id: evaluator
+          value: "EVALUATOR"
+          brief: "An evaluation of a model's output."
+          stability: development
+        - id: prompt
+          value: "PROMPT"
+          brief: "The rendering of a prompt template."
+          stability: development
+        - id: decision
+          value: "DECISION"
+          brief: "A call to a decision model."
+          stability: development
+        - id: unknown
+          value: "UNKNOWN"
+          brief: "Fallback used by SDKs when the kind of an operation cannot be determined."
+          stability: development
+    brief: "The role an operation plays in an AI application."
+    note: |
+      Required on every OpenInference span. It is distinct from OpenTelemetry's own `SpanKind`.
+      See [Span Kinds](https://github.com/Arize-ai/openinference/blob/main/spec/general/span-kinds.md).
+    stability: development
+  - key: openinference.project.name
+    type: string
+    brief: "The name of the project that the telemetry belongs to."
+    note: "Recorded as a resource attribute, not a span attribute. Identifies the `openinference.project` entity."
+    examples: ["default", "my-llm-app"]
+    stability: development

@@ -339,6 +339,56 @@ def test_tool_span_input_and_output(
     assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == "text/plain"
 
 
+@pytest.mark.parametrize("mode", MODES)
+@pytest.mark.parametrize(
+    "tool_input,expected_input,mime_type",
+    [
+        pytest.param(
+            {"text": "Hello", "target_language": "fr"},
+            {"text": "Hello", "target_language": "fr"},
+            "application/json",
+            id="text-with-other-arguments",
+        ),
+        pytest.param({"text": "Hello"}, "Hello", "text/plain", id="text-only"),
+        pytest.param({"text": ""}, "", "text/plain", id="empty-text"),
+        *[
+            pytest.param({"text": value}, {"text": value}, "application/json", id=name)
+            for name, value in [
+                ("null-text", None),
+                ("numeric-text", 42),
+                ("boolean-text", False),
+                ("list-text", ["Hello"]),
+                ("object-text", {"message": "Hello"}),
+            ]
+        ],
+    ],
+)
+def test_tool_span_text_argument(
+    mode: str,
+    tool_input: Dict[str, Any],
+    expected_input: Any,
+    mime_type: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    harness = make_harness(monkeypatch, tracer_provider, in_memory_span_exporter, mode)
+    tool: Any = {"toolUseId": "call_1", "name": "translate", "input": tool_input}
+    result: Any = {"toolUseId": "call_1", "status": "success", "content": [{"text": "Bonjour"}]}
+    span = harness.tracer.start_tool_call_span(tool)
+    harness.tracer.end_tool_call_span(span, result)
+
+    attributes = dict(harness.only_span().attributes or {})
+    assert attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "TOOL"
+    assert json.loads(str(attributes[SpanAttributes.TOOL_PARAMETERS])) == tool_input
+    assert attributes[SpanAttributes.INPUT_MIME_TYPE] == mime_type
+    input_value = attributes[SpanAttributes.INPUT_VALUE]
+    if mime_type == "application/json":
+        assert json.loads(str(input_value)) == expected_input
+    else:
+        assert input_value == expected_input
+
+
 @pytest.mark.parametrize(
     "usage",
     [

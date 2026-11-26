@@ -1,0 +1,26 @@
+{% macro text(value) -%}
+{{ value | default("", true) | trim | replace("\n", " ") | replace("*/", "*&#47;") | replace("<", "&lt;") | replace(">", "&gt;") | replace("@", "&#64;") }}
+{%- endmacro %}
+// Generated from the semantic convention registry in semantic-conventions/model.
+// Do not edit by hand: change the model or semantic-conventions/templates/registry/java,
+// then run `make -C semantic-conventions generate`.
+package com.arize.semconv.trace;
+
+import lombok.experimental.UtilityClass;
+
+/**
+ * Semantic conventions for OpenInference resource attributes
+ */
+@UtilityClass
+public class SemanticResourceAttributes {
+{% for attribute in ctx.attributes %}
+    /**
+     * {{ text(attribute.brief) }}
+     */
+    public static final String SEMRESATTRS_{{ attribute.const_key | screaming_snake_case }} = "{{ attribute.key }}";
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+}
+

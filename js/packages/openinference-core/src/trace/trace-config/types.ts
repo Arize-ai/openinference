@@ -18,6 +18,15 @@ export type TraceConfigOptions = {
   hideEmbeddingVectors?: boolean;
   base64ImageMaxLength?: number;
   hidePrompts?: boolean;
+  /**
+   * Also emits OpenTelemetry GenAI semantic convention (`gen_ai.*`) attributes,
+   * derived at span end from the span's OpenInference attributes.
+   * Existing `gen_ai.*` attributes are never overwritten, and the derivation
+   * runs after masking, so hidden content stays hidden.
+   * @experimental
+   * @default false
+   */
+  enableGenAISemconv?: boolean;
 };
 
 /**

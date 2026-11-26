@@ -1,0 +1,27 @@
+file_format: definition/2
+attributes:
+  - key: consumer_test.router.name
+    type: string
+    brief: An attribute the downstream registry defines itself.
+    stability: development
+spans:
+  - type: consumer_test.routed_llm
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    brief: A span that mixes its own attributes with OpenInference ones.
+    name:
+      note: Not a real span.
+    attributes:
+      # An OpenInference attribute with well-known values.
+      - ref: openinference.span.kind
+        requirement_level: required
+      # A flattened list.
+      - ref: llm.input_messages
+        requirement_level: recommended
+      # An OpenTelemetry attribute that OpenInference reuses: it resolves
+      # through OpenInference's own dependency.
+      - ref: session.id
+        requirement_level: recommended
+      - ref: consumer_test.router.name
+        requirement_level: recommended

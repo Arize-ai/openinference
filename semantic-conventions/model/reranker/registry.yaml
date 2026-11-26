@@ -1,0 +1,35 @@
+file_format: definition/2
+attributes:
+  - key: reranker.query
+    type: string
+    brief: "Query parameter of the reranker"
+    examples: ["How to format timestamp?"]
+    stability: development
+  - key: reranker.model_name
+    type: string
+    brief: "Model name of the reranker"
+    examples: ["cross-encoder/ms-marco-MiniLM-L-12-v2"]
+    stability: development
+  - key: reranker.top_k
+    type: int
+    brief: "Top K parameter of the reranker"
+    examples: [3]
+    stability: development
+  - key: reranker.input_documents
+    type: template[any]
+    brief: "List of documents as input to the reranker"
+    examples: ['[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["document"]
+  - key: reranker.output_documents
+    type: template[any]
+    brief: "List of documents outputted by the reranker"
+    examples: ['[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_namespaces: ["document"]

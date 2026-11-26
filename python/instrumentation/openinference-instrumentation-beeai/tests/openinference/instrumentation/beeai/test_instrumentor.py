@@ -1,6 +1,7 @@
 from typing import Any
 
 import pytest
+from beeai_framework.adapters.anthropic import AnthropicChatModel
 from beeai_framework.adapters.openai import OpenAIChatModel
 from beeai_framework.backend import SystemMessage, UserMessage
 from beeai_framework.tools.search.duckduckgo import DuckDuckGoSearchTool
@@ -165,6 +166,30 @@ async def test_llm_with_tools(
 
 @pytest.mark.vcr
 @pytest.mark.asyncio
+async def test_llm_records_prompt_cache_token_counts(
+    in_memory_span_exporter: InMemorySpanExporter,
+    anthropic_api_key: None,
+) -> None:
+    llm = AnthropicChatModel(model_id="claude-3-5-haiku-20241022")
+    await llm.run(
+        [SystemMessage("You are a helpful assistant."), UserMessage("Hello, How are you?")],
+        stream=False,
+        max_tokens=10,
+    )
+    spans = list(in_memory_span_exporter.get_finished_spans())
+    assert len(spans) == 1
+    attrs: dict[str, Any] = dict(spans[0].attributes or {})
+    assert attrs.get(f"{METADATA}.usage.cached_prompt_tokens") == "2000"
+    assert attrs.get(f"{METADATA}.usage.cached_creation_tokens") == "1500"
+    assert attrs.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 2000
+    assert attrs.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 1500
+    # prompt_tokens already includes the cache read and write counts (13 + 1500 + 2000)
+    assert attrs.get(LLM_TOKEN_COUNT_PROMPT) == 3513
+    assert attrs.get(LLM_TOKEN_COUNT_TOTAL) == 3523
+
+
+@pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_agent(
     in_memory_span_exporter: InMemorySpanExporter,
     openai_api_key: str,
@@ -268,6 +293,10 @@ LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON

@@ -1,0 +1,27 @@
+file_format: definition/2
+attributes:
+  - key: image.url
+    type: string
+    brief: "The link to the image or its base64 encoding"
+    examples: ["https://sample-link-to-image.jpg"]
+    stability: development
+  - key: audio.url
+    type: string
+    brief: "The URL of an audio file (e.g. cloud storage), or a base64 data URI"
+    examples: ["https://storage.com/buckets/1/file.wav"]
+    stability: development
+  - key: audio.transcript
+    type: string
+    brief: "The transcript of the audio file (e.g. a Whisper transcription)"
+    examples: ["Hello, how are you?"]
+    stability: development
+  - key: audio.mime_type
+    type: string
+    brief: "The MIME type of the audio file."
+    examples: ["audio/mpeg"]
+    stability: development
+  - key: video.url
+    type: string
+    brief: "The URL, object-store URI, or base64 data URI of a video. Consumers infer MIME type from the path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix."
+    examples: ["gs://bucket/clip.mp4"]
+    stability: development

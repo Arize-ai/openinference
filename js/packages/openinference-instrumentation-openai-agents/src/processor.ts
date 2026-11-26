@@ -21,6 +21,7 @@ import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
 import {
   GRAPH_NODE_ID,
   GRAPH_NODE_PARENT_ID,
+  IMAGE_URL,
   INPUT_MIME_TYPE,
   INPUT_VALUE,
   LLM_FINISH_REASON,
@@ -49,6 +50,7 @@ import {
   MimeType,
   OpenInferenceSpanKind,
   OUTPUT_MIME_TYPE,
+  OUTPUT_IMAGES,
   OUTPUT_VALUE,
   SemanticConventions,
   TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
@@ -112,8 +114,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Returns a copy of a response without the base64 images of its image_generation_call
+ * items, for output.value. They are recorded on output.images.*, where
+ * base64ImageMaxLength applies to them.
+ */
+function withoutGeneratedImages(response: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(response.output)) return response;
+  return {
+    ...response,
+    output: response.output.map((item: unknown) => {
+      if (!isRecord(item) || item.type !== "image_generation_call") return item;
+      const { result: _result, ...imageGenerationCall } = item;
+      return imageGenerationCall;
+    }),
+  };
+}
+
 function isString(value: unknown): value is string {
   return typeof value === "string";
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return isString(value) && value.length > 0;
 }
 
 function isNumber(value: unknown): value is number {
@@ -208,7 +231,7 @@ function getSpanName(span: Span<SpanData>): string {
 /**
  * Maps a SpanData type to the corresponding OpenInference span kind.
  *
- * @see https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md
+ * @see https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md
  */
 function getSpanKind(data: SpanData): OpenInferenceSpanKind {
   switch (data.type) {
@@ -673,11 +696,49 @@ function getHandoffAttributes(data: HandoffSpanData): Attributes {
 // ─── Response span (Responses API) ───────────────────────────────────────────
 
 /**
+ * @param params.base64 - The image's base64, or a data URL, which is kept as is
+ * @param params.imageFormat - The image's format, such as png; PNG is used when it is unknown
+ */
+function getImageDataURL({
+  base64,
+  imageFormat,
+}: {
+  base64: string;
+  imageFormat: unknown;
+}): string {
+  if (base64.startsWith("data:image/")) return base64;
+  const normalizedFormat = imageFormat === "jpg" ? "jpeg" : imageFormat;
+  const mediaType =
+    normalizedFormat === "png" ||
+    normalizedFormat === "jpeg" ||
+    normalizedFormat === "webp" ||
+    normalizedFormat === "gif"
+      ? `image/${normalizedFormat}`
+      : "image/png";
+  return `data:${mediaType};base64,${base64}`;
+}
+
+function getImageGenerationOutputFormat(tools: ReadonlyArray<unknown>): string | undefined {
+  for (const tool of tools) {
+    if (!isRecord(tool) || tool.type !== "image_generation") continue;
+    if (isString(tool.output_format)) return tool.output_format;
+  }
+  return undefined;
+}
+
+/**
  * Extracts output messages and tool calls from a Responses API output array.
  */
-function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
+function extractResponseOutput({
+  output,
+  imageFormat,
+}: {
+  output: ReadonlyArray<unknown>;
+  imageFormat?: string;
+}): Attributes {
   const attributes: Attributes = {};
   let messageIndex = 0;
+  let imageIndex = 0;
 
   for (const item of output) {
     if (!isRecord(item)) continue;
@@ -716,6 +777,12 @@ function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
         attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = item.arguments;
       }
       messageIndex++;
+    } else if (item.type === "image_generation_call" && isNonEmptyString(item.result)) {
+      attributes[`${OUTPUT_IMAGES}.${imageIndex}.${IMAGE_URL}`] = getImageDataURL({
+        base64: item.result,
+        imageFormat: isString(item.output_format) ? item.output_format : imageFormat,
+      });
+      imageIndex++;
     }
     // Other item types (file_search_call, web_search_call, computer_call, ...)
     // are not yet supported, matching the Python instrumentation's TODOs.
@@ -901,7 +968,7 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
   if (!isRecord(data._response)) return attributes;
   const response = data._response;
 
-  const responseJson = safelyJSONStringify(response);
+  const responseJson = safelyJSONStringify(withoutGeneratedImages(response));
   if (responseJson) {
     attributes[OUTPUT_VALUE] = responseJson;
     attributes[OUTPUT_MIME_TYPE] = MimeType.JSON;
@@ -932,7 +999,10 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
 
   // Output messages and function calls
   if (Array.isArray(response.output)) {
-    Object.assign(attributes, extractResponseOutput(response.output));
+    const imageFormat = Array.isArray(response.tools)
+      ? getImageGenerationOutputFormat(response.tools)
+      : undefined;
+    Object.assign(attributes, extractResponseOutput({ output: response.output, imageFormat }));
   }
 
   // System instructions become the first input message (matching the Python
@@ -1124,7 +1194,7 @@ function setSpanStatus(otelSpan: OtelSpan, span: Span<SpanData>, eventTime?: HrT
  * {@link OpenAIAgentsInstrumentation.instrument} (preferred) or directly with
  * `setTraceProcessors` / `addTraceProcessor`.
  *
- * @see https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md
+ * @see https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md
  */
 export class OpenInferenceTracingProcessor implements TracingProcessor {
   private enabled = true;

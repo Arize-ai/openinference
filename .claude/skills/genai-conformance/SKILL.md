@@ -38,7 +38,7 @@ Each provider script declares its deps as PEP 723 inline metadata and pins the l
 uv run python/openinference-instrumentation/scripts/conformance/run.py
 ```
 
-First run downloads pinned `weaver v0.22.1` and `semantic-conventions v1.40.0` to `~/.cache/oi-conformance/`; subsequent runs are fast. uv caches each provider script's env by PEP 723 metadata hash.
+First run downloads the pinned Weaver and `semantic-conventions-genai` commit to `~/.cache/oi-conformance/`; subsequent runs are fast. uv caches each provider script's env by PEP 723 metadata hash.
 
 ## Interpreting the summary
 
@@ -72,14 +72,14 @@ For category 3 (mock data gap):
 
 ## Bumping the semconv version
 
-The harness pins `SEMCONV_VERSION` (currently `v1.41.1`) and `WEAVER_VERSION` (currently `v0.23.0`) in `run.py`. When OTel cuts a new semconv release, walk this checklist:
+The harness pins `SEMCONV_GENAI_REF` (a commit of [semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai), which has no releases yet) and `WEAVER_VERSION` (currently `v0.26.1`, matching that repo's `versions.env`) in `run.py`. The GenAI conventions are deprecated in `open-telemetry/semantic-conventions` from v1.42.0, so don't bump back to that repo. When moving to a newer GenAI registry, walk this checklist:
 
 1. **Check for a newer Weaver release too** — always run `gh release list --repo open-telemetry/weaver --limit 5` alongside the semconv check. Weaver and the registry version independently; the harness depends on both. Bump `WEAVER_VERSION` whenever a newer release exists, and skim its notes for `live-check`-relevant fixes.
-2. **Bump the constants** in [run.py](../../../python/openinference-instrumentation/scripts/conformance/run.py): `SEMCONV_VERSION` and `WEAVER_VERSION` to the latest releases.
-3. **Run the harness once** (`uv run python/openinference-instrumentation/scripts/conformance/run.py`) so it downloads the new registry into `~/.cache/oi-conformance/semconv/<new-version>/`.
-4. **Refresh the vendored JSON schemas** at [tests/fixtures/genai_schemas/](../../../python/openinference-instrumentation/tests/fixtures/genai_schemas/) from `~/.cache/oi-conformance/semconv/<new-version>/docs/gen-ai/gen-ai-{input,output}-messages.json`.
+2. **Bump the constants** in [run.py](../../../python/openinference-instrumentation/scripts/conformance/run.py): `SEMCONV_GENAI_REF` to the new commit (or release tag, once the repo cuts one) and `WEAVER_VERSION` to the latest release.
+3. **Run the harness once** (`uv run python/openinference-instrumentation/scripts/conformance/run.py`) so it downloads the new registry into `~/.cache/oi-conformance/semconv-genai/<ref>/`.
+4. **Refresh the vendored JSON schemas** at [tests/fixtures/genai_schemas/](../../../python/openinference-instrumentation/tests/fixtures/genai_schemas/) from `~/.cache/oi-conformance/semconv-genai/<ref>/model/gen-ai/gen-ai-{input,output}-messages.json`.
 5. **Run unit tests** (`pytest tests/test_genai.py`). The `_load_json_attribute` validator runs the new schemas against every emitted message payload — any breaking shape change surfaces here.
-6. **Skim the semconv changelog** for these specific risks (each one usually requires a code change in `_genai_conversion.py`):
+6. **Skim the semconv changelog** (`changelog.d/` until the repo cuts a release) for these specific risks (each one usually requires a code change in `_genai_conversion.py`):
    - New required fields on `ChatMessage` / `OutputMessage` parts (`TextPart`, `ToolCallRequestPart`, etc.) → builder functions need to populate them.
    - New `Role` enum values → `_normalize_message_role` may need a mapping.
    - New `FinishReason` enum values → `_normalize_finish_reason` may need a mapping.

@@ -127,6 +127,7 @@ class ChatModelProcessor(Processor):
                             SpanAttributes.LLM_TOKEN_COUNT_TOTAL: usage.total_tokens,
                             SpanAttributes.LLM_TOKEN_COUNT_PROMPT: usage.prompt_tokens,
                             SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: usage.completion_tokens,
+                            **_get_prompt_cache_token_counts(usage),
                         }
                     )
 
@@ -169,6 +170,17 @@ class ChatModelProcessor(Processor):
                     [self._messages[msg_id]], prefix=SpanAttributes.LLM_OUTPUT_MESSAGES
                 )
             )
+
+
+def _get_prompt_cache_token_counts(usage: Any) -> dict[str, int]:
+    # ChatModelUsage gained cached_prompt_tokens and cached_creation_tokens in
+    # beeai-framework 0.1.71; both default to 0 when the provider reports no cache use.
+    counts: dict[str, int] = {}
+    if cached_prompt_tokens := getattr(usage, "cached_prompt_tokens", 0):
+        counts[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cached_prompt_tokens
+    if cached_creation_tokens := getattr(usage, "cached_creation_tokens", 0):
+        counts[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cached_creation_tokens
+    return counts
 
 
 def _process_tools(tools: list[AnyTool]) -> list[dict[str, str | Any]]:

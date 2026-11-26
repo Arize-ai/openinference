@@ -17,67 +17,61 @@ OpenInference solves these problems by defining a concrete attribute schema and 
 
 ## Data Model
 
-### Traces
+OpenInference adds no new signal or wire format. It defines conventions for OpenTelemetry traces:
 
-A trace records the full execution path of a request — from the user's initial input through every LLM call, tool invocation, and retrieval step to the final response. Traces are trees of spans connected by parent–child relationships. The root span typically represents an agent turn or pipeline invocation; child spans represent individual operations within it.
+- A **trace** records the full execution path of a request, from the user's input through every LLM call, tool
+  invocation, and retrieval step to the final response. It is a tree of spans connected by parent–child
+  relationships; the root span typically represents an agent turn or pipeline invocation.
+- A **span** is the atomic unit of work: one LLM call, one tool execution, one retrieval query, one embedding
+  generation. See [Traces and Spans](./general/traces.md).
+- The **span kind**, recorded in the `openinference.span.kind` attribute, classifies what an operation does (`LLM`,
+  `AGENT`, `TOOL`, `RETRIEVER`, and so on), so observability platforms can render traces with AI-aware
+  visualizations and aggregations. See [Span Kinds](./general/span-kinds.md).
+- **Attributes** are typed key–value pairs on a span. They carry the prompt, the response, the model name, the
+  retrieved documents, the tool arguments, and everything else needed to understand and reproduce a given execution.
+  Names use dot-separated namespaces (`llm.token_count.prompt`), and lists are flattened with zero-based indices
+  (`llm.input_messages.0.message.role`). See [Attribute Conventions](./attributes/conventions.md).
 
-### Spans
+## Specification
 
-A span is the atomic unit of work: one LLM call, one tool execution, one retrieval query, one embedding generation. Every span carries:
+### General
 
-| Field | Description |
-|---|---|
-| Name | Human-readable operation name (e.g., `ChatCompletion`, `web_search`) |
-| Start / end time | Wall-clock timestamps with nanosecond precision |
-| `openinference.span.kind` | The role of this operation in the pipeline (see [Span Kinds](#span-kinds)) |
-| Attributes | Typed key/value pairs capturing inputs, outputs, configuration, and cost |
-| Status | `OK`, `ERROR`, or `UNSET` |
-
-### Span Kinds
-
-The `openinference.span.kind` attribute classifies what an operation does, enabling observability platforms to render traces with AI-aware visualizations and aggregations:
-
-| Kind | Description |
-|---|---|
-| `LLM` | A call to a language model API. Carries input messages, model parameters, output messages, and token counts. |
-| `AGENT` | A reasoning step in an autonomous agent. May spawn child spans for tool calls, retrievals, or nested LLM calls. |
-| `CHAIN` | A deterministic sequence of operations such as prompt formatting, post-processing, or orchestration logic. |
-| `TOOL` | Execution of a function or external API called by a language model. |
-| `RETRIEVER` | A query to a vector store, search engine, or knowledge base. |
-| `RERANKER` | A reranking model that reorders a candidate set of documents by relevance. |
-| `EMBEDDING` | Generation of vector embeddings from text or other content. |
-| `GUARDRAIL` | An input or output moderation check. |
-| `EVALUATOR` | An automated evaluation of a model response (e.g., LLM-as-judge). |
-| `PROMPT` | A named prompt template invocation. |
-| `DECISION` | A call to a decision model that scores or selects among candidate options (e.g., routing, judging a condition, rubric scoring), such as [TypeSafe AI's Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev). See [Decision Spans](./decision_spans.md). |
+- [Traces and Spans](./general/traces.md) — How OpenInference uses the OpenTelemetry trace data model
+- [Span Kinds](./general/span-kinds.md) — The `openinference.span.kind` values and what each represents
 
 ### Attributes
 
-Attributes are typed key/value pairs attached to spans following a structured naming convention. They are the primary payload of OpenInference: they carry the prompt, the response, the model name, the retrieved documents, the tool arguments, and everything else needed to understand and reproduce a given execution.
+- [Attribute Conventions](./attributes/conventions.md) — Naming, value types, list flattening, and requirement levels
+- [Semantic Conventions](./attributes/semantic-conventions.md) — Every attribute, grouped by namespace, with well-known values
+- [Semantic Convention Registry](./attributes/registry.md) — The same conventions as a machine-readable, versioned
+  [Weaver](https://github.com/open-telemetry/weaver) registry: where it is published and how to pull it
+- [Context Attributes](./attributes/context.md) — Session, user, metadata, tag, and prompt template attributes
+  propagated to every span
 
-Attribute names use dot-separated namespaces (e.g., `llm.input_messages`, `llm.token_count.prompt`). List-valued attributes use zero-based integer indices in flattened form (e.g., `llm.input_messages.0.message.role`).
+### Span Conventions
 
-The [Semantic Conventions](./semantic_conventions.md) document is the authoritative reference for all attribute names, types, and meanings.
+- [LLM Spans](./spans/llm.md) — Language model calls: model identification, messages, token counts, and cost
+- [Embedding Spans](./spans/embedding.md) — Vector embedding generation
+- [Decision Spans](./spans/decision.md) — Decision model calls: model, system, and provider identification
 
-## Specifications
+### Messages and Content
 
-### Core
+- [Messages](./content/messages.md) — Input and output messages, content items, reasoning content, and the
+  completions API
+- [Multimodal Content](./content/multimodal.md) — Image, audio, video, and document content
+- [Tool Calling](./content/tool-calling.md) — Tool definitions, tool calls, and tool results
 
-- [Traces](./traces.md) — Trace structure, span hierarchy, and context propagation
-- [Semantic Conventions](./semantic_conventions.md) — Complete attribute reference
-- [Configuration](./configuration.md) — Environment variables, privacy controls, and data masking
+### Feedback
 
-### Span Types
+- [Annotations and Evaluations](./feedback/annotations.md) — Span-, trace-, and session-scoped feedback from human,
+  LLM, and code judges
 
-- [LLM Spans](./llm_spans.md) — Attributes for language model calls: messages, token counts, model parameters, and tool definitions
-- [Embedding Spans](./embedding_spans.md) — Attributes for vector embedding generation
-- [Decision Spans](./decision_spans.md) — Attributes for decision model calls: model, system, and provider identification
+### Configuration
 
-### Attribute Conventions
-
-- [Annotations and Evaluations](./annotations.md) — Span-, trace-, and session-scoped feedback from human, LLM, and code judges
-- [Tool Calling](./tool_calling.md) — Function/tool call and result representation
-- [Multimodal Attributes](./multimodal_attributes.md) — Image, audio, video, document, and mixed-content messages
+- [Trace Configuration](./configuration/trace-config.md) — Environment variables and `TraceConfig` settings
+- [Data Masking](./configuration/data-masking.md) — What each privacy setting hides
+- [Blob Upload](./configuration/blob-upload.md) — Uploading oversized media to external storage (experimental)
+- [GenAI Semantic Conventions Export](./configuration/genai-semconv.md) — Also emitting OTel `gen_ai.*` attributes (experimental)
 
 ## Notation Conventions and Compliance
 

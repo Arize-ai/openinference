@@ -1,5 +1,104 @@
 # Changelog
 
+## [1.2.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.4...python-openinference-instrumentation-agno-v1.2.5) (2026-11-21)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.82 ([#4413](https://github.com/Arize-ai/openinference/issues/4413)) ([6f8332e](https://github.com/Arize-ai/openinference/commit/6f8332ebba39e401193f599c5e8b87b8a1707ff6))
+
+## [1.2.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.3...python-openinference-instrumentation-agno-v1.2.4) (2026-11-20)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.81 ([#4379](https://github.com/Arize-ai/openinference/issues/4379)) ([b9bd21e](https://github.com/Arize-ai/openinference/commit/b9bd21e3f07985a4d1d8ef195c2c536998e93bd0))
+
+## [1.2.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.2...python-openinference-instrumentation-agno-v1.2.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* **agno:** keep the tool span current while a generator tool is consumed ([#4353](https://github.com/Arize-ai/openinference/issues/4353)) ([4b5e982](https://github.com/Arize-ai/openinference/commit/4b5e982aba40235f4764122583e02a34c631fb2e))
+
+## [1.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.1...python-openinference-instrumentation-agno-v1.2.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.79 ([#4335](https://github.com/Arize-ai/openinference/issues/4335)) ([e03fde3](https://github.com/Arize-ai/openinference/commit/e03fde31a743fedd77fa3e2ab043bfa9b95b7058))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.46 ([#4334](https://github.com/Arize-ai/openinference/issues/4334)) ([70ce76a](https://github.com/Arize-ai/openinference/commit/70ce76aefaf3daa99292bf3d456e496ff75742bd))
+
+## [1.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.2.0...python-openinference-instrumentation-agno-v1.2.1) (2026-11-16)
+
+
+### Documentation
+
+* **spec:** organize the spec into sections modeled on OpenTelemetry ([#4325](https://github.com/Arize-ai/openinference/issues/4325)) ([46e8ae6](https://github.com/Arize-ai/openinference/commit/46e8ae60d4ec58eec6e4bd72084865c87ecb2993))
+
+## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.5...python-openinference-instrumentation-agno-v1.2.0) (2026-11-12)
+
+
+### Features
+
+* **agno:** activate spans in an injected runtime context ([#3688](https://github.com/Arize-ai/openinference/issues/3688)) ([1c541e0](https://github.com/Arize-ai/openinference/commit/1c541e07041b256757f4a9585d76957e2a8b2db5))
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+
+## [1.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.4...python-openinference-instrumentation-agno-v1.1.5) (2026-11-12)
+
+
+### Bug Fixes
+
+* **agno:** fold Anthropic cache tokens into prompt and total token counts ([#4174](https://github.com/Arize-ai/openinference/issues/4174)) ([a076b01](https://github.com/Arize-ai/openinference/commit/a076b01e1eb3ccca8cd6a1473e3aad6adf42cc68))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+
+## [1.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.3...python-openinference-instrumentation-agno-v1.1.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
+## [1.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.2...python-openinference-instrumentation-agno-v1.1.3) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.1...python-openinference-instrumentation-agno-v1.1.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **agno:** don't resolve an async tools factory in run attributes ([#3998](https://github.com/Arize-ai/openinference/issues/3998)) ([592b1ad](https://github.com/Arize-ai/openinference/commit/592b1ad29d871e40f564c0cf429d5a4160d74df7))
+
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.1.0...python-openinference-instrumentation-agno-v1.1.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **agno:** restore the current span after Team.run and Team.arun ([#4116](https://github.com/Arize-ai/openinference/issues/4116)) ([d6d2800](https://github.com/Arize-ai/openinference/commit/d6d2800baa6f42bc6cfb96d3dff487e116be3e19))
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.16...python-openinference-instrumentation-agno-v1.1.0) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [1.0.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.15...python-openinference-instrumentation-agno-v1.0.16) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [1.0.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.14...python-openinference-instrumentation-agno-v1.0.15) (2026-10-09)
 
 

@@ -10,6 +10,7 @@ import {
   InstrumentationNodeModuleDefinition,
   safeExecuteInTheMiddle,
 } from "@opentelemetry/instrumentation";
+import { ATTR_SERVER_ADDRESS, ATTR_SERVER_PORT } from "@opentelemetry/semantic-conventions";
 import type openai from "openai";
 import { APIPromise } from "openai";
 import type { Completion, CreateEmbeddingResponse, EmbeddingCreateParams } from "openai/resources";
@@ -23,6 +24,16 @@ import type {
 import type { CompletionCreateParamsBase } from "openai/resources/completions";
 import type { Decision } from "openai/resources/decisions";
 import type {
+  ImageCreateVariationParams,
+  ImageEditCompletedEvent,
+  ImageEditParamsBase,
+  ImageEditStreamEvent,
+  ImageGenCompletedEvent,
+  ImageGenerateParamsBase,
+  ImageGenStreamEvent,
+  ImagesResponse,
+} from "openai/resources/images";
+import type {
   Response as ResponseType,
   ResponseCreateParamsBase,
   ResponseStreamEvent,
@@ -30,7 +41,12 @@ import type {
 import type { Stream } from "openai/streaming";
 
 import type { TraceConfigOptions } from "@arizeai/openinference-core";
-import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
+import {
+  getInputAttributes,
+  getOutputAttributes,
+  OITracer,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
 import {
   LLMProvider,
   LLMSystem,
@@ -44,10 +60,20 @@ import {
   getDecisionsResponseAttributes,
 } from "./decisionsAttributes";
 import {
+  getCompletedImageEventAttributes,
+  getImagesResponseAttributes,
+  getInputImageAttributes,
+  stringifyCompletedImageEvent,
+  stringifyImagesResponse,
+} from "./imageAttributes";
+import {
   consumeResponseStreamEvents,
   getResponsesInputMessagesAttributes,
+  getResponsesOutputImageAttributes,
   getResponsesOutputMessagesAttributes,
   getResponsesUsageAttributes,
+  stringifyResponse,
+  stringifyResponseCreateParams,
 } from "./responsesAttributes";
 import { assertUnreachable, getNumberProperty, isString } from "./typeUtils";
 import { VERSION } from "./version";
@@ -87,6 +113,8 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
   "api.minimaxi.com": LLMProvider.MINIMAX,
   "api.minimax.chat": LLMProvider.MINIMAX,
   "oci.oraclecloud.com": LLMProvider.ORACLE,
+  "ml.cloud.ibm.com": LLMProvider.IBM,
+  "api.doubleword.ai": LLMProvider.DOUBLEWORD,
 };
 
 /**
@@ -146,6 +174,31 @@ function getExecContext(span: Span) {
   return execContext;
 }
 
+const DEFAULT_PORTS: Partial<Record<string, number>> = { "http:": 80, "https:": 443 };
+
+/**
+ * Gets the baseURL of the OpenAI client instance
+ * @param clientInstance The OpenAI client instance
+ */
+function getBaseURL(clientInstance: unknown): unknown {
+  // The clientInstance might be a sub-object (like Completions) that has a _client property
+  // pointing to the actual OpenAI/AzureOpenAI client
+  if (clientInstance == null || typeof clientInstance !== "object") {
+    return undefined;
+  }
+  // First try to get baseURL from the instance itself
+  const baseURL = Reflect.get(clientInstance, "baseURL");
+  if (baseURL) {
+    return baseURL;
+  }
+  // If not found (or empty), try the _client property (this is where Azure OpenAI stores it)
+  const nestedClient = Reflect.get(clientInstance, "_client");
+  if (nestedClient != null && typeof nestedClient === "object") {
+    return Reflect.get(nestedClient, "baseURL");
+  }
+  return undefined;
+}
+
 /**
  * Gets the appropriate LLM provider based on the OpenAI client instance
  * Follows the same logic as the Python implementation by checking the baseURL host
@@ -154,22 +207,8 @@ function getExecContext(span: Span) {
  */
 function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
   try {
-    // The clientInstance might be a sub-object (like Completions) that has a _client property
-    // pointing to the actual OpenAI/AzureOpenAI client
     let host: string | undefined;
-    let baseURL: unknown;
-
-    // First try to get baseURL from the instance itself
-    if (clientInstance != null && typeof clientInstance === "object") {
-      baseURL = Reflect.get(clientInstance, "baseURL");
-      // If not found (or empty), try the _client property (this is where Azure OpenAI stores it)
-      if (!baseURL) {
-        const nestedClient = Reflect.get(clientInstance, "_client");
-        if (nestedClient != null && typeof nestedClient === "object") {
-          baseURL = Reflect.get(nestedClient, "baseURL");
-        }
-      }
-    }
+    const baseURL = getBaseURL(clientInstance);
 
     if (typeof baseURL === "string") {
       // Extract host from URL string
@@ -195,7 +234,37 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
 }
 
 /**
- * An auto instrumentation class for OpenAI that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md|OpenInference} Compliant spans for the OpenAI API
+ * Gets the host and port of the endpoint the OpenAI client instance sends requests to.
+ * They are recorded whether or not a provider can be inferred from the host, so a span
+ * shows when a call went through a gateway or a self-hosted proxy. Only the host and
+ * port are recorded: the path and query can carry tenant identifiers.
+ * @param clientInstance The OpenAI client instance
+ * @returns server.address and server.port attributes
+ */
+function getServerAttributes(clientInstance: unknown): Attributes {
+  try {
+    const baseURL = getBaseURL(clientInstance);
+    if (typeof baseURL !== "string") {
+      return {};
+    }
+    const url = new URL(baseURL);
+    // URL keeps the brackets around an IPv6 host; server.address is the bare address.
+    const hostname = url.hostname.replace(/^\[(.*)\]$/, "$1");
+    if (!hostname) {
+      return {};
+    }
+    const port = url.port ? Number(url.port) : DEFAULT_PORTS[url.protocol];
+    return port == null
+      ? { [ATTR_SERVER_ADDRESS]: hostname }
+      : { [ATTR_SERVER_ADDRESS]: hostname, [ATTR_SERVER_PORT]: port };
+  } catch (error) {
+    diag.debug("Failed to determine the server address from instance", error);
+  }
+  return {};
+}
+
+/**
+ * An auto instrumentation class for OpenAI that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/attributes/semantic-conventions.md|OpenInference} Compliant spans for the OpenAI API
  * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
  * @param traceConfig The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans. @see {@link TraceConfigOptions}
  */
@@ -317,11 +386,13 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
               [SemanticConventions.LLM_MODEL_NAME]: body.model,
+              [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
               [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
               [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+              ...getServerAttributes(this),
               ...getLLMInputMessagesAttributes(body),
               ...getLLMToolsJSONSchema(body),
             },
@@ -354,6 +425,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
+                [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
                 ...getChatCompletionLLMOutputMessagesAttributes(result),
                 ...getChatCompletionFinishReasonAttributes(result),
                 ...getUsageAttributes(result),
@@ -394,9 +466,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
               [SemanticConventions.LLM_MODEL_NAME]: body.model,
+              [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+              ...getServerAttributes(this),
               ...getCompletionInputValueAndMimeType(body),
             },
           });
@@ -423,6 +497,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
+                [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
                 ...getCompletionOutputValueAndMimeType(result),
                 ...getUsageAttributes(result),
               });
@@ -461,6 +536,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.INPUT_MIME_TYPE]: isStringInput ? MimeType.TEXT : MimeType.JSON,
               [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+              ...getServerAttributes(this),
               ...getEmbeddingTextAttributes(body),
             },
           });
@@ -516,12 +592,14 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               attributes: {
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
                 [SemanticConventions.LLM_MODEL_NAME]: body.model,
-                [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
+                [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
+                [SemanticConventions.INPUT_VALUE]: stringifyResponseCreateParams(body),
                 [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
                 [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
                   JSON.stringify(invocationParameters),
                 [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
                 [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
+                ...getServerAttributes(this),
                 ...getResponsesInputMessagesAttributes(body),
                 ...getLLMToolsJSONSchema(body),
               },
@@ -549,14 +627,20 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   return;
                 }
                 span.setAttributes({
-                  [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
+                  [SemanticConventions.OUTPUT_VALUE]: stringifyResponse(result),
                   [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                   // Override the model from the value sent by the server
                   [SemanticConventions.LLM_MODEL_NAME]: result.model,
+                  [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
                   ...getResponsesOutputMessagesAttributes(result),
+                  ...getResponsesOutputImageAttributes({ response: result, body }),
                   ...getResponsesUsageAttributes(result),
                 });
-                span.setStatus({ code: SpanStatusCode.OK });
+                span.setStatus(
+                  result.status === "failed"
+                    ? { code: SpanStatusCode.ERROR, message: result.error?.message }
+                    : { code: SpanStatusCode.OK },
+                );
                 span.end();
               };
               if (isResponseCreateResponse(result)) {
@@ -567,8 +651,17 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 // First split the stream via tee
                 const [leftStream, rightStream] = result.tee();
                 // take the right stream, consuming it and then recording the final chunk
-                // into the span
-                void consumeResponseStreamEvents(rightStream).then(recordSpan);
+                // into the span. If reading it fails, the caller gets the same error from
+                // the left stream and the span ends with status ERROR.
+                void consumeResponseStreamEvents(rightStream).then((response) => {
+                  // An aborted request ends the stream without an error or a final
+                  // response, so leave the status unset
+                  if (!response && rightStream.controller.signal.aborted) {
+                    span.end();
+                    return;
+                  }
+                  recordSpan(response);
+                }, recordError);
                 // give the left stream back to the caller
                 result = leftStream;
               }
@@ -601,6 +694,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               attributes: {
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.DECISION,
                 ...getDecisionsRequestAttributes(body),
+                ...getServerAttributes(this),
               },
             });
             const execContext = getExecContext(span);
@@ -628,6 +722,213 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             };
             observeRejection(execPromise, recordError);
             const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
+            return context.bind(execContext, wrappedPromise);
+          };
+        },
+      );
+    }
+
+    // Patch the Images API when it is available in the installed SDK.
+    if (module.OpenAI.Images) {
+      /**
+       * @param params.clientInstance - The Images resource the call was made on
+       * @param params.body - The request params
+       * @param params.requestBody - The params to record, without uploads
+       */
+      const startImagesSpan = ({
+        clientInstance,
+        body,
+        requestBody,
+      }: {
+        clientInstance: unknown;
+        body: ImageGenerateParamsBase | ImageEditParamsBase | ImageCreateVariationParams;
+        requestBody: Record<string, unknown>;
+      }) => {
+        // The prompt is user input: keep it out of the invocation parameters so
+        // hideInputs masking of input.value is not bypassed.
+        const { prompt: _prompt, ...invocationParameters } = requestBody;
+        return instrumentation.oiTracer.startSpan(`OpenAI Images`, {
+          kind: SpanKind.INTERNAL,
+          attributes: {
+            [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+            [SemanticConventions.LLM_MODEL_NAME]: body.model ?? undefined,
+            [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model ?? undefined,
+            ...getInputAttributes({ value: JSON.stringify(requestBody), mimeType: MimeType.JSON }),
+            [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
+            [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
+            [SemanticConventions.LLM_PROVIDER]: getLLMProvider(clientInstance),
+            ...getServerAttributes(clientInstance),
+          },
+        });
+      };
+      /**
+       * Skips the read for spans that won't be recorded, including suppressed tracing. Uploads
+       * are read in the background: the result and the span's end never wait on them, so any
+       * read still running when the request finishes is left off the span.
+       *
+       * @param params.span - The Images span
+       * @param params.uploads - The request's uploads
+       * @returns A getter for whichever upload attributes have been read so far
+       */
+      const captureUploadAttributes = ({
+        span,
+        uploads,
+      }: {
+        span: Span;
+        uploads: ReadonlyArray<unknown>;
+      }): (() => Attributes) => {
+        let uploadAttributes: Attributes = {};
+        if (span.isRecording()) {
+          void getInputImageAttributes({
+            uploads,
+            traceConfigOptions: instrumentation.traceConfig,
+          })
+            .then((attributes) => {
+              uploadAttributes = attributes;
+            })
+            .catch((error: unknown) => {
+              diag.debug("Failed to capture OpenAI image uploads", error);
+            });
+        }
+        return () => uploadAttributes;
+      };
+
+      type ImagesGenerateType = typeof module.OpenAI.Images.prototype.generate;
+      this._wrap(
+        module.OpenAI.Images.prototype,
+        "generate",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (original: ImagesGenerateType): any => {
+          return function patchedGenerate(this: unknown, ...args: Parameters<ImagesGenerateType>) {
+            const body = args[0];
+            const requestBody = { ...body };
+            const getUploadAttributes = (): Attributes => ({});
+            const span = startImagesSpan({ clientInstance: this, body, requestBody });
+            const execContext = getExecContext(span);
+            const recordError = (error: unknown) => {
+              span.setAttributes(getUploadAttributes());
+              endSpanWithError(span, error);
+            };
+            const execPromise = safeExecuteInTheMiddle(
+              () =>
+                context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
+              (error) => {
+                if (error) {
+                  recordError(error);
+                }
+              },
+            );
+            observeRejection(execPromise, recordError);
+            const wrappedPromise = invokeMaybeAPIPromise(execPromise, (result) =>
+              recordImagesResult({
+                result,
+                span,
+                getUploadAttributes,
+                requestFormat: body.output_format,
+              }),
+            );
+            endImagesSpanWithoutResult({
+              promise: wrappedPromise,
+              span,
+              getUploadAttributes,
+              recordError,
+            });
+            return context.bind(execContext, wrappedPromise);
+          };
+        },
+      );
+
+      type ImagesEditType = typeof module.OpenAI.Images.prototype.edit;
+      this._wrap(
+        module.OpenAI.Images.prototype,
+        "edit",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (original: ImagesEditType): any => {
+          return function patchedEdit(this: unknown, ...args: Parameters<ImagesEditType>) {
+            const body = args[0];
+            const { image, mask, ...requestBody } = body;
+            const span = startImagesSpan({ clientInstance: this, body, requestBody });
+            const getUploadAttributes = captureUploadAttributes({
+              span,
+              uploads: mask === undefined ? [image] : [image, mask],
+            });
+            const execContext = getExecContext(span);
+            const recordError = (error: unknown) => {
+              span.setAttributes(getUploadAttributes());
+              endSpanWithError(span, error);
+            };
+            const execPromise = safeExecuteInTheMiddle(
+              () =>
+                context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
+              (error) => {
+                if (error) {
+                  recordError(error);
+                }
+              },
+            );
+            observeRejection(execPromise, recordError);
+            const wrappedPromise = invokeMaybeAPIPromise(execPromise, (result) =>
+              recordImagesResult({
+                result,
+                span,
+                getUploadAttributes,
+                requestFormat: body.output_format,
+              }),
+            );
+            endImagesSpanWithoutResult({
+              promise: wrappedPromise,
+              span,
+              getUploadAttributes,
+              recordError,
+            });
+            return context.bind(execContext, wrappedPromise);
+          };
+        },
+      );
+
+      type ImagesCreateVariationType = typeof module.OpenAI.Images.prototype.createVariation;
+      this._wrap(
+        module.OpenAI.Images.prototype,
+        "createVariation",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (original: ImagesCreateVariationType): any => {
+          return function patchedCreateVariation(
+            this: unknown,
+            ...args: Parameters<ImagesCreateVariationType>
+          ) {
+            const body = args[0];
+            const { image, ...requestBody } = body;
+            const span = startImagesSpan({ clientInstance: this, body, requestBody });
+            const getUploadAttributes = captureUploadAttributes({ span, uploads: [image] });
+            const execContext = getExecContext(span);
+            const recordError = (error: unknown) => {
+              span.setAttributes(getUploadAttributes());
+              endSpanWithError(span, error);
+            };
+            const execPromise = safeExecuteInTheMiddle(
+              () =>
+                context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
+              (error) => {
+                if (error) {
+                  recordError(error);
+                }
+              },
+            );
+            observeRejection(execPromise, recordError);
+            const wrappedPromise = invokeMaybeAPIPromise(execPromise, (result) =>
+              recordImagesResult({
+                result,
+                span,
+                getUploadAttributes,
+                requestFormat: "png",
+              }),
+            );
+            endImagesSpanWithoutResult({
+              promise: wrappedPromise,
+              span,
+              getUploadAttributes,
+              recordError,
+            });
             return context.bind(execContext, wrappedPromise);
           };
         },
@@ -663,6 +964,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     if (moduleExports.OpenAI.Decisions) {
       this._unwrap(moduleExports.OpenAI.Decisions.prototype, "create");
     }
+    if (moduleExports.OpenAI.Images) {
+      this._unwrap(moduleExports.OpenAI.Images.prototype, "generate");
+      this._unwrap(moduleExports.OpenAI.Images.prototype, "edit");
+      this._unwrap(moduleExports.OpenAI.Images.prototype, "createVariation");
+    }
 
     // Keyed the same way patch() keys it, so a re-patch is possible after.
     _patchedModules.delete(moduleExports.OpenAI);
@@ -675,6 +981,167 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
     }
   }
+}
+
+type ImagesStreamEvent = ImageEditStreamEvent | ImageGenStreamEvent;
+type ImagesResult = ImagesResponse | Stream<ImagesStreamEvent>;
+
+function isImagesStream(result: unknown): result is Stream<ImagesStreamEvent> {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "tee" in result &&
+    typeof result.tee === "function" &&
+    Symbol.asyncIterator in result &&
+    typeof result[Symbol.asyncIterator] === "function"
+  );
+}
+
+function isCompletedImageEvent(
+  event: ImagesStreamEvent,
+): event is ImageEditCompletedEvent | ImageGenCompletedEvent {
+  return event.type === "image_edit.completed" || event.type === "image_generation.completed";
+}
+
+/**
+ * @param params.stream - The instrumentor's copy of the stream
+ * @param params.span - The Images span, ended once the stream is
+ * @param params.getUploadAttributes - Gets the upload attributes read so far
+ */
+async function consumeImagesStreamEvents({
+  stream,
+  span,
+  getUploadAttributes,
+}: {
+  stream: Stream<ImagesStreamEvent>;
+  span: Span;
+  getUploadAttributes: () => Attributes;
+}) {
+  // A request for several images streams one completed event for each of them.
+  const completedEvents: Array<ImageEditCompletedEvent | ImageGenCompletedEvent> = [];
+  try {
+    for await (const event of stream) {
+      if (isCompletedImageEvent(event)) completedEvents.push(event);
+    }
+    const lastCompletedEvent = completedEvents[completedEvents.length - 1];
+    if (lastCompletedEvent !== undefined) {
+      span.setAttributes({
+        ...getOutputAttributes({
+          value: stringifyCompletedImageEvent(lastCompletedEvent),
+          mimeType: MimeType.JSON,
+        }),
+        ...getCompletedImageEventAttributes(completedEvents),
+      });
+      span.setStatus({ code: SpanStatusCode.OK });
+    } else if (!stream.controller.signal.aborted) {
+      // An aborted request ends the stream without a completed image, but without an error either
+      span.setStatus({ code: SpanStatusCode.ERROR });
+    }
+  } catch (error) {
+    span.recordException(error instanceof Error ? error : String(error));
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    span.setAttributes(getUploadAttributes());
+    span.end();
+  }
+}
+
+/**
+ * @param params.result - The parsed response or stream
+ * @param params.span - The Images span
+ * @param params.getUploadAttributes - Gets the upload attributes read so far
+ * @param params.requestFormat - The output format the request asked for
+ * @returns The result to give the caller
+ */
+function recordImagesResult<T extends ImagesResult>({
+  result,
+  span,
+  getUploadAttributes,
+  requestFormat,
+}: {
+  result: T;
+  span: Span;
+  getUploadAttributes: () => Attributes;
+  requestFormat?: unknown;
+}): T {
+  // The span is already ended when the caller read the raw response before the parsed one.
+  if (!span.isRecording()) return result;
+  if (isImagesStream(result)) {
+    const [leftStream, rightStream] = result.tee();
+    void consumeImagesStreamEvents({ stream: rightStream, span, getUploadAttributes });
+    // The tee preserves the stream's event type, which instanceof cannot express for generic T.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    return leftStream as T;
+  }
+  span.setAttributes(getUploadAttributes());
+  try {
+    span.setAttributes({
+      ...getOutputAttributes({ value: stringifyImagesResponse(result), mimeType: MimeType.JSON }),
+      ...getImagesResponseAttributes({ response: result, requestFormat }),
+    });
+  } catch (error) {
+    diag.debug("Failed to record OpenAI images response", error);
+  }
+  span.setStatus({ code: SpanStatusCode.OK });
+  span.end();
+  return result;
+}
+
+/**
+ * Ends an Images span when its APIPromise finishes without a result to record, which happens when
+ * the caller only asks for the raw response, or when the response body fails to parse.
+ *
+ * This watches the promise's own methods because parsing the body from here would consume it
+ * before the caller reads it.
+ *
+ * @param params.promise - The promise returned to the caller
+ * @param params.span - The span to end
+ * @param params.getUploadAttributes - Gets the input attributes read so far
+ * @param params.recordError - Records an error on the span and ends it
+ */
+function endImagesSpanWithoutResult({
+  promise,
+  span,
+  getUploadAttributes,
+  recordError,
+}: {
+  promise: unknown;
+  span: Span;
+  getUploadAttributes: () => Attributes;
+  recordError: (error: unknown) => void;
+}): void {
+  if (!isAPIPromise<unknown>(promise)) return;
+  // parse is private in the SDK's types, but then() and withResponse() both go through it.
+  const parse: unknown = Reflect.get(promise, "parse");
+  if (typeof parse !== "function") return;
+  const asResponse = promise.asResponse.bind(promise);
+  let isParsing = false;
+  Reflect.set(promise, "parse", () => {
+    isParsing = true;
+    const parsedResult: unknown = Reflect.apply(parse, promise, []);
+    void Promise.resolve(parsedResult).then(undefined, (error: unknown) => {
+      if (span.isRecording()) recordError(error);
+    });
+    return parsedResult;
+  });
+  promise.asResponse = () => {
+    const response = asResponse();
+    void response.then(
+      () => {
+        // withResponse() also parses, which records the result and ends the span.
+        if (isParsing || !span.isRecording()) return;
+        span.setAttributes(getUploadAttributes());
+        span.setStatus({ code: SpanStatusCode.OK });
+        span.end();
+      },
+      // A failed request is already recorded through observeRejection.
+      () => undefined,
+    );
+    return response;
+  };
 }
 
 function isResponseCreateResponse(
@@ -996,7 +1463,10 @@ function getEmbeddingUsageAttributes(response: CreateEmbeddingResponse): Attribu
 }
 
 /**
- * Consumes the stream chunks and adds them to the span
+ * Consumes the stream chunks and adds them to the span.
+ * The span ends with status OK when the stream is read to the end, with status ERROR when
+ * reading it fails, and with the status unset when the request is aborted. In every case it
+ * keeps what was streamed so far.
  */
 async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionChunk>, span: Span) {
   let streamResponse = "";
@@ -1005,34 +1475,49 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   // So the final tool and function calls need to be aggregated
   // across chunks
   const toolAndFunctionCallAttributes: Attributes = {};
+  const getToolCallIndex = createStreamToolCallIndexResolver();
   let finishReason: string | undefined;
-  // The first message is for the assistant response so we start at 1
-  for await (const chunk of stream) {
-    // With `stream_options.include_usage`, the final chunk carries the request's
-    // usage and an empty `choices` array, so read it before the guard below.
-    if (chunk.usage) {
-      span.setAttributes(getUsageAttributes(chunk));
-    }
-    if (chunk.choices.length <= 0) {
-      continue;
-    }
-    const choice = chunk.choices[0];
-    if (choice.delta.content) {
-      streamResponse += choice.delta.content;
-    }
-    if (choice.finish_reason) {
-      finishReason = choice.finish_reason;
-    }
-    // Accumulate the tool and function call attributes
-    const toolAndFunctionCallAttributesDiff =
-      getToolAndFunctionCallAttributesFromStreamChunk(chunk);
-    for (const [key, value] of Object.entries(toolAndFunctionCallAttributesDiff)) {
-      if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
-        toolAndFunctionCallAttributes[key] += value;
-      } else if (isString(value)) {
-        toolAndFunctionCallAttributes[key] = value;
+  // The model that served the stream, which every chunk repeats
+  let responseModel: string | undefined;
+  let streamFailed = false;
+  let streamError: unknown;
+  try {
+    for await (const chunk of stream) {
+      if (chunk.model) {
+        responseModel = chunk.model;
+      }
+      // With `stream_options.include_usage`, the final chunk carries the request's
+      // usage and an empty `choices` array, so read it before the guard below.
+      if (chunk.usage) {
+        span.setAttributes(getUsageAttributes(chunk));
+      }
+      if (chunk.choices.length <= 0) {
+        continue;
+      }
+      const choice = chunk.choices[0];
+      if (choice.delta.content) {
+        streamResponse += choice.delta.content;
+      }
+      if (choice.finish_reason) {
+        finishReason = choice.finish_reason;
+      }
+      // Accumulate the tool and function call attributes
+      const toolAndFunctionCallAttributesDiff = getToolAndFunctionCallAttributesFromStreamChunk(
+        chunk,
+        getToolCallIndex,
+      );
+      for (const [key, value] of Object.entries(toolAndFunctionCallAttributesDiff)) {
+        if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
+          toolAndFunctionCallAttributes[key] += value;
+        } else if (isString(value)) {
+          toolAndFunctionCallAttributes[key] = value;
+        }
       }
     }
+  } catch (error) {
+    // The caller reads the other branch of the tee and gets the same error
+    streamFailed = true;
+    streamError = error;
   }
   const messageIndexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
@@ -1046,25 +1531,69 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   if (finishReason) {
     attributes[SemanticConventions.LLM_FINISH_REASON] = finishReason;
   }
+  if (responseModel) {
+    // Override the model from the value sent by the server
+    attributes[SemanticConventions.LLM_MODEL_NAME] = responseModel;
+    attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = responseModel;
+  }
   // Add the tool and function call attributes
   for (const [key, value] of Object.entries(toolAndFunctionCallAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
   span.setAttributes(attributes);
+  if (streamFailed) {
+    endSpanWithError(span, streamError);
+    return;
+  }
+  // An aborted request ends the stream without an error, but did not run to completion
+  if (!stream.controller.signal.aborted) {
+    span.setStatus({ code: SpanStatusCode.OK });
+  }
   span.end();
+}
+
+/**
+ * Returns a function that gives the position of a streamed tool call delta within the message.
+ * OpenAI sends an index with every delta. Some OpenAI-compatible providers (such as Gemini)
+ * leave it out, so a delta with a new id, or a function name without an id, starts the next
+ * tool call and any other delta continues the latest one.
+ */
+function createStreamToolCallIndexResolver() {
+  let latestIndex = -1;
+  let latestId: string | undefined;
+  let nextIndex = 0;
+  return (toolCall: ChatCompletionChunk.Choice.Delta.ToolCall): number => {
+    // The SDK types the index as required, but some providers omit it
+    if (typeof toolCall.index === "number") {
+      latestIndex = toolCall.index;
+      nextIndex = Math.max(nextIndex, toolCall.index + 1);
+      return toolCall.index;
+    }
+    const startsNewToolCall =
+      latestIndex < 0 || (toolCall.id ? toolCall.id !== latestId : toolCall.function?.name != null);
+    if (startsNewToolCall) {
+      latestIndex = nextIndex++;
+      latestId = toolCall.id;
+    }
+    return latestIndex;
+  };
 }
 
 /**
  * Extracts the semantic attributes from the stream chunk for tool_calls and function_calls
  */
-function getToolAndFunctionCallAttributesFromStreamChunk(chunk: ChatCompletionChunk): Attributes {
+function getToolAndFunctionCallAttributesFromStreamChunk(
+  chunk: ChatCompletionChunk,
+  getToolCallIndex: (toolCall: ChatCompletionChunk.Choice.Delta.ToolCall) => number,
+): Attributes {
   if (chunk.choices.length <= 0) {
     return {};
   }
   const choice = chunk.choices[0];
   const attributes: Attributes = {};
   if (choice.delta.tool_calls) {
-    choice.delta.tool_calls.forEach((toolCall, index) => {
+    choice.delta.tool_calls.forEach((toolCall) => {
+      const index = getToolCallIndex(toolCall);
       const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
       // Add the tool call id if it exists
       if (toolCall.id) {

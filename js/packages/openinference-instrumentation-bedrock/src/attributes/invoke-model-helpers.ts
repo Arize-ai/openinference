@@ -609,8 +609,11 @@ function normalizeAmazonRequestContentBlocks(
   requestBody: InvokeModelRequestBody,
 ): BedrockMessage[] {
   if (isNovaRequest(requestBody)) {
-    // Handle Amazon Nova format: { messages: [{ role, content: [{ text }] }] }
-    return convertNovaToBedrockMessages(requestBody);
+    // Handle Amazon Nova format: { system?: [{ text }], messages: [{ role, content: [{ text }] }] }
+    return [
+      ...systemPromptToBedrockMessages(requestBody),
+      ...convertNovaToBedrockMessages(requestBody),
+    ];
   }
   if (isTitanRequest(requestBody)) {
     // vs Titan format: { inputText: string }
@@ -639,6 +642,31 @@ function normalizeMistralRequestContentBlocks(
     return convertSimpleTextToBedrockMessages(requestBody, "prompt");
   }
   return [];
+}
+
+/**
+ * Converts the top-level `system` prompt of an Anthropic or Amazon Nova request (a string or an
+ * array of text blocks) to a leading system message. Text blocks are joined with a blank line,
+ * like Converse system prompts.
+ *
+ * @param requestBody The parsed request body
+ * @returns {BedrockMessage[]} A single system message, or an empty array without a usable prompt
+ */
+function systemPromptToBedrockMessages(requestBody: InvokeModelRequestBody): BedrockMessage[] {
+  const { system } = requestBody;
+  let text = "";
+  if (typeof system === "string") {
+    text = system;
+  } else if (Array.isArray(system)) {
+    // Anthropic blocks are { type: "text", text }, Nova blocks are { text }
+    text = system
+      .filter(isObjectWithStringKeys)
+      .filter((block) => block.type === undefined || block.type === "text")
+      .map((block) => block.text)
+      .filter((blockText): blockText is string => typeof blockText === "string" && !!blockText)
+      .join("\n\n");
+  }
+  return text ? [{ role: "system", content: text }] : [];
 }
 
 /**
@@ -676,9 +704,12 @@ export const normalizeRequestContentBlocks = withSafety({
   fn: (requestBody: InvokeModelRequestBody, llm_system: LLMSystem): BedrockMessage[] => {
     switch (llm_system) {
       case LLMSystem.ANTHROPIC:
-        return Array.isArray(requestBody.messages)
-          ? requestBody.messages.flatMap((message) => toBedrockMessage(message) ?? [])
-          : [];
+        return [
+          ...systemPromptToBedrockMessages(requestBody),
+          ...(Array.isArray(requestBody.messages)
+            ? requestBody.messages.flatMap((message) => toBedrockMessage(message) ?? [])
+            : []),
+        ];
       case LLMSystem.AMAZON:
         return normalizeAmazonRequestContentBlocks(requestBody);
       case LLMSystem.COHERE:

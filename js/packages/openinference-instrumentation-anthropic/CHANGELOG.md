@@ -1,5 +1,50 @@
 # @arizeai/openinference-instrumentation-anthropic
 
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [15a4c5e]
+  - @arizeai/openinference-semantic-conventions@2.18.0
+  - @arizeai/openinference-core@2.9.1
+
+## 1.0.5
+
+### Patch Changes
+
+- Updated dependencies [5f72487]
+  - @arizeai/openinference-core@2.9.0
+
+## 1.0.4
+
+### Patch Changes
+
+- Updated dependencies [3154e2b]
+  - @arizeai/openinference-core@2.8.4
+  - @arizeai/openinference-semantic-conventions@2.17.1
+
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [7f295ae]
+  - @arizeai/openinference-semantic-conventions@2.17.0
+  - @arizeai/openinference-core@2.8.3
+
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [10bb8cc]
+  - @arizeai/openinference-semantic-conventions@2.16.0
+  - @arizeai/openinference-core@2.8.2
+
+## 1.0.1
+
+### Patch Changes
+
+- 7abd8ec: Stop `@anthropic-ai/sdk` >= 0.134.0 from adding a second span to each traced Messages call. The SDK now starts a span of its own for every API call, so `messages.create()`, `messages.stream()` and `countTokens()` (stable and beta) each exported an OpenInference LLM span and an SDK `anthropic.messages.*` span, and the `messages.stream()` span was not under the LLM span. A traced call now hands the SDK a non-recording span with the LLM span's context, so only the LLM span is recorded, the request still carries the trace context, and HTTP instrumentation spans nest under the LLM span. SDK calls that are not traced keep their spans.
+
 ## 1.0.0
 
 ### Major Changes

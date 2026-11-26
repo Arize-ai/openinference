@@ -57,7 +57,12 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
     gives us the complete ParsedMessage at the end.
     """
 
-    __slots__ = ("_self_with_span", "_self_message_stream")
+    __slots__ = (
+        "_self_with_span",
+        "_self_message_stream",
+        "_self_open_blocks",
+        "_self_has_output_usage",
+    )
 
     def __init__(
         self,
@@ -68,10 +73,23 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
         super().__init__(raw_stream)
         self._self_with_span = with_span
         self._self_message_stream = message_stream
+        self._self_open_blocks: Set[int] = set()
+        self._self_has_output_usage = False
+
+    def _observe(self, item: "RawMessageStreamEvent") -> None:
+        if item.type == "content_block_start":
+            self._self_open_blocks.add(item.index)
+        elif item.type == "content_block_stop":
+            self._self_open_blocks.discard(item.index)
+        elif (
+            item.type == "message_delta" and getattr(item.usage, "output_tokens", None) is not None
+        ):
+            self._self_has_output_usage = True
 
     def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
         try:
             for item in self.__wrapped__:
+                self._observe(item)
                 yield item
         except Exception as exception:
             self._self_with_span.record_exception(exception)
@@ -87,6 +105,7 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
     async def __aiter__(self) -> AsyncIterator["RawMessageStreamEvent"]:
         try:
             async for item in self.__wrapped__:
+                self._observe(item)
                 yield item
         except Exception as exception:
             self._self_with_span.record_exception(exception)
@@ -113,6 +132,8 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
                 context_metadata=self._self_with_span.context_metadata,
                 config=self._self_with_span.config,
                 request_messages=self._self_with_span.request_messages,
+                unfinished_block_indexes=self._self_open_blocks,
+                completion_known=self._self_has_output_usage,
             ),
             status=status,
         )
@@ -280,6 +301,8 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
                 context_metadata=self._with_span.context_metadata,
                 config=self._with_span.config,
                 request_messages=self._with_span.request_messages,
+                unfinished_block_indexes=self._response_accumulator._open_blocks,
+                completion_known=self._response_accumulator._has_output_usage,
             ),
             status=status,
         )
@@ -288,7 +311,15 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
 class _MessageResponseAccumulator:
     """Accumulates raw SSE events into a ParsedMessage using the SDK's own accumulate_event."""
 
-    __slots__ = ("_is_beta", "_request_headers", "_snapshot", "_json_bufs", "_stale_inputs")
+    __slots__ = (
+        "_is_beta",
+        "_request_headers",
+        "_snapshot",
+        "_json_bufs",
+        "_stale_inputs",
+        "_open_blocks",
+        "_has_output_usage",
+    )
 
     def __init__(
         self,
@@ -305,10 +336,21 @@ class _MessageResponseAccumulator:
         # Indices of content blocks whose tool-use input could not be updated from a
         # delta, so their input must be parsed again from the buffer at the end.
         self._stale_inputs: Set[int] = set()
+        self._open_blocks: Set[int] = set()
+        self._has_output_usage = False
 
     def process_chunk(self, chunk: "RawMessageStreamEvent") -> None:
         # Beta and stable chunks need their matching accumulate_event; beta's
         # raises on stable chunks and vice versa silently drops updates.
+        if chunk.type == "content_block_start":
+            self._open_blocks.add(chunk.index)
+        elif chunk.type == "content_block_stop":
+            self._open_blocks.discard(chunk.index)
+        elif (
+            chunk.type == "message_delta"
+            and getattr(chunk.usage, "output_tokens", None) is not None
+        ):
+            self._has_output_usage = True
         try:
             if self._is_beta:
                 from anthropic.lib.streaming._beta_messages import (
@@ -402,7 +444,14 @@ class _MessageExtractor:
     and the messages.create(stream=True) path (via _MessageResponseAccumulator).
     """
 
-    __slots__ = ("_snapshot", "_context_metadata", "_config", "_request_messages")
+    __slots__ = (
+        "_snapshot",
+        "_context_metadata",
+        "_config",
+        "_request_messages",
+        "_unfinished_block_indexes",
+        "_completion_known",
+    )
 
     def __init__(
         self,
@@ -410,22 +459,41 @@ class _MessageExtractor:
         context_metadata: Optional[AttributeValue] = None,
         config: Optional[TraceConfig] = None,
         request_messages: Any = None,
+        unfinished_block_indexes: Optional[Set[int]] = None,
+        completion_known: bool = True,
     ) -> None:
         self._snapshot = snapshot
         self._context_metadata = context_metadata
         self._config = config
         self._request_messages = request_messages
+        self._unfinished_block_indexes = unfinished_block_indexes
+        self._completion_known = completion_known
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         snapshot = self._snapshot
         if snapshot is None:
             return
-        yield SpanAttributes.OUTPUT_VALUE, _dump_json(snapshot)
+        output = _dump_json(snapshot)
+        if self._unfinished_block_indexes or not self._completion_known:
+            # The SDK snapshot contains placeholders while the response is still in progress.
+            # Preserve the partial response without presenting an unfinished tool's input, or
+            # the message_start output-token placeholder, as a final value.
+            value = json.loads(output)
+            for index in self._unfinished_block_indexes or ():
+                content = value.get("content", [])
+                if index < len(content) and content[index].get("type") in TOOL_CALL_BLOCK_TYPES:
+                    content[index].pop("input", None)
+            if not self._completion_known:
+                value.get("usage", {}).pop("output_tokens", None)
+            output = json.dumps(value)
+        yield SpanAttributes.OUTPUT_VALUE, output
         yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
         if model_name := getattr(snapshot, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model_name
             yield SpanAttributes.LLM_RESPONSE_MODEL_NAME, model_name
-        yield from _attributes_or_nothing(_get_output_message_attributes, snapshot)
+        yield from _attributes_or_nothing(
+            _get_output_message_attributes, snapshot, self._unfinished_block_indexes
+        )
         yield from _attributes_or_nothing(
             _get_metadata_attributes,
             snapshot,
@@ -440,6 +508,6 @@ class _MessageExtractor:
         # yielded above: without this, the exception would reach
         # _finish_tracing, which drops every attribute on the span.
         try:
-            yield from _get_token_counts(snapshot.usage)
+            yield from _get_token_counts(snapshot.usage, completion_known=self._completion_known)
         except Exception:
             logger.exception("Failed to get token counts from streaming snapshot.")

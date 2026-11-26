@@ -1,5 +1,91 @@
 # Changelog
 
+## [1.6.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.6.6...python-openinference-instrumentation-google-genai-v1.6.7) (2026-11-21)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.82 ([#4413](https://github.com/Arize-ai/openinference/issues/4413)) ([6f8332e](https://github.com/Arize-ai/openinference/commit/6f8332ebba39e401193f599c5e8b87b8a1707ff6))
+
+## [1.6.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.6.5...python-openinference-instrumentation-google-genai-v1.6.6) (2026-11-20)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.81 ([#4379](https://github.com/Arize-ai/openinference/issues/4379)) ([b9bd21e](https://github.com/Arize-ai/openinference/commit/b9bd21e3f07985a4d1d8ef195c2c536998e93bd0))
+
+## [1.6.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.6.4...python-openinference-instrumentation-google-genai-v1.6.5) (2026-11-19)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.79 ([#4335](https://github.com/Arize-ai/openinference/issues/4335)) ([e03fde3](https://github.com/Arize-ai/openinference/commit/e03fde31a743fedd77fa3e2ab043bfa9b95b7058))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.46 ([#4334](https://github.com/Arize-ai/openinference/issues/4334)) ([70ce76a](https://github.com/Arize-ai/openinference/commit/70ce76aefaf3daa99292bf3d456e496ff75742bd))
+
+## [1.6.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.6.3...python-openinference-instrumentation-google-genai-v1.6.4) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.77 ([#4293](https://github.com/Arize-ai/openinference/issues/4293)) ([c251fe0](https://github.com/Arize-ai/openinference/commit/c251fe0f334fe5b8ac37c5c37a1e51daafc3a008))
+
+## [1.6.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.6.2...python-openinference-instrumentation-google-genai-v1.6.3) (2026-11-12)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.44 ([#4279](https://github.com/Arize-ai/openinference/issues/4279)) ([99212dc](https://github.com/Arize-ai/openinference/commit/99212dca730bf28822af57f11ad6e04bbf8683e9))
+
+## [1.6.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.6.1...python-openinference-instrumentation-google-genai-v1.6.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.76 ([#4280](https://github.com/Arize-ai/openinference/issues/4280)) ([0d9d7e7](https://github.com/Arize-ai/openinference/commit/0d9d7e73b5f354ed76a6d1cdcedd03de8eeb8f28))
+
+## [1.6.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.6.0...python-openinference-instrumentation-google-genai-v1.6.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.75 ([#4203](https://github.com/Arize-ai/openinference/issues/4203)) ([c82a026](https://github.com/Arize-ai/openinference/commit/c82a026681c331351d32eea22b4bfe3cca246c8b))
+* **google_genai:** pin tests to v1beta and httpx for google-genai 3.0 ([#4273](https://github.com/Arize-ai/openinference/issues/4273)) ([d8c0d55](https://github.com/Arize-ai/openinference/commit/d8c0d5596cb4bc5f6fbae6838c1ded66d7a144d7))
+
+## [1.6.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.5.1...python-openinference-instrumentation-google-genai-v1.6.0) (2026-11-05)
+
+
+### Features
+
+* **google-genai:** trace Live API sessions ([#4216](https://github.com/Arize-ai/openinference/issues/4216)) ([208df08](https://github.com/Arize-ai/openinference/commit/208df08690786aebbcb4bc140d238d9c7dc250c5))
+
+
+### Bug Fixes
+
+* **google_genai:** publish AFC tool calls as output messages ([#3798](https://github.com/Arize-ai/openinference/issues/3798)) ([5878e0b](https://github.com/Arize-ai/openinference/commit/5878e0bd8f21dc6ae7f7e530e324ff8f9ac2c0e3))
+
+## [1.5.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.5.0...python-openinference-instrumentation-google-genai-v1.5.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.74 ([6534b18](https://github.com/Arize-ai/openinference/commit/6534b18bf6c82129351f891c27da96f006c4befb))
+* **google-genai:** instrument with Pillow installed and record camelCase dict parts ([#4230](https://github.com/Arize-ai/openinference/issues/4230)) ([11ed6e2](https://github.com/Arize-ai/openinference/commit/11ed6e27fb66a8f948d4a2cfb72a32dd773410ef))
+* **google-genai:** record tuple-valued contents as input messages ([#3995](https://github.com/Arize-ai/openinference/issues/3995)) ([9f7c623](https://github.com/Arize-ai/openinference/commit/9f7c6232c120087d38d857f4e3dc3690d31d8090))
+
+## [1.5.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.15...python-openinference-instrumentation-google-genai-v1.5.0) (2026-10-29)
+
+
+### Features
+
+* support Python 3.15 ([#4158](https://github.com/Arize-ai/openinference/issues/4158)) ([9e24fc0](https://github.com/Arize-ai/openinference/commit/9e24fc0bab5e0c6e4a6c483f6d49947d2a6810b1))
+
+## [1.4.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.14...python-openinference-instrumentation-google-genai-v1.4.15) (2026-10-29)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.42 ([#4135](https://github.com/Arize-ai/openinference/issues/4135)) ([dc343d0](https://github.com/Arize-ai/openinference/commit/dc343d0ea719229bc110266ebd004e05d12045e4))
+
 ## [1.4.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.13...python-openinference-instrumentation-google-genai-v1.4.14) (2026-10-23)
 
 

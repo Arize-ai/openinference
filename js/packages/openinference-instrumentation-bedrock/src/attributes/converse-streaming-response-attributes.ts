@@ -186,6 +186,8 @@ function processConverseStreamChunk(
         inputTokens: ev.usage.inputTokens ?? state.usage.inputTokens,
         outputTokens: ev.usage.outputTokens ?? state.usage.outputTokens,
         totalTokens: ev.usage.totalTokens ?? state.usage.totalTokens,
+        cacheReadInputTokens: ev.usage.cacheReadInputTokens ?? state.usage.cacheReadInputTokens,
+        cacheWriteInputTokens: ev.usage.cacheWriteInputTokens ?? state.usage.cacheWriteInputTokens,
       };
       return;
     default:
@@ -320,14 +322,34 @@ function setConverseStreamingOutputAttributes({
   }
 
   // Set usage attributes
+  const { cacheReadInputTokens, cacheWriteInputTokens } = usage;
   if (usage.inputTokens !== undefined) {
-    setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, usage.inputTokens);
+    // inputTokens excludes cache reads and writes, while totalTokens includes them.
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
+      usage.inputTokens + (cacheReadInputTokens ?? 0) + (cacheWriteInputTokens ?? 0),
+    );
   }
   if (usage.outputTokens !== undefined) {
     setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, usage.outputTokens);
   }
   if (usage.totalTokens !== undefined) {
     setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, usage.totalTokens);
+  }
+  if (cacheReadInputTokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+      cacheReadInputTokens,
+    );
+  }
+  if (cacheWriteInputTokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+      cacheWriteInputTokens,
+    );
   }
 }
 

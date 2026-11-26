@@ -43,7 +43,7 @@ async function main() {
   const tracer = trace.getTracer("tanstack-ai-anthropic-example");
   const stream = chat({
     adapter: anthropicText(
-      (process.env["ANTHROPIC_MODEL"] as Parameters<typeof anthropicText>[0]) ?? "claude-haiku-4-5",
+      (process.env["ANTHROPIC_MODEL"] as Parameters<typeof anthropicText>[0]) ?? "claude-haiku-5-5",
     ),
     messages: [
       {

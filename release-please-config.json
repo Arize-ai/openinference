@@ -3,6 +3,21 @@
     "separate-pull-requests": false,
     "sequential-calls": true,
     "packages": {
+        "semantic-conventions": {
+            "package-name": "semantic-conventions",
+            "release-type": "simple",
+            "initial-version": "0.0.1",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "/semantic-conventions/model/manifest.yaml"
+                },
+                {
+                    "type": "generic",
+                    "path": "/semantic-conventions/tests/consumer/manifest.yaml"
+                }
+            ]
+        },
         "python/openinference-semantic-conventions": {
             "package-name": "python-openinference-semantic-conventions",
             "release-type": "python"

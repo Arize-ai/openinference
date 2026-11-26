@@ -53,7 +53,7 @@ from openai.types.responses.response_input_item_param import (
     Message,
 )
 from openai.types.responses.response_output_message_param import Content
-from opentelemetry.context import attach, detach
+from opentelemetry.context import attach, detach, get_value
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import (
     Status,
@@ -177,11 +177,19 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         with self._lock:
             if self._draining:
                 return
+            attributes: dict[str, AttributeValue] = {
+                OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+            }
+            # The SDK's Trace.group_id carries the conversation/thread grouping
+            # (e.g. set via trace(group_id=...)). Map it to session.id so multiple
+            # traces in one conversation correlate. A using_session() value wins; skip
+            # group_id then so the sampler sees the same session.id the span exports.
+            group_id = getattr(trace, "group_id", None)
+            if group_id and get_value(SESSION_ID) is None:
+                attributes[SESSION_ID] = str(group_id)
             otel_span = self._tracer.start_span(
                 name=trace.name,
-                attributes={
-                    OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
-                },
+                attributes=attributes,
             )
             self._root_spans[trace.trace_id] = otel_span
 
@@ -714,6 +722,8 @@ def _get_attributes_from_generation_span_data(
     yield from _get_attributes_from_chat_completions_input(obj.input)
     yield from _get_attributes_from_chat_completions_output(obj.output)
     yield from _get_attributes_from_chat_completions_usage(obj.usage)
+    # openai-agents >= 0.25.0 records the tools sent with the request; older versions don't.
+    yield from _get_attributes_from_chat_completions_tools(getattr(obj, "tools", None))
 
 
 def _get_attributes_from_mcp_list_tool_span_data(
@@ -822,15 +832,42 @@ def _get_attributes_from_chat_completions_tool_call_dict(
                 yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
 
 
+def _get_attributes_from_chat_completions_tools(
+    tools: Optional[Iterable[Mapping[str, Any]]],
+) -> Iterator[tuple[str, AttributeValue]]:
+    if not tools:
+        return
+    for i, tool in enumerate(tools):
+        if isinstance(tool, Mapping):
+            yield f"{LLM_TOOLS}.{i}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
+
+
 def _get_attributes_from_chat_completions_usage(
     obj: Optional[Mapping[str, Any]],
 ) -> Iterator[tuple[str, AttributeValue]]:
     if not obj:
         return
-    if input_tokens := obj.get("input_tokens"):
+    # When the provider returns no usage, the Agents SDK still records a default
+    # Usage() here: every count is 0 and so is "requests". Those zeros weren't
+    # reported by anyone, so skip them rather than putting fake counts on the span.
+    if obj.get("requests") == 0:
+        return
+    # A count of 0 is a real value (e.g. no cache hit), so emit it the same way
+    # _get_attributes_from_usage does on the Responses path.
+    if (input_tokens := obj.get("input_tokens")) is not None:
         yield LLM_TOKEN_COUNT_PROMPT, input_tokens
-    if output_tokens := obj.get("output_tokens"):
+    if (output_tokens := obj.get("output_tokens")) is not None:
         yield LLM_TOKEN_COUNT_COMPLETION, output_tokens
+    if (total_tokens := obj.get("total_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+    if isinstance(input_tokens_details := obj.get("input_tokens_details"), Mapping):
+        if (cached_tokens := input_tokens_details.get("cached_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+        if (cache_write_tokens := input_tokens_details.get("cache_write_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_write_tokens
+    if isinstance(output_tokens_details := obj.get("output_tokens_details"), Mapping):
+        if (reasoning_tokens := output_tokens_details.get("reasoning_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
 
 
 # convert dict, tuple, etc into one of these types ['bool', 'str', 'bytes', 'int', 'float']
@@ -1306,6 +1343,7 @@ TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
 GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
 AGENT_NAME = SpanAttributes.AGENT_NAME
+SESSION_ID = SpanAttributes.SESSION_ID
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID

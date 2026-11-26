@@ -1,0 +1,89 @@
+# Generates SemanticConventions.java and SemanticResourceAttributes.java in
+# java/openinference-semantic-conventions/src/main/java/com/arize/semconv/trace.
+#
+# See templates/registry/python/weaver.yaml for the shape of the context.
+# `helpers` rebuilds the legacy building blocks that these packages export: the
+# root namespaces (`SemanticAttributePrefixes`) and, per namespace, what follows
+# it in a key (`LLMAttributePostfixes`, ...). `first: true` keeps only the next
+# segment (`llm.token_count.prompt` -> `token_count`); otherwise the rest of the
+# key (`graph.node.id` -> `node.id`). The object names are public API.
+templates:
+  - template: SemanticConventions.java.j2
+    filter: >
+      ([.registry.entities[] | (.identity + (.description // []))[] | .key] | unique) as $resource_keys
+      | {
+        attributes: (
+          (.registry.attributes + [.registry.spans[].attributes[] | select(.provenance.path == null)])
+          | unique_by(.key)
+          | map(select(.key as $key | $resource_keys | index($key) | not))
+          | map(. + {const_key: (.annotations.openinference.constant_key // .key)})
+        )
+        ,
+        helpers: (
+          (.registry.attributes + [.registry.spans[].attributes[] | select(.provenance.path == null)])
+          | unique_by(.key)
+          | map({key: .key, const_key: (.annotations.openinference.constant_key // .key)}) as $all
+          | {
+            prefixes: ([$all[] | .key | split(".")[0]] + ["messages"] | unique),
+            postfixes: [
+              (
+                {name: "LLMAttributePostfixes", prefix: "llm.", first: true},
+                {name: "DecisionAttributePostfixes", prefix: "decision.", first: true},
+                {name: "LLMPromptTemplateAttributePostfixes", prefix: "llm.prompt_template.", first: false},
+                {name: "RetrievalAttributePostfixes", prefix: "retrieval.", first: false},
+                {name: "RerankerAttributePostfixes", prefix: "reranker.", first: false},
+                {name: "EmbeddingAttributePostfixes", prefix: "embedding.", first: false},
+                {name: "ToolAttributePostfixes", prefix: "tool.", first: false},
+                {name: "MessageAttributePostfixes", prefix: "message.", first: false},
+                {name: "MessageContentsAttributePostfixes", prefix: "message_content.", first: false},
+                {name: "ImageAttributesPostfixes", prefix: "image.", first: false},
+                {name: "VideoAttributesPostfixes", prefix: "video.", first: false},
+                {name: "ToolCallAttributePostfixes", prefix: "tool_call.", first: false},
+                {name: "DocumentAttributePostfixes", prefix: "document.", first: false},
+                {name: "TagAttributePostfixes", prefix: "tag.", first: false},
+                {name: "SessionAttributePostfixes", prefix: "session.", first: false},
+                {name: "UserAttributePostfixes", prefix: "user.", first: false},
+                {name: "AudioAttributesPostfixes", prefix: "audio.", first: false},
+                {name: "PromptAttributePostfixes", prefix: "prompt.", first: false},
+                {name: "AgentPostfixes", prefix: "agent.", first: false},
+                {name: "GraphPostfixes", prefix: "graph.", first: false},
+                {name: "FeedbackAttributePostfixes", prefix: "annotation.", first: false}
+              )
+              | . as $object
+              | {
+                name: $object.name,
+                entries: (
+                  [
+                    $all[]
+                    | select(.key | startswith($object.prefix))
+                    | {name: (.key | ltrimstr($object.prefix)), value: (.key | ltrimstr($object.prefix))}
+                    | if $object.first then (.value | split(".")[0]) as $segment | {name: $segment, value: $segment} else . end
+                    | {name: (.name | split(".") | join("_")), value: .value}
+                  ]
+                  | unique_by(.name)
+                )
+              }
+            ]
+          }
+        )
+      }
+    application_mode: single
+    file_name: SemanticConventions.java
+
+  # Attributes of entities are recorded on the resource. Their constants are
+  # SEMRESATTRS_ plus the key without the `openinference.` prefix.
+  - template: SemanticResourceAttributes.java.j2
+    filter: >
+      {
+        attributes: (
+          [.registry.entities[] | (.identity + (.description // []))[]]
+          | unique_by(.key)
+          | map(. + {const_key: (.key | ltrimstr("openinference."))})
+        )
+      }
+    application_mode: single
+    file_name: SemanticResourceAttributes.java
+
+whitespace_control:
+  trim_blocks: true
+  lstrip_blocks: true

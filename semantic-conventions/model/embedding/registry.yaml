@@ -1,0 +1,34 @@
+file_format: definition/2
+attributes:
+  - key: embedding.model_name
+    type: string
+    brief: "Name of the embedding model used"
+    examples: ["BERT-base"]
+    stability: development
+  - key: embedding.invocation_parameters
+    type: string
+    brief: "Parameters used during the invocation of an embedding model or API (excluding input)"
+    examples: ["{\"model\": \"text-embedding-3-small\", \"encoding_format\": \"float\"}"]
+    stability: development
+    annotations:
+      openinference:
+        encoding: json
+  - key: embedding.embeddings
+    type: template[any]
+    brief: "List of embedding objects including text and vector data"
+    examples: ['[{"embedding.vector": [...], "embedding.text": "hello"}]']
+    stability: development
+    annotations:
+      openinference:
+        encoding: flattened_list
+        item_attributes: ["embedding.text", "embedding.vector"]
+  - key: embedding.text
+    type: string
+    brief: "The text represented in the embedding"
+    examples: ["hello world"]
+    stability: development
+  - key: embedding.vector
+    type: double[]
+    brief: "The embedding vector consisting of a list of floats"
+    examples: [[0.123, 0.456]]
+    stability: development

@@ -1,0 +1,22 @@
+file_format: definition/2
+attributes:
+  - key: agent.name
+    type: string
+    brief: "The name of the agent that this span represents."
+    examples: ["researcher"]
+    stability: development
+  - key: graph.node.id
+    type: string
+    brief: "The id of the node in the execution graph. This along with `graph.node.parent_id` are used to visualize the execution graph."
+    examples: ["search_api_0"]
+    stability: development
+  - key: graph.node.name
+    type: string
+    brief: "The name of the node in the execution graph. Use this to present a human readable name for the node. Optional"
+    examples: ["Search API"]
+    stability: development
+  - key: graph.node.parent_id
+    type: string
+    brief: "This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node."
+    examples: ["router_0"]
+    stability: development

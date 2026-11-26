@@ -434,14 +434,13 @@ def test_create_cache_handles_pydantic_image_input(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    cache_config = types.CreateCachedContentConfig(
-        contents=[
-            types.Content(
-                role="user",
-                parts=[types.Part.from_bytes(data=b"image", mime_type="image/png")],
-            )
-        ]
-    )
+    contents: list[types.ContentUnion] = [
+        types.Content(
+            role="user",
+            parts=[types.Part.from_bytes(data=b"image", mime_type="image/png")],
+        )
+    ]
+    cache_config = types.CreateCachedContentConfig(contents=contents)
 
     def create_cache(
         *,
@@ -474,27 +473,26 @@ def test_create_cache_hides_file_image_and_preserves_inline_audio(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    cache_config = types.CreateCachedContentConfig(
-        contents=[
-            types.Content(
-                role="user",
-                parts=[
-                    # File-backed images have no base64 payload, so hiding input
-                    # images must redact the URI itself.
-                    types.Part(
-                        file_data=types.FileData(
-                            file_uri="gs://example-bucket/image.png",
-                            mime_type="image/png",
-                        )
-                    ),
-                    # Audio uses the same Blob/data representation as an inline
-                    # image, but image-specific hiding and size limits must not
-                    # redact it.
-                    types.Part.from_bytes(data=b"\xfb\xff", mime_type="audio/wav"),
-                ],
-            )
-        ]
-    )
+    contents: list[types.ContentUnion] = [
+        types.Content(
+            role="user",
+            parts=[
+                # File-backed images have no base64 payload, so hiding input
+                # images must redact the URI itself.
+                types.Part(
+                    file_data=types.FileData(
+                        file_uri="gs://example-bucket/image.png",
+                        mime_type="image/png",
+                    )
+                ),
+                # Audio uses the same Blob/data representation as an inline
+                # image, but image-specific hiding and size limits must not
+                # redact it.
+                types.Part.from_bytes(data=b"\xfb\xff", mime_type="audio/wav"),
+            ],
+        )
+    ]
+    cache_config = types.CreateCachedContentConfig(contents=contents)
 
     def create_cache(
         *,
@@ -535,20 +533,21 @@ def test_create_cache_hides_file_image_and_preserves_inline_audio(
 
 # Serialization-preservation regressions
 def test_unchanged_cache_input_preserves_pydantic_serialization() -> None:
+    contents: list[types.ContentUnion] = [
+        types.Content(
+            role="user",
+            parts=[
+                types.Part(text="An image below the configured size limit."),
+                types.Part.from_bytes(data=b"image", mime_type="image/png"),
+                types.Part.from_bytes(data=b"\xfb\xff", mime_type="audio/wav"),
+            ],
+        )
+    ]
     cache_config = types.CreateCachedContentConfig(
         display_name="multimodal cache",
         ttl="300s",
         system_instruction="Describe the supplied context.",
-        contents=[
-            types.Content(
-                role="user",
-                parts=[
-                    types.Part(text="An image below the configured size limit."),
-                    types.Part.from_bytes(data=b"image", mime_type="image/png"),
-                    types.Part.from_bytes(data=b"\xfb\xff", mime_type="audio/wav"),
-                ],
-            )
-        ],
+        contents=contents,
     )
     request_parameters = {
         "model": "gemini-2.5-flash",

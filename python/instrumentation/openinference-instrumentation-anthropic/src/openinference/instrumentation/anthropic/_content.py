@@ -9,13 +9,25 @@ response models (e.g. a response passed back as input), so both are read with `_
 import json
 import logging
 import warnings
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+)
 
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import TraceConfig, safe_json_dumps
 from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.semconv.trace import (
+    DocumentAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -147,17 +159,25 @@ def _get_message_contents_attributes(
     message_prefix: str,
     blocks: Iterable[Any],
     hide_images: bool = False,
+    unfinished_block_indexes: Optional[Set[int]] = None,
 ) -> Iterator[Tuple[str, Any]]:
     """
     Yields the attributes of each content block of the message at `message_prefix`, e.g.
     `llm.output_messages.0`. Content indices follow the block indices, and a block that cannot be
     mapped is recorded generically, so no index is skipped and no block is silently dropped.
     `hide_images` redacts the images nested in blocks that are recorded as JSON.
+    `unfinished_block_indexes` identifies blocks that never received content_block_stop.
     """
     tool_index = 0
     for j, block in enumerate(blocks):
         attributes = _attributes_or_nothing(
-            _get_content_block_attributes, message_prefix, j, tool_index, block, hide_images
+            _get_content_block_attributes,
+            message_prefix,
+            j,
+            tool_index,
+            block,
+            hide_images,
+            unfinished_block_indexes,
         )
         if not attributes:
             attributes = _attributes_or_nothing(
@@ -177,6 +197,7 @@ def _get_content_block_attributes(
     tool_index: int,
     block: Any,
     hide_images: bool = False,
+    unfinished_block_indexes: Optional[Set[int]] = None,
 ) -> Iterator[Tuple[str, Any]]:
     block_type = _require(block, "type")
     prefix = f"{message_prefix}.{MESSAGE_CONTENTS}.{j}"
@@ -194,15 +215,23 @@ def _get_content_block_attributes(
     elif block_type in TOOL_CALL_BLOCK_TYPES:
         tool_call_id = _require(block, "id")
         name = _require(block, "name")
-        arguments = safe_json_dumps(_require(block, "input"))
+        # The SDK starts a tool block with an empty input placeholder. It parses the accumulated
+        # JSON when the block stops. A completed block with real empty arguments must be kept.
+        arguments = (
+            None
+            if unfinished_block_indexes is not None and j in unfinished_block_indexes
+            else safe_json_dumps(_require(block, "input"))
+        )
         tool_call_prefix = f"{message_prefix}.{MESSAGE_TOOL_CALLS}.{tool_index}"
         yield f"{tool_call_prefix}.{TOOL_CALL_ID}", tool_call_id
         yield f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_NAME}", name
-        yield f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
+        if arguments is not None:
+            yield f"{tool_call_prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
         yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
         yield f"{prefix}.{TOOL_CALL_ID}", tool_call_id
         yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", name
-        yield f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
+        if arguments is not None:
+            yield f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
     elif block_type == "tool_result":
         yield (
             f"{message_prefix}.{MESSAGE_TOOL_CALL_ID}",
@@ -222,6 +251,12 @@ def _get_content_block_attributes(
             yield from _get_generic_content_block_attributes(prefix, block, hide_images)
         else:
             yield from _get_image_attributes(prefix, _require(block, "source"))
+    elif block_type == "document":
+        if _get(_require(block, "source"), "type") == "content":
+            # nested content blocks, which the document attributes cannot represent
+            yield from _get_generic_content_block_attributes(prefix, block, hide_images)
+        else:
+            yield from _get_document_attributes(prefix, block)
     elif block_type == "compaction":
         # The summary of the compacted context, which stands in for it from here on. Its content
         # is null if compaction failed.
@@ -236,7 +271,7 @@ def _get_content_block_attributes(
     elif block_type == "fallback":
         yield from _get_fallback_attributes(prefix, block)
     else:
-        # e.g. server tool results, MCP tool results and listings, container uploads, documents,
+        # e.g. server tool results, MCP tool results and listings, container uploads,
         # search results, tool additions and removals, and types newer than this
         # instrumentation
         yield from _get_generic_content_block_attributes(prefix, block, hide_images)
@@ -272,6 +307,35 @@ def _get_image_attributes(prefix: str, source: Any) -> Iterator[Tuple[str, Any]]
     yield f"{prefix}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", url
 
 
+def _get_document_attributes(prefix: str, block: Any) -> Iterator[Tuple[str, Any]]:
+    source = _require(block, "source")
+    source_type = _get(source, "type")
+    if source_type == "base64":
+        media_type = _require(source, "media_type")
+        leaves = {
+            DOCUMENT_URL: f"data:{media_type};base64,{_require(source, 'data')}",
+            DOCUMENT_MIME_TYPE: media_type,
+        }
+    elif source_type == "url":
+        # the API accepts only PDFs from URLs
+        leaves = {DOCUMENT_URL: _require(source, "url"), DOCUMENT_MIME_TYPE: "application/pdf"}
+    elif source_type == "text":
+        # verbatim, since citations index into it by character offset
+        leaves = {
+            DOCUMENT_CONTENT: _require(source, "data"),
+            DOCUMENT_MIME_TYPE: _require(source, "media_type"),
+        }
+    elif source_type == "file":
+        leaves = {DOCUMENT_ID: _require(source, "file_id")}
+    else:
+        raise ValueError(f"Unknown document source type: {source_type}")
+    if title := _get(block, "title"):
+        leaves[DOCUMENT_NAME] = title
+    yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "document"
+    for leaf, value in leaves.items():
+        yield f"{prefix}.{MESSAGE_CONTENT_DOCUMENT}.{leaf}", value
+
+
 def _get_generic_content_block_attributes(
     prefix: str,
     block: Any,
@@ -282,11 +346,17 @@ def _get_generic_content_block_attributes(
     yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", _to_json(block, hide_images)
 
 
-def _get_output_message_attributes(message: Any) -> Iterator[Tuple[str, Any]]:
+def _get_output_message_attributes(
+    message: Any, unfinished_block_indexes: Optional[Set[int]] = None
+) -> Iterator[Tuple[str, Any]]:
     yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", message.role
     if stop_reason := message.stop_reason:
         yield LLM_FINISH_REASON, stop_reason
-    yield from _get_message_contents_attributes(f"{LLM_OUTPUT_MESSAGES}.0", message.content)
+    yield from _get_message_contents_attributes(
+        f"{LLM_OUTPUT_MESSAGES}.0",
+        message.content,
+        unfinished_block_indexes=unfinished_block_indexes,
+    )
 
 
 def _get_response_metadata(
@@ -520,6 +590,11 @@ def _get_tool_reference_key(tool: Any) -> Any:
     return None
 
 
+DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
+DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
+DOCUMENT_MIME_TYPE = DocumentAttributes.DOCUMENT_MIME_TYPE
+DOCUMENT_NAME = DocumentAttributes.DOCUMENT_NAME
+DOCUMENT_URL = DocumentAttributes.DOCUMENT_URL
 IMAGE_URL = ImageAttributes.IMAGE_URL
 LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
@@ -530,6 +605,7 @@ MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
+MESSAGE_CONTENT_DOCUMENT = MessageContentAttributes.MESSAGE_CONTENT_DOCUMENT
 MESSAGE_CONTENT_ENCRYPTED_CONTENT = MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE

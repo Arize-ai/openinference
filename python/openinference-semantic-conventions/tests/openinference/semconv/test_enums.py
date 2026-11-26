@@ -47,12 +47,18 @@ class TestOpenInferenceMimeTypeValues:
 class TestOpenInferenceLLMSystemValues:
     def test_values(self) -> None:
         assert {e: e.value for e in OpenInferenceLLMSystemValues} == {
+            OpenInferenceLLMSystemValues.AI21: "ai21",
+            OpenInferenceLLMSystemValues.AMAZON: "amazon",
             OpenInferenceLLMSystemValues.ANTHROPIC: "anthropic",
             OpenInferenceLLMSystemValues.COHERE: "cohere",
+            OpenInferenceLLMSystemValues.DEEPSEEK: "deepseek",
+            OpenInferenceLLMSystemValues.GOOGLE: "google",
+            OpenInferenceLLMSystemValues.META: "meta",
             OpenInferenceLLMSystemValues.MISTRALAI: "mistralai",
             OpenInferenceLLMSystemValues.OPENAI: "openai",
             OpenInferenceLLMSystemValues.TYPESAFE: "typesafe",
             OpenInferenceLLMSystemValues.VERTEXAI: "vertexai",
+            OpenInferenceLLMSystemValues.XAI: "xai",
         }
 
 
@@ -79,7 +85,9 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.ZAI: "zai",
             OpenInferenceLLMProviderValues.MINIMAX: "minimax",
             OpenInferenceLLMProviderValues.ORACLE: "oracle",
+            OpenInferenceLLMProviderValues.IBM: "ibm",
             OpenInferenceLLMProviderValues.TYPESAFE: "typesafe",
+            OpenInferenceLLMProviderValues.DOUBLEWORD: "doubleword",
         }
 
 
@@ -88,6 +96,7 @@ class TestOpenInferenceDecisionSystemValues:
         assert {e: e.value for e in OpenInferenceDecisionSystemValues} == {
             OpenInferenceDecisionSystemValues.OPENAI: "openai",
             OpenInferenceDecisionSystemValues.TYPESAFE: "typesafe",
+            OpenInferenceDecisionSystemValues.GOOGLE: "google",
         }
 
     def test_aliases_llm_system_values(self) -> None:
@@ -100,6 +109,7 @@ class TestOpenInferenceDecisionProviderValues:
         assert {e: e.value for e in OpenInferenceDecisionProviderValues} == {
             OpenInferenceDecisionProviderValues.OPENAI: "openai",
             OpenInferenceDecisionProviderValues.TYPESAFE: "typesafe",
+            OpenInferenceDecisionProviderValues.GOOGLE: "google",
         }
 
     def test_aliases_llm_provider_values(self) -> None:

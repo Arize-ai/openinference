@@ -145,7 +145,7 @@ processor = AgentFrameworkToOpenInferenceProcessor(debug=True)
 
 ## Requirements
 
-- Python >= 3.10, < 3.15
+- Python >= 3.10, < 3.16
 - opentelemetry-api >= 1.39.0
 - opentelemetry-sdk >= 1.39.0
 - openinference-semantic-conventions >= 0.1.25

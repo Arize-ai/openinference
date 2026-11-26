@@ -19,6 +19,7 @@ import anyio
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.semconv.attributes.server_attributes import SERVER_ADDRESS, SERVER_PORT
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
@@ -49,7 +50,9 @@ from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
     _finish_tracing,
     _get_decision_type,
+    _get_failed_response_status,
     _io_value_and_type,
+    _without_generated_image_results,
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import (
@@ -171,11 +174,17 @@ class _WithOpenAI(ABC):
             or not isinstance(host, str)
         ):
             return
+        # The host is recorded for every call, so a span shows which endpoint it went to
+        # (e.g. a gateway or self-hosted proxy) even when no provider can be inferred from it.
+        # Only the host and port are recorded: the path and query can carry tenant identifiers.
+        yield SERVER_ADDRESS, host
+        if port := _get_port(base_url):
+            yield SERVER_PORT, port
         if provider := infer_llm_provider_from_host(host):
             # DECISION spans identify the model under `decision.*` rather than `llm.*`, so
             # decision model usage is not counted as LLM usage. The well-known values are
             # shared between the two namespaces, so the inferred value carries over as is.
-            # See https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+            # See https://github.com/Arize-ai/openinference/blob/main/spec/spans/decision.md
             if self._is_decision(cast_to):
                 yield SpanAttributes.DECISION_PROVIDER, provider.value
             else:
@@ -215,7 +224,9 @@ class _WithOpenAI(ABC):
             else:
                 processed_params = dict(request_parameters)
 
-            yield from _as_input_attributes(_io_value_and_type(processed_params))
+            yield from _as_input_attributes(
+                _io_value_and_type(_without_generated_image_results(processed_params))
+            )
             if (
                 extract_image_files
                 and cast_to is self._openai.types.ImagesResponse
@@ -330,14 +341,15 @@ class _WithOpenAI(ABC):
                 with_span=with_span,
                 response_accumulator=response_accumulator,
             )
+        response_attributes = _ResponseAttributes(
+            request_parameters=request_parameters,
+            response=response,
+            response_attributes_extractor=self._response_attributes_extractor,
+        )
         _finish_tracing(
-            status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+            status=response_attributes.get_status(),
             with_span=with_span,
-            has_attributes=_ResponseAttributes(
-                request_parameters=request_parameters,
-                response=response,
-                response_attributes_extractor=self._response_attributes_extractor,
-            ),
+            has_attributes=response_attributes,
         )
         return response
 
@@ -483,6 +495,18 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         return response
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _get_port(base_url: Any) -> Optional[int]:
+    """The base URL's port, or its scheme's default port when the URL leaves it out."""
+    port = getattr(base_url, "port", None)
+    if isinstance(port, int):
+        return port
+    scheme = getattr(base_url, "scheme", None)
+    return _DEFAULT_PORTS.get(scheme) if isinstance(scheme, str) else None
+
+
 def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any], Any]:
     # We don't use `signature(request).bind()` because `request` could have been monkey-patched
     # (incorrectly) by others and the signature at runtime may not match the original.
@@ -528,6 +552,11 @@ class _ResponseAttributes:
         self._request_parameters = request_parameters
         self._response = response
         self._response_attributes_extractor = response_attributes_extractor
+
+    def get_status(self) -> trace_api.Status:
+        return _get_failed_response_status(self._response) or trace_api.Status(
+            status_code=trace_api.StatusCode.OK
+        )
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from _as_output_attributes(

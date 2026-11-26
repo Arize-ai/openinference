@@ -148,6 +148,9 @@ class _ResponseAttributesExtractor:
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL,
                 int(prompt_tokens or 0) + int(completion_tokens or 0),
             )
+        # Prompt tokens served from Cohere's inference cache (a float in the SDK).
+        if (cached_tokens := getattr(usage, "cached_tokens", None)) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(cached_tokens)
 
 
 def _content_text(content: Any) -> str:

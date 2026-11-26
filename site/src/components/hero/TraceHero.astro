@@ -1,0 +1,671 @@
+---
+/**
+ * The landing page's trace hero: one support-agent run replayed on a single
+ * clock. A lens at the top shows what the person sees (the session) or what
+ * runs (the agent's code); under it, the OpenInference trace it records and
+ * the span in view. It is the right half of the split hero. See DESIGN.md
+ * ("Trace hero").
+ *
+ * The server renders the finished run, so the hero reads without
+ * JavaScript; the script in engine.ts then replays it. Everything the hero
+ * shows comes from model.ts.
+ */
+import { createHighlighter, type ThemedToken, type ThemeRegistrationAny } from "shiki";
+
+import { shikiConfig } from "../../lib/shiki.mjs";
+import { GLYPHS, kindClass } from "./glyphs";
+import {
+  ANSWER,
+  ANSWER_SPAN,
+  attributesAt,
+  CODE,
+  formatClock,
+  formatDuration,
+  GUIDES,
+  LABEL_FLIP,
+  PRE_ROLL,
+  QUESTION,
+  SPANS,
+  statusOf,
+  STEP_SPANS,
+  STEPS,
+  T,
+  TICKS,
+  TRACE_ID,
+  xAt,
+} from "./model";
+
+/** The detail's attribute rows: the most any span records. */
+const ATTRIBUTE_SLOTS = Math.max(...SPANS.map((span) => span.attributes.length));
+
+// The code is highlighted like the site's code blocks (the Pierre theme, light
+// and dark), a line at a time so the replay can light the one running.
+const themes = shikiConfig.themes as { light: ThemeRegistrationAny; dark: ThemeRegistrationAny };
+const highlighter = await createHighlighter({ themes: [themes.light, themes.dark], langs: ["python"] });
+const codeLines = highlighter.codeToTokens(CODE, { lang: "python", themes }).tokens;
+const styleOf = (token: ThemedToken) =>
+  Object.entries(token.htmlStyle ?? {})
+    .map(([property, value]) => `${property}:${value}`)
+    .join(";");
+
+const root = SPANS[0]!;
+const finalAttributes = attributesAt(root, T);
+const workedFor = `${(SPANS[ANSWER_SPAN]!.start / 1000).toFixed(1)}s`;
+const stepMeta = (index: number) =>
+  [STEPS[index]!.note, formatDuration(STEP_SPANS[index]!.end - STEP_SPANS[index]!.start)].filter(Boolean).join(" · ");
+const pct = (value: number) => `${Math.round(value * 100) / 100}%`;
+const glyph = (kind: keyof typeof GLYPHS) => `<svg viewBox="0 0 16 16" aria-hidden="true">${GLYPHS[kind]}</svg>`;
+---
+
+<section class="trace-hero" aria-label="An agent run, and the trace OpenInference records for it">
+  <div class="stage" data-trace-hero>
+    <div class="tabs" role="group" aria-label="View">
+      <button type="button" class="eyebrow" data-view="chat" aria-pressed="true">Session</button>
+      <button type="button" class="eyebrow" data-view="code" aria-pressed="false">Code</button>
+    </div>
+
+    <div class="lens" data-panes>
+        <div class="chat" data-pane="chat" data-steps="closed">
+          <p class="question" data-group="root" data-span="0">{QUESTION}</p>
+          <div class="agent-line">
+            <p class="who eyebrow" data-agent>
+              <span class="who-glyph" set:html={glyph("AGENT")} />Support agent
+            </p>
+            <button type="button" class="summary" data-summary aria-expanded="false" aria-controls="trace-hero-steps">
+              <span class="summary-text" data-summary-text>Worked for {workedFor}</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"></path></svg>
+            </button>
+          </div>
+          <ol class="steps" id="trace-hero-steps">
+            {
+              STEPS.map((step, index) => (
+                <li class="step" data-step={index} data-group={step.group} data-state="done">
+                  <span class="step-icon" aria-hidden="true">
+                    <span class="spinner" />
+                    <svg class="check" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" /></svg>
+                  </span>
+                  <span class="step-text">{step.text}</span>
+                  <span class="step-meta" data-step-meta>{stepMeta(index)}</span>
+                </li>
+              ))
+            }
+          </ol>
+          <p class="answer" data-answer data-group="answer" data-span={ANSWER_SPAN}>
+            <span data-answer-text>{ANSWER}</span>
+          </p>
+        </div>
+
+        <div class="code" data-pane="code" hidden>
+          <pre class="code-body" data-code><span class="counter" data-counter hidden></span><code>{codeLines.map((line, index) => (
+              <span class="line" data-line={index + 1}><span class="no" aria-hidden="true">{index + 1}</span><span class="text">{line.length ? line.map((token) => <span class="tok" style={styleOf(token)}>{token.content}</span>) : " "}</span></span>
+            ))}</code></pre>
+        </div>
+    </div>
+
+    <div class="trace">
+        <div class="scroll">
+          <div
+            class="waterfall"
+            data-waterfall
+            role="img"
+            aria-label="The trace, as a tree of spans beside a timeline: the support_agent span, with a guardrail, three model calls, a skill load and a help-center search running in parallel, then code that calls the billing API. One HTTP request fails with a 500 and is retried; the person never sees it."
+          >
+            <div class="axis">
+              <span class="trace-label"><span class="eyebrow">Trace</span><span class="trace-id">{TRACE_ID}</span></span>
+              <span class="ticks">
+                {TICKS.map((tick, index) => <span class:list={["tick", { first: index === 0 }]} style={`left:${pct(tick.x)}`}>{tick.label}</span>)}
+                <span class="chip" data-chip hidden></span>
+              </span>
+            </div>
+            <div class="rows">
+              <div class="lanes" aria-hidden="true">
+                {TICKS.map((tick) => <span class="grid" style={`left:${pct(tick.x)}`} />)}
+                <span class="playhead" data-playhead hidden></span>
+              </div>
+              {
+                SPANS.map((span, index) => (
+                  <div
+                    class:list={["row", kindClass(span.kind), { error: span.error }]}
+                    data-row={index}
+                    data-state="done"
+                    style={`--depth:${span.depth};--x:${pct(xAt(span.start))};--w:${pct(xAt(span.end) - xAt(span.start))}`}
+                  >
+                    <span class="band" data-group={span.group} data-span={index} />
+                    <span class="node">
+                      {GUIDES[index]!.map((guide) => (
+                        <span class={`guide ${guide.part}`} data-after={guide.after} style={`--level:${guide.level}`} />
+                      ))}
+                      <span class="glyph" set:html={glyph(span.kind)} />
+                      <span class="name">{span.name}</span>
+                      {span.note && <span class="code-tag">{span.note}</span>}
+                    </span>
+                    <span class="lane">
+                      <span class="bar" />
+                      <span
+                        class="bar-label"
+                        data-duration
+                        hidden={index === 0}
+                        style={
+                          xAt(span.end) > LABEL_FLIP
+                              ? `right:calc(${pct(100 - xAt(span.start))} + 6px)`
+                              : `left:calc(${pct(xAt(span.end))} + 6px)`
+                        }
+                      >
+                        {formatDuration(span.end - span.start)}
+                      </span>
+                    </span>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </div>
+
+    </div>
+
+    <div class="detail" data-detail>
+      <p class="detail-head">
+        <span class="glyph" data-detail-glyph set:html={glyph(root.kind)} />
+        <span class="detail-name" data-detail-name>{root.name}</span>
+        <span class="eyebrow detail-status" data-detail-status data-status="OK">{statusOf(root)}</span>
+        <span class="detail-duration" data-detail-duration>{formatDuration(T)}</span>
+      </p>
+      <dl class="attributes" data-attributes>
+        {
+          Array.from({ length: ATTRIBUTE_SLOTS }, (_, index) => {
+            const attribute = finalAttributes[index];
+            return (
+              <div class="attribute" data-attribute hidden={!attribute}>
+                <dt>{attribute?.key}</dt>
+                <dd>{attribute?.value}</dd>
+              </div>
+            );
+          })
+        }
+      </dl>
+    </div>
+
+    <div class="controls">
+      <button type="button" class="play" data-play aria-label="Replay">
+        <svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"></path></svg>
+        <svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9M11 3.5v9"></path></svg>
+      </button>
+      <div class="track">
+        <input type="range" min={PRE_ROLL} max={T} step="10" value={T} aria-label="Trace time" data-scrubber style="--p:100%" />
+      </div>
+      <span class="time" data-time>{formatClock(T)} / {formatClock(T)}</span>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { mount } from "./engine";
+
+  for (const root of document.querySelectorAll<HTMLElement>("[data-trace-hero]")) mount(root);
+</script>
+
+<style>
+  /*
+   * The stage: no frame. One column (tabs, the lens, the trace, the span in
+   * view, the controls), its structure spacing and one hairline (under the
+   * tabs). Heights are fixed so nothing moves while the
+   * run plays.
+   */
+  /* The demo lays itself out by its own width, wherever the page puts it. */
+  .trace-hero { display: flex; flex-direction: column; min-width: 0; container: demo / inline-size; }
+  .stage {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "tabs" "lens" "trace" "detail" "controls";
+    /*
+     * The demo's geometry, named once. The wide and phone layouts below
+     * change these, never the rules that use them.
+     */
+    /* The lens: the session or the code, one height so switching doesn't move the trace. */
+    --lens: 184px;
+    /* The span tree: its column, each level's indent, a row's pitch, a span's glyph. */
+    --tree: clamp(196px, 32%, 220px);
+    --indent: 18px;
+    --row: 20px;
+    --glyph: 14px;
+    /* A span's bar, the timeline's axis and the tabs' bar. */
+    --bar: 10px;
+    --axis: 36px;
+    --tab-height: 40px;
+    /* Small icons (chevrons, play), the play button and the scrubber's thumb. */
+    --icon: 12px;
+    --control: 28px;
+    --thumb: 10px;
+    /* A step in the session, and an attribute in the span's detail. */
+    --step: 28px;
+    --attribute: 16px;
+    --attribute-rows: 5;
+    --trace-size: var(--text-micro);
+  }
+
+  .tabs { grid-area: tabs; display: flex; gap: var(--space-5); border-bottom: 1px solid var(--rule); }
+  .tabs button {
+    position: relative;
+    height: var(--tab-height);
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+  .tabs button:hover, .tabs button[aria-pressed="true"] { color: var(--fg); }
+  .tabs button[aria-pressed="true"]::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 -1px;
+    height: 1px;
+    background: var(--fg);
+  }
+
+  .lens { grid-area: lens; position: relative; height: var(--lens); }
+
+  /* --- Session: the chat as the person sees it ---------------------------- */
+  .chat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    height: 100%;
+    padding-top: var(--space-4);
+    overflow: hidden auto;
+    scrollbar-width: none;
+  }
+  .chat[hidden] { display: none; }
+  .question {
+    /* A chat bubble: as wide as its words, on the right. */
+    align-self: flex-end;
+    width: fit-content;
+    max-width: min(88%, 400px);
+    padding: var(--space-2) var(--space-4);
+    text-wrap: pretty;
+    background: var(--tint);
+    font-size: var(--text-small);
+    line-height: 1.5;
+    transition: background-color 0.15s;
+  }
+  .question.lit, .question:hover { background: color-mix(in srgb, var(--fg) 11%, transparent); }
+  /* The agent's turn, as a chat shows it: its name, then on its own line what
+     it is doing (glimmering, with a chevron to open the steps), then its answer. */
+  .agent-line { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-5); }
+  .who { display: flex; align-items: center; gap: var(--space-2); }
+  .who[hidden] { display: none; }
+  .who-glyph { display: inline-flex; width: var(--glyph); height: var(--glyph); }
+  .who-glyph :global(svg) { width: var(--glyph); height: var(--glyph); fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+  .who-glyph :global(.fill) { fill: currentColor; stroke: none; }
+  .summary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) 0;
+    border: 0;
+    background: none;
+    color: var(--dim);
+    font: inherit;
+    font-size: var(--text-small);
+    cursor: pointer;
+  }
+  .summary:hover { color: var(--fg); }
+  .summary[hidden] { display: none; }
+  .summary svg { width: var(--icon); height: var(--icon); fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
+  .summary[aria-expanded="true"] svg { transform: rotate(90deg); }
+
+  /* The steps, opened, hang under the line on a hairline, as a chat's thoughts do. */
+  .steps { display: grid; align-self: stretch; margin: var(--space-1) 0 0 5px; padding: 0 0 0 var(--space-4); border-left: 1px solid var(--rule); list-style: none; }
+  .chat[data-steps="closed"] .steps { display: none; }
+  .step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: 28px;
+    color: var(--soft);
+    font-size: var(--text-small);
+    animation: rise 0.3s ease both;
+    transition: background-color 0.15s, color 0.15s;
+  }
+  .step[data-state="pending"] { display: none; }
+  .step.lit, .step:hover { color: var(--fg); }
+  .step-icon { display: grid; place-items: center; width: var(--glyph); height: var(--glyph); flex-shrink: 0; }
+  .spinner, .check { grid-area: 1 / 1; display: none; }
+  .spinner {
+    width: calc(var(--glyph) - 4px);
+    height: calc(var(--glyph) - 4px);
+    border: 1.5px solid var(--rule);
+    border-top-color: var(--fg);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .check { width: var(--glyph); height: var(--glyph); fill: none; stroke: var(--dim); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .step[data-state="open"] .spinner, .step[data-state="done"] .check { display: block; }
+  .step-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Work in progress glimmers, as in a real chat: the live summary and the step running. */
+  .step[data-state="open"] .step-text, .summary.working .summary-text {
+    background: linear-gradient(90deg, var(--dim) 0 30%, var(--fg) 45% 55%, var(--dim) 70% 100%) 0 0 / 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 2s linear infinite;
+  }
+  .summary.lit { color: var(--fg); }
+  .step-meta { color: var(--dim); font: 400 var(--text-micro) / 1 var(--font-mono); white-space: nowrap; }
+
+  .answer {
+    margin-top: var(--space-3);
+    font-size: var(--text-small);
+    line-height: 1.6;
+    animation: fade 0.3s ease both;
+    transition: background-color 0.15s;
+  }
+  .answer[hidden] { display: none; }
+  .answer { color: var(--soft); }
+  .answer.lit, .answer:hover { color: var(--fg); }
+
+  /* --- Code -------------------------------------------------------------- */
+  .code { display: flex; flex-direction: column; height: 100%; }
+  .code[hidden] { display: none; }
+  .code-body { position: relative; flex: 1; min-height: 0; margin: 0; padding-block: var(--space-4); overflow: auto; scrollbar-width: none; mask-image: linear-gradient(transparent, #000 var(--space-5), #000 calc(100% - var(--space-5)), transparent); font: 400 var(--text-nano) / 1.6 var(--font-mono); }
+  /* Room after the last line, so the code can rest with its setup scrolled
+     out of view however tall the lens is. */
+  .code-body code::after { content: ""; display: block; height: calc(var(--space-9) * 2); }
+  .line { position: relative; display: block; padding-right: var(--space-4); white-space: pre; transition: opacity 0.3s ease; }
+  .no { display: inline-block; width: 3ch; margin-right: 2ch; color: var(--dim); text-align: right; opacity: 0.6; font-variant-numeric: tabular-nums; }
+  .code-body.is-running .line { opacity: 0.4; }
+  .code-body.is-running .line.run { opacity: 0.85; }
+  .code-body.is-running .line.act { opacity: 1; }
+  /* The current line, as an editor marks it: one soft band that glides to the line running. */
+  .counter {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    background: color-mix(in srgb, var(--fg) 5%, transparent);
+    transition: transform 0.32s cubic-bezier(0.2, 0.7, 0.2, 1), height 0.32s, opacity 0.2s;
+    pointer-events: none;
+  }
+  .counter[hidden] { display: block; opacity: 0; }
+  .line.run .no, .line.act .no { color: var(--fg); opacity: 1; }
+  /* Pierre's dark colours with the site's dark theme. */
+  :global(:root[data-theme="dark"]) .tok { color: var(--shiki-dark) !important; }
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme])) .tok { color: var(--shiki-dark) !important; }
+  }
+
+  /* --- Trace: the span tree beside its timeline --------------------------- */
+  .trace { grid-area: trace; min-width: 0; margin-top: var(--space-3); container: trace / inline-size; }
+  /* A short timeline labels every other second. */
+  @container trace (max-width: 520px) {
+    .tick:not(.first):nth-child(even) { visibility: hidden; }
+  }
+  .waterfall { font: 400 var(--trace-size) / 1 var(--font-mono); }
+  .waterfall * { pointer-events: none; }
+  .axis { display: grid; grid-template-columns: var(--tree) minmax(0, 1fr); height: var(--axis); align-items: center; }
+  .trace-label { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; padding-right: var(--space-4); }
+  .trace-id { overflow: hidden; color: var(--dim); text-overflow: ellipsis; white-space: nowrap; }
+  .ticks { position: relative; height: 100%; }
+  .tick { position: absolute; top: 50%; color: var(--dim); font-variant-numeric: tabular-nums; transform: translate(-50%, -50%); }
+  .tick.first { transform: translate(0, -50%); }
+  /* The time, riding the playhead. */
+  .chip {
+    position: absolute;
+    top: 50%;
+    z-index: 1;
+    padding: 2px 5px;
+    background: var(--fg);
+    color: var(--bg);
+    font-variant-numeric: tabular-nums;
+    transform: translate(-50%, -50%);
+  }
+  .chip[hidden] { display: none; }
+
+  .rows { position: relative; }
+  .lanes { position: absolute; inset: 0 0 0 var(--tree); }
+  /* Dotted gridlines, as on a drawing. */
+  .grid {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: repeating-linear-gradient(to bottom, var(--rule) 0 1px, transparent 1px 4px);
+  }
+  /* The playhead runs over the spans, not under them. */
+  .playhead { position: absolute; top: 0; bottom: 0; z-index: 2; width: 1px; background: var(--fg); opacity: 0.5; pointer-events: none; }
+  .playhead[hidden] { display: none; }
+
+  .row {
+    --c: var(--kind-http);
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--tree) minmax(0, 1fr);
+    height: var(--row);
+    transition: opacity 0.3s;
+  }
+  .row[data-state="pending"] { opacity: 0; visibility: hidden; }
+  /* A span eases in as it starts. */
+  .row:not([data-state="pending"]) .node, .row:not([data-state="pending"]) .lane { animation: enter 0.35s ease-out both; }
+  .kind-agent { --c: var(--kind-agent); }
+  .kind-llm { --c: var(--kind-llm); }
+  .kind-tool { --c: var(--kind-tool); }
+  .kind-retriever { --c: var(--kind-retriever); }
+  .kind-embedding { --c: var(--kind-embedding); }
+  .kind-reranker { --c: var(--kind-reranker); }
+  .kind-guardrail { --c: var(--kind-guardrail); }
+  .row.error[data-state="done"] { --c: var(--accent); }
+
+  .band { position: absolute; inset: 0 calc(-1 * var(--space-2)); transition: background-color 0.12s; }
+  /* Bars, names and glyphs ignore the pointer, so a row's band receives it. */
+  .waterfall .band { pointer-events: auto; }
+  .row.on .band { background: var(--tint); }
+
+  /* The tree cell: indented by depth, the kind's glyph and the span's name. */
+  .node {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    padding-left: calc(var(--depth) * var(--indent));
+    padding-right: var(--space-4);
+    color: var(--fg);
+    white-space: nowrap;
+  }
+  .name { overflow: hidden; text-overflow: ellipsis; transition: opacity 0.15s; }
+  .code-tag { color: var(--dim); }
+  .row[data-state="open"] .code-tag { display: none; }
+  .row.error[data-state="done"] .code-tag { color: var(--accent); }
+
+  /* The hierarchy: a column under each glyph, an arm across to each child. */
+  .guide {
+    position: absolute;
+    left: calc(var(--level) * var(--indent) + var(--glyph) / 2);
+    background: var(--rule);
+    transition: opacity 0.35s ease-out;
+  }
+  .guide.off { opacity: 0; }
+  .guide.up { top: 0; height: 50%; width: 1px; }
+  .guide.down { top: 50%; height: 50%; width: 1px; }
+  .guide.stem { top: calc(50% + var(--glyph) / 2 + 2px); bottom: 0; width: 1px; }
+  .guide.arm { top: 50%; height: 1px; width: calc(var(--indent) - var(--glyph) / 2 - 3px); }
+
+  /* The kind's glyph, bare, in its colour: no tile, no frame. */
+  .glyph { display: inline-flex; width: var(--glyph); height: var(--glyph); flex-shrink: 0; color: var(--c); transition: opacity 0.15s; }
+  .glyph :global(svg) { width: var(--glyph); height: var(--glyph); fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+  .glyph :global(.fill) { fill: currentColor; stroke: none; }
+
+  .lane { position: relative; }
+  /*
+   * Each span is a solid rectangle in its kind's full colour. A span still
+   * running is only its dashed outline; it fills in when the span ends.
+   */
+  .bar {
+    position: absolute;
+    left: var(--x);
+    top: 50%;
+    width: var(--w);
+    min-width: 3px;
+    height: var(--bar);
+    border: 1px solid var(--c);
+    background: var(--c);
+    transform: translateY(-50%);
+    transition: opacity 0.2s, background-color 0.3s ease-out;
+  }
+  .row[data-state="open"] .bar { border-style: dashed; background: transparent; }
+  /* A failure is hatched, so it reads without colour too. */
+  .row.error[data-state="done"] .bar {
+    background: repeating-linear-gradient(-45deg, var(--c) 0 2px, color-mix(in srgb, var(--c) 45%, var(--bg)) 2px 4px);
+  }
+  .bar-label { position: absolute; top: 50%; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; transform: translateY(-50%); }
+  .row:not([data-state="done"]) .bar-label { visibility: hidden; }
+  /* The root spans the whole timeline; its duration is in the detail. */
+  .bar-label[hidden] { display: none; }
+  .row.error[data-state="done"] .bar-label { color: var(--accent); }
+
+  /* While something is hovered, everything else steps back. */
+  .waterfall.dim .row:not(.on) :is(.bar, .glyph, .bar-label) { opacity: 0.3; }
+  .waterfall.dim .row:not(.on) .name { opacity: 0.45; }
+
+  /* --- The span in view: what OpenInference recorded on it -------------- */
+  /* The span in view sits in a faint well, so it reads as that span's record. */
+  .detail {
+    grid-area: detail;
+    min-width: 0;
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--well);
+    font: 400 var(--text-micro) / 1.5 var(--font-mono);
+  }
+  .detail-head { --c: var(--dim); display: flex; align-items: center; gap: var(--space-2); height: var(--space-5); }
+  .detail-head[data-kind="agent"] { --c: var(--kind-agent); }
+  .detail-head[data-kind="llm"] { --c: var(--kind-llm); }
+  .detail-head[data-kind="tool"] { --c: var(--kind-tool); }
+  .detail-head[data-kind="retriever"] { --c: var(--kind-retriever); }
+  .detail-head[data-kind="embedding"] { --c: var(--kind-embedding); }
+  .detail-head[data-kind="reranker"] { --c: var(--kind-reranker); }
+  .detail-head[data-kind="guardrail"] { --c: var(--kind-guardrail); }
+  .detail-head[data-kind="http"] { --c: var(--kind-http); }
+  .detail-head[data-error] { --c: var(--accent); }
+  .detail-name { color: var(--fg); }
+  .detail-status { margin-left: var(--space-2); }
+  .detail-status[data-status="ERROR"] { color: var(--accent); }
+  .detail-duration { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .attributes {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    grid-auto-rows: var(--attribute);
+    align-items: center;
+    column-gap: var(--space-5);
+    height: calc(var(--attribute-rows) * var(--attribute));
+    margin: var(--space-2) 0 0;
+  }
+  .attribute { display: contents; }
+  .attribute[hidden] { display: none; }
+  .attribute dt { color: var(--dim); }
+  .attribute dd { overflow: hidden; margin: 0; color: var(--fg); text-overflow: ellipsis; white-space: nowrap; }
+  .attribute.error dd { color: var(--accent); }
+
+  /* --- Controls ---------------------------------------------------------- */
+  .controls {
+    grid-area: controls;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    height: 40px;
+    margin-top: var(--space-2);
+  }
+  .play {
+    display: grid;
+    place-items: center;
+    width: var(--control);
+    height: var(--control);
+    flex-shrink: 0;
+    padding: 0;
+    border: 1px solid var(--rule);
+    background: none;
+    color: var(--fg);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .play:hover { border-color: var(--fg); }
+  .play svg { grid-area: 1 / 1; width: var(--icon); height: var(--icon); fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .icon-pause { display: none; }
+  .play[data-playing] .icon-play { display: none; }
+  .play[data-playing] .icon-pause { display: block; }
+
+  .track { position: relative; flex: 1; display: flex; align-items: center; height: var(--control); }
+  input[type="range"] {
+    width: 100%;
+    height: 28px;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 1px;
+    background: linear-gradient(to right, var(--fg) var(--p), var(--rule) var(--p));
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: var(--thumb);
+    height: var(--thumb);
+    margin-top: -4.5px;
+    border-radius: 50%;
+    background: var(--fg);
+    appearance: none;
+  }
+  input[type="range"]::-moz-range-track { height: 1px; background: var(--rule); }
+  input[type="range"]::-moz-range-progress { height: 1px; background: var(--fg); }
+  input[type="range"]::-moz-range-thumb { width: var(--thumb); height: var(--thumb); border: 0; border-radius: 50%; background: var(--fg); }
+  .time { min-width: 12ch; color: var(--dim); font: 400 var(--text-micro) / 1 var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+  @keyframes fade { from { opacity: 0; } }
+  @keyframes enter { from { opacity: 0; transform: translateX(-4px); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
+
+  /*
+   * Wide: the trace takes most of the width and the full height, the
+   * highlight of the hero. Beside it, the session (or the code) and, at its
+   * foot, the span in view, level with the trace's last row, so you read
+   * what happens and watch it recorded in one sweep. The controls span both.
+   */
+  @container demo (min-width: 760px) {
+    .stage {
+      --lens: auto;
+      --row: 27px;
+      --tree: 216px;
+      --axis: 40px;
+      --bar: 12px;
+      --trace-size: var(--text-label);
+      grid-template-columns: minmax(300px, 40fr) minmax(0, 60fr);
+      grid-template-rows: auto 1fr auto auto;
+      grid-template-areas: "tabs trace" "lens trace" "detail trace" "controls controls";
+      column-gap: var(--space-6);
+    }
+    .code-body { line-height: 1.45; }
+    .line { display: grid; grid-template-columns: 2ch minmax(0, 1fr); column-gap: 1.5ch; padding-right: 0; }
+    .line .no { width: auto; margin-right: 0; }
+    .line .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+    /* The trace sets the height; what the lens holds never does, so switching
+       between the session and the code moves nothing. */
+    .lens { min-height: 0; contain: size; }
+    .trace { margin-top: 0; }
+    .detail { margin-top: var(--space-4); }
+    .controls { margin-top: var(--space-5); }
+  }
+
+  /*
+   * On a phone everything fits the screen: a narrower tree in a smaller
+   * face, so the whole timeline shows without scrolling, and each
+   * attribute's value under its key.
+   */
+  @media (max-width: 560px) {
+    .stage { --tree: 156px; --indent: 13px; --lens: 236px; --glyph: 12px; --attribute: 34px; --trace-size: var(--text-nano); }
+    .node { gap: 6px; padding-right: var(--space-2); }
+    .attributes { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-1); }
+    .attribute { display: grid; }
+    .attribute[hidden] { display: none; }
+  }
+</style>

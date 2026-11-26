@@ -1,0 +1,138 @@
+name: Semantic Conventions CI
+
+# Validates the machine-readable semantic convention registry under
+# semantic-conventions/ with OpenTelemetry Weaver.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least-privilege GITHUB_TOKEN: this workflow only needs to read the repo.
+permissions:
+  contents: read
+
+concurrency:
+  group: semantic-conventions-${{ github.head_ref || github.ref }}
+  # Pushes to main share a ref; cancelling would drop the validation of all but
+  # the last of several back-to-back merges.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: Filter Changes
+    runs-on: ubuntu-latest
+    outputs:
+      diff: ${{ steps.filter.outputs.diff }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          filters: |
+            diff:
+              - ".github/workflows/semantic-conventions-CI.yaml"
+              - "semantic-conventions/**"
+              # Tables in the spec are generated from the model.
+              - "spec/**"
+              # Constants in the language packages are generated from the model.
+              - "python/openinference-semantic-conventions/src/openinference/semconv/**"
+              - "go/openinference-semantic-conventions/*.go"
+              - "js/packages/openinference-semantic-conventions/src/**"
+              - "java/openinference-semantic-conventions/src/main/**"
+
+  ci:
+    name: CI Semantic Conventions
+    needs: changes
+    # A manual run always checks: the path filter only sees the last commit there.
+    if: ${{ needs.changes.outputs.diff == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: semantic-conventions
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0 # the base branch is the backwards-compatibility baseline
+          persist-credentials: false
+
+      - name: Load version pins
+        id: versions
+        run: |
+          weaver_version="$(sed -n 's/^WEAVER_VERSION=v\{0,1\}//p' versions.env)"
+          if [[ -z "$weaver_version" ]]; then
+            echo "Failed to load WEAVER_VERSION from versions.env" >&2
+            exit 1
+          fi
+          echo "weaver_version=$weaver_version" >> "$GITHUB_OUTPUT"
+
+      - name: Install Weaver
+        uses: open-telemetry/weaver/.github/actions/setup-weaver@f8e1b42fbd1e09df5263c26b7df6011eaafd454d
+        with:
+          version: ${{ steps.versions.outputs.weaver_version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
+      # On pull requests, compare against the model on the base branch so that
+      # removing or changing a published attribute fails the build. Skipped
+      # when the base branch has no model yet.
+      - name: Extract baseline registry from the base branch
+        id: baseline
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if git cat-file -e "origin/${BASE_REF}:semantic-conventions/model/manifest.yaml" 2>/dev/null; then
+            mkdir -p .build/baseline
+            git -C .. archive "origin/${BASE_REF}" semantic-conventions/model \
+              | tar -x -C .build/baseline --strip-components=1
+            echo "registry=.build/baseline/model" >> "$GITHUB_OUTPUT"
+          else
+            echo "No semantic-conventions/model on origin/${BASE_REF}; skipping the baseline comparison."
+          fi
+
+      - name: Validate model and policies
+        env:
+          BASELINE_REGISTRY: ${{ steps.baseline.outputs.registry }}
+        run: make check BASELINE_REGISTRY="$BASELINE_REGISTRY"
+
+      - name: Check the vendored OpenTelemetry attributes match upstream
+        run: make check-vendor
+
+      # The next two steps run weaver from its container image with the network
+      # disabled (FORCE_CONTAINER=1), which proves that generation is hermetic:
+      # it needs nothing but this repository and the pinned weaver.
+      - name: Pull the pinned Weaver image
+        env:
+          WEAVER_VERSION: ${{ steps.versions.outputs.weaver_version }}
+        run: docker pull "docker.io/otel/weaver:v${WEAVER_VERSION}"
+
+      - name: Check sample wire-format keys against the registry (no network)
+        run: make test FORCE_CONTAINER=1
+
+      - name: Check generated docs, spec tables, and language constants are up to date (no network)
+        run: make check-generated FORCE_CONTAINER=1
+
+      - name: Check parity with the spec and language packages
+        run: make check-parity
+
+      - name: Build the registry the docs site serves (no network)
+        run: make site-schemas FORCE_CONTAINER=1
+
+      # Rehearses the release workflow up to, but not including, the upload:
+      # the same target, with the tag the next release would have.
+      - name: Rehearse the release
+        run: make release-assets TAG="semantic-conventions-v$(make -s print-version)"
+
+      - name: Upload release package
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: semantic-conventions-registry
+          path: semantic-conventions/.build/package/
+          if-no-files-found: error

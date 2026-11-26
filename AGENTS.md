@@ -10,6 +10,7 @@ OpenInference is a multi-language monorepo providing OpenTelemetry-based instrum
 - **JavaScript/TypeScript**: Node.js instrumentations with pnpm workspaces
 - **Java**: Instrumentation for LangChain4j and Spring AI
 - **Specification**: OpenInference semantic conventions in `spec/`
+- **Semantic convention registry**: Machine-readable (OpenTelemetry Weaver) model of the conventions in `semantic-conventions/`
 
 ## Repository Structure
 
@@ -27,6 +28,7 @@ OpenInference is a multi-language monorepo providing OpenTelemetry-based instrum
 │   ├── openinference-instrumentation/
 │   └── openinference-semantic-conventions/
 ├── spec/                      # OpenInference specification
+├── semantic-conventions/      # Machine-readable registry of the conventions (Weaver YAML)
 └── scripts/                   # Repository automation scripts
 ```
 
@@ -108,6 +110,23 @@ pnpm run prettier:write
 ```bash
 # Create changeset for version bumping
 pnpm changeset
+```
+
+### Semantic Convention Registry
+
+**See `semantic-conventions/README.md` for the model layout and modeling rules.**
+
+The YAML under `semantic-conventions/model` is the source of truth for attribute keys, types, and well-known values.
+Generated from it, and never edited by hand: the attribute tables in `spec/attributes/semantic-conventions.md` and the
+constants in the Python, Go, TypeScript, and Java `openinference-semantic-conventions` packages.
+To add or change an attribute, edit the model and regenerate.
+
+```bash
+# Run everything CI runs (needs weaver or docker/podman, and uv)
+make -C semantic-conventions check-all
+
+# Regenerate the registry docs, the spec tables, and the language packages after changing the model
+make -C semantic-conventions generate
 ```
 
 ### Java

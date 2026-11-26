@@ -1,0 +1,40 @@
+file_format: definition/2
+# Span kinds whose characteristic attributes are the common ones. Kinds with
+# their own attribute namespace are defined next to that namespace:
+# llm/, embedding/, retrieval/, reranker/, tool/, agent/, feedback/, prompt/,
+# and decision/.
+#
+# OpenInference does not constrain OpenTelemetry's `SpanKind`; `kind: internal`
+# below is the default an instrumentation uses when it has no reason to pick
+# another. The OpenInference kind is carried by `openinference.span.kind`.
+spans:
+  - type: openinference.chain
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    brief: >
+      A starting point or a link between different LLM application steps, for
+      example the beginning of a request to an LLM application, or the glue
+      code that passes context from a retriever to an LLM call.
+    note: |
+      `openinference.span.kind` MUST be `CHAIN`.
+    name:
+      note: |
+        **Span name** is not constrained. It SHOULD identify the step, e.g. the function or component name.
+    attributes:
+      - ref_group: attributes.openinference.common
+
+  - type: openinference.guardrail
+    kind: internal
+    requirement_level: recommended
+    stability: development
+    brief: >
+      A call to a component that protects against jailbreak prompts or
+      undesirable output, by modifying or rejecting an LLM's input or response.
+    note: |
+      `openinference.span.kind` MUST be `GUARDRAIL`.
+    name:
+      note: |
+        **Span name** is not constrained. It SHOULD identify the guardrail.
+    attributes:
+      - ref_group: attributes.openinference.common

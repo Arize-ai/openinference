@@ -32,7 +32,7 @@ Generates attributes for LLM inference operations.
 function getLLMAttributes(options: {
   provider?: string;              // e.g., "openai", "anthropic"
   system?: string;                // LLM system type
-  modelName?: string;             // e.g., "gpt-4o", "claude-sonnet-4-5-20250514"
+  modelName?: string;             // e.g., "gpt-4o", "claude-sonnet-5-5"
   requestModelName?: string;      // Model requested by the caller (llm.request.model_name)
   responseModelName?: string;     // Model that generated the response (llm.response.model_name)
   invocationParameters?: Record<string, unknown>;  // temperature, max_tokens, etc.
@@ -231,7 +231,7 @@ Generates attributes for DECISION operations: calls to a decision model that
 scores or selects among candidate options supplied in the request rather than
 generating free-form text (route selection, yes/no judgements, rubric scoring).
 Decision spans identify the model under the `decision.*` namespace instead of
-`llm.*`; see the [decision spans specification](../../../../spec/decision_spans.md).
+`llm.*`; see the [decision spans specification](../../../../spec/spans/decision.md).
 
 ### Signature
 

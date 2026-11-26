@@ -1,0 +1,152 @@
+---
+/**
+ * A docstring's (or doc comment's) sections: prose, then labelled tables
+ * (Parameters, Returns, Raises...), examples as code, and notes. The same
+ * for both API references; each passes how its names link (`resolve`) and,
+ * for Python, how to turn reStructuredText into Markdown (`markdown`).
+ */
+import "../../styles/api.css";
+
+import {
+  exampleToMarkdown,
+  expressionHtml,
+  isCodeTitle,
+  renderMarkdown,
+  type DocstringItem,
+  type DocstringSection,
+  type Resolve,
+} from "../../lib/api";
+
+interface Props {
+  sections: DocstringSection[];
+  resolve: Resolve;
+  /** Prose to Markdown before rendering; by default it already is. */
+  markdown?: (text: string) => string;
+}
+
+const { sections, resolve, markdown = (text: string) => text } = Astro.props;
+const html = (text: string) => renderMarkdown(markdown(text));
+
+/** Section kinds as labels, and the column each kind's `name` goes in. */
+const LABELS: Record<string, { label: string; name?: string }> = {
+  parameters: { label: "Parameters", name: "Name" },
+  "other parameters": { label: "Other parameters", name: "Name" },
+  "type parameters": { label: "Type parameters", name: "Name" },
+  attributes: { label: "Attributes", name: "Name" },
+  returns: { label: "Returns" },
+  yields: { label: "Yields" },
+  receives: { label: "Receives" },
+  raises: { label: "Raises" },
+  warns: { label: "Warns" },
+};
+
+type Block =
+  | { type: "html"; html: string }
+  | { type: "code"; label: string; html: string }
+  | { type: "note"; label: string; html: string }
+  | {
+      type: "table";
+      label: string;
+      named: string | undefined;
+      rows: { name: string | null; type: string; default: string; html: string }[];
+    };
+
+const tableRows = (items: DocstringItem[]) =>
+  Promise.all(
+    items.map(async (item) => ({
+      name: item.name,
+      type: expressionHtml(item.annotation, resolve),
+      default: expressionHtml(item.default, resolve),
+      html: await html(item.description ?? ""),
+    })),
+  );
+
+const blocks: Block[] = await Promise.all(
+  sections.map(async (section): Promise<Block> => {
+    if (section.kind === "text" && "value" in section) {
+      return { type: "html", html: await html(section.value) };
+    }
+    if (section.kind === "admonition" && "title" in section && "value" in section) {
+      const title = section.title ?? "Note";
+      return isCodeTitle(title)
+        ? { type: "code", label: title, html: await renderMarkdown(exampleToMarkdown(section.value)) }
+        : { type: "note", label: title, html: await html(section.value) };
+    }
+    if (section.kind === "deprecated" && "value" in section) {
+      const label = "version" in section && section.version ? `Deprecated since ${section.version}` : "Deprecated";
+      return { type: "note", label, html: await html(section.value) };
+    }
+    if (section.kind === "examples" && "items" in section) {
+      const markdown = (section.items as { kind: "text" | "examples"; value: string }[])
+        .map((item) => exampleToMarkdown(item.value, item.kind))
+        .join("\n\n");
+      return { type: "code", label: "Examples", html: await renderMarkdown(markdown) };
+    }
+    const label = LABELS[section.kind] ?? { label: section.kind, name: "Name" };
+    const items = "items" in section ? (section.items as DocstringItem[]) : [];
+    return {
+      type: "table",
+      label: ("title" in section && section.title) || label.label,
+      named: label.name,
+      rows: await tableRows(items),
+    };
+  }),
+);
+---
+
+{
+  blocks.map((block) => {
+    if (block.type === "html") return <div class="doc-text" set:html={block.html} />;
+    if (block.type === "code")
+      return (
+        <div class="doc-block">
+          <p class="eyebrow">{block.label}</p>
+          <Fragment set:html={block.html} />
+        </div>
+      );
+    if (block.type === "note")
+      return (
+        <aside class="doc-note">
+          <p class="eyebrow">{block.label}</p>
+          <Fragment set:html={block.html} />
+        </aside>
+      );
+    const typed = block.rows.some((row) => row.type);
+    const defaulted = block.rows.some((row) => row.default);
+    return (
+      <div class="doc-block">
+        <p class="eyebrow">{block.label}</p>
+        <div class="table-scroll">
+          <table class="doc-table">
+            <thead>
+              <tr>
+                {block.named && <th>{block.named}</th>}
+                {typed && <th>Type</th>}
+                {defaulted && <th>Default</th>}
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row) => (
+                <tr>
+                  {block.named && (
+                    <td>
+                      <code>{row.name}</code>
+                    </td>
+                  )}
+                  {typed && (
+                    <td>
+                      <code set:html={row.type} />
+                    </td>
+                  )}
+                  {defaulted && <td>{row.default && <code set:html={row.default} />}</td>}
+                  <td class="doc-description" set:html={row.html} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  })
+}

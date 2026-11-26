@@ -37,6 +37,13 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
+def _tuples_to_lists(contents: Any) -> Any:
+    """Turn tuples into lists at every level, since `t_contents` only walks lists."""
+    if isinstance(contents, (list, tuple)):
+        return [_tuples_to_lists(item) for item in contents]
+    return contents
+
+
 class _RequestAttributesExtractor:
     def get_attributes_from_request(
         self,
@@ -84,7 +91,7 @@ class _RequestAttributesExtractor:
 
         if input_contents := request_parameters.get("contents"):
             try:
-                for content in t_contents(input_contents):
+                for content in t_contents(_tuples_to_lists(input_contents)):
                     for message_attributes in self._iter_messages_from_content(content):
                         for attr, value in message_attributes:
                             yield (

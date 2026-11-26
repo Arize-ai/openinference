@@ -1,0 +1,257 @@
+{# Shared helpers for the registry reference pages. #}
+
+{# What a flattened attribute holds: whole namespaces (`message.*`), or exactly the
+   listed attributes (`tool.name`) when its items are only part of a namespace. #}
+{% macro item_types(oi) -%}
+{%- set namespaces = oi.item_namespaces | default([], true) -%}
+{%- set attributes = oi.item_attributes | default([], true) -%}
+{%- for ns in namespaces %}`{{ ns }}.*`{% if not loop.last or attributes %}, {% endif %}{% endfor -%}
+{%- for key in attributes %}`{{ key }}`{% if not loop.last %}, {% endif %}{% endfor -%}
+{%- endmacro %}
+
+{% macro type(attribute) -%}
+{%- set oi = (attribute.annotations | default({}, true)).openinference | default({}, true) -%}
+{%- if attribute.type is mapping -%}
+string (well-known values)
+{%- elif oi.encoding == "flattened_list" -%}
+flattened list of {{ item_types(oi) }}
+{%- elif oi.encoding == "flattened_object" -%}
+flattened object of {{ item_types(oi) }}
+{%- elif oi.encoding == "json" -%}
+string (JSON)
+{%- else -%}
+{{ attribute.type | trim }}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro stability(attribute) -%}
+{%- if attribute.deprecated -%}
+Deprecated{% if attribute.deprecated.note %}: {{ attribute.deprecated.note | trim }}{% endif %}
+{%- else -%}
+{{ attribute.stability | default("development") | title_case }}
+{%- endif -%}
+{%- endmacro %}
+
+{# Stability as a badge, as the OpenTelemetry semantic conventions render it.
+   A deprecated attribute shows the deprecated badge and what to use instead. #}
+{% macro badge(item) -%}
+{%- if item.deprecated -%}
+![Deprecated](https://img.shields.io/badge/-deprecated-red){% if item.deprecated.note %}<br>{{ item.deprecated.note | trim | replace("\n", " ") | replace("|", "\\|") }}{% endif %}
+{%- elif item.stability == "stable" -%}
+![Stable](https://img.shields.io/badge/-stable-lightgreen)
+{%- elif item.stability == "release_candidate" -%}
+![Release Candidate](https://img.shields.io/badge/-rc-mediumorchid)
+{%- elif item.stability == "beta" -%}
+![Beta](https://img.shields.io/badge/-beta-lightpink)
+{%- elif item.stability == "alpha" -%}
+![Alpha](https://img.shields.io/badge/-alpha-mediumpurple)
+{%- else -%}
+![Development](https://img.shields.io/badge/-development-blue)
+{%- endif -%}
+{%- endmacro %}
+
+{# The requirement level as a code-formatted word; the condition, if any, is
+   returned by `condition` so the caller can inline it or make it a note. #}
+{% macro level(requirement_level) -%}
+{%- if requirement_level == "required" -%}
+`Required`
+{%- elif requirement_level == "recommended" or (requirement_level is mapping and requirement_level.recommended) -%}
+`Recommended`
+{%- elif requirement_level == "opt_in" or (requirement_level is mapping and requirement_level.opt_in) -%}
+`Opt-In`
+{%- elif requirement_level is mapping and requirement_level.conditionally_required -%}
+`Conditionally Required`
+{%- else -%}
+{{ requirement_level }}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro condition(requirement_level) -%}
+{%- if requirement_level is mapping -%}
+{{ (requirement_level.conditionally_required or requirement_level.recommended or requirement_level.opt_in) | trim | replace("\n", " ") }}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro cell(text) -%}
+{{ text | default("", true) | trim | replace("\n", " ") | replace("|", "\\|") }}
+{%- endmacro %}
+
+{% macro examples(attribute) -%}
+{%- if attribute.examples is sequence and attribute.examples is not string -%}
+{%- if "[]" in (attribute.type | string) -%}
+{%- for e in attribute.examples %}`{{ e | tojson }}`{% if not loop.last %}, {% endif %}{% endfor %}
+{%- else -%}
+{%- for e in attribute.examples %}`{{ e | string | replace("|", "\\|") }}`{% if not loop.last %}, {% endif %}{% endfor %}
+{%- endif -%}
+{%- elif attribute.examples is defined and attribute.examples is not none -%}
+`{{ attribute.examples }}`
+{%- endif -%}
+{%- endmacro %}
+
+{% macro requirement(level) -%}
+{%- if level == "required" -%}
+Required
+{%- elif level == "recommended" -%}
+Recommended
+{%- elif level == "opt_in" -%}
+Opt-In
+{%- elif level is mapping and level.conditionally_required -%}
+Conditionally Required: {{ level.conditionally_required | trim }}
+{%- elif level is mapping and level.recommended -%}
+Recommended: {{ level.recommended | trim }}
+{%- elif level is mapping and level.opt_in -%}
+Opt-In: {{ level.opt_in | trim }}
+{%- else -%}
+{{ level }}
+{%- endif -%}
+{%- endmacro %}
+
+{# Link to the page that defines an attribute. Attributes defined in this
+   registry carry `provenance.path`; attributes imported from a dependency
+   (e.g. `session.id` from OpenTelemetry) do not. #}
+{% macro link(attribute, base) -%}
+{%- if attribute.provenance is defined and attribute.provenance.path -%}
+[`{{ attribute.key }}`]({{ base }}/{{ attribute.key | split_id | first | kebab_case }}.md)
+{%- else -%}
+[`{{ attribute.key }}`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/{{ attribute.key | split_id | first | kebab_case }}/)
+{%- endif -%}
+{%- endmacro %}
+
+{% macro enum_tables(attributes) -%}
+{% for attribute in attributes | sort(attribute="key") if attribute.type is mapping %}
+
+---
+
+`{{ attribute.key }}` has the following list of well-known values. If one of them applies, then the respective value MUST be used; otherwise, a custom value MAY be used.
+
+| Value | Description | Stability |
+| --- | --- | --- |
+{% for member in attribute.type.members if not member.deprecated %}
+| `{{ member.value }}` | {{ cell(member.brief) }} | {{ badge(member) }} |
+{% endfor %}
+{% endfor %}
+{%- endmacro %}
+
+{# ---------------------------------------------------------------------------
+   Helpers for the tables generated into the prose specification (spec/), which
+   uses its own vocabulary for types; see spec/attributes/conventions.md.
+   --------------------------------------------------------------------------- #}
+
+{% macro spec_type(attribute) -%}
+{%- set oi = (attribute.annotations | default({}, true)).openinference | default({}, true) -%}
+{%- if attribute.type is mapping -%}
+String
+{%- elif oi.encoding == "flattened_list" -%}
+List of objects
+{%- elif oi.encoding == "flattened_object" -%}
+{{ oi.item_namespaces | first | title_case }} Object
+{%- elif oi.encoding == "json" -%}
+JSON String
+{%- elif attribute.type == "string" and "int" in (oi.also_accepts | default([])) -%}
+String/Integer
+{%- elif attribute.type == "double" and "int" in (oi.also_accepts | default([])) -%}
+Integer/Float
+{%- elif attribute.type == "string" -%}
+String
+{%- elif attribute.type == "int" -%}
+Integer
+{%- elif attribute.type == "double" -%}
+Float
+{%- elif attribute.type == "boolean" -%}
+Boolean
+{%- elif attribute.type == "string[]" -%}
+List of strings
+{%- elif attribute.type == "double[]" -%}
+List of floats
+{%- else -%}
+{{ attribute.type | trim }}
+{%- endif -%}
+{%- endmacro %}
+
+{# A string as it is written in the spec: double-quoted. Not `tojson`, which
+   escapes quotes and angle brackets for HTML. #}
+{% macro quoted(value) -%}
+"{{ value | string | replace("\\", "\\\\") | replace('"', '\\"') }}"
+{%- endmacro %}
+
+{% macro spec_value(value, raw) -%}
+{%- if raw -%}
+{{ value }}
+{%- elif value is string -%}
+{{ quoted(value) }}
+{%- elif value is sequence -%}
+[{% for item in value %}{% if item is string %}{{ quoted(item) }}{% else %}{{ item }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}]
+{%- else -%}
+{{ value }}
+{%- endif -%}
+{%- endmacro %}
+
+{# Examples of flattened attributes are written in their nested JSON form and
+   shown as they are. Enums without examples show their well-known values. #}
+{% macro spec_examples(attribute) -%}
+{%- set oi = (attribute.annotations | default({}, true)).openinference | default({}, true) -%}
+{%- set raw = oi.encoding in ["flattened_list", "flattened_object"] -%}
+{%- if attribute.examples is sequence and attribute.examples is not string -%}
+{%- for e in attribute.examples %}`{{ spec_value(e, raw) | replace("|", "\\|") }}`{% if not loop.last %}, {% endif %}{% endfor %}
+{%- elif attribute.examples is defined and attribute.examples is not none -%}
+`{{ spec_value(attribute.examples, raw) | replace("|", "\\|") }}`
+{%- elif attribute.type is mapping -%}
+{%- for member in attribute.type.members if not member.deprecated %}`{{ quoted(member.value) }}`{% if not loop.last %}, {% endif %}{% endfor %}
+{%- endif -%}
+{%- endmacro %}
+
+{# The model links to the spec with absolute URLs, because its text is
+   published to other registries. Inside the spec those become relative links,
+   which GitHub and the site both resolve. Every spec page is one directory
+   below spec/, so `../` reaches the spec root from any of them. #}
+{% macro spec_text(text) -%}
+{{ text | default("", true) | trim | replace("\n", " ") | replace("|", "\\|") | replace("https://github.com/Arize-ai/openinference/blob/main/spec/", "../") }}
+{%- endmacro %}
+
+{% macro spec_description(attribute) -%}
+{%- if attribute.deprecated %}Deprecated{% if attribute.deprecated.note %}: {{ spec_text(attribute.deprecated.note) }}{% else %}.{% endif %} {% endif -%}
+{{ spec_text(attribute.brief) }}{% if attribute.note %} {{ spec_text(attribute.note) }}{% endif %}
+{%- endmacro %}
+
+{# The level alone; any condition goes in the notes column. #}
+{% macro spec_requirement(level) -%}
+{%- if level == "required" -%}
+Required
+{%- elif level == "recommended" or (level is mapping and level.recommended) -%}
+Recommended
+{%- elif level == "opt_in" or (level is mapping and level.opt_in) -%}
+Opt-In
+{%- elif level is mapping and level.conditionally_required -%}
+Conditionally Required
+{%- else -%}
+{{ level }}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro spec_condition(level) -%}
+{%- if level is mapping -%}
+{{ spec_text(level.conditionally_required or level.recommended or level.opt_in) }}
+{%- endif -%}
+{%- endmacro %}
+
+{# Notes for an attribute of a span. The span kind is a fixed value per span:
+   the upper-cased last segment of the span type (`openinference.llm` -> LLM). #}
+{% macro spec_span_note(attribute, span) -%}
+{%- if attribute.key == "openinference.span.kind" -%}
+`"{{ span | split(".") | last | upper }}"`
+{%- else -%}
+{%- set brief = spec_text(attribute.brief) -%}
+{%- set condition = spec_condition(attribute.requirement_level) -%}
+{{ brief }}{% if condition %}{% if not brief.endswith(".") %}.{% endif %} {{ condition }}{% endif %}
+{%- endif -%}
+{%- endmacro %}
+
+{# Stability badge for the spec tables. What replaces a deprecated attribute
+   is already in its description, so the badge stands alone. #}
+{% macro spec_badge(item) -%}
+{%- if item.deprecated -%}
+![Deprecated](https://img.shields.io/badge/-deprecated-red)
+{%- else -%}
+{{ badge(item) }}
+{%- endif -%}
+{%- endmacro %}
