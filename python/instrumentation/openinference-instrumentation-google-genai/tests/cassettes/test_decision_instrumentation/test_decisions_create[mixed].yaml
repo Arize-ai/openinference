@@ -1,0 +1,22 @@
+interactions:
+- request:
+    body: '{"input":"Hi, I was charged twice for order #4242 and would like my money
+      back.","model":"gemini-decision-1","questions":{"is_refund":{"instructions":"Is
+      this a refund request?","type":"noul"},"department":{"criteria":{"billing":"Charges
+      and refunds","shipping":"","other":""},"instructions":"Which department should
+      handle this?","type":"choice"},"urgency":{"criteria":["Not urgent","Somewhat
+      urgent","Very urgent"],"instructions":"How urgent is this?","type":"score"}}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/decisions
+  response:
+    body:
+      string: '{"answers":{"department":{"confidence":0.9902902843115138,"choice":"billing","probabilities":{"shipping":0.007384541498823093,"other":0.002325174189663303,"billing":0.9902902843115138},"type":"choice"},"is_refund":{"confidence":0.9799475107845199,"noul":0.9799475107845199,"type":"noul"},"urgency":{"confidence":0.46415734366359296,"score":1.3768151809978133,"probabilities":{"2":0.4563289186671101,"1":0.46415734366359296,"0":0.079513737669297},"legend":{"1":"Somewhat
+        urgent","2":"Very urgent","0":"Not urgent"},"type":"score"}},"usage":{"total_tokens":213,"total_input_tokens":213,"input_tokens_by_modality":[{"modality":"text","tokens":213}],"total_output_tokens":0}}'
+    headers:
+      content-type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+version: 1

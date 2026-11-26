@@ -52,6 +52,31 @@ def _import_interactions_resources() -> Any:
         )
 
 
+def _import_decisions_resources() -> Any:
+    """Resolve the google-genai decisions resource classes.
+
+    The Gemini Decisions API (``client.decisions.create``) is served by Speakeasy-generated
+    classes added in google-genai 3.2: ``GeminiNextGenDecisions`` and
+    ``AsyncGeminiNextGenDecisions`` in ``google.genai._gaos.google_genai``. Both override
+    ``create``. Older versions have no decisions resource, so the import fails and the caller
+    skips decisions tracing.
+
+    Returns a tuple of ``(sync_class, async_class, module_path, sync_name, async_name)``.
+    """
+    from google.genai._gaos.google_genai import (
+        AsyncGeminiNextGenDecisions,
+        GeminiNextGenDecisions,
+    )
+
+    return (
+        GeminiNextGenDecisions,
+        AsyncGeminiNextGenDecisions,
+        "google.genai._gaos.google_genai",
+        "GeminiNextGenDecisions",
+        "AsyncGeminiNextGenDecisions",
+    )
+
+
 class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
     """
     An instrumentor for `google-genai`
@@ -68,6 +93,8 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_get_interactions_resource",
         "_original_async_create_interactions_resource",
         "_original_async_get_interactions_resource",
+        "_original_create_decisions_resource",
+        "_original_async_create_decisions_resource",
         "_original_create_caches",
         "_original_async_create_caches",
         "_original_api_request",
@@ -238,11 +265,52 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             _CapturedRequestWrapper(),
         )
 
+        # Decisions (client.decisions.create) only exists in google-genai >= 3.2. The package
+        # floor is >= 2.0.0, so guard the setup and leave the slots unset-to-None when the
+        # resource is absent
+        self._original_create_decisions_resource: Any = None
+        self._original_async_create_decisions_resource: Any = None
+        try:
+            self._instrument_decisions()
+        except (ImportError, AttributeError):
+            logger.debug(
+                "google-genai decisions resource not found; decisions.create tracing is "
+                "disabled (requires google-genai >= 3.2)"
+            )
+
         self._original_live_methods: list[tuple[Any, str, Any]] = []
         try:
             self._instrument_live()
         except Exception:
             logger.exception("Failed to instrument Live sessions")
+
+    def _instrument_decisions(self) -> None:
+        (
+            DecisionsResource,
+            AsyncDecisionsResource,
+            decisions_module,
+            decisions_sync_name,
+            decisions_async_name,
+        ) = _import_decisions_resources()
+
+        from openinference.instrumentation.google_genai._wrappers import (
+            _AsyncCreateDecisionWrapper,
+            _SyncCreateDecisionWrapper,
+        )
+
+        self._original_create_decisions_resource = DecisionsResource.create
+        wrap_function_wrapper(
+            decisions_module,
+            f"{decisions_sync_name}.create",
+            _SyncCreateDecisionWrapper(tracer=self._tracer),
+        )
+
+        self._original_async_create_decisions_resource = AsyncDecisionsResource.create
+        wrap_function_wrapper(
+            decisions_module,
+            f"{decisions_async_name}.create",
+            _AsyncCreateDecisionWrapper(tracer=self._tracer),
+        )
 
     def _instrument_live(self) -> None:
         from google.genai import live
@@ -335,6 +403,29 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         if self._original_get_interactions_resource is not None:
             setattr(InteractionsResource, "get", self._original_get_interactions_resource)
+
+        if (
+            self._original_create_decisions_resource is not None
+            or self._original_async_create_decisions_resource is not None
+        ):
+            try:
+                DecisionsResource, AsyncDecisionsResource = _import_decisions_resources()[:2]
+            except (ImportError, AttributeError):
+                DecisionsResource = AsyncDecisionsResource = None
+            if (
+                DecisionsResource is not None
+                and self._original_create_decisions_resource is not None
+            ):
+                setattr(DecisionsResource, "create", self._original_create_decisions_resource)
+            if (
+                AsyncDecisionsResource is not None
+                and self._original_async_create_decisions_resource is not None
+            ):
+                setattr(
+                    AsyncDecisionsResource,
+                    "create",
+                    self._original_async_create_decisions_resource,
+                )
 
         from google.genai._api_client import BaseApiClient
 
