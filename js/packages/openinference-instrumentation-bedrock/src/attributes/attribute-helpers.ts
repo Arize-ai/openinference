@@ -2,7 +2,11 @@ import type { ContentBlock, Message, SystemContentBlock } from "@aws-sdk/client-
 import type { Attributes, AttributeValue, Span } from "@opentelemetry/api";
 import { diag } from "@opentelemetry/api";
 
-import { safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
+import {
+  isObjectWithStringKeys,
+  safelyJSONStringify,
+  withSafety,
+} from "@arizeai/openinference-core";
 import {
   LLMProvider,
   LLMSystem,
@@ -222,14 +226,75 @@ export function getAttributesFromMessage(message: ProcessableMessage): Attribute
             ] = argsJson;
           }
           toolCallIndex++;
-        } else if (isConverseToolResultContent(content)) {
-          attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] = content.toolResult.toolUseId;
         }
       }
     }
   }
 
   return attributes;
+}
+
+/**
+ * Converts the text and JSON blocks of a toolResult to one message content string
+ * Image, document and video blocks are not recorded
+ */
+function getToolResultContent(content: unknown): string | undefined {
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+  const parts: string[] = [];
+  for (const block of content) {
+    if (isObjectWithStringKeys(block)) {
+      if (typeof block.text === "string") {
+        parts.push(block.text);
+      }
+      if ("json" in block) {
+        const json = safelyJSONStringify(block.json);
+        if (json != null) {
+          parts.push(json);
+        }
+      }
+    }
+  }
+  return parts.length > 0 ? parts.join("\n\n") : undefined;
+}
+
+/**
+ * Computes the attributes of each message to record, with a separate tool message for each
+ * toolResult block. A Converse message can carry several toolResult blocks (parallel tool
+ * calls), while a message has one tool_call_id and one content.
+ */
+function getAttributesFromMessages(messages: ProcessableMessage[]): Attributes[] {
+  const result: Attributes[] = [];
+  for (const message of messages) {
+    const toolResultMessages: Attributes[] = [];
+    const otherContent: ContentBlock[] = [];
+    for (const content of message.content ?? []) {
+      if (isConverseToolResultContent(content)) {
+        const toolMessage: Attributes = {
+          [SemanticConventions.MESSAGE_ROLE]: "tool",
+          [SemanticConventions.MESSAGE_TOOL_CALL_ID]: content.toolResult.toolUseId,
+        };
+        const toolContent = getToolResultContent(content.toolResult.content);
+        if (toolContent != null) {
+          toolMessage[SemanticConventions.MESSAGE_CONTENT] = toolContent;
+        }
+        toolResultMessages.push(toolMessage);
+      } else {
+        otherContent.push(content);
+      }
+    }
+    if (toolResultMessages.length === 0) {
+      result.push(getAttributesFromMessage(message));
+      continue;
+    }
+    // A message whose only content was tool results is fully represented by the tool messages
+    if (otherContent.length > 0) {
+      result.push(getAttributesFromMessage({ ...message, content: otherContent }));
+    }
+    result.push(...toolResultMessages);
+  }
+  return result;
 }
 
 /**
@@ -252,8 +317,7 @@ export function processMessages({
     | typeof SemanticConventions.LLM_INPUT_MESSAGES
     | typeof SemanticConventions.LLM_OUTPUT_MESSAGES;
 }): void {
-  for (const [index, message] of messages.entries()) {
-    const messageAttributes = getAttributesFromMessage(message);
+  for (const [index, messageAttributes] of getAttributesFromMessages(messages).entries()) {
     for (const [key, value] of Object.entries(messageAttributes)) {
       setSpanAttribute(span, `${baseKey}.${index}.${key}`, value);
     }
