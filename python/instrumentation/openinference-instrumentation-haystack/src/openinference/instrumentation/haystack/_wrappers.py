@@ -606,6 +606,14 @@ def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tup
             yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if (total_tokens := token_usage.get("total_tokens")) is not None:
             yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+        if isinstance(prompt_details := token_usage.get("prompt_tokens_details"), dict):
+            if isinstance(cached_tokens := prompt_details.get("cached_tokens"), int):
+                yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+            if isinstance(cache_write_tokens := prompt_details.get("cache_write_tokens"), int):
+                yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_write_tokens
+        if isinstance(completion_details := token_usage.get("completion_tokens_details"), dict):
+            if isinstance(reasoning_tokens := completion_details.get("reasoning_tokens"), int):
+                yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
 
 
 def _get_llm_prompt_template_attributes_from_prompt_builder(
@@ -1001,7 +1009,14 @@ LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON

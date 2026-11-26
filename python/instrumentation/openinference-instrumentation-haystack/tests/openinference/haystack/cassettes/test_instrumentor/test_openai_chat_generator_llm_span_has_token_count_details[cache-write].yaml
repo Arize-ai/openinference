@@ -1,0 +1,14 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "Hi"}], "model": "o4-mini", "stream": false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id": "chatcmpl-1", "object": "chat.completion", "created": 1747000000, "model": "o4-mini-2025-04-16", "choices": [{"index": 0, "message": {"role": "assistant", "content": "Hello", "refusal": null}, "logprobs": null, "finish_reason": "stop"}], "usage": {"prompt_tokens": 2006, "completion_tokens": 300, "total_tokens": 2306, "prompt_tokens_details": {"cached_tokens": 1920, "cache_write_tokens": 512, "audio_tokens": 0}, "completion_tokens_details": {"reasoning_tokens": 256, "audio_tokens": 0}}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
