@@ -18,11 +18,16 @@ from typing import Any, Dict, Mapping, Optional
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
+    REDACTED_VALUE,
     DecisionTokenCount,
+    TraceConfig,
     get_decision_attributes,
     get_input_attributes,
     get_output_attributes,
     get_span_kind_attributes,
+)
+from openinference.instrumentation.google_genai._image_utils import (
+    redact_images_from_request_parameters,
 )
 from openinference.semconv.trace import (
     OpenInferenceDecisionProviderValues,
@@ -59,15 +64,19 @@ def _to_builtins(value: Any) -> Any:
 
 def get_request_attributes(
     request_parameters: Mapping[str, Any],
-    config: Any = None,
+    config: Optional[TraceConfig] = None,
 ) -> Dict[str, AttributeValue]:
     """Returns the span attributes known before the request is sent.
+
+    The ``input`` may carry inline images, audio, video, or documents as base64 ``data``.
+    When a ``TraceConfig`` is given, those are redacted from ``input.value`` per
+    ``hide_input_images`` and ``base64_image_max_length`` so the span does not carry
+    megabytes of media. ``hide_inputs`` (hiding the whole value) is applied by ``OITracer``.
 
     Args:
         request_parameters: The parsed ``create`` arguments, carrying ``model``, ``input``,
             and ``questions``.
-        config: The active ``TraceConfig`` (unused here; multimodal redaction is handled by
-            the caller before this function runs).
+        config: The active ``TraceConfig``, used for image redaction.
 
     Returns:
         The span kind, ``input.value``, and the request-side ``decision.*`` attributes.
@@ -78,9 +87,23 @@ def get_request_attributes(
         "input": _to_builtins(request_parameters.get("input")),
         "questions": _to_builtins(request_parameters.get("questions")),
     }
+    input_attributes = get_input_attributes(body, mime_type=OpenInferenceMimeTypeValues.JSON)
+    if config is not None:
+        try:
+            redacted = redact_images_from_request_parameters(
+                body,
+                hide_input_images=bool(config.hide_input_images),
+                base64_image_max_length=int(config.base64_image_max_length or 0),
+            )
+            input_attributes = get_input_attributes(
+                redacted, mime_type=OpenInferenceMimeTypeValues.JSON
+            )
+        except Exception:
+            logger.exception("Could not redact images from decision request input")
+            input_attributes = get_input_attributes(REDACTED_VALUE)
     return {
         **get_span_kind_attributes(OpenInferenceSpanKindValues.DECISION),
-        **get_input_attributes(body, mime_type=OpenInferenceMimeTypeValues.JSON),
+        **input_attributes,
         **get_decision_attributes(
             system=OpenInferenceDecisionSystemValues.GOOGLE,
             provider=OpenInferenceDecisionProviderValues.GOOGLE,
