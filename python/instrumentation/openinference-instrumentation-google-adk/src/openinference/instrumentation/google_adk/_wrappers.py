@@ -5,7 +5,9 @@ import logging
 import threading
 import weakref
 from abc import ABC
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
+from time import time_ns
 from typing import (
     Any,
     AsyncGenerator,
@@ -19,6 +21,7 @@ from typing import (
     OrderedDict,
     TypedDict,
     TypeVar,
+    cast,
 )
 
 import wrapt
@@ -34,7 +37,7 @@ from google.genai.types import Blob
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, Context
-from opentelemetry.trace import StatusCode, get_current_span
+from opentelemetry.trace import Span, StatusCode, get_current_span
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import NotRequired, ParamSpec
 
@@ -350,6 +353,46 @@ def _get_node_io_value_and_mime_type(value: Any) -> tuple[str, OpenInferenceMime
     return json.dumps(value, default=_default, ensure_ascii=False), OpenInferenceMimeTypeValues.JSON
 
 
+class _CallLlmSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """`call_llm` span whose end time is the model's last complete response.
+
+    ADK ends `call_llm` only after the caller has handled the response (e.g. run the
+    requested tools and `after_model_callback`). `_TraceCallLlm` stamps the time of each
+    non-partial response with `mark_response_complete()`, and ADK's later `end()` uses that
+    time. The span stays open until then, so later responses, callback attributes and
+    errors are still recorded on it.
+    """
+
+    def __init__(self, wrapped: trace_api.Span) -> None:
+        super().__init__(wrapped)
+        self._self_end_time: Optional[int] = None
+
+    def mark_response_complete(self) -> None:
+        self._self_end_time = time_ns()
+
+    def end(self, end_time: Optional[int] = None) -> None:
+        self.__wrapped__.end(self._self_end_time if end_time is None else end_time)
+
+
+class _CallLlmTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """Opens the `call_llm` span of google-adk < 2.13 as a `_CallLlmSpan`.
+
+    google-adk 2.10-2.11 call `start_as_current_span`; 2.12 calls `start_span`.
+    """
+
+    def start_span(self, name: str, *args: Any, **kwargs: Any) -> Span:
+        return cast(Span, _CallLlmSpan(self.__wrapped__.start_span(name, *args, **kwargs)))
+
+    @contextmanager
+    def start_as_current_span(
+        self, name: str, *args: Any, end_on_exit: bool = True, **kwargs: Any
+    ) -> Iterator[Span]:
+        with trace_api.use_span(
+            self.start_span(name, *args, **kwargs), end_on_exit=end_on_exit
+        ) as current_span:
+            yield current_span
+
+
 class _TraceCallLlm(_WithTracer):
     """Traces ADK's ``trace_call_llm``, which runs once per streamed chunk.
 
@@ -454,6 +497,8 @@ class _TraceCallLlm(_WithTracer):
                 # This is the final chunk for this LLM turn, so no further
                 # trace_call_llm calls will land on this span.
                 span.set_status(StatusCode.OK)
+                if isinstance(span, _CallLlmSpan):
+                    span.mark_response_complete()
         return ans
 
     @classmethod

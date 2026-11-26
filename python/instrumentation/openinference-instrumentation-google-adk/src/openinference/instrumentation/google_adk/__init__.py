@@ -107,7 +107,11 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         """Patch the LLM call tracing functionality to use our tracer."""
         from google.adk.flows.llm_flows.core import _model_call
 
-        from openinference.instrumentation.google_adk._wrappers import _TraceCallLlm
+        from openinference.instrumentation.google_adk._wrappers import (
+            _CallLlmSpan,
+            _CallLlmTracer,
+            _TraceCallLlm,
+        )
 
         if hasattr(_model_call, "_start_call_llm_span"):
             # google-adk >= 2.13 opens `call_llm` through `_start_call_llm_span`,
@@ -117,7 +121,9 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
             original_start_call_llm_span = _model_call._start_call_llm_span
 
             def start_call_llm_span(caller_context: Context) -> Span:
-                return tracer.start_span("call_llm", context=caller_context)
+                return cast(
+                    Span, _CallLlmSpan(tracer.start_span("call_llm", context=caller_context))
+                )
 
             self._tracer_patches.append(
                 (
@@ -129,7 +135,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
             )
             setattr(_model_call, "_start_call_llm_span", start_call_llm_span)
         else:
-            setattr(_model_call, "tracer", self._tracer)
+            setattr(_model_call, "tracer", _CallLlmTracer(self._tracer))
         setattr(
             _model_call,
             "trace_call_llm",
