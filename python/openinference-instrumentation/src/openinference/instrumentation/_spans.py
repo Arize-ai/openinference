@@ -73,10 +73,14 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
         if self._self_config.enable_genai_semconv:
-            source_attributes = span._attributes
-            for key, value in get_genai_attributes(source_attributes).items():
-                if key not in source_attributes:
-                    span.set_attribute(key, value)
+            # A span that is not being recorded - suppressed instrumentation or a
+            # sampled-out span - is a NonRecordingSpan and keeps no attributes to
+            # bridge from.
+            source_attributes = getattr(span, "_attributes", None)
+            if source_attributes:
+                for key, value in get_genai_attributes(source_attributes).items():
+                    if key not in source_attributes:
+                        span.set_attribute(key, value)
         span.end(end_time)
 
     def set_input(
