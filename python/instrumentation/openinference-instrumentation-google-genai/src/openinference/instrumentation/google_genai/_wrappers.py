@@ -21,6 +21,12 @@ from openinference.instrumentation.google_genai._context import (
     get_llm_invocation_parameters,
     get_tool_attributes,
 )
+from openinference.instrumentation.google_genai._decision_attributes import (
+    get_request_attributes as get_decision_request_attributes,
+)
+from openinference.instrumentation.google_genai._decision_attributes import (
+    get_response_attributes as get_decision_response_attributes,
+)
 from openinference.instrumentation.google_genai._interactions_stream import _InteractionsStream
 from openinference.instrumentation.google_genai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -774,6 +780,86 @@ class _AsyncCreateCachesWrapper(_WithTracer):
                 span.set_attributes(dict(cache_attributes.get_attributes_from_response(response)))
             finally:
                 span.finish_tracing(status=status)
+        return response
+
+
+class _SyncCreateDecisionWrapper(_WithTracer):
+    """Traces ``client.decisions.create`` as a DECISION span."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        span_name = "Decisions.create"
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=chain(
+                get_attributes_from_context(),
+                get_decision_request_attributes(request_parameters, self._config).items(),
+            ),
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+                span.set_attributes(dict(get_decision_response_attributes(response)))
+                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+                span.finish_tracing(status=status)
+            except BaseException as exception:
+                span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
+                raise
+        return response
+
+
+class _AsyncCreateDecisionWrapper(_WithTracer):
+    """Traces ``client.aio.decisions.create`` as a DECISION span."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        span_name = "AsyncDecisions.create"
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=chain(
+                get_attributes_from_context(),
+                get_decision_request_attributes(request_parameters, self._config).items(),
+            ),
+        ) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
+                span.set_attributes(dict(get_decision_response_attributes(response)))
+                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+                span.finish_tracing(status=status)
+            except BaseException as exception:
+                span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
+                raise
         return response
 
 
