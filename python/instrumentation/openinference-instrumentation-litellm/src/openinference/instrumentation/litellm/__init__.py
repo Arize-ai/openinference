@@ -333,10 +333,16 @@ def _get_attributes_from_message_content(
 
 
 def _get_attributes_from_image(
-    image: Mapping[str, Any],
+    image: Union[Mapping[str, Any], str],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    image = dict(image)
-    if url := image.pop("url"):
+    # LiteLLM accepts `image_url` either as `{"url": ...}` or as the URL string itself.
+    if isinstance(image, str):
+        url: Any = image
+    elif isinstance(image, Mapping):
+        url = image.get("url")
+    else:
+        return
+    if url:
         yield f"{ImageAttributes.IMAGE_URL}", url
 
 

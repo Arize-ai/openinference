@@ -2420,6 +2420,44 @@ def test_completion_image_support(
     assert span.status.status_code == StatusCode.OK
 
 
+def test_completion_image_url_as_string(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    # LiteLLM accepts `image_url` as a plain URL string as well as `{"url": ...}`.
+    in_memory_span_exporter.clear()
+
+    input_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What's in this image?"},
+                {"type": "image_url", "image_url": "https://dummy_image.jpg"},
+            ],
+        }
+    ]
+    litellm.completion(
+        model="gpt-4o",
+        messages=input_messages,
+        mock_response="That's an image of a pasture",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "image"
+    assert attributes.get(message_contents_image_url(prefix, 0, 1)) == "https://dummy_image.jpg"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    params_str = attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS)
+    assert isinstance(params_str, str)
+    assert json.loads(params_str) == {
+        "model": "gpt-4o",
+        "mock_response": "That's an image of a pasture",
+    }
+
+
 def test_completion_with_invalid_model_triggers_exception_event(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: None,
