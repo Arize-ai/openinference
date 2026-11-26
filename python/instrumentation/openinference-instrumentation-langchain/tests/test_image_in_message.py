@@ -2,6 +2,7 @@ from importlib.metadata import version
 
 import pytest
 from httpx import Response
+from langchain_core.language_models.fake_chat_models import FakeListChatModel
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -51,6 +52,23 @@ def test_image_in_message(
         "llm.output_messages.0.message.role": "assistant",
         "llm.output_messages.0.message.content": answer,
     }
+
+
+def test_image_url_as_string_in_message(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    image_url = "https://example.com/cat.jpg"
+    content = [
+        dict(type="image_url", image_url=image_url),
+        dict(type="text", text="What's in this image?"),
+    ]
+    FakeListChatModel(responses=["A cat."]).invoke([HumanMessage(content=content)])  # type: ignore[arg-type]
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attributes = dict(span.attributes or {})
+    prefix = "llm.input_messages.0.message.contents"
+    assert attributes[f"{prefix}.0.message_content.type"] == "image"
+    assert attributes[f"{prefix}.0.message_content.image.image.url"] == image_url
+    assert attributes[f"{prefix}.1.message_content.text"] == "What's in this image?"
 
 
 @pytest.fixture

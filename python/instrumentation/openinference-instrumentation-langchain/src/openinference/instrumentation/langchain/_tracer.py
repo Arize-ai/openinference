@@ -1540,10 +1540,10 @@ def _get_attributes_from_message_content(
 
 
 def _get_attributes_from_image(
-    image: Mapping[str, Any],
+    image: Union[str, Mapping[str, Any]],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    image = dict(image)
-    if url := image.pop("url"):
+    # LangChain also accepts the URL itself, e.g. {"type": "image_url", "image_url": "https://..."}
+    if url := image if isinstance(image, str) else image.get("url"):
         yield f"{IMAGE_URL}", url
 
 
