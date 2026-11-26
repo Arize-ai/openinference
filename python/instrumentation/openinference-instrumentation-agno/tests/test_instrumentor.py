@@ -891,6 +891,7 @@ def test_agno_openrouter_llm_cost_total(
     assert attributes.pop(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(3.45e-06)
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 15
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 2
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 17
 
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     # The serialized message carries a generated id and timestamp, so only the
@@ -962,6 +963,7 @@ def test_agno_openrouter_llm_cost_total_stream(
     assert attributes.pop(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(3.45e-06)
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 15
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 2
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 17
 
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     # The serialized message carries a generated id and timestamp, so only the
