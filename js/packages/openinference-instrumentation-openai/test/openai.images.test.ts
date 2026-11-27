@@ -484,6 +484,66 @@ describe("OpenAIInstrumentation - Images", () => {
     expect(span.attributes["output.images.0.image.url"]).toBe("data:image/png;base64,ZWRpdGVk");
   });
 
+  it("keeps the mask at index 1 when the edit source cannot be read", async () => {
+    vi.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error return only needs to model the parsed SDK response.
+      async () => {
+        await waitForUploadRead();
+        return { created: 1, data: [] };
+      },
+    );
+    // An async iterable is a valid SDK upload, but readUpload cannot inspect it
+    // without consuming the caller's one-shot stream.
+    const unreadableSource: AsyncIterable<BlobPart> = {
+      async *[Symbol.asyncIterator]() {
+        yield new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+      },
+    };
+    const maskBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const mask = new File([maskBytes], "mask.png", { type: "image/png" });
+
+    await openai.images.edit({ image: unreadableSource, mask, prompt: "remove the background" });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    const maskDataURL = `data:image/png;base64,${Buffer.from(maskBytes).toString("base64")}`;
+    expect(span.attributes["input.images.0.image.url"]).toBeUndefined();
+    expect(span.attributes["input.images.1.image.url"]).toBe(maskDataURL);
+  });
+
+  it("keeps the second source and mask at indices 1 and 2 when the first source cannot be read", async () => {
+    vi.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error return only needs to model the parsed SDK response.
+      async () => {
+        await waitForUploadRead();
+        return { created: 1, data: [] };
+      },
+    );
+    const unreadableSource: AsyncIterable<BlobPart> = {
+      async *[Symbol.asyncIterator]() {
+        yield new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+      },
+    };
+    const secondBytes = new Uint8Array([0xff, 0xd8, 0xff]);
+    const second = new File([secondBytes], "second.jpg", { type: "image/jpeg" });
+    const maskBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const mask = new File([maskBytes], "mask.png", { type: "image/png" });
+
+    await openai.images.edit({
+      image: [unreadableSource, second],
+      mask,
+      prompt: "remove the background",
+    });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.attributes["input.images.0.image.url"]).toBeUndefined();
+    expect(span.attributes["input.images.1.image.url"]).toBe(
+      `data:image/jpeg;base64,${Buffer.from(secondBytes).toString("base64")}`,
+    );
+    expect(span.attributes["input.images.2.image.url"]).toBe(
+      `data:image/png;base64,${Buffer.from(maskBytes).toString("base64")}`,
+    );
+  });
+
   it("captures every image of an edit given an array, in order", async () => {
     vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error return only needs to model the parsed SDK response.
