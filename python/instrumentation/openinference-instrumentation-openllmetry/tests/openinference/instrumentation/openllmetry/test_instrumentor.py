@@ -398,6 +398,7 @@ class TestUpdatedGenAIMessageFormat:
         assert attributes["llm.input_messages.0.message.content"] == "What is 2+2?"
         assert attributes["llm.input_messages.1.message.role"] == "tool"
         assert attributes["llm.input_messages.1.message.content"] == "{'result': 4}"
+        assert attributes["llm.input_messages.1.message.tool_call_id"] == "call_123"
         assert attributes["llm.output_messages.0.message.role"] == "assistant"
         assert attributes["llm.output_messages.0.message.content"] == "4"
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
@@ -409,6 +410,39 @@ class TestUpdatedGenAIMessageFormat:
         assert (
             attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
         )
+
+
+def test_legacy_format_records_tool_call_ids() -> None:
+    in_memory_span_exporter = InMemorySpanExporter()
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+    tracer = tracer_provider.get_tracer(__name__)
+
+    # Attribute layout written by opentelemetry-instrumentation-openai < 0.55.0.
+    with tracer.start_as_current_span("openai.chat") as recording_span:
+        recording_span.set_attribute("llm.request.type", "chat")
+        recording_span.set_attribute("gen_ai.prompt.0.role", "user")
+        recording_span.set_attribute("gen_ai.prompt.0.content", "What is the weather in Paris?")
+        recording_span.set_attribute("gen_ai.prompt.1.role", "assistant")
+        recording_span.set_attribute("gen_ai.prompt.1.tool_calls.0.id", "call_123")
+        recording_span.set_attribute("gen_ai.prompt.1.tool_calls.0.name", "get_weather")
+        recording_span.set_attribute("gen_ai.prompt.1.tool_calls.0.arguments", '{"city": "Paris"}')
+        recording_span.set_attribute("gen_ai.prompt.2.role", "tool")
+        recording_span.set_attribute("gen_ai.prompt.2.content", "Sunny")
+        recording_span.set_attribute("gen_ai.prompt.2.tool_call_id", "call_123")
+        recording_span.set_attribute("gen_ai.completion.0.role", "assistant")
+        recording_span.set_attribute("gen_ai.completion.0.content", "It is sunny in Paris.")
+        recording_span.set_attribute("gen_ai.request.model", "gpt-4.1")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, Any], spans[0].attributes))
+    assert attributes["llm.input_messages.1.message.tool_calls.0.tool_call.id"] == "call_123"
+    assert attributes["llm.input_messages.2.message.role"] == "tool"
+    assert attributes["llm.input_messages.2.message.content"] == "Sunny"
+    assert attributes["llm.input_messages.2.message.tool_call_id"] == "call_123"
 
 
 def test_langgraph_operation_without_kind_has_ok_status() -> None:
