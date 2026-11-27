@@ -10,7 +10,10 @@ from typing import Any, Dict, List
 
 import pytest
 
-from openinference.instrumentation.agent_framework.semantic_conventions import get_attributes
+from openinference.instrumentation.agent_framework.semantic_conventions import (
+    _extract_tool_attributes,
+    get_attributes,
+)
 
 SYSTEM_INSTRUCTIONS = json.dumps([{"type": "text", "content": "You are a weather assistant."}])
 USER_MESSAGES = json.dumps(
@@ -182,6 +185,13 @@ def test_tool_call_arguments_dict_is_serialized() -> None:
 
     arguments = result["llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"]
     assert json.loads(arguments) == {"location": "Amsterdam"}
+
+
+def test_tool_call_id_uses_openinference_semantic_convention() -> None:
+    result = dict(_extract_tool_attributes({"gen_ai.tool.call.id": "call_42"}))
+
+    assert result["tool_call.id"] == "call_42"
+    assert "tool.call_id" not in result
 
 
 def test_tool_calling_turn_output_value_includes_tool_calls() -> None:
