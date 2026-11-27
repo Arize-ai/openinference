@@ -61,7 +61,8 @@ def _to_open_inference_format_tracing_info(
     tracing_info: Dict[str, Any] = span.model_dump(
         mask_sensitive_information=mask_sensitive_information
     )
-    tracing_info[SpanAttributes.SESSION_ID] = trace.id if trace else None
+    if trace:
+        tracing_info[SpanAttributes.SESSION_ID] = trace.id
     # The default value we use for span kind is CHAIN. We will overwrite if we find a better fit.
     tracing_info[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.CHAIN.value
     if isinstance(span, AgentSpecAgentExecutionSpan):
