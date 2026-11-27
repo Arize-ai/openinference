@@ -11,6 +11,8 @@ import json
 import logging
 from typing import Any, Dict, Iterator, List, Tuple
 
+from openinference.semconv.trace import ToolCallAttributes
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -502,7 +504,7 @@ def _extract_tool_attributes(attrs: Dict[str, Any]) -> Iterator[Tuple[str, Any]]
     if tool_name := attrs.get(TOOL_NAME):
         yield "tool.name", tool_name
     if tool_call_id := attrs.get(TOOL_CALL_ID):
-        yield "tool.call_id", tool_call_id
+        yield ToolCallAttributes.TOOL_CALL_ID, tool_call_id
     if tool_desc := attrs.get(TOOL_DESCRIPTION):
         yield "tool.description", tool_desc
 
