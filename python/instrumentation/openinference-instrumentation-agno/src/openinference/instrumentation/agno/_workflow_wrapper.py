@@ -43,7 +43,7 @@ def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
                     elif isinstance(content, dict):
                         import json
 
-                        return json.dumps(content, indent=2, ensure_ascii=False)
+                        return json.dumps(content, indent=2, ensure_ascii=False, default=str)
                     else:
                         return str(content)
             except Exception:
@@ -62,7 +62,7 @@ def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
                 elif isinstance(input_value, dict):
                     import json
 
-                    return json.dumps(input_value, indent=2, ensure_ascii=False)
+                    return json.dumps(input_value, indent=2, ensure_ascii=False, default=str)
                 else:
                     return str(input_value)
 
@@ -79,7 +79,7 @@ def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
             elif isinstance(input_value, dict):
                 import json
 
-                return json.dumps(input_value, indent=2, ensure_ascii=False)
+                return json.dumps(input_value, indent=2, ensure_ascii=False, default=str)
             else:
                 return str(input_value)
 
