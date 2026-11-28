@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import inspect
 import json
 import logging
@@ -353,7 +352,7 @@ def _is_async_at_decoration(wrapped: Callable[..., Any]) -> bool:
         return True
     instance = getattr(wrapped, "__self__", None)
     if instance is not None and hasattr(instance, "_make_api_call"):
-        if asyncio.iscoroutinefunction(instance._make_api_call):
+        if inspect.iscoroutinefunction(instance._make_api_call):
             return True
     return False
 

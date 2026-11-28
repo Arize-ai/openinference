@@ -1,4 +1,3 @@
-import asyncio
 import collections
 import inspect
 import warnings
@@ -462,10 +461,10 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
                 return output
 
         if wrapped_function is not None:
-            if asyncio.iscoroutinefunction(wrapped_function):
+            if inspect.iscoroutinefunction(wrapped_function):
                 return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
             return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
+        return lambda f: async_wrapper(f) if inspect.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
 
     @overload  # for @tracer.tool usage (no parameters)
     def tool(
@@ -546,10 +545,10 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
                 return output
 
         if wrapped_function is not None:
-            if asyncio.iscoroutinefunction(wrapped_function):
+            if inspect.iscoroutinefunction(wrapped_function):
                 return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
             return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
+        return lambda f: async_wrapper(f) if inspect.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
 
     @overload  # @tracer.llm usage with no explicit application of the decorator
     def llm(
@@ -786,7 +785,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
                 return sync_generator_function_wrapper(wrapped)
             elif inspect.isasyncgenfunction(wrapped):
                 return async_generator_function_wrapper(wrapped)
-            elif asyncio.iscoroutinefunction(wrapped):
+            elif inspect.iscoroutinefunction(wrapped):
                 return async_function_wrapper(wrapped)
             return sync_function_wrapper(wrapped)
 
