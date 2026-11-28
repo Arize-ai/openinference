@@ -8,6 +8,7 @@ from groq.types.chat import ChatCompletionMessageParam
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
+from openinference.instrumentation.groq._wrappers import _is_parseable
 from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
 COMPLETION: Dict[str, Any] = {
@@ -111,3 +112,11 @@ def test_with_raw_response_stream_is_not_parsed(
     assert SpanAttributes.OUTPUT_VALUE not in attributes
     chunks: Any = response.parse()
     assert "".join(c.choices[0].delta.content or "" for c in chunks) == "Paris."
+
+
+def test_is_parseable_without_private_options() -> None:
+    # A response without the SDK's private _options must not raise into the caller's create()
+    class _Response:
+        is_closed = True
+
+    assert _is_parseable(_Response(), {}) is False

@@ -309,7 +309,7 @@ def _is_parseable(response: Any, request_parameters: Mapping[str, Any]) -> bool:
     return (
         request_parameters.get("stream") is not True
         and response.is_closed
-        and isinstance(getattr(response._options, "post_parser", None), NotGiven)
+        and isinstance(getattr(getattr(response, "_options", None), "post_parser", None), NotGiven)
     )
 
 
