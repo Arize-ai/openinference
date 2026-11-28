@@ -43,7 +43,15 @@ __all__ = (
 
 BLOB_UPLOADER_ENTRY_POINT_GROUP = "openinference_blob_uploader"
 
-_DATA_URI_PATTERN = re.compile(r"^data:(?P<mime>[^;,]+);base64,(?P<content>.+)$", re.DOTALL)
+# RFC 2397: data:<type/subtype>[;<parameter>]*;base64,<payload>. Parameters such
+# as ``name=`` or ``codecs=`` may sit between the media type and ``;base64``.
+_DATA_URI_PATTERN = re.compile(
+    r"^data:(?P<mime>[^;,]+)(?:;[^;,]+)*;base64,(?P<content>.+)$", re.DOTALL
+)
+
+# Line breaks and spaces inside a payload, e.g. from ``base64.encodebytes``
+# (MIME line wrapping at 76 characters).
+_BASE64_WHITESPACE = re.compile(r"[\t\n\v\f\r ]+")
 
 _MODALITY_BY_MIME_PREFIX = {
     "image/": "image",
@@ -54,9 +62,9 @@ _MODALITY_BY_MIME_PREFIX = {
 
 def parse_base64_data_uri(url: str) -> Optional[Tuple[str, str]]:
     """
-    Parses a ``data:<mime>;base64,<payload>`` URI of any media type.
-    Returns ``(mime_type, base64_payload)``, or None if the value is not a
-    base64 data URI.
+    Parses a ``data:<mime>[;<parameter>]*;base64,<payload>`` URI of any
+    media type. Returns ``(mime_type, base64_payload)``, where ``mime_type``
+    has no parameters, or None if the value is not a base64 data URI.
     """
     if not isinstance(url, str):
         return None
@@ -208,7 +216,7 @@ def decode_base64_data_uri_to_blob(url: str, attribute_key: Optional[str] = None
     try:
         # validate=True rejects malformed payloads instead of silently
         # discarding invalid characters (which would yield an empty blob).
-        data = base64.b64decode(payload, validate=True)
+        data = base64.b64decode(_BASE64_WHITESPACE.sub("", payload), validate=True)
     except Exception:
         return None
     return Blob(data=data, mime_type=mime_type, attribute_key=attribute_key)

@@ -719,6 +719,17 @@ def test_oversized_document_url_is_externalized(key: str, lazy: bool) -> None:
     assert blob.attribute_key == key
 
 
+@pytest.mark.parametrize("key", _ALL_DOCUMENT_URL_KEYS)
+def test_oversized_document_url_with_media_type_parameter_is_externalized(key: str) -> None:
+    uploader = _RecordingUploader()
+    config = TraceConfig(base64_image_max_length=100, blob_uploader=uploader)
+    value = "data:application/pdf;name=report.pdf;base64," + "A" * 200
+
+    assert config.mask(key, value) == "https://storage.example.com/blob"
+    assert len(uploader.uploads) == 1
+    assert uploader.uploads[0].mime_type == "application/pdf"
+
+
 @pytest.mark.parametrize("lazy", [False, True])
 @pytest.mark.parametrize("key", _ALL_DOCUMENT_URL_KEYS)
 def test_oversized_document_url_falls_back_to_redaction(key: str, lazy: bool) -> None:
