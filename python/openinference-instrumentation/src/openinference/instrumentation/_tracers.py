@@ -1104,6 +1104,8 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
         and isinstance(annotation_type, type)
         and issubclass(annotation_type, pydantic.BaseModel)
     ):
+        if hasattr(annotation_type, "model_json_schema"):
+            return annotation_type.model_json_schema()  # type: ignore[no-any-return]
         return annotation_type.schema()  # type: ignore[no-any-return,attr-defined]
     return {}
 
