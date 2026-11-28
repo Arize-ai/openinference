@@ -23,11 +23,15 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
+from pydantic import BaseModel
 from typing_extensions import TypeGuard
 
 from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
-from openinference.instrumentation.haystack._wrappers import infer_llm_provider_from_class_name
+from openinference.instrumentation.haystack._wrappers import (
+    _get_llm_invocation_parameters,
+    infer_llm_provider_from_class_name,
+)
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -479,7 +483,7 @@ def test_tool_calling_llm_span_has_expected_attributes(
     )
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert json.loads(tool_call_arguments) == {"location": "Berlin"}
-    assert attributes.pop(LLM_INVOCATION_PARAMETERS) == json.dumps({"tools": tools})
+    assert LLM_INVOCATION_PARAMETERS not in attributes
     assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
@@ -584,7 +588,7 @@ def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     )
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert json.loads(tool_call_arguments) == {"location": "Berlin, Germany"}
-    assert attributes.pop(LLM_INVOCATION_PARAMETERS) == json.dumps({"tools": tools})
+    assert LLM_INVOCATION_PARAMETERS not in attributes
     assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
@@ -1722,3 +1726,28 @@ def test_output_messages_keep_content_without_finish_reason(
     assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "answer two"
     assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
     assert not text_attributes
+
+
+def test_llm_invocation_parameters_without_component_kwargs() -> None:
+    class ComponentWithoutGenerationKwargs:
+        pass
+
+    class City(BaseModel):
+        name: str
+
+    attributes = dict(
+        _get_llm_invocation_parameters(
+            ComponentWithoutGenerationKwargs(),
+            {
+                "generation_kwargs": {
+                    "temperature": 0.0,
+                    "response_format": City,
+                    "tools": [{"type": "function"}],
+                }
+            },
+        )
+    )
+    assert json.loads(attributes[LLM_INVOCATION_PARAMETERS]) == {
+        "temperature": 0.0,
+        "response_format": City.model_json_schema(),
+    }

@@ -514,6 +514,12 @@ def _get_llm_invocation_parameters(
         **(component_kwargs if isinstance(component_kwargs, Mapping) else {}),
         **(run_kwargs if isinstance(run_kwargs, Mapping) else {}),
     }
+    # Tool schemas belong in llm.tools.*, not in every invocation-parameters value.
+    invocation_parameters.pop("tools", None)
+    for key, value in list(invocation_parameters.items()):
+        model_json_schema = getattr(value, "model_json_schema", None)
+        if isinstance(value, type) and callable(model_json_schema):
+            invocation_parameters[key] = model_json_schema()
     if not invocation_parameters:
         return
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
