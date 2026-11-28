@@ -21,7 +21,7 @@ from openinference.instrumentation.together._utils import (
     _materialize_content_iterables,
 )
 from openinference.instrumentation.together._with_span import _WithSpan
-from together import AsyncStream, NotGiven, Omit, Stream
+from together import APIResponse, AsyncAPIResponse, AsyncStream, NotGiven, Omit, Stream
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -101,6 +101,53 @@ class _WithTracer:
             logger.exception(f"Failed to finalize response of type {type(response)}")
             span.finish_tracing()
 
+    def _finalize_api_response(
+        self, span: _WithSpan, response: Any, request_parameters: Mapping[str, Any]
+    ) -> None:
+        """
+        with_raw_response and with_streaming_response return the HTTP response instead of the
+        chat completion. The parsed completion is cached for the caller's own parse().
+        """
+        if not _is_parseable(response, request_parameters):
+            span.finish_tracing()
+            return
+        try:
+            completion = response.parse()
+        except Exception:
+            logger.exception("Failed to parse the raw response")
+            span.finish_tracing()
+            return
+        self._finalize_response(span, completion)
+
+    async def _async_finalize_api_response(
+        self, span: _WithSpan, response: Any, request_parameters: Mapping[str, Any]
+    ) -> None:
+        """
+        See _finalize_api_response.
+        """
+        if not _is_parseable(response, request_parameters):
+            span.finish_tracing()
+            return
+        try:
+            completion = await response.parse()
+        except Exception:
+            logger.exception("Failed to parse the raw response")
+            span.finish_tracing()
+            return
+        self._finalize_response(span, completion)
+
+
+def _is_parseable(response: Any, request_parameters: Mapping[str, Any]) -> bool:
+    """
+    A raw response is parsed only if its body has been read and isn't a stream. A post_parser is
+    caller code, so it must only run when the caller parses the response itself.
+    """
+    return (
+        request_parameters.get("stream") is not True
+        and response.is_closed
+        and isinstance(getattr(getattr(response, "_options", None), "post_parser", None), NotGiven)
+    )
+
 
 class _CompletionsWrapper(_WithTracer):
     """Wraps ``CompletionsResource.create`` to trace synchronous chat calls."""
@@ -140,6 +187,9 @@ class _CompletionsWrapper(_WithTracer):
                 # The span is finished by the stream wrapper once the stream
                 # is fully consumed (or its context manager exits).
                 return _Stream(response, span, self._response_extractor)
+            if isinstance(response, APIResponse):
+                self._finalize_api_response(span, response, request_parameters)
+                return response
             self._finalize_response(span, response)
         return response
 
@@ -182,5 +232,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 # The span is finished by the stream wrapper once the stream
                 # is fully consumed (or its context manager exits).
                 return _Stream(response, span, self._response_extractor)
+            if isinstance(response, AsyncAPIResponse):
+                await self._async_finalize_api_response(span, response, request_parameters)
+                return response
             self._finalize_response(span, response)
         return response
