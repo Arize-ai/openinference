@@ -47,6 +47,17 @@ describe("extractModelName", () => {
     );
   });
 
+  // Geography prefixes returned by ListInferenceProfiles in ap-northeast-1, ap-southeast-2,
+  // ap-south-1 and ca-central-1
+  it.each([
+    ["jp.anthropic.claude-opus-5-5", "claude-opus-5-5"],
+    ["au.anthropic.claude-sonnet-4-5-20250929-v1:0", "claude-sonnet-4-5-20250929"],
+    ["in.moonshotai.kimi-k3.1", "kimi-k3.1"],
+    ["ca.amazon.nova-lite-v1:0", "nova-lite-v1:0"],
+  ])("strips the geography prefix from %s", (modelId, expected) => {
+    expect(extractModelName(modelId)).toBe(expected);
+  });
+
   it("extracts Anthropic model name from inference profile ARN", () => {
     expect(
       extractModelName(
