@@ -241,6 +241,43 @@ def test_parse_and_decode_base64_data_uri() -> None:
 
 
 @pytest.mark.parametrize(
+    "data_uri",
+    [
+        pytest.param(
+            "data:image/png;base64," + base64.encodebytes(PNG_BYTES).decode(),
+            id="line-wrapped-payload",
+        ),
+        pytest.param(
+            "data:image/png;name=chart.png;base64," + base64.b64encode(PNG_BYTES).decode(),
+            id="media-type-parameter",
+        ),
+    ],
+)
+def test_decode_base64_data_uri_variants(data_uri: str) -> None:
+    parsed = parse_base64_data_uri(data_uri)
+    assert parsed is not None and parsed[0] == "image/png"
+    blob = decode_base64_data_uri_to_blob(data_uri)
+    assert blob is not None
+    assert blob.data == PNG_BYTES
+    assert blob.mime_type == "image/png"
+
+
+def test_decode_base64_data_uri_rejects_other_characters_in_wrapped_payload() -> None:
+    wrapped = base64.encodebytes(PNG_BYTES).decode()
+    assert decode_base64_data_uri_to_blob("data:image/png;base64," + wrapped + "%") is None
+    assert parse_base64_data_uri("data:image/png;base64;name=chart.png," + wrapped) is None
+
+
+def test_mask_uploads_oversized_image_with_line_wrapped_payload() -> None:
+    uploader = InMemoryUploader()
+    config = TraceConfig(blob_uploader=uploader, base64_image_max_length=100)
+    data_uri = "data:image/png;base64," + base64.encodebytes(PNG_BYTES).decode()
+    masked = config.mask(INPUT_IMAGE_URL_KEY, data_uri)
+    assert isinstance(masked, str) and masked.startswith("memory://")
+    assert uploader.store[masked] == PNG_BYTES
+
+
+@pytest.mark.parametrize(
     "uri,valid",
     [
         ("https://bucket.example.com/a.png", True),
