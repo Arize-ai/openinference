@@ -11,7 +11,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
-from groq import NOT_GIVEN
+from groq import NOT_GIVEN, APIResponse, AsyncAPIResponse, NotGiven
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.groq._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -186,13 +186,20 @@ class _CompletionsWrapper(_WithTracer):
                         response_extractor=self._response_extractor,
                     ),
                 )
+            if _is_api_response(response) and not _is_parseable(response, request_parameters):
+                # The body is unread or parsing would run caller code: the outcome is unknown
+                span.finish_tracing()
+                return response
             try:
+                # with_raw_response returns the HTTP response, so parse it for the completion.
+                # The parsed completion is cached for the caller's own parse().
+                completion = response.parse() if _is_api_response(response) else response
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
                     with_span=span,
-                    attributes=self._response_extractor.get_attributes(response=response),
+                    attributes=self._response_extractor.get_attributes(response=completion),
                     extra_attributes=self._response_extractor.get_extra_attributes(
-                        response=response, request_parameters=request_parameters
+                        response=completion, request_parameters=request_parameters
                     ),
                 )
             except Exception:
@@ -264,19 +271,46 @@ class _AsyncCompletionsWrapper(_WithTracer):
                         response_extractor=self._response_extractor,
                     ),
                 )
+            if _is_api_response(response) and not _is_parseable(response, request_parameters):
+                # The body is unread or parsing would run caller code: the outcome is unknown
+                span.finish_tracing()
+                return response
             try:
+                # with_raw_response returns the HTTP response, so parse it for the completion.
+                # The parsed completion is cached for the caller's own parse().
+                completion = await response.parse() if _is_api_response(response) else response
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
                     with_span=span,
-                    attributes=self._response_extractor.get_attributes(response=response),
+                    attributes=self._response_extractor.get_attributes(response=completion),
                     extra_attributes=self._response_extractor.get_extra_attributes(
-                        response=response, request_parameters=request_parameters
+                        response=completion, request_parameters=request_parameters
                     ),
                 )
             except Exception:
                 logger.exception(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
         return response
+
+
+def _is_api_response(response: Any) -> bool:
+    """
+    with_raw_response and with_streaming_response return the HTTP response, wrapped in an
+    APIResponse, instead of the chat completion.
+    """
+    return isinstance(response, (APIResponse, AsyncAPIResponse))
+
+
+def _is_parseable(response: Any, request_parameters: Mapping[str, Any]) -> bool:
+    """
+    A raw response is parsed only if its body has been read and isn't a stream. A post_parser is
+    caller code, so it must only run when the caller parses the response itself.
+    """
+    return (
+        request_parameters.get("stream") is not True
+        and response.is_closed
+        and isinstance(getattr(getattr(response, "_options", None), "post_parser", None), NotGiven)
+    )
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
